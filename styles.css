@@ -1367,7 +1367,7 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--line-2);
 }
-.mob-bar-inner { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.mob-bar-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .mob-bar button {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 14px 8px;
