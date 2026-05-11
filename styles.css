@@ -778,7 +778,7 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
   border: 1.5px solid var(--line);
   border-radius: 14px;
   padding: 16px 18px;
-  font-size: 15.5px;
+  font-size: 16px;
   color: var(--white);
   transition: all 0.2s;
   outline: none;
@@ -923,6 +923,8 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
   border-radius: var(--r-xl);
   overflow: hidden;
   user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   cursor: ew-resize;
   background: #0a0a0a;
   border: 1px solid var(--line);
@@ -1407,4 +1409,115 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* ============ Mobile fine-tuning (≤ 480px) ============ */
+@media (max-width: 480px) {
+  .container { padding: 0 16px; }
+
+  /* Header — tighter pill, less left padding */
+  .header {
+    width: calc(100% - 24px);
+    padding: 10px 10px 10px 18px;
+    top: 10px;
+  }
+  .brand { font-size: 19px; gap: 10px; }
+  .brand .mark { width: 32px; height: 32px; font-size: 14px; }
+  .menu-toggle { width: 40px; height: 40px; }
+
+  /* Section vertical padding — keep breathing room but trim */
+  section { padding: 72px 0; }
+  section.tight { padding: 56px 0; }
+
+  /* Hero */
+  .hero { padding-top: 130px; padding-bottom: 60px; }
+  .hero h1 { font-size: clamp(34px, 9.2vw, 56px) !important; }
+  .hero p.lead { font-size: 16px; }
+  .hero-ctas { flex-direction: column; gap: 10px; }
+  .hero-ctas .btn { width: 100%; }
+  .hero-trust {
+    grid-template-columns: 1fr;
+    text-align: left;
+    max-width: 320px !important;
+    gap: 12px;
+  }
+
+  /* Marquee */
+  .marquee-word { font-size: clamp(48px, 14vw, 76px); }
+  .marquee-track { gap: 28px; }
+
+  /* Eyebrow — allow wrap on very narrow screens */
+  .eyebrow {
+    font-size: 11px;
+    padding: 7px 14px;
+    letter-spacing: 0.12em;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* Section heads */
+  h2 { font-size: clamp(30px, 8vw, 42px) !important; }
+  .section-head { margin-bottom: 48px; }
+
+  /* Buttons */
+  .btn-lg { padding: 17px 28px; font-size: 13px; }
+
+  /* Pain / Services / Audiences padding */
+  .pain-card,
+  .aud-card,
+  .test-card,
+  .how-card { padding: 26px; }
+  .svc-body { padding: 26px; }
+
+  /* Quoter */
+  .service-card { padding: 18px; gap: 14px; }
+  .service-icon { width: 42px; height: 42px; }
+  .service-name { font-size: 15.5px; }
+  .service-desc { font-size: 13px; }
+  .summary-card { padding: 24px; }
+  .summary-total .val { font-size: 36px; }
+  .summary-row .x { width: 28px; height: 28px; }
+
+  /* Final card */
+  .final-card { padding: 28px 22px; }
+  .final-head { gap: 14px; }
+  .final-head .badge { width: 52px; height: 52px; }
+  .total-block { padding: 22px; }
+  .total-block .val { font-size: clamp(44px, 12vw, 64px); }
+
+  /* FAQ */
+  .faq-trigger { padding: 20px 22px; font-size: 15.5px; }
+  .faq-answer { padding: 0 22px 22px; font-size: 14.5px; }
+
+  /* Big CTA */
+  .big-cta { padding: 48px 28px; }
+  .big-cta p { font-size: 16px; }
+
+  /* Footer CTA stacks */
+  .footer-cta { padding: 32px 26px; gap: 20px; }
+  .footer-cta .ctas { width: 100%; }
+  .footer-cta .ctas .btn { flex: 1; }
+  .footer { padding-top: 72px; }
+
+  /* Before/After labels — smaller on mobile */
+  .ba-label { font-size: 10px; padding: 6px 12px; }
+  .ba-placeholder-tag { font-size: 10px; }
+  .ba-handle::after { width: 44px; height: 44px; }
+
+  /* Marquee wrap pulls less margin */
+  .marquee-wrap { margin-top: 40px; padding-bottom: 24px; }
+
+  /* Proof bar */
+  .proof { padding: 20px 0; }
+  .proof-row { gap: 16px; font-size: 13px; }
+  .proof-row strong { font-size: 15px; }
+
+  /* Mobile sticky bar safer area */
+  .mob-bar { bottom: max(10px, env(safe-area-inset-bottom)); left: 12px; right: 12px; }
+  .mob-bar button { padding: 13px 6px; font-size: 11.5px; }
+}
+
+/* Prevent iOS focus zoom on form inputs */
+@supports (-webkit-touch-callout: none) {
+  .field input, .field select, .field textarea { font-size: 16px; }
 }
