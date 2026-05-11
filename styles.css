@@ -665,7 +665,7 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
 }
 .service-card.selected .service-icon { background: var(--brand-orange); color: var(--dark-base); }
 
-.service-body { flex: 1; min-width: 0; }
+.service-body { flex: 1; min-width: 0; padding-right: 32px; }
 .service-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .service-name { font-size: 16.5px; font-weight: 700; color: var(--white); letter-spacing: -0.01em; }
 .service-price { font-size: 14px; color: var(--brand-orange); font-weight: 700; }
