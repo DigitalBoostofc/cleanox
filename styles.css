@@ -407,8 +407,10 @@ section.tight { padding: clamp(64px, 8vw, 120px) 0; }
 .hero-trust {
   margin-top: 40px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px 32px;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  column-gap: 44px;
+  row-gap: 14px;
 }
 .hero-trust li {
   display: flex; gap: 12px; align-items: flex-start;
