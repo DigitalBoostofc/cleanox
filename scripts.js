@@ -26,6 +26,28 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+  /* ---------- Theme toggle ---------- */
+  function initTheme() {
+    const KEY = "cleanox-theme";
+    const html = document.documentElement;
+    const meta = document.getElementById("meta-theme-color");
+    const btn = document.getElementById("theme-toggle");
+    const apply = (theme) => {
+      if (theme === "light") {
+        html.setAttribute("data-theme", "light");
+        meta?.setAttribute("content", "#FFFFFF");
+      } else {
+        html.removeAttribute("data-theme");
+        meta?.setAttribute("content", "#0C0C0C");
+      }
+    };
+    btn?.addEventListener("click", () => {
+      const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
+      apply(next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+    });
+  }
+
   /* ---------- Hero marquee ---------- */
   function initMarquee() {
     const track = $("#marquee-track");
@@ -581,6 +603,7 @@
 
   /* ---------- Init ---------- */
   function init() {
+    initTheme();
     initMarquee();
     initHeader();
     initMobileMenu();
