@@ -603,9 +603,7 @@
 
   /* ---------- Init ---------- */
   function init() {
-    // Theme toggle is currently disabled (light-only).
-    // To re-enable: restore the button in index.html + uncomment below.
-    // initTheme();
+    initTheme();
     initMarquee();
     initHeader();
     initMobileMenu();
