@@ -70,14 +70,15 @@ let toastId = 0
 interface OSCardProps {
   os: OrdemServico
   onIniciar: (os: OrdemServico) => Promise<void>
-  onAvisar: (os: OrdemServico) => void
+  onAvisar: (os: OrdemServico) => Promise<void>
   onPagar: (os: OrdemServico) => void
   onConcluir: (os: OrdemServico) => Promise<void>
   actionLoading: boolean
   actionError: string | null
+  avisoLoading: boolean
 }
 
-function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, actionError }: OSCardProps) {
+function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, actionError, avisoLoading }: OSCardProps) {
   const hoje = isOsToday(os)
   const pagamentoRegistrado = (os.valor_pago ?? 0) > 0 && !!os.forma_pagamento
 
@@ -253,10 +254,12 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
               )}
               <button
                 className="clx-btn clx-btn-ghost"
-                style={{ flex: 1 }}
-                onClick={() => onAvisar(os)}
+                style={{ flex: 1, opacity: os.aviso_a_caminho_em ? 0.65 : 1 }}
+                onClick={() => { void onAvisar(os) }}
+                disabled={!!os.aviso_a_caminho_em || avisoLoading}
               >
-                Avisar que estou a caminho
+                {avisoLoading && !os.aviso_a_caminho_em ? <Spinner size={14} /> : null}
+                {os.aviso_a_caminho_em ? 'Cliente avisado ✓' : 'Avisar que estou a caminho'}
               </button>
             </div>
 
@@ -338,9 +341,11 @@ export default function MeusServicos() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // loading/error por OS id
+  // loading/error por OS id (para Iniciar e Concluir)
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState<Record<string, string | null>>({})
+  // loading separado para "Avisar a caminho" (não bloqueia outros botões)
+  const [avisoLoading, setAvisoLoading] = useState<Record<string, boolean>>({})
 
   // modal de pagamento
   const [payModal, setPayModal] = useState<OrdemServico | null>(null)
@@ -469,15 +474,31 @@ export default function MeusServicos() {
     }
   }, [showToast])
 
-  const handleAvisar = useCallback((os: OrdemServico) => {
+  const handleAvisar = useCallback(async (os: OrdemServico) => {
     if (avisoSent.current.has(os.id)) return
     avisoSent.current.add(os.id)
-    // [INTEGRAÇÃO FUTURA] Aqui será feita uma chamada ao endpoint da Cleanox
-    // que dispara o WhatsApp/SMS para o cliente. O profissional NÃO tem o
-    // telefone do cliente — o backend enviará em nome da empresa.
-    showToast('Cliente será avisado pelo sistema da Cleanox.', 'info')
-    // Reabilita após 30s para evitar spam
-    setTimeout(() => avisoSent.current.delete(os.id), 30_000)
+    setAvisoLoading((prev) => ({ ...prev, [os.id]: true }))
+    try {
+      const res = await pb.send<{ ok: boolean; sentAt: string }>(
+        `/api/cleanos/os/${os.id}/a-caminho`,
+        { method: 'POST' }
+      )
+      updateOsInState({ ...os, aviso_a_caminho_em: res.sentAt })
+      showToast('Cliente avisado pela Cleanox ✓', 'success')
+      // Mantém bloqueado 30s mesmo após sucesso (botão já fica desabilitado por aviso_a_caminho_em)
+      setTimeout(() => avisoSent.current.delete(os.id), 30_000)
+    } catch (err) {
+      avisoSent.current.delete(os.id)
+      if (err instanceof ClientResponseError && err.status === 409) {
+        showToast('WhatsApp da empresa não está conectado. Avise o administrador.', 'error')
+      } else if (err instanceof ClientResponseError && err.status === 403) {
+        showToast('Ação não autorizada para este serviço.', 'error')
+      } else {
+        showToast(extractApiError(err), 'error')
+      }
+    } finally {
+      setAvisoLoading((prev) => ({ ...prev, [os.id]: false }))
+    }
   }, [showToast])
 
   const handlePagar = useCallback((os: OrdemServico) => {
@@ -684,6 +705,7 @@ export default function MeusServicos() {
                     onConcluir={handleConcluir}
                     actionLoading={actionLoading[os.id] ?? false}
                     actionError={actionError[os.id] ?? null}
+                    avisoLoading={avisoLoading[os.id] ?? false}
                   />
                 ))
               )}
@@ -716,6 +738,7 @@ export default function MeusServicos() {
                     onConcluir={handleConcluir}
                     actionLoading={actionLoading[os.id] ?? false}
                     actionError={actionError[os.id] ?? null}
+                    avisoLoading={avisoLoading[os.id] ?? false}
                   />
                 ))}
               </div>

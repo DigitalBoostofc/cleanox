@@ -316,7 +316,133 @@ cleanos/pb/
 
 ---
 
-## 8. Decisões e premissas
+## 8. Integração WhatsApp (UAZAPI)
+
+### 8.1 Variáveis de ambiente
+
+| Variável             | Descrição                                                  |
+|----------------------|------------------------------------------------------------|
+| `UAZAPI_BASE_URL`    | URL base do servidor UAZAPI (ex.: `https://appexcrm.uazapi.com`) |
+| `UAZAPI_ADMIN_TOKEN` | Admin token do UAZAPI (obtido no painel UAZAPI)            |
+
+**Desenvolvimento local:** exporte no shell antes de subir o PocketBase:
+```bash
+export UAZAPI_BASE_URL=https://appexcrm.uazapi.com
+export UAZAPI_ADMIN_TOKEN=<seu_token>
+./pocketbase serve --http=127.0.0.1:8090
+```
+
+**Produção (systemd):** use `EnvironmentFile` no serviço. Exemplo atualizado:
+```ini
+[Service]
+User=cleanos
+WorkingDirectory=/opt/cleanos/pb
+EnvironmentFile=/opt/cleanos/cleanos.env
+ExecStart=/opt/cleanos/pb/pocketbase serve --http=127.0.0.1:8090
+```
+
+O arquivo `/opt/cleanos/cleanos.env` deve ter permissão `chmod 600` e pertencer ao usuário do serviço. Um template sem valores está em `cleanos/pb/cleanos.env.example`.
+
+### 8.2 Rotas custom — contrato de API
+
+Todas as rotas exigem `Authorization: <token>` (mesmo formato das outras rotas PocketBase).
+
+#### `GET /api/cleanos/whatsapp/status` — admin/gerente
+
+Consulta o status atual da instância UAZAPI e atualiza o cache em `app_config`.
+
+**Response 200:**
+```json
+{
+  "configured": true,
+  "status": "connected",
+  "instanceName": "cleanox",
+  "profileName": "Cleanox Higienização"
+}
+```
+Quando não configurada: `{ "configured": false, "status": "disconnected", "instanceName": "" }`.
+O token da instância **nunca** aparece na resposta.
+
+#### `POST /api/cleanos/whatsapp/connect` — admin/gerente
+
+Cria a instância UAZAPI se ainda não existir (idempotente), depois inicia a conexão e retorna o QR code. O frontend deve exibir o `qrcode` (imagem base64) para o responsável escanear.
+
+**Request:** sem body.
+
+**Response 200:**
+```json
+{
+  "status": "connecting",
+  "qrcode": "data:image/png;base64,iVBOR...",
+  "paircode": "1234-5678"
+}
+```
+`qrcode` e `paircode` podem ser `null` dependendo da versão UAZAPI.
+
+#### `POST /api/cleanos/whatsapp/disconnect` — admin/gerente
+
+Desconecta a instância do WhatsApp.
+
+**Request:** sem body.
+
+**Response 200:**
+```json
+{ "status": "disconnected" }
+```
+
+#### `POST /api/cleanos/os/{id}/a-caminho` — profissional (dono da OS)
+
+Dispara o aviso "estou a caminho" para o cliente via WhatsApp. O profissional **não** precisa saber nem vê o telefone do cliente — a rota lê o contato do cofre server-side.
+
+**Pré-condições:**
+- Auth deve ser o `profissional` atribuído à OS.
+- OS deve estar com `status = em_andamento`.
+- WhatsApp deve estar `connected`.
+
+**Request:** sem body.
+
+**Response 200:**
+```json
+{ "ok": true, "sentAt": "2026-06-26 14:30:00.000Z" }
+```
+
+**Response 403:** profissional não é dono da OS, ou papel incorreto.
+
+**Response 409:** WhatsApp não conectado (ou não configurado).
+
+```json
+{ "error": "WhatsApp não está conectado (status: disconnected). Peça ao admin para reconectar." }
+```
+
+O campo `telefone` **nunca** aparece na resposta em nenhum cenário.
+
+### 8.3 Fluxo de setup (dono escaneia QR)
+
+```
+Admin → POST /connect → frontend exibe QR → dono escaneia no celular
+     → GET /status (poll) até status = "connected"
+```
+
+Depois de conectado, o profissional pode usar `POST /a-caminho` em qualquer OS `em_andamento` atribuída a ele.
+
+### 8.4 Coleção `app_config`
+
+Singleton (1 registro) criado na migration 3. Regras de acesso: **somente superuser** (null rules). Nenhum papel de negócio lê/escreve via API — os hooks o acessam server-side.
+
+| Campo                     | Tipo | Descrição                                      |
+|---------------------------|------|------------------------------------------------|
+| `whatsapp_instance_name`  | text | Nome da instância UAZAPI (ex.: "cleanox")      |
+| `whatsapp_instance_token` | text | Token da instância — **dado sensível**         |
+| `whatsapp_status`         | text | Status em cache: disconnected/connecting/connected |
+| `aviso_template`          | text | Template da mensagem (placeholders: {nome}, {servico}) |
+
+### 8.5 Campo `aviso_a_caminho_em` em `ordens_servico`
+
+Adicionado na migration 3. Data/hora do envio do aviso, gravada server-side pela rota `/a-caminho`. O profissional **não pode** gravar este campo via PATCH (está no `locked` do guard `guardOrdemUpdateRequest`).
+
+---
+
+## 9. Decisões e premissas
 
 - **Versão PocketBase:** v0.39.4 (Linux amd64). A API JSVM desta versão exige
   `collection.fields.add(...)` e atribuição de regras por propriedade
@@ -334,17 +460,17 @@ cleanos/pb/
   os dias. Isso evita bloquear serviços noturnos (ex.: 23h BRT = 02h UTC do dia
   seguinte) sem precisar de biblioteca de timezone.
 - **Preços do catálogo são PLACEHOLDER** (gate de negócio **G-03** em aberto).
-- **"Avisar que estou a caminho" / WhatsApp/SMS** não está no backend deste
-  entregável (é integração de borda; o disparo é pela empresa, nunca pelo
-  profissional). O modelo de dados já garante que o profissional não tem o
-  telefone para isso.
+- **"Avisar que estou a caminho" / WhatsApp** implementado via UAZAPI (§8).
+  O disparo é server-side: o profissional chama `POST /a-caminho` e nunca
+  vê o telefone do cliente. A garantia anti-desvio permanece: o telefone
+  só existe no cofre `clientes` e é lido internamente pelo hook.
 - **Senhas de seed** são de teste e devem ser trocadas.
 
 ---
 
-## 9. Segurança — checklist de go-live
+## 10. Segurança — checklist de go-live
 
-### 9.1 Senhas de seed — TROCA OBRIGATÓRIA antes de produção
+### 10.1 Senhas de seed — TROCA OBRIGATÓRIA antes de produção
 
 > ⚠️ **As senhas abaixo são SOMENTE para desenvolvimento local. Nunca usar em produção.**
 
@@ -360,7 +486,7 @@ Procedimento seguro: após deploy, acesse o Admin UI (`/_/`), altere cada
 senha via "Edit User" e desative as contas de seed que não serão usadas em
 produção.
 
-### 9.2 Rate limiting (PocketBase nativo)
+### 10.2 Rate limiting (PocketBase nativo)
 
 PocketBase v0.39+ tem rate limiting configurável via Admin UI em
 **Settings → Rate limits**. Recomendações mínimas para produção:
@@ -379,7 +505,7 @@ curl -X PATCH http://127.0.0.1:8090/api/settings \
 
 Consultar a documentação do PocketBase para o formato exato de `rateLimits`.
 
-### 9.3 Garantias anti-desvio já implementadas (resumo técnico)
+### 10.3 Garantias anti-desvio já implementadas (resumo técnico)
 
 | Vetor | Proteção |
 |-------|----------|
@@ -394,7 +520,7 @@ Consultar a documentação do PocketBase para o formato exato de `rateLimits`.
 
 ---
 
-## 10. Evidência da verificação (resumo)
+## 11. Evidência da verificação (resumo)
 
 `./verify_rules.sh` contra o seed — **21/21 PASS**. Destaques:
 

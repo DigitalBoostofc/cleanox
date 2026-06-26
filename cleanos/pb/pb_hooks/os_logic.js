@@ -174,7 +174,8 @@ function guardOrdemUpdateRequest(e) {
     "tipo_servico_nome",
     "data_hora",
     "valor_servico",
-    "endereco_liberado", // só o hook escreve isto
+    "endereco_liberado",     // só o hook de modelo escreve
+    "aviso_a_caminho_em",    // só a rota /a-caminho escreve (server-side)
     "repasse_status",
     "repasse_valor",
     "observacoes",

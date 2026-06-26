@@ -13,6 +13,7 @@ import Agenda from './pages/painel/Agenda'
 import Financeiro from './pages/painel/Financeiro'
 import Usuarios from './pages/painel/Usuarios'
 import Conta from './pages/painel/Conta'
+import WhatsAppAdmin from './pages/painel/WhatsApp'
 
 import AppLayout from './pages/app/AppLayout'
 import MeusServicos from './pages/app/MeusServicos'
@@ -56,7 +57,15 @@ function AppRoutes() {
         <Route path="agenda"    element={<Agenda />} />
         <Route path="financeiro"element={<Financeiro />} />
         <Route path="usuarios"  element={<Usuarios />} />
-        <Route path="conta"     element={<Conta />} />
+        <Route path="conta"      element={<Conta />} />
+        <Route
+          path="whatsapp"
+          element={
+            <RoleGuard allowedRoles={['admin']}>
+              <WhatsAppAdmin />
+            </RoleGuard>
+          }
+        />
       </Route>
 
       {/* App do profissional */}

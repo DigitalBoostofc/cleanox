@@ -111,6 +111,8 @@ export interface OrdemServico extends PBRecord {
   /** Gerenciado manualmente pelo admin */
   repasse_status?: RepasseStatus
   repasse_valor?: number
+  /** Preenchido pelo backend ao enviar aviso via WhatsApp */
+  aviso_a_caminho_em?: string
   observacoes?: string
   expand?: {
     cliente?: Cliente

@@ -568,6 +568,88 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
   })
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('K · WhatsApp — guards de papel e ausência de dados sensíveis', () => {
+    // OS em_andamento criada para os testes K3 / K4
+    let waOsId
+
+    before(async () => {
+      waOsId = (await createOS(s.adminTok, {
+        cliente: s.clienteId,
+        servico: s.servicoId,
+        profissional: s.profId,
+        data_hora: `${todayUTC()} 10:00:00.000Z`,
+        status: 'em_andamento',
+        valor_servico: 100,
+      })).id
+    })
+
+    after(async () => {
+      await deleteOS(s.adminTok, waOsId)
+    })
+
+    it('K1 · profissional não acessa GET /whatsapp/status → 401 ou 403', async () => {
+      const { status } = await GET('/api/cleanos/whatsapp/status', s.profTok)
+      assert.ok(
+        status === 401 || status === 403,
+        `Profissional deveria ser bloqueado em /whatsapp/status, got HTTP ${status}`
+      )
+    })
+
+    it('K2 · profissional não acessa POST /whatsapp/connect → 401 ou 403', async () => {
+      const { status } = await POST('/api/cleanos/whatsapp/connect', s.profTok)
+      assert.ok(
+        status === 401 || status === 403,
+        `Profissional deveria ser bloqueado em /whatsapp/connect, got HTTP ${status}`
+      )
+    })
+
+    it('K3 · outro profissional (lucas) não dispara a-caminho de OS de pedro → 403', async () => {
+      const { status } = await POST(`/api/cleanos/os/${waOsId}/a-caminho`, s.prof2Tok)
+      assert.strictEqual(
+        status, 403,
+        `Lucas deveria receber 403 ao tentar disparar a-caminho de OS de Pedro, got ${status}`
+      )
+    })
+
+    it('K4 · a-caminho da própria OS: resposta NÃO contém telefone; retorna 409 (WA não conectado) ou 200', async () => {
+      const { status, body } = await POST(`/api/cleanos/os/${waOsId}/a-caminho`, s.profTok)
+      // Em ambiente de teste o WhatsApp não está conectado → espera 409
+      // Se por algum motivo estiver conectado, aceita 200 também
+      assert.ok(
+        status === 409 || status === 200,
+        `a-caminho deveria retornar 409 (WA desconectado) ou 200, got ${status}: ${JSON.stringify(body)}`
+      )
+      // Em NENHUM caso a resposta pode conter telefone
+      const bodyStr = JSON.stringify(body || {})
+      assert.ok(
+        !bodyStr.includes('telefone') && !bodyStr.includes('phone') && !bodyStr.includes('numero'),
+        `Resposta da rota a-caminho vazou dado sensível: ${bodyStr}`
+      )
+    })
+
+    it('K5 · profissional não grava aviso_a_caminho_em via PATCH direto → bloqueado', async () => {
+      const { status } = await PATCH(
+        `/api/collections/ordens_servico/records/${waOsId}`,
+        s.profTok,
+        { aviso_a_caminho_em: '2026-01-01 10:00:00.000Z' }
+      )
+      assert.notStrictEqual(
+        status, 200,
+        'Profissional não deveria conseguir gravar aviso_a_caminho_em via PATCH direto'
+      )
+    })
+
+    it('K6 · admin acessa GET /whatsapp/status → 200', async () => {
+      const { status, body } = await GET('/api/cleanos/whatsapp/status', s.adminTok)
+      assert.strictEqual(status, 200, `Admin deveria acessar /whatsapp/status, got ${status}`)
+      assert.ok('configured' in (body || {}), 'Resposta deve ter campo `configured`')
+      // Token NUNCA deve vazar na resposta
+      assert.ok(!body?.token && !body?.instanceToken && !body?.whatsapp_instance_token,
+        'Token da instância não deve aparecer na resposta de /whatsapp/status')
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('J · F-04 — Day-check em BRT (UTC-3)', () => {
     // Valida que o day-check usa fuso BRT, não UTC cru.
     // Cobre o cenário: data_hora ontem 23h UTC = ontem 20h BRT → deve BLOQUEAR.

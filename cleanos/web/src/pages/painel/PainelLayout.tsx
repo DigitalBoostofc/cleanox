@@ -9,6 +9,7 @@ import {
   IconAgenda,
   IconFinanceiro,
   IconUsuarios,
+  IconWhatsApp,
   IconLogOut,
   IconMenu,
   IconX,
@@ -20,29 +21,38 @@ interface NavItem {
   icon: React.ReactNode
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/painel',           label: 'Dashboard',         icon: <IconDashboard /> },
-  { to: '/painel/clientes',  label: 'Clientes',          icon: <IconClientes /> },
-  { to: '/painel/ordens',    label: 'Ordens de Serviço', icon: <IconOrdens /> },
-  { to: '/painel/agenda',    label: 'Agenda',            icon: <IconAgenda /> },
-  { to: '/painel/financeiro',label: 'Financeiro',        icon: <IconFinanceiro /> },
-  { to: '/painel/usuarios',  label: 'Usuários',          icon: <IconUsuarios /> },
+const BASE_NAV_ITEMS: NavItem[] = [
+  { to: '/painel',            label: 'Dashboard',         icon: <IconDashboard /> },
+  { to: '/painel/clientes',   label: 'Clientes',          icon: <IconClientes /> },
+  { to: '/painel/ordens',     label: 'Ordens de Serviço', icon: <IconOrdens /> },
+  { to: '/painel/agenda',     label: 'Agenda',            icon: <IconAgenda /> },
+  { to: '/painel/financeiro', label: 'Financeiro',        icon: <IconFinanceiro /> },
+  { to: '/painel/usuarios',   label: 'Usuários',          icon: <IconUsuarios /> },
+]
+
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { to: '/painel/whatsapp', label: 'WhatsApp', icon: <IconWhatsApp /> },
 ]
 
 const PAGE_TITLES: Record<string, string> = {
-  '/painel':            'Dashboard',
-  '/painel/clientes':   'Clientes',
-  '/painel/ordens':     'Ordens de Serviço',
-  '/painel/agenda':     'Agenda',
-  '/painel/financeiro': 'Financeiro',
-  '/painel/usuarios':   'Usuários',
-  '/painel/conta':      'Minha Conta',
+  '/painel':             'Dashboard',
+  '/painel/clientes':    'Clientes',
+  '/painel/ordens':      'Ordens de Serviço',
+  '/painel/agenda':      'Agenda',
+  '/painel/financeiro':  'Financeiro',
+  '/painel/usuarios':    'Usuários',
+  '/painel/conta':       'Minha Conta',
+  '/painel/whatsapp':    'WhatsApp',
 }
 
 export default function PainelLayout() {
   const { user, role, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const navItems = role === 'admin'
+    ? [...BASE_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
+    : BASE_NAV_ITEMS
 
   const currentTitle =
     PAGE_TITLES[window.location.pathname] ?? 'Painel'
@@ -83,7 +93,7 @@ export default function PainelLayout() {
         </div>
 
         <nav className="painel-nav" aria-label="Menu principal">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
