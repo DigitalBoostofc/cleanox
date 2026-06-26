@@ -4,7 +4,7 @@ import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
 import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
-import { COLLECTIONS, type OrdemServico, getBrtDayBounds } from '../../lib/collections'
+import { COLLECTIONS, type OrdemServico, getBrtDayBounds, userDisplayName } from '../../lib/collections'
 import { IconLogOut, IconAlertCircle, IconCheckCircle, IconLock } from '../../components/ui/Icon'
 import { StarRating } from '../../components/ui/StarRating'
 
@@ -125,7 +125,8 @@ export default function Perfil() {
     }
   }
 
-  const displayName = user?.nome ?? user?.name ?? 'Profissional'
+  const rawName = userDisplayName(user)
+  const displayName = rawName !== '—' ? rawName : 'Profissional'
   const avatarInitial = displayName.charAt(0).toUpperCase()
 
   return (

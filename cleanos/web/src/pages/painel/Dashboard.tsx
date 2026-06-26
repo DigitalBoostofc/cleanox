@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatDateTime,
   getBrtDayBounds,
+  userDisplayName,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { IconAlertCircle } from '../../components/ui/Icon'
@@ -171,7 +172,7 @@ export default function Dashboard() {
                   <strong>{os.nome_curto} — {os.bairro}</strong>
                   <span>
                     {os.tipo_servico_nome ?? '—'}
-                    {prof ? ` · ${prof.nome ?? prof.name}` : ''}
+                    {prof ? ` · ${userDisplayName(prof)}` : ''}
                   </span>
                 </div>
 

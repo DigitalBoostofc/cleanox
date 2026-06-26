@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Logo } from '../../components/ui/Logo'
+import { userDisplayName } from '../../lib/collections'
 import {
   IconDashboard,
   IconClientes,
@@ -70,9 +71,8 @@ export default function PainelLayout() {
 
   const closeSidebar = () => setSidebarOpen(false)
 
-  const avatarInitial = user?.name
-    ? user.name.charAt(0).toUpperCase()
-    : 'U'
+  const dn = userDisplayName(user)
+  const avatarInitial = dn !== '—' ? dn.charAt(0).toUpperCase() : 'U'
 
   return (
     <div className="painel-root">
@@ -127,7 +127,7 @@ export default function PainelLayout() {
                 {avatarInitial}
               </div>
               <div className="painel-user-name">
-                <strong title={user?.name}>{user?.name ?? 'Usuário'}</strong>
+                <strong title={dn}>{dn !== '—' ? dn : 'Usuário'}</strong>
                 <span className="painel-user-role">{role}</span>
               </div>
             </Link>

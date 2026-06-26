@@ -5,6 +5,7 @@ import { pb } from '../../lib/pb'
 import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
 import { IconAlertCircle, IconCheckCircle, IconUser, IconLock } from '../../components/ui/Icon'
+import { userDisplayName } from '../../lib/collections'
 
 function pbPasswordError(err: unknown): string {
   if (err instanceof ClientResponseError) {
@@ -93,7 +94,7 @@ export default function Conta() {
         <dl>
           <div className="detail-row">
             <dt>Nome</dt>
-            <dd>{user?.name ?? '—'}</dd>
+            <dd>{userDisplayName(user)}</dd>
           </div>
           <div className="detail-row">
             <dt>E-mail</dt>

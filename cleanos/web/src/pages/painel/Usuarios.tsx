@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
-import { COLLECTIONS, type User, type Role } from '../../lib/collections'
+import { COLLECTIONS, type User, type Role, userDisplayName } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -137,7 +137,7 @@ export default function Usuarios() {
           role: form.role,
           password: form.password,
           passwordConfirm: form.passwordConfirm,
-          emailVisibility: false,
+          emailVisibility: true,
         })
       }
       setModalOpen(false)
@@ -216,7 +216,7 @@ export default function Usuarios() {
                 ) : (
                   users.map((u) => (
                     <tr key={u.id}>
-                      <td><strong>{u.name ?? '—'}</strong></td>
+                      <td><strong>{userDisplayName(u)}</strong></td>
                       <td>{u.email}</td>
                       <td>
                         <span className="clx-chip">
@@ -380,7 +380,7 @@ export default function Usuarios() {
         }
       >
         <p style={{ fontSize: '0.9rem', color: 'var(--clx-ink-2)', lineHeight: 1.6 }}>
-          Tem certeza que deseja excluir o usuário <strong>{deleteTarget?.name}</strong>?
+          Tem certeza que deseja excluir o usuário <strong>{userDisplayName(deleteTarget)}</strong>?
           Esta ação não pode ser desfeita.
         </p>
       </Modal>

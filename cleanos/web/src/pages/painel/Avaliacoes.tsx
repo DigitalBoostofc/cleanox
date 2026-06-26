@@ -5,6 +5,7 @@ import {
   type User,
   type OrdemServico,
   formatDateTime,
+  userDisplayName,
 } from '../../lib/collections'
 import { StarRating } from '../../components/ui/StarRating'
 import { Spinner } from '../../components/ui/Spinner'
@@ -167,7 +168,7 @@ export default function Avaliacoes() {
                   style={!hasRatings ? { cursor: 'default' } : undefined}
                 >
                   <div className="accordion-header-left">
-                    <span className="accordion-prof-name">{prof.nome ?? prof.name}</span>
+                    <span className="accordion-prof-name">{userDisplayName(prof)}</span>
                     {hasRatings ? (
                       <span className="accordion-rating">
                         <StarRating nota={Math.round(stats.media)} size={14} />

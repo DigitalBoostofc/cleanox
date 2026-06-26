@@ -3,6 +3,7 @@ import {
   osStatusLabel,
   formaPagamentoLabel,
   repasseStatusLabel,
+  userDisplayName,
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -45,6 +46,40 @@ describe('formaPagamentoLabel', () => {
 describe('repasseStatusLabel', () => {
   it('pago → Repassado', () => expect(repasseStatusLabel('pago')).toBe('Repassado'))
   it('pendente → Pendente', () => expect(repasseStatusLabel('pendente')).toBe('Pendente'))
+})
+
+describe('userDisplayName', () => {
+  it('retorna nome quando só name está preenchido', () => {
+    expect(userDisplayName({ name: 'Dennis' })).toBe('Dennis')
+  })
+
+  it('retorna nome quando só nome está preenchido', () => {
+    expect(userDisplayName({ nome: 'Dennis', name: '' })).toBe('Dennis')
+  })
+
+  it('prefere nome sobre name quando ambos estão presentes', () => {
+    expect(userDisplayName({ nome: 'Dennis Silva', name: 'dennis' })).toBe('Dennis Silva')
+  })
+
+  it('cai para name quando nome é string vazia (bug original com ??)', () => {
+    expect(userDisplayName({ nome: '', name: 'Dennis' })).toBe('Dennis')
+  })
+
+  it('cai para name quando nome é só espaços', () => {
+    expect(userDisplayName({ nome: '   ', name: 'Dennis' })).toBe('Dennis')
+  })
+
+  it('retorna "—" quando ambos estão ausentes', () => {
+    expect(userDisplayName({})).toBe('—')
+  })
+
+  it('retorna "—" para null', () => {
+    expect(userDisplayName(null)).toBe('—')
+  })
+
+  it('retorna "—" para undefined', () => {
+    expect(userDisplayName(undefined)).toBe('—')
+  })
 })
 
 describe('formatCurrency', () => {

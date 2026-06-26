@@ -155,6 +155,10 @@ export function repasseStatusLabel(s: RepasseStatus): string {
   return s === 'pago' ? 'Repassado' : 'Pendente'
 }
 
+export function userDisplayName(u?: { nome?: string; name?: string } | null): string {
+  return (u?.nome && u.nome.trim()) || u?.name || '—'
+}
+
 /* ---- Formatadores ---- */
 
 export function formatCurrency(value: number): string {

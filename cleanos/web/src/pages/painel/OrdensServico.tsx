@@ -14,6 +14,7 @@ import {
   formatDateTime,
   pbDateToLocalInput,
   localInputToPBDate,
+  userDisplayName,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { StarRating } from '../../components/ui/StarRating'
@@ -353,7 +354,7 @@ export default function OrdensServico() {
                         </td>
                         <td>{os.tipo_servico_nome ?? '—'}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(os.data_hora)}</td>
-                        <td>{prof ? (prof.nome ?? prof.name) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</td>
+                        <td>{prof ? userDisplayName(prof) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{formatCurrency(os.valor_servico ?? 0)}</td>
                         <td>
                           <span className={`clx-status clx-status-${os.status}`}>
@@ -532,7 +533,7 @@ export default function OrdensServico() {
               >
                 <option value="">— Não atribuído (status: Agendada) —</option>
                 {profissionais.map((p) => (
-                  <option key={p.id} value={p.id}>{p.nome ?? p.name}</option>
+                  <option key={p.id} value={p.id}>{userDisplayName(p)}</option>
                 ))}
               </select>
               <span style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}>
@@ -668,7 +669,7 @@ function OSDetail({
         <h4>Profissional</h4>
         <div className="detail-row">
           <dt>Atribuído</dt>
-          <dd>{prof ? (prof.nome ?? prof.name) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</dd>
+          <dd>{prof ? userDisplayName(prof) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</dd>
         </div>
         {os.status !== 'concluida' && os.status !== 'cancelada' && (role === 'admin' || role === 'gerente') && (
           <>
@@ -689,7 +690,7 @@ function OSDetail({
               >
                 <option value="">— Remover atribuição —</option>
                 {profissionais.map((p) => (
-                  <option key={p.id} value={p.id}>{p.nome ?? p.name}</option>
+                  <option key={p.id} value={p.id}>{userDisplayName(p)}</option>
                 ))}
               </select>
               <button
