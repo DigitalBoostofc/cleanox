@@ -15,6 +15,7 @@ import Usuarios from './pages/painel/Usuarios'
 import Conta from './pages/painel/Conta'
 import WhatsAppAdmin from './pages/painel/WhatsApp'
 import Avaliacoes from './pages/painel/Avaliacoes'
+import Servicos from './pages/painel/Servicos'
 
 import AppLayout from './pages/app/AppLayout'
 import MeusServicos from './pages/app/MeusServicos'
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="financeiro"element={<Financeiro />} />
         <Route path="usuarios"    element={<Usuarios />} />
         <Route path="avaliacoes" element={<Avaliacoes />} />
+        <Route path="servicos"   element={<Servicos />} />
         <Route path="conta"      element={<Conta />} />
         <Route
           path="whatsapp"
