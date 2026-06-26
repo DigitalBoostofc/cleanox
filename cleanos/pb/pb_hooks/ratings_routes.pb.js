@@ -108,12 +108,11 @@ routerAdd("GET", "/api/cleanos/ratings/pending", (e) => {
 
   const lib = require(`${__hooks}/os_logic.js`);
 
-  // 2) Valida e normaliza o telefone buscado
+  // 2) Valida o telefone buscado (normalização e match feitos por phonesMatch)
   const rawPhone = String(e.requestInfo().query["phone"] || "");
   if (!rawPhone) {
     return e.json(400, { error: "Parâmetro phone é obrigatório" });
   }
-  const normalizedInput = lib.normalizePhone(rawPhone);
 
   // 3) Janela de 7 dias (comparação feita em JS; dataset < 50 OS/mês)
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().replace("T", " ").slice(0, 23) + "Z";
@@ -153,8 +152,7 @@ routerAdd("GET", "/api/cleanos/ratings/pending", (e) => {
       const cid = lib.relId(os.get("cliente"));
       if (!cid) continue;
       const cliente    = $app.findRecordById("clientes", cid);
-      const clientPhone = lib.normalizePhone(cliente.getString("telefone"));
-      if (clientPhone === normalizedInput) {
+      if (lib.phonesMatch(cliente.getString("telefone"), rawPhone)) {
         return e.json(200, {
           os_id:   os.id,
           servico: os.getString("tipo_servico_nome") || "",

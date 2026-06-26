@@ -35,6 +35,30 @@ function normalizePhone(raw) {
   return digits; // tamanho inesperado — devolve como está
 }
 
+// Compara dois telefones de forma tolerante a:
+//   - prefixo DDI 55 presente ou ausente
+//   - 9º dígito do celular presente ou ausente
+// Reduz ambos ao canônico (só dígitos, sem DDI 55) e compara:
+//   1. Formas canônicas iguais → true
+//   2. Um tem 11 dígitos (com 9º) e outro 10 (sem 9º): mesmo DDD e mesmos 8 dígitos finais → true
+function phonesMatch(a, b) {
+  const canon = function(s) {
+    var d = String(s || "").replace(/\D/g, "");
+    if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
+    return d;
+  };
+  var ca = canon(a);
+  var cb = canon(b);
+  if (ca === cb) return true;
+  var longer  = ca.length >= cb.length ? ca : cb;
+  var shorter = ca.length <  cb.length ? ca : cb;
+  if (longer.length === 11 && shorter.length === 10) {
+    return longer.slice(0, 2) === shorter.slice(0, 2) &&
+           longer.slice(-8) === shorter.slice(-8);
+  }
+  return false;
+}
+
 // monta o endereço completo a partir do cliente — SEM telefone/e-mail.
 function buildEndereco(cliente) {
   const parts = [];
@@ -320,6 +344,7 @@ module.exports = {
   shortName,
   relId,
   normalizePhone,
+  phonesMatch,
   buildEndereco,
   syncDenormalized,
   manageEndereco,

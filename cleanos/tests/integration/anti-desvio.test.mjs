@@ -785,6 +785,50 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       assert.ok(!body?.phone && !body?.telefone, 'Pending não deve retornar o telefone')
     })
 
+    it('L8 · GET /ratings/pending — match tolerante: 55+dígitos e ausência de 9º dígito', async () => {
+      // Cria OS com nota 1 (sem motivo) para o cliente de teste
+      const os4 = await createOS(s.adminTok, {
+        cliente:         s.clienteId,
+        servico:         s.servicoId,
+        data_hora:       `${todayUTC()} 10:00:00.000Z`,
+        status:          'concluida',
+        valor_servico:   100,
+        valor_pago:      100,
+        forma_pagamento: 'pix_maquininha',
+      })
+      try {
+        await PATCH(`/api/collections/ordens_servico/records/${os4.id}`, s.adminTok, {
+          avaliacao_solicitada_em: `${todayUTC()} 14:00:00.000Z`,
+        })
+        await SVC_POST('/api/cleanos/ratings/ingest', SVC_SECRET, { os_id: os4.id, nota: 1 })
+
+        // Variante 1: 55 + só dígitos (formato que o WhatsApp/n8n envia)
+        const rawDigits = (r.phone || '').replace(/\D/g, '')
+        const waPhone   = rawDigits.startsWith('55') ? rawDigits : '55' + rawDigits
+        const r1 = await SVC_GET(
+          `/api/cleanos/ratings/pending?phone=${encodeURIComponent(waPhone)}`,
+          SVC_SECRET
+        )
+        assert.strictEqual(r1.status, 200, `Pending 55+dígitos falhou: ${JSON.stringify(r1.body)}`)
+        assert.strictEqual(r1.body?.os_id, os4.id, `Formato 55+dígitos não casou (phone=${waPhone})`)
+
+        // Variante 2: sem 9º dígito — só quando o canônico tem 11 dígitos
+        const canon = rawDigits.startsWith('55') ? rawDigits.slice(2) : rawDigits
+        if (canon.length === 11) {
+          // DDD(2) + 9th(1) + num(8) → DDD(2) + num(8)
+          const noNine = canon.slice(0, 2) + canon.slice(3)
+          const r2 = await SVC_GET(
+            `/api/cleanos/ratings/pending?phone=${encodeURIComponent(noNine)}`,
+            SVC_SECRET
+          )
+          assert.strictEqual(r2.status, 200, `Pending sem 9º dígito falhou: ${JSON.stringify(r2.body)}`)
+          assert.strictEqual(r2.body?.os_id, os4.id, `Sem 9º dígito não casou (phone=${noNine})`)
+        }
+      } finally {
+        await deleteOS(s.adminTok, os4.id)
+      }
+    })
+
     it('L6 · GET /ratings/pending com telefone desconhecido → { os_id: null }', async () => {
       const { status, body } = await SVC_GET(
         '/api/cleanos/ratings/pending?phone=5500000000000',
