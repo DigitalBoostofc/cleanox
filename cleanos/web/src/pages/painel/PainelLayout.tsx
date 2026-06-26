@@ -10,6 +10,7 @@ import {
   IconFinanceiro,
   IconUsuarios,
   IconWhatsApp,
+  IconAvaliacoes,
   IconLogOut,
   IconMenu,
   IconX,
@@ -28,6 +29,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { to: '/painel/agenda',     label: 'Agenda',            icon: <IconAgenda /> },
   { to: '/painel/financeiro', label: 'Financeiro',        icon: <IconFinanceiro /> },
   { to: '/painel/usuarios',   label: 'Usuários',          icon: <IconUsuarios /> },
+  { to: '/painel/avaliacoes', label: 'Avaliações',        icon: <IconAvaliacoes /> },
 ]
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
@@ -42,6 +44,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/painel/financeiro':  'Financeiro',
   '/painel/usuarios':    'Usuários',
   '/painel/conta':       'Minha Conta',
+  '/painel/avaliacoes':  'Avaliações',
   '/painel/whatsapp':    'WhatsApp',
 }
 
