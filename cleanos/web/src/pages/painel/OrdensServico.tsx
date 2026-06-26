@@ -348,15 +348,15 @@ export default function OrdensServico() {
                     const prof = os.expand?.profissional
                     return (
                       <tr key={os.id}>
-                        <td>
+                        <td data-label="Cliente">
                           <strong>{os.nome_curto}</strong>
                           <br /><small>{os.bairro}</small>
                         </td>
-                        <td>{os.tipo_servico_nome ?? '—'}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(os.data_hora)}</td>
-                        <td>{prof ? userDisplayName(prof) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{formatCurrency(os.valor_servico ?? 0)}</td>
-                        <td>
+                        <td data-label="Serviço">{os.tipo_servico_nome ?? '—'}</td>
+                        <td data-label="Data/Hora" style={{ whiteSpace: 'nowrap' }}>{formatDateTime(os.data_hora)}</td>
+                        <td data-label="Profissional">{prof ? userDisplayName(prof) : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}</td>
+                        <td data-label="Valor" style={{ whiteSpace: 'nowrap' }}>{formatCurrency(os.valor_servico ?? 0)}</td>
+                        <td data-label="Status">
                           <span className={`clx-status clx-status-${os.status}`}>
                             {osStatusLabel(os.status)}
                           </span>
@@ -738,9 +738,9 @@ function OSDetail({
             <dt>Repasse</dt>
             <dd>
               {os.repasse_status === 'pago'
-                ? <span className="clx-chip" style={{ background: 'rgba(34,197,94,0.10)', color: 'var(--clx-success)', border: 'none' }}>Repassado</span>
+                ? <span className="clx-chip clx-chip-success">Repassado</span>
                 : os.repasse_status === 'pendente'
-                  ? <span className="clx-chip" style={{ background: 'rgba(245,158,11,0.10)', color: 'var(--clx-warning)', border: 'none' }}>Pendente</span>
+                  ? <span className="clx-chip clx-chip-warning">Pendente</span>
                   : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}
               {os.repasse_valor != null && os.repasse_valor > 0 && (
                 <span style={{ marginLeft: 6, fontSize: '0.82rem', color: 'var(--clx-ink-2)' }}>

@@ -169,8 +169,8 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
           style={{
             margin: '0 16px 10px',
             padding: '10px 14px',
-            background: 'rgba(0,194,184,0.07)',
-            border: '1px solid rgba(0,194,184,0.20)',
+            background: 'var(--clx-primary-bg)',
+            border: '1px solid var(--clx-primary-border)',
             borderRadius: 'var(--clx-r-md)',
             display: 'flex',
             alignItems: 'flex-start',
@@ -192,7 +192,7 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
           style={{
             margin: '0 16px 10px',
             padding: '8px 12px',
-            background: 'rgba(34,197,94,0.07)',
+            background: 'var(--clx-success-bg)',
             border: '1px solid rgba(34,197,94,0.20)',
             borderRadius: 'var(--clx-r-md)',
             fontSize: '0.82rem',
@@ -282,7 +282,7 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
               <div
                 style={{
                   padding: '8px 12px',
-                  background: 'rgba(34,197,94,0.07)',
+                  background: 'var(--clx-success-bg)',
                   border: '1px solid rgba(34,197,94,0.20)',
                   borderRadius: 'var(--clx-r-md)',
                   fontSize: '0.82rem',
@@ -712,7 +712,7 @@ export default function MeusServicos() {
                       Serviços de dias anteriores aguardando conclusão
                     </div>
                   </div>
-                  <span className="clx-chip" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--clx-warning)', border: 'none' }}>
+                  <span className="clx-chip clx-chip-warning">
                     {pastOpenOS.length} pendente{pastOpenOS.length !== 1 ? 's' : ''}
                   </span>
                 </div>

@@ -41,12 +41,27 @@
   --clx-warning: #F59E0B;
   --clx-info:    #3B82F6;
 
+  /* Feedback backgrounds (para badges, alertas inline) */
+  --clx-success-bg: rgba(34,197,94,0.10);
+  --clx-error-bg:   rgba(239,68,68,0.10);
+  --clx-warning-bg: rgba(245,158,11,0.12);
+  --clx-info-bg:    rgba(59,130,246,0.10);
+  --clx-primary-bg:     rgba(0,194,184,0.08);
+  --clx-primary-border: rgba(0,194,184,0.20);
+
   /* Status de OS */
   --clx-status-agendada:    #3B82F6;
   --clx-status-atribuida:   #8B5CF6;
   --clx-status-em_andamento:#F59E0B;
   --clx-status-concluida:   #22C55E;
   --clx-status-cancelada:   #EF4444;
+
+  /* Status backgrounds */
+  --clx-status-agendada-bg:     rgba(59,130,246,0.10);
+  --clx-status-atribuida-bg:    rgba(139,92,246,0.10);
+  --clx-status-em_andamento-bg: rgba(245,158,11,0.12);
+  --clx-status-concluida-bg:    rgba(34,197,94,0.10);
+  --clx-status-cancelada-bg:    rgba(239,68,68,0.10);
 
   /* Tipografia */
   --clx-font-sans:    'Sora', 'Titillium Web', system-ui, sans-serif;
@@ -102,9 +117,24 @@
   --clx-warning: #FBBF24;
   --clx-info:    #60A5FA;
 
+  /* Feedback backgrounds dark */
+  --clx-success-bg: rgba(74,222,128,0.15);
+  --clx-error-bg:   rgba(248,113,113,0.15);
+  --clx-warning-bg: rgba(251,191,36,0.15);
+  --clx-info-bg:    rgba(96,165,250,0.15);
+  --clx-primary-bg:     rgba(0,194,184,0.12);
+  --clx-primary-border: rgba(0,194,184,0.28);
+
   --clx-status-agendada:    #60A5FA;
   --clx-status-atribuida:   #A78BFA;
   --clx-status-em_andamento:#FBBF24;
   --clx-status-concluida:   #4ADE80;
   --clx-status-cancelada:   #F87171;
+
+  /* Status backgrounds dark */
+  --clx-status-agendada-bg:     rgba(96,165,250,0.16);
+  --clx-status-atribuida-bg:    rgba(167,139,250,0.16);
+  --clx-status-em_andamento-bg: rgba(251,191,36,0.18);
+  --clx-status-concluida-bg:    rgba(74,222,128,0.16);
+  --clx-status-cancelada-bg:    rgba(248,113,113,0.16);
 }

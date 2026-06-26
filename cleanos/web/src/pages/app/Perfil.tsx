@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
 import { COLLECTIONS, type OrdemServico, getBrtDayBounds, userDisplayName } from '../../lib/collections'
 import { IconLogOut, IconAlertCircle, IconCheckCircle, IconLock } from '../../components/ui/Icon'
+import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { StarRating } from '../../components/ui/StarRating'
 
 interface Stats {
@@ -133,6 +134,7 @@ export default function Perfil() {
     <>
       <div className="profapp-page-header">
         <h1>Perfil</h1>
+        <ThemeToggle size={20} />
       </div>
 
       <div className="profapp-page-body">
