@@ -31,6 +31,7 @@ onRecordUpdate((e) => {
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
   lib.assertPaymentIfConcluida(e.record);
+  lib.triggerRatingWebhookIfConcluida(e.app, e.record);
   e.next();
 }, "ordens_servico");
 

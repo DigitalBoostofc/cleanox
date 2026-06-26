@@ -442,7 +442,168 @@ Adicionado na migration 3. Data/hora do envio do aviso, gravada server-side pela
 
 ---
 
-## 9. Decisões e premissas
+## 9. Sistema de Avaliação (orquestrado por n8n)
+
+### 9.1 Visão geral do fluxo
+
+```
+OS → concluida
+  └→ PocketBase seta avaliacao_solicitada_em + POST best-effort para N8N_RATING_WEBHOOK_URL
+       └→ n8n envia enquete de 1–5 estrelas via WhatsApp
+            ├→ cliente responde (nota)
+            │    └→ n8n chama POST /api/cleanos/ratings/ingest { os_id, nota }
+            │         ├ nota ≤ 3 → needsReason=true → n8n faz follow-up de motivo
+            │         │    └→ n8n precisa correlacionar resposta de texto com a OS:
+            │         │         GET /api/cleanos/ratings/pending?phone=...
+            │         │         └→ n8n chama POST /ratings/ingest { os_id, motivo }
+            │         └ nota 4–5 → needsReason=false → fluxo encerra
+            └→ cliente não responde → sem ação adicional
+```
+
+O PocketBase é a **fonte da verdade** (persiste tudo). O n8n é o orquestrador de mensagens (não armazena estado). A conclusão da OS **nunca é bloqueada** por falha de rede para o n8n.
+
+### 9.2 Schema — novos campos em `ordens_servico` (Migration 4)
+
+| Campo                    | Tipo   | Quem grava                      | Visível a P? |
+|--------------------------|--------|---------------------------------|--------------|
+| `avaliacao_nota`         | number | n8n via `/ratings/ingest`        | sim (própria)|
+| `avaliacao_motivo`       | text   | n8n via `/ratings/ingest`        | sim (própria)|
+| `avaliacao_em`           | date   | n8n via `/ratings/ingest`        | sim (própria)|
+| `avaliacao_solicitada_em`| date   | hook server-side (ao concluir)   | sim (própria)|
+
+**Todos esses campos estão no `locked` do `guardOrdemUpdateRequest`** — profissional recebe 403 ao tentar PATCH qualquer um deles.
+
+### 9.3 Novos campos em `app_config` (Migration 4)
+
+| Campo                    | Default                                                                |
+|--------------------------|------------------------------------------------------------------------|
+| `avaliacao_poll_texto`   | "Como foi o serviço de {servico}? Toque pra avaliar 👇"                |
+| `avaliacao_motivo_texto` | "Poxa, queremos melhorar! Conta pra gente: o que não foi bom no atendimento? 🙏" |
+| `avaliacao_agradecimento`| "Muito obrigado pela sua avaliação! 💙 Conte sempre com a Cleanox."    |
+
+Editáveis via `POST /api/cleanos/whatsapp/config` (só admin).
+
+### 9.4 Gatilho ao concluir
+
+No hook `onRecordUpdate` de `ordens_servico` (em `os_logic.js`), ao detectar a transição `x → concluida`:
+1. Seta `avaliacao_solicitada_em = now` no registro (antes do save).
+2. Faz um `POST` best-effort (timeout 5s, try/catch) para `$N8N_RATING_WEBHOOK_URL` com:
+   ```json
+   { "os_id": "...", "phone": "5511999990001", "servico": "Sofá 3 lugares", "nome": "Carlos S.", "secret": "..." }
+   ```
+   - `phone` é lido do cofre `clientes` e normalizado (só dígitos, DDI 55 prefixado se ausente).
+   - `secret` = `$CLEANOS_SERVICE_SECRET`.
+   - Se `N8N_RATING_WEBHOOK_URL` não estiver definida, apenas loga e segue — OS conclui normalmente.
+
+### 9.5 Endpoints de serviço (consumidos pelo n8n)
+
+**Auth:** header `X-Cleanos-Secret: <valor de CLEANOS_SERVICE_SECRET>`.
+**Sem** auth de usuário PocketBase. Se o segredo não bater (ou env não estiver definida) → 401.
+
+#### `POST /api/cleanos/ratings/ingest`
+
+**Request:**
+```json
+{ "os_id": "<id>", "nota": 3, "motivo": "Atendimento lento" }
+```
+`nota` e `motivo` são opcionais — envie apenas o campo que o n8n possui naquele momento.
+`nota` deve ser inteiro 1–5.
+
+**Response 200:**
+```json
+{ "ok": true, "nota": 3, "needsReason": true }
+```
+`needsReason: true` quando `nota ≤ 3` **e** `motivo` ainda está vazio.
+`needsReason: false` quando `nota ≥ 4`, ou quando motivo já foi gravado, ou quando nota é null.
+
+**Erros:**
+- 401 — segredo inválido ou env não definida.
+- 400 — `os_id` ausente, ou `nota` fora do range 1–5, ou OS não está `concluida`.
+- 404 — `os_id` não encontrado.
+
+**Idempotência:** campos só são atualizados se presentes no body. Chamadas repetidas com os mesmos dados são seguras.
+
+#### `GET /api/cleanos/ratings/pending?phone=<número>`
+
+Retorna a OS mais recente (últimos 7 dias) desse telefone com `avaliacao_nota` entre 1 e 3 e `avaliacao_motivo` vazio — usado pelo n8n para correlacionar a resposta textual do motivo.
+
+**Query param:** `phone` — número no formato que a UAZAPI envia (qualquer formatação; será normalizado).
+
+**Response 200 (encontrou):**
+```json
+{ "os_id": "<id>", "servico": "Sofá 3 lugares" }
+```
+
+**Response 200 (não encontrou):**
+```json
+{ "os_id": null }
+```
+
+**Erros:**
+- 401 — segredo inválido.
+- 400 — parâmetro `phone` ausente.
+
+#### `GET /api/cleanos/whatsapp/dispatch-info`
+
+Retorna as credenciais UAZAPI e os templates de mensagem para o n8n orquestrar os envios de avaliação. **Este é o único endpoint que expõe o token da instância WhatsApp** — o acesso é protegido pelo service secret e o consumidor é exclusivamente o n8n (infraestrutura interna).
+
+**Response 200:**
+```json
+{
+  "uazapi_base":     "https://appexcrm.uazapi.com",
+  "uazapi_token":    "<whatsapp_instance_token do app_config>",
+  "instance_status": "connected",
+  "templates": {
+    "aviso_template":          "Olá {nome}! ...",
+    "avaliacao_poll_texto":    "Como foi o serviço de {servico}? ...",
+    "avaliacao_motivo_texto":  "Poxa, queremos melhorar! ...",
+    "avaliacao_agradecimento": "Muito obrigado pela sua avaliação! ..."
+  }
+}
+```
+
+`uazapi_base` vem da env `UAZAPI_BASE_URL`. Token, status e templates são lidos da coleção `app_config` server-side (superuser dao). `instance_status` pode ser string vazia se ainda não configurado.
+
+**Erros:**
+- 401 — secret ausente, inválido, ou `CLEANOS_SERVICE_SECRET` não definida.
+
+### 9.6 Configuração de templates (admin/gerente)
+
+#### `GET /api/cleanos/whatsapp/config`
+
+Auth: token de usuário PocketBase com papel `admin` ou `gerente`.
+
+**Response 200:**
+```json
+{
+  "aviso_template":          "Olá {nome}! ...",
+  "avaliacao_poll_texto":    "Como foi o serviço de {servico}? ...",
+  "avaliacao_motivo_texto":  "Poxa, queremos melhorar! ...",
+  "avaliacao_agradecimento": "Muito obrigado pela sua avaliação! ..."
+}
+```
+O token da instância WhatsApp **nunca** aparece na resposta.
+
+#### `POST /api/cleanos/whatsapp/config`
+
+Auth: token de usuário com papel `admin` (gerente não pode alterar).
+
+**Request:** qualquer subconjunto dos 4 campos acima.
+
+**Response 200:** estado completo dos 4 campos após a atualização.
+
+### 9.7 Variáveis de ambiente (novas)
+
+| Variável                | Descrição                                                            |
+|-------------------------|----------------------------------------------------------------------|
+| `N8N_RATING_WEBHOOK_URL`| URL do webhook n8n que recebe a notificação de OS concluída. Se vazia, o gatilho é pulado. |
+| `CLEANOS_SERVICE_SECRET`| Segredo compartilhado para auth dos endpoints de serviço. Se vazio, todos retornam 401. |
+
+Configure no mesmo arquivo `cleanos.env` das variáveis UAZAPI (ver §8.1).
+
+---
+
+## 10. Decisões e premissas (histórico)
 
 - **Versão PocketBase:** v0.39.4 (Linux amd64). A API JSVM desta versão exige
   `collection.fields.add(...)` e atribuição de regras por propriedade
@@ -468,9 +629,9 @@ Adicionado na migration 3. Data/hora do envio do aviso, gravada server-side pela
 
 ---
 
-## 10. Segurança — checklist de go-live
+## 11. Segurança — checklist de go-live
 
-### 10.1 Senhas de seed — TROCA OBRIGATÓRIA antes de produção
+### 11.1 Senhas de seed — TROCA OBRIGATÓRIA antes de produção
 
 > ⚠️ **As senhas abaixo são SOMENTE para desenvolvimento local. Nunca usar em produção.**
 
@@ -486,7 +647,7 @@ Procedimento seguro: após deploy, acesse o Admin UI (`/_/`), altere cada
 senha via "Edit User" e desative as contas de seed que não serão usadas em
 produção.
 
-### 10.2 Rate limiting (PocketBase nativo)
+### 11.2 Rate limiting (PocketBase nativo)
 
 PocketBase v0.39+ tem rate limiting configurável via Admin UI em
 **Settings → Rate limits**. Recomendações mínimas para produção:
@@ -505,7 +666,7 @@ curl -X PATCH http://127.0.0.1:8090/api/settings \
 
 Consultar a documentação do PocketBase para o formato exato de `rateLimits`.
 
-### 10.3 Garantias anti-desvio já implementadas (resumo técnico)
+### 11.3 Garantias anti-desvio já implementadas (resumo técnico)
 
 | Vetor | Proteção |
 |-------|----------|
@@ -520,7 +681,7 @@ Consultar a documentação do PocketBase para o formato exato de `rateLimits`.
 
 ---
 
-## 11. Evidência da verificação (resumo)
+## 12. Evidência da verificação (resumo)
 
 `./verify_rules.sh` contra o seed — **21/21 PASS**. Destaques:
 

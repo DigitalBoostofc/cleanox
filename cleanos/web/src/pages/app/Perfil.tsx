@@ -6,10 +6,16 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
 import { COLLECTIONS, type OrdemServico, getUtcDayBounds } from '../../lib/collections'
 import { IconLogOut, IconAlertCircle, IconCheckCircle, IconLock } from '../../components/ui/Icon'
+import { StarRating } from '../../components/ui/StarRating'
 
 interface Stats {
   totalHoje: number
   concluidasHoje: number
+}
+
+interface RatingStats {
+  media: number
+  total: number
 }
 
 function pbPasswordError(err: unknown): string {
@@ -37,6 +43,7 @@ export default function Perfil() {
 
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
+  const [ratingStats, setRatingStats] = useState<RatingStats | null>(null)
 
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -51,14 +58,22 @@ export default function Perfil() {
     if (!user?.id) return
     const { todayStart, tomorrowStart } = getUtcDayBounds()
     try {
-      const result = await pb
-        .collection(COLLECTIONS.ORDENS_SERVICO)
-        .getList<OrdemServico>(1, 100, {
+      const [result, osAvaliadas] = await Promise.all([
+        pb.collection(COLLECTIONS.ORDENS_SERVICO).getList<OrdemServico>(1, 100, {
           filter: `profissional = '${user.id}' && data_hora >= '${todayStart}' && data_hora < '${tomorrowStart}'`,
-        })
+        }),
+        pb.collection(COLLECTIONS.ORDENS_SERVICO).getFullList<OrdemServico>({
+          filter: `profissional = '${user.id}' && status = 'concluida' && avaliacao_nota >= 1`,
+          fields: 'id,avaliacao_nota',
+        }),
+      ])
       const totalHoje = result.totalItems
       const concluidasHoje = result.items.filter((o) => o.status === 'concluida').length
       setStats({ totalHoje, concluidasHoje })
+      if (osAvaliadas.length > 0) {
+        const soma = osAvaliadas.reduce((acc, o) => acc + (o.avaliacao_nota ?? 0), 0)
+        setRatingStats({ media: soma / osAvaliadas.length, total: osAvaliadas.length })
+      }
     } catch {
       // stats são secundários — não bloquear a tela em caso de erro
     } finally {
@@ -159,6 +174,21 @@ export default function Perfil() {
           <span className="clx-chip clx-chip-primary">
             {role === 'profissional' ? 'Profissional' : role}
           </span>
+
+          {role === 'profissional' && !loadingStats && (
+            <div style={{ marginTop: 10, fontSize: '0.85rem', color: 'var(--clx-ink-2)' }}>
+              {ratingStats ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  Sua avaliação:
+                  <StarRating nota={Math.round(ratingStats.media)} size={14} />
+                  <strong>{ratingStats.media.toFixed(1)}</strong>
+                  <span style={{ color: 'var(--clx-ink-3)' }}>de {ratingStats.total} serviço{ratingStats.total !== 1 ? 's' : ''}</span>
+                </span>
+              ) : (
+                <span style={{ color: 'var(--clx-ink-3)' }}>Nenhuma avaliação ainda</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Resumo do dia */}

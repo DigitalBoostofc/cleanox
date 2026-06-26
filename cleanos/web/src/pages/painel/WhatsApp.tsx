@@ -14,6 +14,20 @@ import {
 
 type WAStatus = 'disconnected' | 'connecting' | 'connected'
 
+interface WAConfig {
+  aviso_template: string
+  avaliacao_poll_texto: string
+  avaliacao_motivo_texto: string
+  avaliacao_agradecimento: string
+}
+
+const EMPTY_CONFIG: WAConfig = {
+  aviso_template: '',
+  avaliacao_poll_texto: '',
+  avaliacao_motivo_texto: '',
+  avaliacao_agradecimento: '',
+}
+
 interface WAStatusResponse {
   configured: boolean
   status: WAStatus
@@ -66,6 +80,12 @@ export default function WhatsAppAdmin() {
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [config, setConfig] = useState<WAConfig>(EMPTY_CONFIG)
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configSaving, setConfigSaving] = useState(false)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [configSuccess, setConfigSuccess] = useState(false)
+
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -116,6 +136,21 @@ export default function WhatsAppAdmin() {
     return stopPolling
   }, [loadStatus, stopPolling])
 
+  const loadConfig = useCallback(async () => {
+    setConfigLoading(true)
+    setConfigError(null)
+    try {
+      const data = await pb.send<WAConfig>('/api/cleanos/whatsapp/config', { method: 'GET' })
+      setConfig(data)
+    } catch (err) {
+      setConfigError(extractWAError(err))
+    } finally {
+      setConfigLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadConfig() }, [loadConfig])
+
   const handleConnect = async () => {
     setActionLoading(true)
     setError(null)
@@ -144,6 +179,25 @@ export default function WhatsAppAdmin() {
       setError(extractWAError(err))
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  async function handleSaveConfig() {
+    setConfigSaving(true)
+    setConfigError(null)
+    setConfigSuccess(false)
+    try {
+      await pb.send('/api/cleanos/whatsapp/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      setConfigSuccess(true)
+      setTimeout(() => setConfigSuccess(false), 3000)
+    } catch (err) {
+      setConfigError(extractWAError(err))
+    } finally {
+      setConfigSaving(false)
     }
   }
 
@@ -340,6 +394,112 @@ export default function WhatsAppAdmin() {
           </div>
         </div>
       )}
+
+      {/* Mensagens automáticas */}
+      <div className="clx-card clx-card-p" style={{ marginTop: 20 }}>
+        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 8 }}>
+          Mensagens automáticas
+        </h2>
+
+        <div
+          style={{
+            padding: '10px 14px',
+            background: 'rgba(0,194,184,0.06)',
+            border: '1px solid rgba(0,194,184,0.18)',
+            borderRadius: 'var(--clx-r-md)',
+            fontSize: '0.82rem',
+            color: 'var(--clx-ink-2)',
+            lineHeight: 1.5,
+            marginBottom: 20,
+          }}
+        >
+          Placeholders disponíveis: <code style={{ background: 'rgba(0,194,184,0.12)', padding: '1px 4px', borderRadius: 3 }}>{'{nome}'}</code>{' '}
+          <code style={{ background: 'rgba(0,194,184,0.12)', padding: '1px 4px', borderRadius: 3 }}>{'{servico}'}</code>
+        </div>
+
+        {configLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+            <Spinner size={18} />
+            <span style={{ fontSize: '0.88rem', color: 'var(--clx-ink-2)' }}>
+              Carregando mensagens…
+            </span>
+          </div>
+        ) : (
+          <>
+            {configError && (
+              <div className="error-banner" style={{ marginBottom: 16 }}>
+                <IconAlertCircle size={14} />
+                {configError}
+              </div>
+            )}
+
+            {configSuccess && (
+              <div className="success-banner" style={{ marginBottom: 16 }}>
+                <IconCheckCircle size={14} />
+                Mensagens salvas com sucesso!
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <ConfigTextarea
+                label="Aviso 'estou a caminho'"
+                value={config.aviso_template}
+                onChange={(v) => setConfig((c) => ({ ...c, aviso_template: v }))}
+              />
+              <ConfigTextarea
+                label="Pergunta da avaliação (enquete)"
+                value={config.avaliacao_poll_texto}
+                onChange={(v) => setConfig((c) => ({ ...c, avaliacao_poll_texto: v }))}
+              />
+              <ConfigTextarea
+                label="Pergunta do motivo (notas 1–3)"
+                value={config.avaliacao_motivo_texto}
+                onChange={(v) => setConfig((c) => ({ ...c, avaliacao_motivo_texto: v }))}
+              />
+              <ConfigTextarea
+                label="Mensagem de agradecimento"
+                value={config.avaliacao_agradecimento}
+                onChange={(v) => setConfig((c) => ({ ...c, avaliacao_agradecimento: v }))}
+              />
+            </div>
+
+            <button
+              className="clx-btn clx-btn-accent"
+              onClick={handleSaveConfig}
+              disabled={configSaving}
+              style={{ marginTop: 20 }}
+            >
+              {configSaving && <Spinner size={14} />}
+              {configSaving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ConfigTextarea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="form-field">
+      <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--clx-ink-2)', marginBottom: 4, display: 'block' }}>
+        {label}
+      </label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        style={{ width: '100%', resize: 'vertical' }}
+        placeholder={`Texto da mensagem…`}
+      />
     </div>
   )
 }

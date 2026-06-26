@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
-import { COLLECTIONS, type User, type Role } from '../../lib/collections'
+import { COLLECTIONS, type User, type Role, type OrdemServico } from '../../lib/collections'
+import { StarRating } from '../../components/ui/StarRating'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -78,12 +79,33 @@ export default function Usuarios() {
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [ratingMap, setRatingMap] = useState<Record<string, { media: number; total: number }>>({})
+
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const list = await pb.collection(COLLECTIONS.USERS).getFullList<User>({ sort: 'name' })
+      const [list, osAvaliadas] = await Promise.all([
+        pb.collection(COLLECTIONS.USERS).getFullList<User>({ sort: 'name' }),
+        pb.collection(COLLECTIONS.ORDENS_SERVICO).getFullList<OrdemServico>({
+          filter: "status = 'concluida' && avaliacao_nota >= 1",
+          fields: 'id,profissional,avaliacao_nota',
+        }),
+      ])
       setUsers(list)
+      const acc: Record<string, { soma: number; total: number }> = {}
+      for (const os of osAvaliadas) {
+        if (os.profissional && os.avaliacao_nota != null) {
+          if (!acc[os.profissional]) acc[os.profissional] = { soma: 0, total: 0 }
+          acc[os.profissional].soma += os.avaliacao_nota
+          acc[os.profissional].total += 1
+        }
+      }
+      const result: Record<string, { media: number; total: number }> = {}
+      for (const [id, { soma, total }] of Object.entries(acc)) {
+        result[id] = { media: soma / total, total }
+      }
+      setRatingMap(result)
     } catch {
       setError('Não foi possível carregar os usuários.')
     } finally {
@@ -187,13 +209,14 @@ export default function Usuarios() {
                   <th>Nome</th>
                   <th>E-mail</th>
                   <th>Papel</th>
+                  <th>Avaliação</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       <div className="empty-state">
                         <h4>Nenhum usuário cadastrado</h4>
                         <p>Clique em "Novo usuário" para adicionar.</p>
@@ -214,6 +237,18 @@ export default function Usuarios() {
                             (app profissional)
                           </span>
                         )}
+                      </td>
+                      <td>
+                        {u.role === 'profissional' ? (
+                          ratingMap[u.id] ? (
+                            <span style={{ fontSize: '0.85rem', color: 'var(--clx-ink-2)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <StarRating nota={Math.round(ratingMap[u.id].media)} size={13} />
+                              <span>{ratingMap[u.id].media.toFixed(1)} ({ratingMap[u.id].total})</span>
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--clx-ink-3)' }}>sem avaliações</span>
+                          )
+                        ) : null}
                       </td>
                       <td>
                         <div className="td-actions">

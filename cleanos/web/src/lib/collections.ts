@@ -113,6 +113,14 @@ export interface OrdemServico extends PBRecord {
   repasse_valor?: number
   /** Preenchido pelo backend ao enviar aviso via WhatsApp */
   aviso_a_caminho_em?: string
+  /** Nota do cliente (1–5), preenchida pelo backend após pesquisa */
+  avaliacao_nota?: number
+  /** Motivo informado pelo cliente em notas 1–3 */
+  avaliacao_motivo?: string
+  /** ISO datetime de quando o cliente respondeu a pesquisa */
+  avaliacao_em?: string
+  /** ISO datetime de quando a pesquisa foi enviada pelo backend */
+  avaliacao_solicitada_em?: string
   observacoes?: string
   expand?: {
     cliente?: Cliente

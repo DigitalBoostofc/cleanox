@@ -26,6 +26,15 @@ function relId(v) {
   return v ? String(v) : "";
 }
 
+// normaliza telefone para só dígitos, prefixando '55' (DDI BR) se necessário.
+// "11 99999-0001" → "5511999990001"   "5511999990001" → "5511999990001"
+function normalizePhone(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length >= 12) return digits; // já tem DDI
+  if (digits.length >= 10) return "55" + digits; // 10-11 dígitos sem DDI
+  return digits; // tamanho inesperado — devolve como está
+}
+
 // monta o endereço completo a partir do cliente — SEM telefone/e-mail.
 function buildEndereco(cliente) {
   const parts = [];
@@ -174,8 +183,12 @@ function guardOrdemUpdateRequest(e) {
     "tipo_servico_nome",
     "data_hora",
     "valor_servico",
-    "endereco_liberado",     // só o hook de modelo escreve
-    "aviso_a_caminho_em",    // só a rota /a-caminho escreve (server-side)
+    "endereco_liberado",        // só o hook de modelo escreve
+    "aviso_a_caminho_em",       // só a rota /a-caminho escreve (server-side)
+    "avaliacao_nota",           // só o n8n via endpoint de serviço
+    "avaliacao_motivo",         // só o n8n via endpoint de serviço
+    "avaliacao_em",             // só o n8n via endpoint de serviço
+    "avaliacao_solicitada_em",  // só o trigger de conclusão (server-side)
     "repasse_status",
     "repasse_valor",
     "observacoes",
@@ -208,13 +221,67 @@ function guardOrdemUpdateRequest(e) {
   }
 }
 
+/**
+ * Dispara, de forma best-effort (try/catch), o webhook do n8n quando uma OS
+ * transiciona para `concluida`. Também seta `avaliacao_solicitada_em = now`.
+ *
+ * Deve ser chamado APENAS em onRecordUpdate (não no create):
+ *   - detecta a transição comparando original().status vs status atual
+ *   - se N8N_RATING_WEBHOOK_URL não estiver configurada, apenas loga e pula
+ *   - nunca bloqueia a conclusão em caso de falha de rede
+ */
+function triggerRatingWebhookIfConcluida(app, record) {
+  // Só roda em update (onRecordCreate não tem original())
+  const orig = record.original ? record.original() : null;
+  if (!orig) return;
+
+  // Só dispara na transição x → concluida (não em saves subsequentes)
+  if (String(orig.get("status")) === "concluida") return;
+  if (String(record.get("status")) !== "concluida") return;
+
+  // Marca quando a avaliação foi solicitada (server-side, não editável pelo profissional)
+  const nowStr = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  record.set("avaliacao_solicitada_em", nowStr);
+
+  try {
+    const url = $os.getenv("N8N_RATING_WEBHOOK_URL") || "";
+    if (!url) {
+      console.log("[ratings] N8N_RATING_WEBHOOK_URL não configurada; gatilho de avaliação pulado.");
+      return;
+    }
+    const secret = $os.getenv("CLEANOS_SERVICE_SECRET") || "";
+    const cid = relId(record.get("cliente"));
+    if (!cid) {
+      console.log("[ratings] OS sem cliente; gatilho de avaliação pulado.");
+      return;
+    }
+    const cliente = app.findRecordById("clientes", cid);
+    const phone   = normalizePhone(cliente.getString("telefone"));
+    const servico = record.getString("tipo_servico_nome") || "";
+    const nome    = record.getString("nome_curto") || "";
+
+    $http.send({
+      method:  "POST",
+      url:     url,
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ os_id: record.id, phone, servico, nome, secret }),
+      timeout: 5,
+    });
+  } catch (err) {
+    // Best-effort: loga mas nunca bloqueia a conclusão da OS
+    console.error("[ratings] Erro ao notificar n8n (ignorado): " + err);
+  }
+}
+
 module.exports = {
   shortName,
   relId,
+  normalizePhone,
   buildEndereco,
   syncDenormalized,
   manageEndereco,
   assertPaymentIfConcluida,
   assertServiceIsToday,
   guardOrdemUpdateRequest,
+  triggerRatingWebhookIfConcluida,
 };

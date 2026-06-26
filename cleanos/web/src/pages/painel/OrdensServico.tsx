@@ -16,6 +16,7 @@ import {
   localInputToPBDate,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
+import { StarRating } from '../../components/ui/StarRating'
 import { Modal } from '../../components/ui/Modal'
 import {
   IconPlus,
@@ -26,6 +27,7 @@ import {
   IconCheckCircle,
   IconArrowRight,
 } from '../../components/ui/Icon'
+
 import { useAuth } from '../../contexts/AuthContext'
 
 /* ---- Helpers ---- */
@@ -354,6 +356,11 @@ export default function OrdensServico() {
                           <span className={`clx-status clx-status-${os.status}`}>
                             {osStatusLabel(os.status)}
                           </span>
+                          {os.avaliacao_nota != null && (
+                            <span style={{ marginLeft: 6 }}>
+                              <StarRating nota={os.avaliacao_nota} size={12} />
+                            </span>
+                          )}
                         </td>
                         <td>
                           <div className="td-actions">
@@ -740,6 +747,36 @@ function OSDetail({
           </div>
         </dl>
       </div>
+
+      {os.status === 'concluida' && (
+        <div className="detail-section">
+          <h4>Avaliação</h4>
+          {os.avaliacao_nota != null ? (
+            <dl>
+              <div className="detail-row">
+                <dt>Nota</dt>
+                <dd><StarRating nota={os.avaliacao_nota} size={16} /></dd>
+              </div>
+              {os.avaliacao_motivo && (
+                <div className="detail-row">
+                  <dt>Motivo</dt>
+                  <dd>{os.avaliacao_motivo}</dd>
+                </div>
+              )}
+              {os.avaliacao_em && (
+                <div className="detail-row">
+                  <dt>Data</dt>
+                  <dd>{formatDateTime(os.avaliacao_em)}</dd>
+                </div>
+              )}
+            </dl>
+          ) : (
+            <span style={{ fontSize: '0.85rem', color: 'var(--clx-ink-3)' }}>
+              Avaliação pendente
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
