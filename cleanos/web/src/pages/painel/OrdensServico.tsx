@@ -27,9 +27,14 @@ import {
   IconXCircle,
   IconCheckCircle,
   IconArrowRight,
+  IconCalendar,
+  IconDollar,
+  IconUser,
+  IconChevronRight,
 } from '../../components/ui/Icon'
-
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { CardAvatar } from '../../components/ui/MobileCards'
 
 /* ---- Helpers ---- */
 function pbError(err: unknown): string {
@@ -83,6 +88,7 @@ type ModalMode = 'view' | 'create' | 'edit'
 
 export default function OrdensServico() {
   const { role } = useAuth()
+  const isMobile = useIsMobile()
 
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [loading, setLoading] = useState(true)
@@ -318,6 +324,73 @@ export default function OrdensServico() {
 
       {loading ? (
         <div className="loading-overlay"><Spinner size={22} /> Carregando ordens…</div>
+      ) : isMobile ? (
+        filtered.length === 0 ? (
+          <div className="empty-state">
+            <h4>Nenhuma OS{activeTab !== 'todas' ? ` com status "${osStatusLabel(activeTab as OSStatus)}"` : ''}</h4>
+            <p>Clique em "Nova OS" para criar a primeira ordem de serviço.</p>
+          </div>
+        ) : (
+          <div className="mob-card-list">
+            {filtered.map((os) => {
+              const prof = os.expand?.profissional
+              return (
+                <div key={os.id} className="mob-card" onClick={() => openView(os)} style={{ cursor: 'pointer' }}>
+                  <div className="mob-card-top">
+                    <CardAvatar name={os.nome_curto} />
+                    <div className="mob-card-meta">
+                      <div className="mob-card-title">{os.tipo_servico_nome ?? '—'}</div>
+                      <div className="mob-card-sub">{os.nome_curto} · {os.bairro}</div>
+                    </div>
+                    <div className="mob-card-badge">
+                      <span className={`clx-status clx-status-${os.status}`}>
+                        {osStatusLabel(os.status)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mob-card-rows">
+                    <div className="mob-card-row">
+                      <span className="mob-card-row-icon"><IconCalendar size={14} /></span>
+                      <span>{formatDateTime(os.data_hora)}</span>
+                    </div>
+                    <div className="mob-card-row">
+                      <span className="mob-card-row-icon"><IconDollar size={14} /></span>
+                      <span style={{ fontWeight: 600 }}>{formatCurrency(os.valor_servico ?? 0)}</span>
+                      {prof && (
+                        <span style={{ marginLeft: 'auto', color: 'var(--clx-ink-3)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <IconUser size={12} />{userDisplayName(prof)}
+                        </span>
+                      )}
+                    </div>
+                    {os.avaliacao_nota != null && (
+                      <div className="mob-card-row">
+                        <StarRating nota={os.avaliacao_nota} size={13} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="mob-card-actions">
+                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openView(os) }} title="Ver detalhes">
+                      <IconEye size={15} />
+                    </button>
+                    {os.status !== 'concluida' && os.status !== 'cancelada' && (
+                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(os) }} title="Editar">
+                        <IconEdit size={15} />
+                      </button>
+                    )}
+                    {os.status !== 'concluida' && os.status !== 'cancelada' && (
+                      <button className="icon-btn danger" onClick={(e) => { e.stopPropagation(); handleCancel(os) }} title="Cancelar OS">
+                        <IconXCircle size={15} />
+                      </button>
+                    )}
+                    <span style={{ color: 'var(--clx-ink-3)', display: 'flex', alignItems: 'center' }}>
+                      <IconChevronRight size={16} />
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
       ) : (
         <div className="table-wrap">
           <div className="table-scroll">

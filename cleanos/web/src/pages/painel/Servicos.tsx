@@ -10,8 +10,10 @@ import {
   IconTrash,
   IconAlertCircle,
   IconSearch,
+  IconDollar,
 } from '../../components/ui/Icon'
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 /* ---- Types ---- */
 type ServicoForm = {
@@ -71,6 +73,7 @@ function pbError(err: unknown): string {
 export default function Servicos() {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
+  const isMobile = useIsMobile()
 
   const [servicos, setServicos] = useState<Servico[]>([])
   const [loading, setLoading] = useState(true)
@@ -220,6 +223,63 @@ export default function Servicos() {
 
       {loading ? (
         <div className="loading-overlay"><Spinner size={22} /> Carregando serviços…</div>
+      ) : isMobile ? (
+        filtered.length === 0 ? (
+          <div className="empty-state">
+            <IconSearch size={32} />
+            <h4>{search ? 'Nenhum serviço encontrado' : 'Nenhum serviço cadastrado'}</h4>
+            <p>{search ? 'Tente outros termos de busca.' : 'Clique em "Novo serviço" para começar.'}</p>
+          </div>
+        ) : (
+          <div className="mob-card-list">
+            {filtered.map((s) => (
+              <div key={s.id} className="mob-card" onClick={() => openEdit(s)} style={{ cursor: 'pointer' }}>
+                <div className="mob-card-top">
+                  <div className="mob-card-meta">
+                    <div className="mob-card-title">{s.nome}</div>
+                    {s.descricao && <div className="mob-card-sub">{s.descricao}</div>}
+                  </div>
+                  <div className="mob-card-badge">
+                    <button
+                      className={`clx-chip ${s.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); toggleAtivo(s) }}
+                      title={s.ativo ? 'Clique para inativar' : 'Clique para ativar'}
+                    >
+                      {s.ativo ? 'Ativo' : 'Inativo'}
+                    </button>
+                  </div>
+                </div>
+                <div className="mob-card-rows">
+                  <div className="mob-card-row">
+                    <span className="mob-card-row-icon"><IconDollar size={14} /></span>
+                    <span style={{ fontWeight: 700, color: 'var(--clx-ink)', fontSize: '1rem' }}>
+                      {formatCurrency(s.preco_base)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mob-card-actions">
+                  <button
+                    className="icon-btn"
+                    onClick={(e) => { e.stopPropagation(); openEdit(s) }}
+                    title="Editar"
+                  >
+                    <IconEdit size={15} />
+                  </button>
+                  {isAdmin && (
+                    <button
+                      className="icon-btn danger"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
+                      title="Excluir"
+                    >
+                      <IconTrash size={15} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="table-wrap">
           <div className="table-scroll">

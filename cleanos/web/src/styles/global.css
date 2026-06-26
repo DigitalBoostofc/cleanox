@@ -1623,75 +1623,123 @@ img, svg { display: block; max-width: 100%; }
 .os-event-cancelada   { background: var(--clx-status-cancelada-bg);    color: var(--clx-status-cancelada);   }
 
 /* ====================================================
-   MOBILE RESPONSIVE — tabelas → cards
+   MOBILE CARDS — lista nativa de entidades
+   ==================================================== */
+.mob-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mob-card {
+  background: var(--clx-bg);
+  border: 1px solid var(--clx-line);
+  border-radius: var(--clx-r-lg);
+  box-shadow: var(--clx-shadow-sm);
+  overflow: hidden;
+  transition: background 0.12s;
+}
+
+.mob-card:active {
+  background: var(--clx-bg-2);
+}
+
+.mob-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+
+.mob-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  font-family: var(--clx-font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+}
+
+.mob-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.mob-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--clx-ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.mob-card-sub {
+  font-size: 0.78rem;
+  color: var(--clx-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.mob-card-badge {
+  flex-shrink: 0;
+  max-width: 140px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.mob-card-rows {
+  padding: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mob-card-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  color: var(--clx-ink-2);
+  min-height: 20px;
+}
+
+.mob-card-row-icon {
+  flex-shrink: 0;
+  color: var(--clx-ink-3);
+  display: flex;
+  align-items: center;
+}
+
+.mob-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 10px 8px 14px;
+  border-top: 1px solid var(--clx-line);
+  background: var(--clx-bg-2);
+  min-height: 48px;
+}
+
+[data-theme="dark"] .mob-card-actions {
+  background: var(--clx-bg-3);
+}
+
+/* ====================================================
+   MOBILE RESPONSIVE — utilitários gerais
    ==================================================== */
 @media (max-width: 767px) {
-  /* Container transparente em mobile */
-  .table-wrap {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-    overflow: visible;
-  }
-  .table-scroll { overflow-x: visible !important; }
-
-  /* Tabela → cards */
-  .clx-table { display: block; }
-  .clx-table thead { display: none; }
-  .clx-table tbody { display: block; }
-  .clx-table tbody tr {
-    display: block;
-    background: var(--clx-bg);
-    border: 1px solid var(--clx-line);
-    border-radius: var(--clx-r-lg);
-    margin-bottom: 10px;
-    overflow: hidden;
-    box-shadow: var(--clx-shadow-sm);
-  }
-  /* Anula a regra de last-child para borda da última linha (não faz sentido em cards) */
-  .clx-table tbody tr:last-child td { border-bottom: 1px solid var(--clx-line); }
-  /* Hover no card todo, não em células individuais */
-  .clx-table tbody tr:hover td { background: transparent; }
-  .clx-table tbody tr:hover { background: var(--clx-bg-2); }
-
-  /* Células vira linha label:valor */
-  .clx-table td {
-    display: flex;
-    align-items: center;
-    padding: 10px 14px;
-    border: none;
-    border-bottom: 1px solid var(--clx-line);
-    font-size: 0.875rem;
-    gap: 10px;
-    color: var(--clx-ink);
-    vertical-align: middle;
-  }
-  .clx-table td:last-child { border-bottom: none; }
-
-  /* Label da coluna via data-label */
-  .clx-table td[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--clx-ink-3);
-    white-space: nowrap;
-    min-width: 78px;
-    flex-shrink: 0;
-  }
-
-  /* Célula de ações sem label (alinhada à direita) */
-  .clx-table td:not([data-label]) {
-    justify-content: flex-end;
-  }
-
-  /* Alvos de toque maiores */
-  .icon-btn { width: 36px; height: 36px; }
-  .td-actions { gap: 8px; }
-
   /* Toolbar de página empilha no mobile */
   .page-toolbar { flex-direction: column; align-items: stretch; }
   .page-toolbar-search { min-width: 0; }
@@ -1703,6 +1751,10 @@ img, svg { display: block; max-width: 100%; }
 
   /* Section headers */
   .section-header { flex-wrap: wrap; }
+
+  /* Alvos de toque maiores */
+  .icon-btn { width: 36px; height: 36px; }
+  .td-actions { gap: 8px; }
 }
 
 /* ====================================================

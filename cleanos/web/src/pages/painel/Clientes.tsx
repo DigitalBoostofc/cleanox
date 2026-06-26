@@ -9,7 +9,12 @@ import {
   IconEdit,
   IconAlertCircle,
   IconSearch,
+  IconPhone,
+  IconMapPin,
+  IconChevronRight,
 } from '../../components/ui/Icon'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { CardAvatar } from '../../components/ui/MobileCards'
 
 /* ---- Types ---- */
 type ClienteForm = Omit<Cliente, 'id' | 'created' | 'updated'>
@@ -59,6 +64,7 @@ function pbError(err: unknown): string {
 }
 
 export default function Clientes() {
+  const isMobile = useIsMobile()
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -210,6 +216,62 @@ export default function Clientes() {
 
       {loading ? (
         <div className="loading-overlay"><Spinner size={22} /> Carregando clientes…</div>
+      ) : isMobile ? (
+        filtered.length === 0 ? (
+          <div className="empty-state">
+            <IconSearch size={32} />
+            <h4>{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}</h4>
+            <p>{search ? 'Tente outros termos de busca.' : 'Clique em "Novo cliente" para começar.'}</p>
+          </div>
+        ) : (
+          <div className="mob-card-list">
+            {filtered.map((c) => (
+              <div key={c.id} className="mob-card" onClick={() => openEdit(c)} style={{ cursor: 'pointer' }}>
+                <div className="mob-card-top">
+                  <CardAvatar name={c.nome} />
+                  <div className="mob-card-meta">
+                    <div className="mob-card-title">{c.nome} {c.sobrenome}</div>
+                    {c.email && <div className="mob-card-sub">{c.email}</div>}
+                  </div>
+                  <div className="mob-card-badge">
+                    <button
+                      className={`clx-chip ${c.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); toggleAtivo(c) }}
+                      title={c.ativo ? 'Clique para desativar' : 'Clique para ativar'}
+                    >
+                      {c.ativo ? 'Ativo' : 'Inativo'}
+                    </button>
+                  </div>
+                </div>
+                <div className="mob-card-rows">
+                  <div className="mob-card-row">
+                    <span className="mob-card-row-icon"><IconPhone size={14} /></span>
+                    <span>{c.telefone}</span>
+                  </div>
+                  {(c.endereco_bairro || c.endereco_cidade) && (
+                    <div className="mob-card-row">
+                      <span className="mob-card-row-icon"><IconMapPin size={14} /></span>
+                      <span>{[c.endereco_bairro, c.endereco_cidade].filter(Boolean).join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mob-card-actions">
+                  <button
+                    className="icon-btn"
+                    onClick={(e) => { e.stopPropagation(); openEdit(c) }}
+                    title="Editar"
+                  >
+                    <IconEdit size={15} />
+                  </button>
+                  <span style={{ color: 'var(--clx-ink-3)', display: 'flex', alignItems: 'center' }}>
+                    <IconChevronRight size={16} />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="table-wrap">
           <div className="table-scroll">
