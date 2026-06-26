@@ -16,6 +16,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
 } from '../../components/ui/Icon'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 /* ---- Types ---- */
 type AgendaView = 'dia' | 'semana' | 'mes'
@@ -116,10 +117,11 @@ function getLoadRange(view: AgendaView, anchor: Date): { from: Date; to: Date } 
 export default function Agenda() {
   const navigate = useNavigate()
   const today = new Date()
+  const isMobile = useIsMobile()
 
-  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
   const [view, setView] = useState<AgendaView>(isMobile ? 'dia' : 'semana')
   const [anchor, setAnchor] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
+  const [selectedDay, setSelectedDay] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
 
   const [osData, setOsData] = useState<OrdemServico[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,6 +130,24 @@ export default function Agenda() {
   const [detailOS, setDetailOS] = useState<OrdemServico | null>(null)
 
   const loadGenRef = useRef(0)
+
+  // Sync selectedDay when navigating months in mobile month view
+  useEffect(() => {
+    if (view !== 'mes') return
+    const inSameMonth =
+      selectedDay.getMonth() === anchor.getMonth() &&
+      selectedDay.getFullYear() === anchor.getFullYear()
+    if (inSameMonth) return
+    const todayInAnchor =
+      today.getFullYear() === anchor.getFullYear() &&
+      today.getMonth() === anchor.getMonth()
+    setSelectedDay(
+      todayInAnchor
+        ? new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchor, view])
 
   const load = useCallback(async () => {
     const gen = ++loadGenRef.current
@@ -153,7 +173,9 @@ export default function Agenda() {
 
   /* Navigation */
   function goToday() {
-    setAnchor(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    setAnchor(todayDate)
+    setSelectedDay(todayDate)
   }
   function goPrev() {
     if (view === 'dia') setAnchor((a) => addDays(a, -1))
@@ -228,29 +250,58 @@ export default function Agenda() {
       ) : (
         <>
           {view === 'semana' && (
-            <WeekView
-              weekDays={weekDays}
-              today={today}
-              eventsFor={eventsFor}
-              onEventClick={setDetailOS}
-            />
+            isMobile ? (
+              <MobileWeekView
+                weekDays={weekDays}
+                today={today}
+                eventsForDay={eventsForDay}
+                onEventClick={setDetailOS}
+              />
+            ) : (
+              <WeekView
+                weekDays={weekDays}
+                today={today}
+                eventsFor={eventsFor}
+                onEventClick={setDetailOS}
+              />
+            )
           )}
           {view === 'mes' && (
-            <MonthView
-              anchor={anchor}
-              today={today}
-              eventsForDay={eventsForDay}
-              onEventClick={setDetailOS}
-              onDayClick={(d) => { setView('dia'); setAnchor(d) }}
-            />
+            isMobile ? (
+              <MobileMonthView
+                anchor={anchor}
+                today={today}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+                eventsForDay={eventsForDay}
+                onEventClick={setDetailOS}
+              />
+            ) : (
+              <MonthView
+                anchor={anchor}
+                today={today}
+                eventsForDay={eventsForDay}
+                onEventClick={setDetailOS}
+                onDayClick={(d) => { setView('dia'); setAnchor(d) }}
+              />
+            )
           )}
           {view === 'dia' && (
-            <DayView
-              day={anchor}
-              today={today}
-              eventsFor={eventsFor}
-              onEventClick={setDetailOS}
-            />
+            isMobile ? (
+              <MobileDayView
+                day={anchor}
+                today={today}
+                events={eventsForDay(anchor)}
+                onEventClick={setDetailOS}
+              />
+            ) : (
+              <DayView
+                day={anchor}
+                today={today}
+                eventsFor={eventsFor}
+                onEventClick={setDetailOS}
+              />
+            )
           )}
         </>
       )}
@@ -283,7 +334,11 @@ export default function Agenda() {
   )
 }
 
-/* ---- Week View ---- */
+/* ======================================================
+   DESKTOP VIEWS — unchanged
+   ====================================================== */
+
+/* ---- Week View (desktop) ---- */
 function WeekView({
   weekDays, today, eventsFor, onEventClick,
 }: {
@@ -338,7 +393,7 @@ function WeekView({
   )
 }
 
-/* ---- Month View ---- */
+/* ---- Month View (desktop) ---- */
 function MonthView({
   anchor, today, eventsForDay, onEventClick, onDayClick,
 }: {
@@ -394,7 +449,7 @@ function MonthView({
   )
 }
 
-/* ---- Day View ---- */
+/* ---- Day View (desktop) ---- */
 function DayView({
   day, today, eventsFor, onEventClick,
 }: {
@@ -438,6 +493,191 @@ function DayView({
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/* ======================================================
+   MOBILE VIEWS
+   ====================================================== */
+
+/* ---- Agenda Mini-card (used in all mobile views) ---- */
+function AgendaMiniCard({ os, onClick }: { os: OrdemServico; onClick: () => void }) {
+  const prof = os.expand?.profissional
+  const profName = prof ? (prof.nome ?? prof.name) : null
+  const time = new Date(os.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className={`agenda-mini-card agenda-mc-${os.status}`} onClick={onClick}>
+      <div className="agenda-mini-card-time">{time}</div>
+      <div className="agenda-mini-card-body">
+        <div className="agenda-mini-card-client">{os.nome_curto}</div>
+        <div className="agenda-mini-card-sub">
+          {os.tipo_servico_nome ?? '—'}
+          {profName && <> · {profName}</>}
+        </div>
+      </div>
+      <span className={`clx-status clx-status-${os.status}`}>{osStatusLabel(os.status)}</span>
+    </div>
+  )
+}
+
+/* ---- Mobile Day View ---- */
+function MobileDayView({
+  day, today, events, onEventClick,
+}: {
+  day: Date
+  today: Date
+  events: OrdemServico[]
+  onEventClick: (os: OrdemServico) => void
+}) {
+  const isToday = sameDay(day, today)
+  const label = day.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+  return (
+    <div className="cal-agenda-mobile">
+      <div className={`cal-agenda-mobile-header${isToday ? ' today' : ''}`}>
+        {label}{isToday ? ' — Hoje' : ''}
+      </div>
+      {events.length === 0 ? (
+        <div className="agenda-empty-day">Sem atendimentos neste dia</div>
+      ) : (
+        <div className="agenda-mini-list">
+          {events.map((os) => (
+            <AgendaMiniCard key={os.id} os={os} onClick={() => onEventClick(os)} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---- Mobile Week View — agenda list grouped by day ---- */
+function MobileWeekView({
+  weekDays, today, eventsForDay, onEventClick,
+}: {
+  weekDays: Date[]
+  today: Date
+  eventsForDay: (day: Date) => OrdemServico[]
+  onEventClick: (os: OrdemServico) => void
+}) {
+  const hasAnyEvents = weekDays.some((day) => eventsForDay(day).length > 0)
+
+  if (!hasAnyEvents) {
+    return (
+      <div className="agenda-empty-week">
+        <p>Nenhum atendimento nesta semana.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="cal-agenda-week">
+      {weekDays.map((day) => {
+        const events = eventsForDay(day)
+        if (events.length === 0) return null
+        const isToday = sameDay(day, today)
+        const dayLabel = day
+          .toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
+          .toUpperCase()
+        return (
+          <div key={day.toISOString()} className="cal-agenda-day-group">
+            <div className={`cal-agenda-day-header${isToday ? ' today' : ''}`}>
+              {dayLabel}
+              {isToday && <span className="cal-agenda-today-chip">Hoje</span>}
+            </div>
+            <div className="agenda-mini-list">
+              {events.map((os) => (
+                <AgendaMiniCard key={os.id} os={os} onClick={() => onEventClick(os)} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ---- Mobile Month View — compact grid + day list ---- */
+function MobileMonthView({
+  anchor, today, selectedDay, onSelectDay, eventsForDay, onEventClick,
+}: {
+  anchor: Date
+  today: Date
+  selectedDay: Date
+  onSelectDay: (d: Date) => void
+  eventsForDay: (day: Date) => OrdemServico[]
+  onEventClick: (os: OrdemServico) => void
+}) {
+  const weeks = getMonthCalendar(anchor.getFullYear(), anchor.getMonth())
+  const selectedEvents = eventsForDay(selectedDay)
+
+  return (
+    <div className="cal-month-mobile">
+      {/* DOW header */}
+      <div className="cal-month-mobile-header">
+        {DOW_SHORT.map((d) => (
+          <div key={d} className="cal-month-mobile-dow">{d}</div>
+        ))}
+      </div>
+
+      {/* Compact day grid */}
+      <div className="cal-month-mobile-grid">
+        {weeks.flatMap((week) =>
+          week.map((day, i) => {
+            const events = eventsForDay(day)
+            const isToday = sameDay(day, today)
+            const isSelected = sameDay(day, selectedDay)
+            const isOtherMonth = day.getMonth() !== anchor.getMonth()
+            const cls = [
+              'cal-day-mobile',
+              isToday ? 'today' : '',
+              isSelected ? 'selected' : '',
+              isOtherMonth ? 'other-month' : '',
+            ].filter(Boolean).join(' ')
+            return (
+              <div
+                key={`${day.toISOString()}-${i}`}
+                className={cls}
+                onClick={() => onSelectDay(day)}
+              >
+                <div className="cal-day-num">{day.getDate()}</div>
+                {events.length > 0 && (
+                  <div className="cal-month-dot-row">
+                    {events.length <= 3
+                      ? events.map((os, idx) => (
+                          <span key={idx} className={`cal-month-dot cal-dot-${os.status}`} />
+                        ))
+                      : (
+                        <>
+                          {events.slice(0, 2).map((os, idx) => (
+                            <span key={idx} className={`cal-month-dot cal-dot-${os.status}`} />
+                          ))}
+                          <span className="cal-month-more">+{events.length - 2}</span>
+                        </>
+                      )
+                    }
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Selected day event list */}
+      <div className="cal-day-events-list">
+        <div className="cal-day-events-header">
+          {selectedDay.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+        </div>
+        {selectedEvents.length === 0 ? (
+          <div className="agenda-empty-day">Sem atendimentos neste dia</div>
+        ) : (
+          <div className="agenda-mini-list">
+            {selectedEvents.map((os) => (
+              <AgendaMiniCard key={os.id} os={os} onClick={() => onEventClick(os)} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
