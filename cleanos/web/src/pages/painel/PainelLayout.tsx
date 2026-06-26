@@ -92,7 +92,6 @@ export default function PainelLayout() {
             className="painel-menu-toggle"
             onClick={closeSidebar}
             aria-label="Fechar menu"
-            style={{ display: 'inline-flex' }}
           >
             <IconX size={18} />
           </button>
