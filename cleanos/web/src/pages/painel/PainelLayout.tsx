@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Logo } from '../../components/ui/Logo'
 import {
@@ -36,6 +36,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/painel/agenda':     'Agenda',
   '/painel/financeiro': 'Financeiro',
   '/painel/usuarios':   'Usuários',
+  '/painel/conta':      'Minha Conta',
 }
 
 export default function PainelLayout() {
@@ -100,13 +101,20 @@ export default function PainelLayout() {
 
         <div className="painel-sidebar-footer">
           <div className="painel-user-info">
-            <div className="painel-user-avatar" aria-hidden="true">
-              {avatarInitial}
-            </div>
-            <div className="painel-user-name">
-              <strong title={user?.name}>{user?.name ?? 'Usuário'}</strong>
-              <span className="painel-user-role">{role}</span>
-            </div>
+            <Link
+              to="/painel/conta"
+              onClick={closeSidebar}
+              title="Minha conta"
+              style={{ display: 'contents' }}
+            >
+              <div className="painel-user-avatar" aria-hidden="true">
+                {avatarInitial}
+              </div>
+              <div className="painel-user-name">
+                <strong title={user?.name}>{user?.name ?? 'Usuário'}</strong>
+                <span className="painel-user-role">{role}</span>
+              </div>
+            </Link>
             <button
               className="painel-logout-btn"
               onClick={handleLogout}
