@@ -217,29 +217,25 @@ export default function Financeiro() {
                       const prof = o.expand?.profissional
                       return (
                         <tr key={o.id}>
-                          <td>
+                          <td data-label="Cliente">
                             <strong>{o.nome_curto}</strong>
                             {o.tipo_servico_nome && <><br /><small>{o.tipo_servico_nome}</small></>}
                           </td>
-                          <td>
+                          <td data-label="Profissional">
                             {prof
                               ? (prof.nome ?? prof.name)
                               : <span style={{ color: 'var(--clx-ink-3)' }}>—</span>}
                           </td>
-                          <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(o.data_hora)}</td>
-                          <td>{o.forma_pagamento ? formaPagamentoLabel(o.forma_pagamento) : '—'}</td>
-                          <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                          <td data-label="Data" style={{ whiteSpace: 'nowrap' }}>{formatDateTime(o.data_hora)}</td>
+                          <td data-label="Forma pag.">{o.forma_pagamento ? formaPagamentoLabel(o.forma_pagamento) : '—'}</td>
+                          <td data-label="Valor pago" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
                             {formatCurrency(o.valor_pago ?? 0)}
                           </td>
-                          <td>
+                          <td data-label="Repasse">
                             {o.repasse_status === 'pago' ? (
-                              <span className="clx-chip" style={{ background: 'rgba(34,197,94,0.10)', color: 'var(--clx-success)', border: 'none' }}>
-                                Repassado
-                              </span>
+                              <span className="clx-chip clx-chip-success">Repassado</span>
                             ) : o.repasse_status === 'pendente' ? (
-                              <span className="clx-chip" style={{ background: 'rgba(245,158,11,0.10)', color: 'var(--clx-warning)', border: 'none' }}>
-                                Pendente
-                              </span>
+                              <span className="clx-chip clx-chip-warning">Pendente</span>
                             ) : (
                               <span style={{ color: 'var(--clx-ink-3)' }}>—</span>
                             )}
@@ -289,12 +285,12 @@ export default function Financeiro() {
                       <tbody>
                         {g.os.map((o) => (
                           <tr key={o.id}>
-                            <td>
+                            <td data-label="Cliente">
                               <strong>{o.nome_curto}</strong>
                               <br /><small>{formatDateTime(o.data_hora)}</small>
                             </td>
-                            <td>{o.tipo_servico_nome ?? '—'}</td>
-                            <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                            <td data-label="Serviço">{o.tipo_servico_nome ?? '—'}</td>
+                            <td data-label="Valor" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
                               {formatCurrency(o.valor_pago ?? 0)}
                             </td>
                             <td>

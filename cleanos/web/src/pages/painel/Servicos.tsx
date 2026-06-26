@@ -253,8 +253,8 @@ export default function Servicos() {
                 ) : (
                   filtered.map((s) => (
                     <tr key={s.id}>
-                      <td><strong>{s.nome}</strong></td>
-                      <td>
+                      <td data-label="Nome"><strong>{s.nome}</strong></td>
+                      <td data-label="Descrição">
                         <span
                           title={s.descricao || undefined}
                           style={{
@@ -269,20 +269,11 @@ export default function Servicos() {
                           {s.descricao || '—'}
                         </span>
                       </td>
-                      <td>{formatCurrency(s.preco_base)}</td>
-                      <td>
+                      <td data-label="Preço">{formatCurrency(s.preco_base)}</td>
+                      <td data-label="Status">
                         <button
-                          className="clx-chip"
-                          style={{
-                            cursor: 'pointer',
-                            background: s.ativo
-                              ? 'rgba(34,197,94,0.10)'
-                              : 'rgba(239,68,68,0.10)',
-                            color: s.ativo
-                              ? 'var(--clx-success)'
-                              : 'var(--clx-error)',
-                            border: 'none',
-                          }}
+                          className={`clx-chip ${s.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
+                          style={{ cursor: 'pointer' }}
                           onClick={() => toggleAtivo(s)}
                           title={s.ativo ? 'Clique para inativar' : 'Clique para ativar'}
                         >

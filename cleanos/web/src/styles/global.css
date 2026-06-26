@@ -142,11 +142,11 @@ img, svg { display: block; max-width: 100%; }
   background: currentColor;
   flex-shrink: 0;
 }
-.clx-status-agendada     { color: var(--clx-status-agendada);     background: rgba(59,130,246,0.10); }
-.clx-status-atribuida    { color: var(--clx-status-atribuida);    background: rgba(139,92,246,0.10); }
-.clx-status-em_andamento { color: var(--clx-status-em_andamento); background: rgba(245,158,11,0.12); }
-.clx-status-concluida    { color: var(--clx-status-concluida);    background: rgba(34,197,94,0.10);  }
-.clx-status-cancelada    { color: var(--clx-status-cancelada);    background: rgba(239,68,68,0.10);  }
+.clx-status-agendada     { color: var(--clx-status-agendada);     background: var(--clx-status-agendada-bg); }
+.clx-status-atribuida    { color: var(--clx-status-atribuida);    background: var(--clx-status-atribuida-bg); }
+.clx-status-em_andamento { color: var(--clx-status-em_andamento); background: var(--clx-status-em_andamento-bg); }
+.clx-status-concluida    { color: var(--clx-status-concluida);    background: var(--clx-status-concluida-bg); }
+.clx-status-cancelada    { color: var(--clx-status-cancelada);    background: var(--clx-status-cancelada-bg); }
 
 /* ====================================================
    LOGIN
@@ -1344,12 +1344,7 @@ img, svg { display: block; max-width: 100%; }
   line-height: 1.35;
 }
 
-/* OS event colors (per status) */
-.os-event-agendada    { background: rgba(59,130,246,0.15);  color: var(--clx-status-agendada);    }
-.os-event-atribuida   { background: rgba(139,92,246,0.15);  color: var(--clx-status-atribuida);   }
-.os-event-em_andamento{ background: rgba(245,158,11,0.15);  color: var(--clx-status-em_andamento);}
-.os-event-concluida   { background: rgba(34,197,94,0.15);   color: var(--clx-status-concluida);   }
-.os-event-cancelada   { background: rgba(239,68,68,0.12);   color: var(--clx-status-cancelada);   }
+/* OS event colors — see token-based rules appended below */
 
 /* ---- FINANCEIRO ---- */
 .fin-grid {
@@ -1613,4 +1608,184 @@ img, svg { display: block; max-width: 100%; }
   transition: background 0.1s;
 }
 .select-search-item:hover { background: var(--clx-bg-2); color: var(--clx-ink); }
-.select-search-item.selected { background: rgba(0,194,184,0.08); color: var(--clx-primary-2); font-weight: 600; }
+.select-search-item.selected { background: var(--clx-primary-bg); color: var(--clx-primary-2); font-weight: 600; }
+
+/* ---- CHIP color variants ---- */
+.clx-chip-success { background: var(--clx-success-bg); border-color: transparent; color: var(--clx-success); }
+.clx-chip-error   { background: var(--clx-error-bg);   border-color: transparent; color: var(--clx-error);   }
+.clx-chip-warning { background: var(--clx-warning-bg); border-color: transparent; color: var(--clx-warning); }
+
+/* ---- CALENDAR event colors (dark-aware via token) ---- */
+.os-event-agendada    { background: var(--clx-status-agendada-bg);     color: var(--clx-status-agendada);    }
+.os-event-atribuida   { background: var(--clx-status-atribuida-bg);    color: var(--clx-status-atribuida);   }
+.os-event-em_andamento{ background: var(--clx-status-em_andamento-bg); color: var(--clx-status-em_andamento);}
+.os-event-concluida   { background: var(--clx-status-concluida-bg);    color: var(--clx-status-concluida);   }
+.os-event-cancelada   { background: var(--clx-status-cancelada-bg);    color: var(--clx-status-cancelada);   }
+
+/* ====================================================
+   MOBILE RESPONSIVE — tabelas → cards
+   ==================================================== */
+@media (max-width: 767px) {
+  /* Container transparente em mobile */
+  .table-wrap {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .table-scroll { overflow-x: visible !important; }
+
+  /* Tabela → cards */
+  .clx-table { display: block; }
+  .clx-table thead { display: none; }
+  .clx-table tbody { display: block; }
+  .clx-table tbody tr {
+    display: block;
+    background: var(--clx-bg);
+    border: 1px solid var(--clx-line);
+    border-radius: var(--clx-r-lg);
+    margin-bottom: 10px;
+    overflow: hidden;
+    box-shadow: var(--clx-shadow-sm);
+  }
+  /* Anula a regra de last-child para borda da última linha (não faz sentido em cards) */
+  .clx-table tbody tr:last-child td { border-bottom: 1px solid var(--clx-line); }
+  /* Hover no card todo, não em células individuais */
+  .clx-table tbody tr:hover td { background: transparent; }
+  .clx-table tbody tr:hover { background: var(--clx-bg-2); }
+
+  /* Células vira linha label:valor */
+  .clx-table td {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border: none;
+    border-bottom: 1px solid var(--clx-line);
+    font-size: 0.875rem;
+    gap: 10px;
+    color: var(--clx-ink);
+    vertical-align: middle;
+  }
+  .clx-table td:last-child { border-bottom: none; }
+
+  /* Label da coluna via data-label */
+  .clx-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--clx-ink-3);
+    white-space: nowrap;
+    min-width: 78px;
+    flex-shrink: 0;
+  }
+
+  /* Célula de ações sem label (alinhada à direita) */
+  .clx-table td:not([data-label]) {
+    justify-content: flex-end;
+  }
+
+  /* Alvos de toque maiores */
+  .icon-btn { width: 36px; height: 36px; }
+  .td-actions { gap: 8px; }
+
+  /* Toolbar de página empilha no mobile */
+  .page-toolbar { flex-direction: column; align-items: stretch; }
+  .page-toolbar-search { min-width: 0; }
+  .page-toolbar .clx-btn { width: 100%; }
+  .page-toolbar .clx-btn-sm { width: auto; }
+
+  /* Painel content padding menor */
+  .painel-content { padding: 16px 12px; }
+
+  /* Section headers */
+  .section-header { flex-wrap: wrap; }
+}
+
+/* ====================================================
+   MOBILE RESPONSIVE — agenda
+   ==================================================== */
+@media (max-width: 767px) {
+  .agenda-toolbar { flex-wrap: wrap; gap: 8px; }
+  .agenda-view-tabs { margin-left: 0; }
+  .agenda-period-label { min-width: 120px; font-size: 0.85rem; }
+
+  /* Visão semana compacta (quando forçado pelo usuário) */
+  .cal-week-header { grid-template-columns: 36px repeat(7, 1fr); overflow: hidden; }
+  .cal-week-body   { grid-template-columns: 36px repeat(7, 1fr); max-height: 400px; }
+  .cal-hour-label  { padding: 2px 4px; font-size: 0.6rem; height: 48px; }
+  .cal-week-cell   { height: 48px; }
+  .cal-week-event  { font-size: 0.58rem; padding: 1px 3px; }
+  .cal-week-day-header { padding: 6px 3px; }
+  .cal-week-day-header .dow  { font-size: 0.6rem; }
+  .cal-week-day-header .date { font-size: 0.85rem; }
+
+  /* Visão mês compacta */
+  .cal-day { min-height: 56px; padding: 3px; }
+  .cal-event { font-size: 0.6rem; padding: 1px 3px; }
+
+  /* Toolbar do dia */
+  .cal-day-header { padding: 12px 14px; font-size: 0.9rem; }
+}
+
+/* ====================================================
+   MOBILE — tab bar horizontal scroll limpo
+   ==================================================== */
+@media (max-width: 767px) {
+  .tab-bar {
+    border-radius: var(--clx-r-md);
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-item { scroll-snap-align: start; min-height: 44px; }
+}
+
+/* ====================================================
+   MOBILE — inputs sem zoom no iOS (font-size ≥ 16px)
+   ==================================================== */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 1rem !important; }
+  .tab-item { font-size: 0.82rem; }
+}
+
+/* ====================================================
+   MOBILE — modais full-width e alvos tap-friendly
+   ==================================================== */
+@media (max-width: 640px) {
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal-box {
+    max-width: 100%;
+    border-radius: var(--clx-r-xl) var(--clx-r-xl) 0 0;
+    max-height: 92dvh;
+  }
+  .modal-footer { gap: 8px; }
+  .modal-footer .clx-btn { flex: 1; }
+
+  /* Botões de ação em telas pequenas */
+  .clx-btn { min-height: 44px; }
+  .clx-btn-sm { min-height: 36px; }
+
+  /* Formulários mobile */
+  .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+  .form-col-span-2, .form-col-span-3 { grid-column: span 1; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ====================================================
+   DARK MODE — correções de superfícies inline
+   ==================================================== */
+[data-theme="dark"] .login-root {
+  background:
+    radial-gradient(60% 60% at 10% 10%, rgba(0, 194, 184, 0.07), transparent 60%),
+    radial-gradient(60% 60% at 90% 90%, rgba(15, 76, 92, 0.08), transparent 60%),
+    var(--clx-bg-2);
+}
+[data-theme="dark"] .accordion-body { background: var(--clx-bg-3); }
+[data-theme="dark"] .review-card { background: var(--clx-bg-2); }
+[data-theme="dark"] .select-search-dropdown { background: var(--clx-bg-2); }
+[data-theme="dark"] .select-search-item:hover { background: var(--clx-bg-3); color: var(--clx-ink); }

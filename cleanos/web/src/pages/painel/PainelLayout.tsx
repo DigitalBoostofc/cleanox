@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Logo } from '../../components/ui/Logo'
+import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { userDisplayName } from '../../lib/collections'
 import {
   IconDashboard,
@@ -158,6 +159,7 @@ export default function PainelLayout() {
             <h1 className="painel-page-title">{currentTitle}</h1>
           </div>
           <div className="painel-topbar-right">
+            <ThemeToggle size={18} />
             <span
               style={{
                 fontSize: '0.8rem',

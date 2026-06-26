@@ -117,7 +117,8 @@ export default function Agenda() {
   const navigate = useNavigate()
   const today = new Date()
 
-  const [view, setView] = useState<AgendaView>('semana')
+  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  const [view, setView] = useState<AgendaView>(isMobile ? 'dia' : 'semana')
   const [anchor, setAnchor] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
 
   const [osData, setOsData] = useState<OrdemServico[]>([])

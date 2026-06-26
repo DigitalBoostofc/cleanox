@@ -244,26 +244,17 @@ export default function Clientes() {
                 ) : (
                   filtered.map((c) => (
                     <tr key={c.id}>
-                      <td>
+                      <td data-label="Nome">
                         <strong>{c.nome} {c.sobrenome}</strong>
                         {c.email && <><br /><small>{c.email}</small></>}
                       </td>
-                      <td>{c.telefone}</td>
-                      <td>{c.endereco_bairro}</td>
-                      <td>{c.endereco_cidade || '—'}</td>
-                      <td>
+                      <td data-label="Telefone">{c.telefone}</td>
+                      <td data-label="Bairro">{c.endereco_bairro}</td>
+                      <td data-label="Cidade">{c.endereco_cidade || '—'}</td>
+                      <td data-label="Status">
                         <button
-                          className="clx-chip"
-                          style={{
-                            cursor: 'pointer',
-                            background: c.ativo
-                              ? 'rgba(34,197,94,0.10)'
-                              : 'rgba(239,68,68,0.10)',
-                            color: c.ativo
-                              ? 'var(--clx-success)'
-                              : 'var(--clx-error)',
-                            border: 'none',
-                          }}
+                          className={`clx-chip ${c.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
+                          style={{ cursor: 'pointer' }}
                           onClick={() => toggleAtivo(c)}
                           title={c.ativo ? 'Clique para desativar' : 'Clique para ativar'}
                         >

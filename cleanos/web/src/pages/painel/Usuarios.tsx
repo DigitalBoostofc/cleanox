@@ -216,15 +216,15 @@ export default function Usuarios() {
                 ) : (
                   users.map((u) => (
                     <tr key={u.id}>
-                      <td><strong>{userDisplayName(u)}</strong></td>
-                      <td>{u.email}</td>
-                      <td>
+                      <td data-label="Nome"><strong>{userDisplayName(u)}</strong></td>
+                      <td data-label="E-mail">{u.email}</td>
+                      <td data-label="Papel">
                         <span className="clx-chip">
                           {ROLE_LABELS[u.role] ?? u.role}
                         </span>
                         {u.role === 'profissional' && (
                           <span style={{ fontSize: '0.72rem', color: 'var(--clx-ink-3)', marginLeft: 6 }}>
-                            (app profissional)
+                            (app)
                           </span>
                         )}
                       </td>
@@ -347,7 +347,7 @@ export default function Usuarios() {
               className="form-col-span-2"
               style={{
                 padding: '10px 12px',
-                background: 'rgba(245,158,11,0.06)',
+                background: 'var(--clx-warning-bg)',
                 border: '1px solid rgba(245,158,11,0.22)',
                 borderRadius: 'var(--clx-r-md)',
                 fontSize: '0.8rem',
