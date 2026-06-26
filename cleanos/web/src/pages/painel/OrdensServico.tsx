@@ -22,7 +22,6 @@ import { Modal } from '../../components/ui/Modal'
 import {
   IconPlus,
   IconEdit,
-  IconEye,
   IconAlertCircle,
   IconXCircle,
   IconCheckCircle,
@@ -369,9 +368,6 @@ export default function OrdensServico() {
                     )}
                   </div>
                   <div className="mob-card-actions">
-                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openView(os) }} title="Ver detalhes">
-                      <IconEye size={15} />
-                    </button>
                     {os.status !== 'concluida' && os.status !== 'cancelada' && (
                       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(os) }} title="Editar">
                         <IconEdit size={15} />
@@ -420,7 +416,13 @@ export default function OrdensServico() {
                   filtered.map((os) => {
                     const prof = os.expand?.profissional
                     return (
-                      <tr key={os.id}>
+                      <tr
+                        key={os.id}
+                        onClick={() => openView(os)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openView(os) } }}
+                        tabIndex={0}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td data-label="Cliente">
                           <strong>{os.nome_curto}</strong>
                           <br /><small>{os.bairro}</small>
@@ -441,16 +443,13 @@ export default function OrdensServico() {
                         </td>
                         <td>
                           <div className="td-actions">
-                            <button className="icon-btn" onClick={() => openView(os)} title="Ver detalhes">
-                              <IconEye size={15} />
-                            </button>
                             {os.status !== 'concluida' && os.status !== 'cancelada' && (
-                              <button className="icon-btn" onClick={() => openEdit(os)} title="Editar">
+                              <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(os) }} title="Editar">
                                 <IconEdit size={15} />
                               </button>
                             )}
                             {os.status !== 'concluida' && os.status !== 'cancelada' && (
-                              <button className="icon-btn danger" onClick={() => handleCancel(os)} title="Cancelar OS">
+                              <button className="icon-btn danger" onClick={(e) => { e.stopPropagation(); handleCancel(os) }} title="Cancelar OS">
                                 <IconXCircle size={15} />
                               </button>
                             )}

@@ -6,9 +6,9 @@ import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
   IconPlus,
-  IconEdit,
   IconTrash,
   IconAlertCircle,
+  IconChevronRight,
 } from '../../components/ui/Icon'
 import { useAuth } from '../../contexts/AuthContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
@@ -217,19 +217,9 @@ export default function Usuarios() {
                   </div>
                 </div>
                 <div className="mob-card-actions">
-                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Editar">
-                    <IconEdit size={15} />
-                  </button>
-                  {myRole === 'admin' && (
-                    <button
-                      className="icon-btn danger"
-                      onClick={(e) => { e.stopPropagation(); openDeleteConfirm(u) }}
-                      title={myUser && u.id === myUser.id ? 'Não é possível excluir a própria conta' : 'Excluir'}
-                      disabled={!!(myUser && u.id === myUser.id)}
-                    >
-                      <IconTrash size={15} />
-                    </button>
-                  )}
+                  <span style={{ color: 'var(--clx-ink-3)', display: 'flex', alignItems: 'center' }}>
+                    <IconChevronRight size={16} />
+                  </span>
                 </div>
               </div>
             ))}
@@ -244,13 +234,12 @@ export default function Usuarios() {
                   <th>Nome</th>
                   <th>E-mail</th>
                   <th>Papel</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={3}>
                       <div className="empty-state">
                         <h4>Nenhum usuário cadastrado</h4>
                         <p>Clique em "Novo usuário" para adicionar.</p>
@@ -259,7 +248,13 @@ export default function Usuarios() {
                   </tr>
                 ) : (
                   users.map((u) => (
-                    <tr key={u.id}>
+                    <tr
+                      key={u.id}
+                      onClick={() => openEdit(u)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(u) } }}
+                      tabIndex={0}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td data-label="Nome"><strong>{userDisplayName(u)}</strong></td>
                       <td data-label="E-mail">{u.email}</td>
                       <td data-label="Papel">
@@ -271,23 +266,6 @@ export default function Usuarios() {
                             (app)
                           </span>
                         )}
-                      </td>
-                      <td>
-                        <div className="td-actions">
-                          <button className="icon-btn" onClick={() => openEdit(u)} title="Editar">
-                            <IconEdit size={15} />
-                          </button>
-                          {myRole === 'admin' && (
-                            <button
-                              className="icon-btn danger"
-                              onClick={() => openDeleteConfirm(u)}
-                              title={myUser && u.id === myUser.id ? 'Não é possível excluir a própria conta' : 'Excluir'}
-                              disabled={!!(myUser && u.id === myUser.id)}
-                            >
-                              <IconTrash size={15} />
-                            </button>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -305,6 +283,17 @@ export default function Usuarios() {
         title={editing ? 'Editar usuário' : 'Novo usuário'}
         footer={
           <>
+            {myRole === 'admin' && editing && (
+              <button
+                className="clx-btn clx-btn-danger clx-btn-sm"
+                style={{ marginRight: 'auto' }}
+                onClick={() => { setModalOpen(false); openDeleteConfirm(editing) }}
+                disabled={saving || !!(myUser && editing.id === myUser.id)}
+                title={myUser && editing.id === myUser.id ? 'Não é possível excluir a própria conta' : 'Excluir usuário'}
+              >
+                <IconTrash size={14} /> Excluir
+              </button>
+            )}
             <button className="clx-btn clx-btn-ghost" onClick={() => setModalOpen(false)} disabled={saving}>
               Cancelar
             </button>

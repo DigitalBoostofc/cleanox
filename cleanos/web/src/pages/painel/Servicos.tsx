@@ -6,11 +6,11 @@ import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
   IconPlus,
-  IconEdit,
   IconTrash,
   IconAlertCircle,
   IconSearch,
   IconDollar,
+  IconChevronRight,
 } from '../../components/ui/Icon'
 import { useAuth } from '../../contexts/AuthContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
@@ -259,22 +259,9 @@ export default function Servicos() {
                   </div>
                 </div>
                 <div className="mob-card-actions">
-                  <button
-                    className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); openEdit(s) }}
-                    title="Editar"
-                  >
-                    <IconEdit size={15} />
-                  </button>
-                  {isAdmin && (
-                    <button
-                      className="icon-btn danger"
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
-                      title="Excluir"
-                    >
-                      <IconTrash size={15} />
-                    </button>
-                  )}
+                  <span style={{ color: 'var(--clx-ink-3)', display: 'flex', alignItems: 'center' }}>
+                    <IconChevronRight size={16} />
+                  </span>
                 </div>
               </div>
             ))}
@@ -290,13 +277,12 @@ export default function Servicos() {
                   <th>Descrição</th>
                   <th>Preço base</th>
                   <th>Status</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={4}>
                       <div className="empty-state">
                         <IconSearch size={32} />
                         <h4>
@@ -312,7 +298,13 @@ export default function Servicos() {
                   </tr>
                 ) : (
                   filtered.map((s) => (
-                    <tr key={s.id}>
+                    <tr
+                      key={s.id}
+                      onClick={() => openEdit(s)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(s) } }}
+                      tabIndex={0}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td data-label="Nome"><strong>{s.nome}</strong></td>
                       <td data-label="Descrição">
                         <span
@@ -334,31 +326,11 @@ export default function Servicos() {
                         <button
                           className={`clx-chip ${s.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
                           style={{ cursor: 'pointer' }}
-                          onClick={() => toggleAtivo(s)}
+                          onClick={(e) => { e.stopPropagation(); toggleAtivo(s) }}
                           title={s.ativo ? 'Clique para inativar' : 'Clique para ativar'}
                         >
                           {s.ativo ? 'Ativo' : 'Inativo'}
                         </button>
-                      </td>
-                      <td>
-                        <div className="td-actions">
-                          <button
-                            className="icon-btn"
-                            onClick={() => openEdit(s)}
-                            title="Editar"
-                          >
-                            <IconEdit size={15} />
-                          </button>
-                          {isAdmin && (
-                            <button
-                              className="icon-btn danger"
-                              onClick={() => setDeleteTarget(s)}
-                              title="Excluir"
-                            >
-                              <IconTrash size={15} />
-                            </button>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -376,6 +348,17 @@ export default function Servicos() {
         title={editing ? 'Editar serviço' : 'Novo serviço'}
         footer={
           <>
+            {isAdmin && editing && (
+              <button
+                className="clx-btn clx-btn-danger clx-btn-sm"
+                style={{ marginRight: 'auto' }}
+                onClick={() => { setModalOpen(false); setDeleteTarget(editing) }}
+                disabled={saving}
+                title="Excluir serviço"
+              >
+                <IconTrash size={14} /> Excluir
+              </button>
+            )}
             <button className="clx-btn clx-btn-ghost" onClick={() => setModalOpen(false)} disabled={saving}>
               Cancelar
             </button>

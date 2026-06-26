@@ -6,7 +6,6 @@ import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
   IconPlus,
-  IconEdit,
   IconAlertCircle,
   IconSearch,
   IconPhone,
@@ -257,13 +256,6 @@ export default function Clientes() {
                   )}
                 </div>
                 <div className="mob-card-actions">
-                  <button
-                    className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); openEdit(c) }}
-                    title="Editar"
-                  >
-                    <IconEdit size={15} />
-                  </button>
                   <span style={{ color: 'var(--clx-ink-3)', display: 'flex', alignItems: 'center' }}>
                     <IconChevronRight size={16} />
                   </span>
@@ -283,13 +275,12 @@ export default function Clientes() {
                   <th>Bairro</th>
                   <th>Cidade</th>
                   <th>Status</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={5}>
                       <div className="empty-state">
                         <IconSearch size={32} />
                         <h4>
@@ -305,7 +296,13 @@ export default function Clientes() {
                   </tr>
                 ) : (
                   filtered.map((c) => (
-                    <tr key={c.id}>
+                    <tr
+                      key={c.id}
+                      onClick={() => openEdit(c)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(c) } }}
+                      tabIndex={0}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td data-label="Nome">
                         <strong>{c.nome} {c.sobrenome}</strong>
                         {c.email && <><br /><small>{c.email}</small></>}
@@ -317,22 +314,11 @@ export default function Clientes() {
                         <button
                           className={`clx-chip ${c.ativo ? 'clx-chip-success' : 'clx-chip-error'}`}
                           style={{ cursor: 'pointer' }}
-                          onClick={() => toggleAtivo(c)}
+                          onClick={(e) => { e.stopPropagation(); toggleAtivo(c) }}
                           title={c.ativo ? 'Clique para desativar' : 'Clique para ativar'}
                         >
                           {c.ativo ? 'Ativo' : 'Inativo'}
                         </button>
-                      </td>
-                      <td>
-                        <div className="td-actions">
-                          <button
-                            className="icon-btn"
-                            onClick={() => openEdit(c)}
-                            title="Editar"
-                          >
-                            <IconEdit size={15} />
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   ))
