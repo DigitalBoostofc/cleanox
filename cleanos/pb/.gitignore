@@ -1,0 +1,12 @@
+# PocketBase runtime data — recriável via `./pocketbase migrate up` (schema + seed).
+# NUNCA versionar: contém o cofre de clientes (dado sensível) e o banco SQLite.
+pb_data/
+.trash_pb_data_*/
+
+# binário do PocketBase (baixado por release; ver README "Como rodar")
+pocketbase
+CHANGELOG.md
+LICENSE.md
+
+# logs locais
+*.log

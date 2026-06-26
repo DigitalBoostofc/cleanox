@@ -4,3 +4,6 @@ Thumbs.db
 .vscode/
 .idea/
 node_modules/
+
+# estado local de sessão do overclock — nunca versionar
+.overclock-app/

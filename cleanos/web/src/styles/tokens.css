@@ -1,0 +1,110 @@
+/* ============================================================
+   CleanOS — Design Tokens
+   Paleta derivada do site institucional Cleanox (styles.css).
+   Tema claro é o padrão; escuro via [data-theme="dark"].
+   ============================================================ */
+
+:root {
+  /* Superfícies */
+  --clx-bg:          #FFFFFF;
+  --clx-bg-2:        #F7F9FB;
+  --clx-bg-3:        #EEF3F7;
+  --clx-bg-sidebar:  #F7F9FB;
+
+  /* Tipografia */
+  --clx-ink:   #0B1F2A;
+  --clx-ink-2: #3A4A55;
+  --clx-ink-3: #7A8893;
+
+  /* Marca */
+  --clx-primary:   #00C2B8;  /* teal/cyan — CTA principal */
+  --clx-primary-2: #00A39B;  /* teal hover */
+  --clx-accent:    #0F4C5C;  /* petrol blue */
+  --clx-accent-2:  #1B6B7A;  /* petrol hover */
+
+  /* Bordas */
+  --clx-line:   rgba(15, 76, 92, 0.10);
+  --clx-line-2: rgba(15, 76, 92, 0.18);
+
+  /* Sombras */
+  --clx-shadow-sm: 0 2px 8px  rgba(15, 76, 92, 0.08);
+  --clx-shadow-md: 0 8px 24px rgba(15, 76, 92, 0.12);
+  --clx-shadow-lg: 0 24px 60px rgba(15, 76, 92, 0.16);
+
+  /* Glows */
+  --clx-glow-primary: 0 10px 32px rgba(0, 194, 184, 0.28);
+  --clx-glow-accent:  0 10px 32px rgba(15, 76, 92, 0.20);
+
+  /* Feedback */
+  --clx-error:   #EF4444;
+  --clx-success: #22C55E;
+  --clx-warning: #F59E0B;
+  --clx-info:    #3B82F6;
+
+  /* Status de OS */
+  --clx-status-agendada:    #3B82F6;
+  --clx-status-atribuida:   #8B5CF6;
+  --clx-status-em_andamento:#F59E0B;
+  --clx-status-concluida:   #22C55E;
+  --clx-status-cancelada:   #EF4444;
+
+  /* Tipografia */
+  --clx-font-sans:    'Sora', 'Titillium Web', system-ui, sans-serif;
+  --clx-font-display: 'Sora', system-ui, sans-serif;
+  --clx-font-mono:    ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+
+  /* Bordas arredondadas */
+  --clx-r-sm:   6px;
+  --clx-r-md:   10px;
+  --clx-r-lg:   14px;
+  --clx-r-xl:   20px;
+  --clx-r-pill: 100px;
+
+  /* Layout */
+  --clx-sidebar-w:       240px;
+  --clx-topbar-h:         64px;
+  --clx-bottomnav-h:      64px;
+  --clx-content-max-w:  1200px;
+
+  /* Easing */
+  --clx-ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --clx-ease-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ---- Tema escuro (opcional — não é o padrão) ---- */
+[data-theme="dark"] {
+  --clx-bg:          #0C0C0C;
+  --clx-bg-2:        #191919;
+  --clx-bg-3:        #212121;
+  --clx-bg-sidebar:  #191919;
+
+  --clx-ink:   #FFFFFF;
+  --clx-ink-2: rgba(255, 255, 255, 0.82);
+  --clx-ink-3: #7A7A7A;
+
+  --clx-primary:   #00C2B8;
+  --clx-primary-2: #00A39B;
+  --clx-accent:    #3DA5D9;
+  --clx-accent-2:  #60B8E5;
+
+  --clx-line:   rgba(255, 255, 255, 0.08);
+  --clx-line-2: rgba(255, 255, 255, 0.16);
+
+  --clx-shadow-sm: 0 2px 6px  rgba(0, 0, 0, 0.35);
+  --clx-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.40);
+  --clx-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.60);
+
+  --clx-glow-primary: 0 10px 40px rgba(0, 194, 184, 0.30);
+  --clx-glow-accent:  0 10px 40px rgba(61, 165, 217, 0.25);
+
+  --clx-error:   #F87171;
+  --clx-success: #4ADE80;
+  --clx-warning: #FBBF24;
+  --clx-info:    #60A5FA;
+
+  --clx-status-agendada:    #60A5FA;
+  --clx-status-atribuida:   #A78BFA;
+  --clx-status-em_andamento:#FBBF24;
+  --clx-status-concluida:   #4ADE80;
+  --clx-status-cancelada:   #F87171;
+}
