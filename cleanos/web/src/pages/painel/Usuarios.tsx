@@ -11,6 +11,8 @@ import {
   IconAlertCircle,
 } from '../../components/ui/Icon'
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { CardAvatar } from '../../components/ui/MobileCards'
 
 function pbError(err: unknown): string {
   if (err instanceof ClientResponseError) {
@@ -63,6 +65,7 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export default function Usuarios() {
   const { role: myRole, user: myUser } = useAuth()
+  const isMobile = useIsMobile()
 
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -191,6 +194,47 @@ export default function Usuarios() {
 
       {loading ? (
         <div className="loading-overlay"><Spinner size={22} /> Carregando usuários…</div>
+      ) : isMobile ? (
+        users.length === 0 ? (
+          <div className="empty-state">
+            <h4>Nenhum usuário cadastrado</h4>
+            <p>Clique em "Novo usuário" para adicionar.</p>
+          </div>
+        ) : (
+          <div className="mob-card-list">
+            {users.map((u) => (
+              <div key={u.id} className="mob-card" onClick={() => openEdit(u)} style={{ cursor: 'pointer' }}>
+                <div className="mob-card-top">
+                  <CardAvatar name={u.name || u.nome || '?'} />
+                  <div className="mob-card-meta">
+                    <div className="mob-card-title">{userDisplayName(u)}</div>
+                    <div className="mob-card-sub">{u.email}</div>
+                  </div>
+                  <div className="mob-card-badge">
+                    <span className="clx-chip">
+                      {ROLE_LABELS[u.role] ?? u.role}
+                    </span>
+                  </div>
+                </div>
+                <div className="mob-card-actions">
+                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Editar">
+                    <IconEdit size={15} />
+                  </button>
+                  {myRole === 'admin' && (
+                    <button
+                      className="icon-btn danger"
+                      onClick={(e) => { e.stopPropagation(); openDeleteConfirm(u) }}
+                      title={myUser && u.id === myUser.id ? 'Não é possível excluir a própria conta' : 'Excluir'}
+                      disabled={!!(myUser && u.id === myUser.id)}
+                    >
+                      <IconTrash size={15} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="table-wrap">
           <div className="table-scroll">

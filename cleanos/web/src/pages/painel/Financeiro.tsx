@@ -12,8 +12,9 @@ import {
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
-import { IconAlertCircle, IconCheckCircle } from '../../components/ui/Icon'
+import { IconAlertCircle, IconCheckCircle, IconCalendar, IconDollar, IconUser } from '../../components/ui/Icon'
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMobile } from '../../hooks/useIsMobile'
 
 function pbError(err: unknown): string {
   if (err instanceof ClientResponseError) {
@@ -26,6 +27,7 @@ function pbError(err: unknown): string {
 
 export default function Financeiro() {
   const { role } = useAuth()
+  const isMobile = useIsMobile()
 
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -189,31 +191,74 @@ export default function Financeiro() {
           <div className="section-header">
             <h2>Lançamentos — {monthLabel}</h2>
           </div>
-          <div className="table-wrap">
-            <div className="table-scroll">
-              <table className="clx-table">
-                <thead>
-                  <tr>
-                    <th>Cliente / Serviço</th>
-                    <th>Profissional</th>
-                    <th>Data</th>
-                    <th>Forma</th>
-                    <th>Valor pago</th>
-                    <th>Repasse</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {osAll.length === 0 ? (
-                    <tr>
-                      <td colSpan={6}>
-                        <div className="empty-state">
-                          <h4>Nenhuma OS concluída em {monthLabel}</h4>
-                          <p>Selecione outro período ou conclua ordens de serviço.</p>
+
+          {osAll.length === 0 ? (
+            <div className="empty-state">
+              <h4>Nenhuma OS concluída em {monthLabel}</h4>
+              <p>Selecione outro período ou conclua ordens de serviço.</p>
+            </div>
+          ) : isMobile ? (
+            <div className="mob-card-list">
+              {osAll.map((o) => {
+                const prof = o.expand?.profissional
+                return (
+                  <div key={o.id} className="mob-card">
+                    <div className="mob-card-top">
+                      <div className="mob-card-meta">
+                        <div className="mob-card-title">{o.nome_curto}</div>
+                        {o.tipo_servico_nome && <div className="mob-card-sub">{o.tipo_servico_nome}</div>}
+                      </div>
+                      <div className="mob-card-badge">
+                        {o.repasse_status === 'pago' ? (
+                          <span className="clx-chip clx-chip-success">Repassado</span>
+                        ) : o.repasse_status === 'pendente' ? (
+                          <span className="clx-chip clx-chip-warning">Pendente</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mob-card-rows">
+                      <div className="mob-card-row">
+                        <span className="mob-card-row-icon"><IconCalendar size={14} /></span>
+                        <span>{formatDateTime(o.data_hora)}</span>
+                      </div>
+                      {prof && (
+                        <div className="mob-card-row">
+                          <span className="mob-card-row-icon"><IconUser size={14} /></span>
+                          <span>{prof.nome ?? prof.name}</span>
                         </div>
-                      </td>
+                      )}
+                      <div className="mob-card-row">
+                        <span className="mob-card-row-icon"><IconDollar size={14} /></span>
+                        <span style={{ fontWeight: 700, color: 'var(--clx-ink)' }}>
+                          {formatCurrency(o.valor_pago ?? 0)}
+                        </span>
+                        {o.forma_pagamento && (
+                          <span className="clx-chip" style={{ marginLeft: 'auto' }}>
+                            {formaPagamentoLabel(o.forma_pagamento)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <div className="table-scroll">
+                <table className="clx-table">
+                  <thead>
+                    <tr>
+                      <th>Cliente / Serviço</th>
+                      <th>Profissional</th>
+                      <th>Data</th>
+                      <th>Forma</th>
+                      <th>Valor pago</th>
+                      <th>Repasse</th>
                     </tr>
-                  ) : (
-                    osAll.map((o) => {
+                  </thead>
+                  <tbody>
+                    {osAll.map((o) => {
                       const prof = o.expand?.profissional
                       return (
                         <tr key={o.id}>
@@ -242,12 +287,12 @@ export default function Financeiro() {
                           </td>
                         </tr>
                       )
-                    })
-                  )}
-                </tbody>
-              </table>
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* A repassar ao profissional */}
           {pendentes.length > 0 && (
@@ -280,41 +325,75 @@ export default function Financeiro() {
                       Total: {formatCurrency(g.total)}
                     </span>
                   </div>
-                  <div className="table-scroll">
-                    <table className="clx-table">
-                      <tbody>
-                        {g.os.map((o) => (
-                          <tr key={o.id}>
-                            <td data-label="Cliente">
-                              <strong>{o.nome_curto}</strong>
-                              <br /><small>{formatDateTime(o.data_hora)}</small>
-                            </td>
-                            <td data-label="Serviço">{o.tipo_servico_nome ?? '—'}</td>
-                            <td data-label="Valor" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
-                              {formatCurrency(o.valor_pago ?? 0)}
-                            </td>
-                            <td>
-                              {role === 'admin' ? (
-                                <button
-                                  className="clx-btn clx-btn-sm clx-btn-primary"
-                                  onClick={() => openRepasse(o)}
-                                >
-                                  <IconCheckCircle size={13} /> Marcar repassado
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}
-                                  title="Apenas admin pode marcar como repassado"
-                                >
-                                  Apenas admin
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {isMobile ? (
+                    <div className="mob-card-list" style={{ padding: '10px 10px' }}>
+                      {g.os.map((o) => (
+                        <div key={o.id} className="mob-card">
+                          <div className="mob-card-top">
+                            <div className="mob-card-meta">
+                              <div className="mob-card-title">{o.nome_curto}</div>
+                              <div className="mob-card-sub">{o.tipo_servico_nome ?? '—'} · {formatDateTime(o.data_hora)}</div>
+                            </div>
+                            <div className="mob-card-badge">
+                              <span style={{ fontWeight: 700, color: 'var(--clx-warning)', fontSize: '0.9rem' }}>
+                                {formatCurrency(o.valor_pago ?? 0)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mob-card-actions" style={{ justifyContent: 'flex-start' }}>
+                            {role === 'admin' ? (
+                              <button
+                                className="clx-btn clx-btn-sm clx-btn-primary"
+                                onClick={() => openRepasse(o)}
+                              >
+                                <IconCheckCircle size={13} /> Marcar repassado
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}>
+                                Apenas admin pode marcar como repassado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="table-scroll">
+                      <table className="clx-table">
+                        <tbody>
+                          {g.os.map((o) => (
+                            <tr key={o.id}>
+                              <td data-label="Cliente">
+                                <strong>{o.nome_curto}</strong>
+                                <br /><small>{formatDateTime(o.data_hora)}</small>
+                              </td>
+                              <td data-label="Serviço">{o.tipo_servico_nome ?? '—'}</td>
+                              <td data-label="Valor" style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                {formatCurrency(o.valor_pago ?? 0)}
+                              </td>
+                              <td>
+                                {role === 'admin' ? (
+                                  <button
+                                    className="clx-btn clx-btn-sm clx-btn-primary"
+                                    onClick={() => openRepasse(o)}
+                                  >
+                                    <IconCheckCircle size={13} /> Marcar repassado
+                                  </button>
+                                ) : (
+                                  <span
+                                    style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}
+                                    title="Apenas admin pode marcar como repassado"
+                                  >
+                                    Apenas admin
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
