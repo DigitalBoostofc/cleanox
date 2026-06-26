@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { pb } from '../../lib/pb'
 import {
@@ -20,7 +20,7 @@ import {
 /* ---- Types ---- */
 type AgendaView = 'dia' | 'semana' | 'mes'
 
-const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 const DOW_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DOW_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -71,9 +71,7 @@ function getMonthCalendar(year: number, month: number): Date[][] {
 /* ---- Hour slot for an event ---- */
 function hourSlot(os: OrdemServico): number {
   const h = new Date(os.data_hora).getHours()
-  if (h <= HOURS[0]) return HOURS[0]
-  if (h >= HOURS[HOURS.length - 1]) return HOURS[HOURS.length - 1]
-  return h
+  return Math.max(HOURS[0], Math.min(HOURS[HOURS.length - 1], h))
 }
 
 /* ---- Event color class ---- */
@@ -128,7 +126,10 @@ export default function Agenda() {
 
   const [detailOS, setDetailOS] = useState<OrdemServico | null>(null)
 
+  const loadGenRef = useRef(0)
+
   const load = useCallback(async () => {
+    const gen = ++loadGenRef.current
     const { from, to } = getLoadRange(view, anchor)
     try {
       setLoading(true)
@@ -138,11 +139,12 @@ export default function Agenda() {
         sort: 'data_hora',
         expand: 'profissional',
       })
+      if (gen !== loadGenRef.current) return
       setOsData(list)
     } catch {
-      setError('Não foi possível carregar a agenda.')
+      if (gen === loadGenRef.current) setError('Não foi possível carregar a agenda.')
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }, [view, anchor])
 

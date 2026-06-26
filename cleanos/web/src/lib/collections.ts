@@ -211,7 +211,7 @@ export function pbDateToLocalInput(iso: string): string {
   )
 }
 
-/** Limites UTC do dia corrente para filtros PB (convenção UTC-3 = BRT) */
+/** Limites UTC do dia corrente para filtros PB — calendário UTC puro (legado) */
 export function getUtcDayBounds() {
   const now = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
@@ -222,6 +222,30 @@ export function getUtcDayBounds() {
   return {
     todayStart: `${y}-${m}-${d} 00:00:00`,
     tomorrowStart: `${tom.getUTCFullYear()}-${p(tom.getUTCMonth() + 1)}-${p(tom.getUTCDate())} 00:00:00`,
+  }
+}
+
+/** Limites do dia corrente baseados no calendário LOCAL (BRT = UTC-3).
+ *  Converte meia-noite local para string UTC do PocketBase. */
+export function getBrtDayBounds() {
+  const now = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  const toUtcStr = (d: Date) =>
+    `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:00`
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  return { todayStart: toUtcStr(today), tomorrowStart: toUtcStr(tomorrow) }
+}
+
+/** Limites do mês (year, month) baseados no calendário LOCAL (BRT).
+ *  month é 0-based (igual a Date.getMonth()). */
+export function getBrtMonthBounds(year: number, month: number) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  const toUtcStr = (d: Date) =>
+    `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:00`
+  return {
+    start: toUtcStr(new Date(year, month, 1)),
+    end: toUtcStr(new Date(year, month + 1, 1)),
   }
 }
 

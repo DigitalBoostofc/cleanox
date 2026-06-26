@@ -11,7 +11,7 @@ import {
   osStatusLabel,
   formaPagamentoLabel,
   formatCurrency,
-  getUtcDayBounds,
+  getBrtDayBounds,
   formatHour,
 } from '../../lib/collections'
 import {
@@ -29,9 +29,9 @@ function isOsToday(os: OrdemServico): boolean {
   const d = new Date(os.data_hora)
   const now = new Date()
   return (
-    d.getUTCFullYear() === now.getUTCFullYear() &&
-    d.getUTCMonth() === now.getUTCMonth() &&
-    d.getUTCDate() === now.getUTCDate()
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
   )
 }
 
@@ -80,6 +80,8 @@ interface OSCardProps {
 
 function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, actionError, avisoLoading }: OSCardProps) {
   const hoje = isOsToday(os)
+  // OS com data passada (ou hoje) pode ser iniciada — permite concluir OS atrasadas
+  const podeIniciar = hoje || new Date(os.data_hora) < new Date()
   const pagamentoRegistrado = (os.valor_pago ?? 0) > 0 && !!os.forma_pagamento
 
   return (
@@ -221,16 +223,16 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
         {/* atribuida → Iniciar */}
         {os.status === 'atribuida' && (
           <span
-            title={!hoje ? 'Disponível apenas no dia do serviço' : undefined}
+            title={!podeIniciar ? 'Disponível apenas no dia do serviço' : undefined}
             style={{ display: 'block' }}
           >
             <button
               className="clx-btn clx-btn-accent clx-btn-block"
-              disabled={!hoje || actionLoading}
+              disabled={!podeIniciar || actionLoading}
               onClick={() => onIniciar(os)}
             >
               {actionLoading ? <Spinner size={16} /> : null}
-              {hoje ? 'Iniciar serviço' : 'Iniciar (disponível no dia)'}
+              {podeIniciar ? 'Iniciar serviço' : 'Iniciar (disponível no dia)'}
             </button>
           </span>
         )}
@@ -338,6 +340,7 @@ export default function MeusServicos() {
 
   const [todayOS, setTodayOS] = useState<OrdemServico[]>([])
   const [upcomingOS, setUpcomingOS] = useState<OrdemServico[]>([])
+  const [pastOpenOS, setPastOpenOS] = useState<OrdemServico[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
@@ -363,18 +366,21 @@ export default function MeusServicos() {
 
   // controle de duplo clique no "avisar"
   const avisoSent = useRef<Set<string>>(new Set())
+  // geração do fetch para dedupe de race com realtime
+  const fetchGenRef = useRef(0)
 
   // ── fetch ────────────────────────────────────────────────────────────
 
   const fetchOS = useCallback(async () => {
     if (!user?.id) return
+    const gen = ++fetchGenRef.current
     setLoading(true)
     setFetchError(null)
 
-    const { todayStart, tomorrowStart } = getUtcDayBounds()
+    const { todayStart, tomorrowStart } = getBrtDayBounds()
 
     try {
-      const [todayRes, upcomingRes] = await Promise.all([
+      const [todayRes, upcomingRes, pastOpenRes] = await Promise.all([
         pb.collection(COLLECTIONS.ORDENS_SERVICO).getList<OrdemServico>(1, 50, {
           filter: `profissional = '${user.id}' && data_hora >= '${todayStart}' && data_hora < '${tomorrowStart}'`,
           sort: 'data_hora',
@@ -383,13 +389,22 @@ export default function MeusServicos() {
           filter: `profissional = '${user.id}' && data_hora >= '${tomorrowStart}'`,
           sort: 'data_hora',
         }),
+        // OS abertas de dias anteriores que ainda não foram concluídas/canceladas
+        pb.collection(COLLECTIONS.ORDENS_SERVICO).getList<OrdemServico>(1, 20, {
+          filter: `profissional = '${user.id}' && (status = 'atribuida' || status = 'em_andamento') && data_hora < '${todayStart}'`,
+          sort: 'data_hora',
+        }),
       ])
 
+      if (gen !== fetchGenRef.current) return
       setTodayOS(todayRes.items)
       setUpcomingOS(upcomingRes.items)
+      setPastOpenOS(pastOpenRes.items)
     } catch (err) {
+      if (gen !== fetchGenRef.current) return
       setFetchError(extractApiError(err))
     } finally {
+      if (gen !== fetchGenRef.current) return
       setLoading(false)
     }
   }, [user?.id])
@@ -415,19 +430,28 @@ export default function MeusServicos() {
             list.map((o) => (o.id === record.id ? record : o))
           setTodayOS((prev) => updateList(prev))
           setUpcomingOS((prev) => updateList(prev))
+          setPastOpenOS((prev) => {
+            if (record.status === 'concluida' || record.status === 'cancelada') {
+              return prev.filter((o) => o.id !== record.id)
+            }
+            return updateList(prev)
+          })
         } else if (event.action === 'create') {
           if (record.profissional !== user?.id) return
-          const { todayStart, tomorrowStart } = getUtcDayBounds()
+          const { todayStart, tomorrowStart } = getBrtDayBounds()
           const byDate = (a: OrdemServico, b: OrdemServico) =>
             a.data_hora.localeCompare(b.data_hora)
           if (record.data_hora >= todayStart && record.data_hora < tomorrowStart) {
             setTodayOS((prev) => [...prev, record].sort(byDate))
           } else if (record.data_hora >= tomorrowStart) {
             setUpcomingOS((prev) => [...prev, record].sort(byDate))
+          } else if (record.status === 'atribuida' || record.status === 'em_andamento') {
+            setPastOpenOS((prev) => [...prev, record].sort(byDate))
           }
         } else if (event.action === 'delete') {
           setTodayOS((prev) => prev.filter((o) => o.id !== record.id))
           setUpcomingOS((prev) => prev.filter((o) => o.id !== record.id))
+          setPastOpenOS((prev) => prev.filter((o) => o.id !== record.id))
         }
       })
       .then((fn) => {
@@ -454,6 +478,12 @@ export default function MeusServicos() {
   function updateOsInState(updated: OrdemServico) {
     setTodayOS((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
     setUpcomingOS((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+    setPastOpenOS((prev) => {
+      if (updated.status === 'concluida' || updated.status === 'cancelada') {
+        return prev.filter((o) => o.id !== updated.id)
+      }
+      return prev.map((o) => (o.id === updated.id ? updated : o))
+    })
   }
 
   const handleIniciar = useCallback(async (os: OrdemServico) => {
@@ -655,6 +685,53 @@ export default function MeusServicos() {
 
         {!loading && (
           <>
+            {/* ── Em aberto (atrasado) ── */}
+            {pastOpenOS.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--clx-font-display)',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        color: 'var(--clx-warning)',
+                        letterSpacing: '-0.01em',
+                      }}
+                    >
+                      Em aberto (atrasado)
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}>
+                      Serviços de dias anteriores aguardando conclusão
+                    </div>
+                  </div>
+                  <span className="clx-chip" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--clx-warning)', border: 'none' }}>
+                    {pastOpenOS.length} pendente{pastOpenOS.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {pastOpenOS.map((os) => (
+                  <OSCard
+                    key={os.id}
+                    os={os}
+                    onIniciar={handleIniciar}
+                    onAvisar={handleAvisar}
+                    onPagar={handlePagar}
+                    onConcluir={handleConcluir}
+                    actionLoading={actionLoading[os.id] ?? false}
+                    actionError={actionError[os.id] ?? null}
+                    avisoLoading={avisoLoading[os.id] ?? false}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* ── Hoje ── */}
             <div style={{ marginBottom: 8 }}>
               <div

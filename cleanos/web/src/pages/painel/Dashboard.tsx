@@ -7,7 +7,7 @@ import {
   osStatusLabel,
   formatCurrency,
   formatDateTime,
-  getUtcDayBounds,
+  getBrtDayBounds,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { IconAlertCircle } from '../../components/ui/Icon'
@@ -34,7 +34,7 @@ export default function Dashboard() {
       try {
         setLoading(true)
         setError(null)
-        const { todayStart, tomorrowStart } = getUtcDayBounds()
+        const { todayStart, tomorrowStart } = getBrtDayBounds()
 
         const [todayOS, upcomingOS] = await Promise.all([
           pb.collection(COLLECTIONS.ORDENS_SERVICO).getFullList<OrdemServico>({

@@ -4,7 +4,7 @@ import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
 import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
-import { COLLECTIONS, type OrdemServico, getUtcDayBounds } from '../../lib/collections'
+import { COLLECTIONS, type OrdemServico, getBrtDayBounds } from '../../lib/collections'
 import { IconLogOut, IconAlertCircle, IconCheckCircle, IconLock } from '../../components/ui/Icon'
 import { StarRating } from '../../components/ui/StarRating'
 
@@ -56,7 +56,7 @@ export default function Perfil() {
 
   const fetchStats = useCallback(async () => {
     if (!user?.id) return
-    const { todayStart, tomorrowStart } = getUtcDayBounds()
+    const { todayStart, tomorrowStart } = getBrtDayBounds()
     try {
       const [result, osAvaliadas] = await Promise.all([
         pb.collection(COLLECTIONS.ORDENS_SERVICO).getList<OrdemServico>(1, 100, {

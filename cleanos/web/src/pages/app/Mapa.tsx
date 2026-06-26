@@ -18,19 +18,6 @@ function formatHour(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function getUtcDayBounds() {
-  const now = new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  const y = now.getUTCFullYear()
-  const m = p(now.getUTCMonth() + 1)
-  const d = p(now.getUTCDate())
-  const tom = new Date(Date.UTC(y, now.getUTCMonth(), now.getUTCDate() + 1))
-  return {
-    todayStart: `${y}-${m}-${d} 00:00:00`,
-    tomorrowStart: `${tom.getUTCFullYear()}-${p(tom.getUTCMonth() + 1)}-${p(tom.getUTCDate())} 00:00:00`,
-  }
-}
-
 export default function Mapa() {
   const { user } = useAuth()
   const [activeOS, setActiveOS] = useState<OrdemServico | null>(null)
@@ -41,14 +28,11 @@ export default function Mapa() {
     if (!user?.id) return
     setLoading(true)
     setError(null)
-
-    const { todayStart, tomorrowStart } = getUtcDayBounds()
-
     try {
       const result = await pb
         .collection(COLLECTIONS.ORDENS_SERVICO)
         .getList<OrdemServico>(1, 5, {
-          filter: `profissional = '${user.id}' && status = 'em_andamento' && data_hora >= '${todayStart}' && data_hora < '${tomorrowStart}'`,
+          filter: `profissional = '${user.id}' && status = 'em_andamento'`,
           sort: '-updated',
         })
       setActiveOS(result.items[0] ?? null)

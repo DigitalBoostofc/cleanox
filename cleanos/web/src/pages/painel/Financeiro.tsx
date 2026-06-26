@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
 import {
@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatDateTime,
   formaPagamentoLabel,
+  getBrtMonthBounds,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
@@ -21,14 +22,6 @@ function pbError(err: unknown): string {
     if (err.status === 0) return 'Sem conexão com o servidor.'
   }
   return 'Ocorreu um erro inesperado.'
-}
-
-function getMonthBounds(year: number, month: number) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const start = `${year}-${pad(month + 1)}-01 00:00:00`
-  const next = new Date(year, month + 1, 1)
-  const end = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01 00:00:00`
-  return { start, end }
 }
 
 export default function Financeiro() {
@@ -48,11 +41,14 @@ export default function Financeiro() {
   const [savingRepasse, setSavingRepasse] = useState(false)
   const [repasseErr, setRepasseErr] = useState<string | null>(null)
 
+  const loadGenRef = useRef(0)
+
   const load = useCallback(async () => {
+    const gen = ++loadGenRef.current
     try {
       setLoading(true)
       setError(null)
-      const { start, end } = getMonthBounds(year, month)
+      const { start, end } = getBrtMonthBounds(year, month)
       const [os, profs] = await Promise.all([
         pb.collection(COLLECTIONS.ORDENS_SERVICO).getFullList<OrdemServico>({
           filter: `status = 'concluida' && data_hora >= '${start}' && data_hora < '${end}'`,
@@ -64,12 +60,13 @@ export default function Financeiro() {
           sort: 'name',
         }),
       ])
+      if (gen !== loadGenRef.current) return
       setOsAll(os)
       setProfissionais(profs)
     } catch {
-      setError('Não foi possível carregar os dados financeiros.')
+      if (gen === loadGenRef.current) setError('Não foi possível carregar os dados financeiros.')
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }, [year, month])
 

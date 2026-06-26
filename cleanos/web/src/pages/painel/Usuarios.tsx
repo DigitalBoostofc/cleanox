@@ -62,7 +62,7 @@ const ROLE_LABELS: Record<Role, string> = {
 }
 
 export default function Usuarios() {
-  const { role: myRole } = useAuth()
+  const { role: myRole, user: myUser } = useAuth()
 
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +117,11 @@ export default function Usuarios() {
   async function handleSave() {
     const errs = validateForm(form, !!editing)
     if (Object.keys(errs).length > 0) { setFormErrs(errs); return }
+    // Impede o admin de rebaixar o próprio papel
+    if (editing && myUser && editing.id === myUser.id && form.role !== editing.role) {
+      setSaveErr('Não é possível alterar o próprio papel. Peça a outro administrador.')
+      return
+    }
     try {
       setSaving(true)
       setSaveErr(null)
@@ -142,6 +147,14 @@ export default function Usuarios() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function openDeleteConfirm(u: User) {
+    if (myUser && u.id === myUser.id) {
+      setError('Não é possível excluir a própria conta de administrador.')
+      return
+    }
+    setDeleteTarget(u)
   }
 
   async function handleDelete() {
@@ -223,8 +236,9 @@ export default function Usuarios() {
                           {myRole === 'admin' && (
                             <button
                               className="icon-btn danger"
-                              onClick={() => setDeleteTarget(u)}
-                              title="Excluir"
+                              onClick={() => openDeleteConfirm(u)}
+                              title={myUser && u.id === myUser.id ? 'Não é possível excluir a própria conta' : 'Excluir'}
+                              disabled={!!(myUser && u.id === myUser.id)}
                             >
                               <IconTrash size={15} />
                             </button>
@@ -287,11 +301,20 @@ export default function Usuarios() {
           )}
 
           <Field label="Papel" required err={formErrs.role} className="form-col-span-2">
-            <select value={form.role} onChange={(e) => setField('role', e.target.value as Role)}>
+            <select
+              value={form.role}
+              onChange={(e) => setField('role', e.target.value as Role)}
+              disabled={!!(editing && myUser && editing.id === myUser.id)}
+            >
               <option value="admin">Admin — acesso total ao painel</option>
               <option value="gerente">Gerente — acesso total exceto marcar repasse</option>
               <option value="profissional">Profissional — acessa o app do profissional</option>
             </select>
+            {editing && myUser && editing.id === myUser.id && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--clx-warning)' }}>
+                Não é possível alterar o próprio papel.
+              </span>
+            )}
           </Field>
 
           {!editing && (

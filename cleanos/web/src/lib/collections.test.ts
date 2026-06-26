@@ -11,6 +11,8 @@ import {
   localInputToPBDate,
   pbDateToLocalInput,
   getUtcDayBounds,
+  getBrtDayBounds,
+  getBrtMonthBounds,
   formatHour,
   OS_STATUS_LIST,
   COLLECTIONS,
@@ -215,5 +217,72 @@ describe('COLLECTIONS constantes', () => {
     expect(COLLECTIONS.CLIENTES).toBe('clientes')
     expect(COLLECTIONS.SERVICOS).toBe('servicos')
     expect(COLLECTIONS.ORDENS_SERVICO).toBe('ordens_servico')
+  })
+})
+
+describe('getBrtDayBounds', () => {
+  it('retorna todayStart e tomorrowStart no formato PB', () => {
+    const { todayStart, tomorrowStart } = getBrtDayBounds()
+    expect(todayStart).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:00$/)
+    expect(tomorrowStart).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:00$/)
+  })
+
+  it('tomorrowStart é exatamente 24h após todayStart', () => {
+    const { todayStart, tomorrowStart } = getBrtDayBounds()
+    const todayMs = new Date(todayStart.replace(' ', 'T') + 'Z').getTime()
+    const tomorrowMs = new Date(tomorrowStart.replace(' ', 'T') + 'Z').getTime()
+    expect(tomorrowMs - todayMs).toBe(24 * 60 * 60 * 1000)
+  })
+
+  it('todayStart corresponde à meia-noite do dia LOCAL', () => {
+    const { todayStart } = getBrtDayBounds()
+    const now = new Date()
+    const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startMs = new Date(todayStart.replace(' ', 'T') + 'Z').getTime()
+    expect(startMs).toBe(localMidnight.getTime())
+  })
+
+  it('tomorrowStart corresponde à meia-noite do dia seguinte LOCAL', () => {
+    const { tomorrowStart } = getBrtDayBounds()
+    const now = new Date()
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    const endMs = new Date(tomorrowStart.replace(' ', 'T') + 'Z').getTime()
+    expect(endMs).toBe(nextMidnight.getTime())
+  })
+})
+
+describe('getBrtMonthBounds', () => {
+  it('retorna start e end no formato PB', () => {
+    const { start, end } = getBrtMonthBounds(2025, 0)
+    expect(start).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:00$/)
+    expect(end).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:00$/)
+  })
+
+  it('start corresponde à meia-noite local do 1º do mês', () => {
+    const { start } = getBrtMonthBounds(2025, 0)
+    const expected = new Date(2025, 0, 1)
+    const startMs = new Date(start.replace(' ', 'T') + 'Z').getTime()
+    expect(startMs).toBe(expected.getTime())
+  })
+
+  it('end é 1º do mês seguinte (meia-noite local)', () => {
+    const { end } = getBrtMonthBounds(2025, 5)
+    const expected = new Date(2025, 6, 1)
+    const endMs = new Date(end.replace(' ', 'T') + 'Z').getTime()
+    expect(endMs).toBe(expected.getTime())
+  })
+
+  it('dezembro → end é 1º de janeiro do ano seguinte', () => {
+    const { end } = getBrtMonthBounds(2025, 11)
+    const expected = new Date(2026, 0, 1)
+    const endMs = new Date(end.replace(' ', 'T') + 'Z').getTime()
+    expect(endMs).toBe(expected.getTime())
+  })
+
+  it('range de junho de 2025 abrange exatamente 30 dias', () => {
+    const { start, end } = getBrtMonthBounds(2025, 5)
+    const startMs = new Date(start.replace(' ', 'T') + 'Z').getTime()
+    const endMs = new Date(end.replace(' ', 'T') + 'Z').getTime()
+    expect((endMs - startMs) / (24 * 60 * 60 * 1000)).toBe(30)
   })
 })

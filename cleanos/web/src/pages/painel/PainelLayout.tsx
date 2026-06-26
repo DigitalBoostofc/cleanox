@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Logo } from '../../components/ui/Logo'
 import {
@@ -51,14 +51,14 @@ const PAGE_TITLES: Record<string, string> = {
 export default function PainelLayout() {
   const { user, role, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const navItems = role === 'admin'
     ? [...BASE_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
     : BASE_NAV_ITEMS
 
-  const currentTitle =
-    PAGE_TITLES[window.location.pathname] ?? 'Painel'
+  const currentTitle = PAGE_TITLES[location.pathname] ?? 'Painel'
 
   const handleLogout = () => {
     logout()

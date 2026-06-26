@@ -52,6 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const user = modelToUser()
       setState({ user, role: userToRole(user), isLoading: false })
     })
+
+    // Renova token proativamente no boot; se expirado, limpa a sessão → redirect ao login
+    if (pb.authStore.isValid) {
+      pb.collection('users').authRefresh().catch(() => {
+        pb.authStore.clear()
+      })
+    }
+
     return unsub
   }, [])
 

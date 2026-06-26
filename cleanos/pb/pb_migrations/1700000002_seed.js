@@ -46,7 +46,7 @@ migrate(
       r.set("password", "cleanox123");
       r.set("passwordConfirm", "cleanox123");
       r.set("verified", true);
-      r.set("emailVisibility", false);
+      r.set("emailVisibility", true); // F-005: admin deve ver email de todos os usuários
       r.set("name", nome);
       r.set("nome", nome);
       r.set("role", role);
@@ -60,7 +60,11 @@ migrate(
 
     // ---------------- catálogo de serviços (PREÇOS PLACEHOLDER) ----------------
     const servicosCol = app.findCollectionByNameOrId("servicos");
+    // F-001: idempotente por nome — catalog_prod.js pode ter rodado antes (mesmo prefixo).
     function mkServico(nome, descricao, preco) {
+      try {
+        return app.findFirstRecordByData("servicos", "nome", nome);
+      } catch (_) { /* não existe ainda — cria */ }
       const r = new Record(servicosCol);
       r.set("nome", nome);
       r.set("descricao", descricao);

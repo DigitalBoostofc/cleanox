@@ -105,8 +105,8 @@ export default function OrdensServico() {
   /* Client search dropdown */
   const [clienteDropdown, setClienteDropdown] = useState(false)
 
-  /* Load data */
-  const load = useCallback(async () => {
+  /* Load data — retorna as OS carregadas para permitir sync pós-ação */
+  const load = useCallback(async (): Promise<OrdemServico[] | undefined> => {
     try {
       setLoading(true)
       setError(null)
@@ -129,6 +129,7 @@ export default function OrdensServico() {
       setClientes(cls)
       setServicos(svcs)
       setProfissionais(profs)
+      return os
     } catch {
       setError('Não foi possível carregar as ordens de serviço.')
     } finally {
@@ -264,7 +265,9 @@ export default function OrdensServico() {
         profissional: profId || null,
         status: profId ? 'atribuida' : 'agendada',
       })
-      await load()
+      const freshOrdens = await load()
+      const freshOS = freshOrdens?.find((o) => o.id === os.id)
+      if (freshOS) setSelectedOS(freshOS)
     } catch (err) {
       const msg = pbError(err)
       setError(msg)

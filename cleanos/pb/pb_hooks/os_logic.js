@@ -54,12 +54,17 @@ function buildEndereco(cliente) {
 
 // denormaliza os campos SEGUROS na OS (nome curto, bairro, nome do serviço).
 // Lê do cofre `clientes` mas só escreve dados não-sensíveis na OS.
+// F-402: cliente órfão não trava o save — degrada silenciosamente como já faz para servico.
 function syncDenormalized(app, record) {
   const cid = relId(record.get("cliente"));
   if (cid) {
-    const c = app.findRecordById("clientes", cid);
-    record.set("nome_curto", shortName(c.get("nome"), c.get("sobrenome")));
-    record.set("bairro", c.get("endereco_bairro"));
+    try {
+      const c = app.findRecordById("clientes", cid);
+      record.set("nome_curto", shortName(c.get("nome"), c.get("sobrenome")));
+      record.set("bairro", c.get("endereco_bairro"));
+    } catch (_) {
+      /* cliente pode ter sido removido — mantém campos denormalizados como estão */
+    }
   }
   const sid = relId(record.get("servico"));
   if (sid) {
@@ -74,16 +79,32 @@ function syncDenormalized(app, record) {
 
 // libera/limpa o endereço efêmero conforme o status.
 // SOMENTE `em_andamento` tem endereço. Telefone NUNCA é tocado aqui.
+//
+// F-401: só PREENCHE na TRANSIÇÃO para em_andamento (status anterior !== 'em_andamento').
+// Se a OS já estava em_andamento e continua (ex.: save do cron, update de pagamento),
+// não mexe — a limpeza do cron passa a "colar".
+// F-402: cliente órfão não trava o save.
 function manageEndereco(app, record) {
-  if (record.get("status") === "em_andamento") {
+  const newStatus = String(record.get("status") || "");
+  const orig      = record.original ? record.original() : null;
+  const oldStatus = orig ? String(orig.get("status") || "") : null;
+
+  if (newStatus === "em_andamento") {
+    // Se já estava em_andamento e permanece (sem transição) → não mexe no campo
+    if (oldStatus === "em_andamento") return;
+
+    // Transição para em_andamento (ou CREATE direto com em_andamento) → preenche
     const cid = relId(record.get("cliente"));
-    // F-01: guard — cid vazio não deve crashar (espelha o if(cid) em syncDenormalized)
     if (!cid) {
       record.set("endereco_liberado", "");
       return;
     }
-    const c = app.findRecordById("clientes", cid);
-    record.set("endereco_liberado", buildEndereco(c));
+    try {
+      const c = app.findRecordById("clientes", cid);
+      record.set("endereco_liberado", buildEndereco(c));
+    } catch (_) {
+      /* cliente não encontrado — mantém endereco_liberado como está */
+    }
   } else {
     record.set("endereco_liberado", "");
   }
@@ -222,6 +243,28 @@ function guardOrdemUpdateRequest(e) {
 }
 
 /**
+ * F-002: inicializa repasse na transição para `concluida`.
+ * Só age em onRecordUpdate (não em CREATE — CREATE não é transição de status).
+ * Não sobrescreve se admin já tiver definido manualmente.
+ */
+function setRepasseIfConcluida(record) {
+  const orig = record.original ? record.original() : null;
+  if (!orig) return; // create — não é transição de status
+
+  if (String(orig.get("status")) === "concluida") return; // já estava concluida
+  if (String(record.get("status")) !== "concluida") return; // não está concluindo agora
+
+  if (!record.get("repasse_status")) {
+    record.set("repasse_status", "pendente");
+  }
+  const rv = Number(record.get("repasse_valor") || 0);
+  if (!(rv > 0)) {
+    const valorPago = Number(record.get("valor_pago") || 0);
+    if (valorPago > 0) record.set("repasse_valor", valorPago);
+  }
+}
+
+/**
  * Dispara, de forma best-effort (try/catch), o webhook do n8n quando uma OS
  * transiciona para `concluida`. Também seta `avaliacao_solicitada_em = now`.
  *
@@ -281,6 +324,7 @@ module.exports = {
   syncDenormalized,
   manageEndereco,
   assertPaymentIfConcluida,
+  setRepasseIfConcluida,
   assertServiceIsToday,
   guardOrdemUpdateRequest,
   triggerRatingWebhookIfConcluida,

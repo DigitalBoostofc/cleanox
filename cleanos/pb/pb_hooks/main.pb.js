@@ -31,6 +31,7 @@ onRecordUpdate((e) => {
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
   lib.assertPaymentIfConcluida(e.record);
+  lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);
   e.next();
 }, "ordens_servico");
@@ -85,6 +86,21 @@ onRealtimeSubscribeRequest((e) => {
   e.next();
 });
 
+// F-403: gerente/profissional não pode definir repasse ao CRIAR uma OS.
+// Espelha a trava que já existe no onRecordUpdateRequest.
+onRecordCreateRequest((e) => {
+  const auth = e.auth;
+  const role = auth ? String(auth.get("role")) : "";
+  if (role !== "admin") {
+    const rs = String(e.record.get("repasse_status") || "");
+    const rv = Number(e.record.get("repasse_valor") || 0);
+    if (rs || rv > 0) {
+      throw new ForbiddenError("Apenas o admin pode definir o repasse ao criar uma OS.");
+    }
+  }
+  e.next();
+}, "ordens_servico");
+
 onRecordUpdateRequest((e) => {
   const lib = require(`${__hooks}/os_logic.js`);
   lib.guardOrdemUpdateRequest(e); // lança erro se a alteração for proibida
@@ -107,6 +123,13 @@ onRecordUpdateRequest((e) => {
       throw new ForbiddenError("Alteração de e-mail requer admin/gerente.");
     }
   }
+  e.next();
+}, "users");
+
+// F-005: garante emailVisibility=true para qualquer user criado via API/Admin UI.
+// (O migrate CLI não garante hooks, por isso o seed também seta diretamente.)
+onRecordCreate((e) => {
+  e.record.set("emailVisibility", true);
   e.next();
 }, "users");
 

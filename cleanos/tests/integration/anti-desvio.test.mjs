@@ -962,6 +962,216 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
   })
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('P · Repasse automático na conclusão (F-002)', () => {
+    let pOsId
+
+    before(async () => {
+      pOsId = (await createOS(s.adminTok, {
+        cliente:       s.clienteId,
+        servico:       s.servicoId,
+        profissional:  s.profId,
+        data_hora:     `${todayUTC()} 10:00:00.000Z`,
+        status:        'atribuida',
+        valor_servico: 150,
+      })).id
+    })
+
+    after(async () => {
+      await deleteOS(s.adminTok, pOsId)
+    })
+
+    it('P1 · transição para concluida → repasse_status=pendente e repasse_valor=valor_pago', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${pOsId}`,
+        s.adminTok,
+        { status: 'concluida', valor_pago: 150, forma_pagamento: 'pix_maquininha' }
+      )
+      assert.strictEqual(status, 200, `Concluir falhou: ${JSON.stringify(body)}`)
+      assert.strictEqual(body?.repasse_status, 'pendente', 'repasse_status deve ser pendente após concluir')
+      assert.strictEqual(body?.repasse_valor, 150, 'repasse_valor deve igualar valor_pago após concluir')
+    })
+
+    it('P2 · save subsequente de OS concluida não zera repasse_status', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${pOsId}`,
+        s.adminTok,
+        { observacoes: 'save subsequente' }
+      )
+      assert.strictEqual(status, 200)
+      assert.strictEqual(body?.repasse_status, 'pendente', 'repasse_status deve permanecer pendente em save subsequente')
+    })
+
+    it('P3 · CREATE direto com status=concluida NÃO auto-seta repasse_status (sem transição)', async () => {
+      const direct = await createOS(s.adminTok, {
+        cliente:         s.clienteId,
+        servico:         s.servicoId,
+        data_hora:       `${todayUTC()} 10:00:00.000Z`,
+        status:          'concluida',
+        valor_servico:   100,
+        valor_pago:      100,
+        forma_pagamento: 'pix_maquininha',
+      })
+      try {
+        assert.ok(
+          !direct.repasse_status || direct.repasse_status === '',
+          `CREATE direto concluida não deve auto-setar repasse_status, got: "${direct.repasse_status}"`
+        )
+      } finally {
+        await deleteOS(s.adminTok, direct.id)
+      }
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('Q · Guard de repasse no CREATE por gerente/profissional (F-403)', () => {
+    it('Q1 · gerente cria OS com repasse_status → rejeitado (403)', async () => {
+      const { status } = await POST(
+        '/api/collections/ordens_servico/records',
+        s.gerenteTok,
+        {
+          cliente:        s.clienteId,
+          servico:        s.servicoId,
+          data_hora:      `${todayUTC()} 10:00:00.000Z`,
+          status:         'agendada',
+          valor_servico:  100,
+          repasse_status: 'pago',
+        }
+      )
+      assert.ok(
+        status === 403 || status === 400,
+        `Gerente criou OS com repasse_status; esperado 403/400, got ${status}`
+      )
+    })
+
+    it('Q2 · gerente cria OS com repasse_valor → rejeitado (403)', async () => {
+      const { status } = await POST(
+        '/api/collections/ordens_servico/records',
+        s.gerenteTok,
+        {
+          cliente:       s.clienteId,
+          servico:       s.servicoId,
+          data_hora:     `${todayUTC()} 10:00:00.000Z`,
+          status:        'agendada',
+          valor_servico: 100,
+          repasse_valor: 9999,
+        }
+      )
+      assert.ok(
+        status === 403 || status === 400,
+        `Gerente criou OS com repasse_valor; esperado 403/400, got ${status}`
+      )
+    })
+
+    it('Q3 · admin pode criar OS com repasse_status definido', async () => {
+      const { status, body } = await POST(
+        '/api/collections/ordens_servico/records',
+        s.adminTok,
+        {
+          cliente:         s.clienteId,
+          servico:         s.servicoId,
+          data_hora:       `${todayUTC()} 10:00:00.000Z`,
+          status:          'concluida',
+          valor_servico:   100,
+          valor_pago:      100,
+          forma_pagamento: 'pix_maquininha',
+          repasse_status:  'pendente',
+        }
+      )
+      assert.strictEqual(status, 200, `Admin deve poder criar OS com repasse_status: ${JSON.stringify(body)}`)
+      await deleteOS(s.adminTok, body.id)
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('R · emailVisibility — admin vê e-mail de todos os usuários (F-005)', () => {
+    it('R1 · admin lista users → todos têm email visível', async () => {
+      const { status, body } = await GET('/api/collections/users/records?perPage=200', s.adminTok)
+      assert.strictEqual(status, 200)
+      const items = body?.items ?? []
+      assert.ok(items.length >= 4, `Esperado ≥ 4 usuários, got ${items.length}`)
+      const withoutEmail = items.filter(u => !u.email)
+      assert.strictEqual(
+        withoutEmail.length, 0,
+        `${withoutEmail.length} usuários sem email visível: ${withoutEmail.map(u => u.name || u.id).join(', ')}`
+      )
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('S · Catálogo idempotente — sem duplicatas (F-001)', () => {
+    it('S1 · GET /servicos → todos os nomes são únicos (sem duplicatas)', async () => {
+      const { status, body } = await GET('/api/collections/servicos/records?perPage=200', s.adminTok)
+      assert.strictEqual(status, 200)
+      const items = body?.items ?? []
+      const names = items.map(i => i.nome)
+      const unique = new Set(names)
+      assert.strictEqual(
+        unique.size, names.length,
+        `Catálogo tem duplicatas: ${names.filter((n, i) => names.indexOf(n) !== i).join(', ')}`
+      )
+    })
+
+    it('S2 · catálogo tem exatamente 7 serviços', async () => {
+      const { body } = await GET('/api/collections/servicos/records?perPage=200', s.adminTok)
+      assert.strictEqual((body?.items ?? []).length, 7, `Esperado 7 serviços, got ${body?.totalItems}`)
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('T · Endereço não re-preenchido em save subsequente de OS em_andamento (F-401)', () => {
+    let tOsId
+
+    before(async () => {
+      tOsId = (await createOS(s.adminTok, {
+        cliente:       s.clienteId,
+        servico:       s.servicoId,
+        profissional:  s.profId,
+        data_hora:     `${todayUTC()} 10:00:00.000Z`,
+        status:        'em_andamento',
+        valor_servico: 100,
+      })).id
+    })
+
+    after(async () => {
+      await deleteOS(s.adminTok, tOsId)
+    })
+
+    it('T1 · OS em_andamento recém-criada tem endereco_liberado preenchido', async () => {
+      const { body } = await GET(`/api/collections/ordens_servico/records/${tOsId}`, s.adminTok)
+      assert.ok(
+        body?.endereco_liberado && body.endereco_liberado !== '',
+        'endereco_liberado deve estar preenchido na criação em_andamento'
+      )
+    })
+
+    it('T2 · admin limpa endereco_liberado (simula cron) → fica vazio', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${tOsId}`,
+        s.adminTok,
+        { endereco_liberado: '' }
+      )
+      assert.strictEqual(status, 200, `PATCH falhou: ${JSON.stringify(body)}`)
+      assert.ok(
+        !body?.endereco_liberado || body.endereco_liberado === '',
+        `endereco_liberado deve estar vazio após limpeza, got: "${body?.endereco_liberado}"`
+      )
+    })
+
+    it('T3 · save subsequente (sem mudar status) NÃO re-preenche o endereço', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${tOsId}`,
+        s.adminTok,
+        { observacoes: 'save subsequente sem mudar status' }
+      )
+      assert.strictEqual(status, 200)
+      assert.ok(
+        !body?.endereco_liberado || body.endereco_liberado === '',
+        `Hook re-preencheu endereco_liberado indevidamente: "${body?.endereco_liberado}"`
+      )
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('J · F-04 — Day-check em BRT (UTC-3)', () => {
     // Valida que o day-check usa fuso BRT, não UTC cru.
     // Cobre o cenário: data_hora ontem 23h UTC = ontem 20h BRT → deve BLOQUEAR.

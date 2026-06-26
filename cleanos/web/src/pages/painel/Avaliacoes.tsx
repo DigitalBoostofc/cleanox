@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { pb } from '../../lib/pb'
 import {
   COLLECTIONS,
@@ -29,6 +29,8 @@ export default function Avaliacoes() {
   const [reviewsTotal, setReviewsTotal] = useState(0)
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewsError, setReviewsError] = useState<string | null>(null)
+
+  const reviewsFetchKeyRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -79,6 +81,7 @@ export default function Avaliacoes() {
   useEffect(() => { load() }, [load])
 
   async function loadReviews(profId: string, page: number, reset: boolean) {
+    reviewsFetchKeyRef.current = profId
     try {
       setReviewsLoading(true)
       setReviewsError(null)
@@ -90,13 +93,16 @@ export default function Avaliacoes() {
           sort: '-avaliacao_em',
         },
       )
+      if (reviewsFetchKeyRef.current !== profId) return
       setReviewsTotal(result.totalItems)
       setReviews((prev) => reset ? result.items : [...prev, ...result.items])
       setReviewsPage(page)
     } catch {
-      setReviewsError('Não foi possível carregar as avaliações.')
+      if (reviewsFetchKeyRef.current === profId) {
+        setReviewsError('Não foi possível carregar as avaliações.')
+      }
     } finally {
-      setReviewsLoading(false)
+      if (reviewsFetchKeyRef.current === profId) setReviewsLoading(false)
     }
   }
 

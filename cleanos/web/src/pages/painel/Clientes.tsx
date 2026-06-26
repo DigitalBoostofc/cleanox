@@ -179,8 +179,8 @@ export default function Clientes() {
     try {
       await pb.collection(COLLECTIONS.CLIENTES).update(c.id, { ativo: !c.ativo })
       setClientes((prev) => prev.map((x) => x.id === c.id ? { ...x, ativo: !c.ativo } : x))
-    } catch {
-      /* silently show inline — not worth a modal */
+    } catch (err) {
+      setError(pbError(err))
     }
   }
 

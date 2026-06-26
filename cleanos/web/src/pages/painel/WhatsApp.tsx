@@ -45,9 +45,12 @@ function extractWAError(err: unknown): string {
   if (err instanceof ClientResponseError) {
     if (err.status === 0) return 'Sem conexão com o servidor.'
     const data = err.data as Record<string, unknown> | undefined
-    if (typeof data?.message === 'string' && data.message) return data.message
-    if (typeof data?.error === 'string' && data.error) return data.error
-    return `Erro ${err.status}. Tente novamente.`
+    const msg = typeof data?.message === 'string' ? data.message.trim() : ''
+    const error = typeof data?.error === 'string' ? data.error.trim() : ''
+    // Filtra a mensagem genérica em inglês do PocketBase
+    if (msg && !/something went wrong/i.test(msg)) return msg
+    if (error) return error
+    return 'Não foi possível conectar ao WhatsApp. Verifique a configuração e tente novamente.'
   }
   if (err instanceof Error) return err.message
   return 'Erro desconhecido.'
