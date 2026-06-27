@@ -9,6 +9,7 @@ export const COLLECTIONS = {
   CLIENTES: 'clientes',
   SERVICOS: 'servicos',
   ORDENS_SERVICO: 'ordens_servico',
+  CONFIG_ATUACAO: 'config_atuacao',
 } as const
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS]
@@ -70,9 +71,22 @@ export interface Cliente extends PBRecord {
   /** seguro — vira `bairro` na OS via hook */
   endereco_bairro: string
   endereco_cidade?: string
+  endereco_estado?: string
   endereco_cep?: string
   ativo: boolean
   observacoes?: string
+}
+
+/* ---- config_atuacao (singleton, admin/gerente) ---- */
+export interface ConfigAtuacaoCidade {
+  nome: string
+  principal: boolean
+  bairros: string[]
+}
+
+export interface ConfigAtuacao extends PBRecord {
+  estado: string
+  cidades: ConfigAtuacaoCidade[]
 }
 
 /* ---- servicos (catálogo) ---- */
@@ -282,4 +296,24 @@ export function todayLocalDate(): string {
   const now = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+}
+
+/* ---- Nome ---- */
+
+/** Divide um nome completo no primeiro espaço: primeira palavra → nome, restante → sobrenome. */
+export function splitNome(nomeCompleto: string): { nome: string; sobrenome: string } {
+  const trimmed = nomeCompleto.trim()
+  if (!trimmed) return { nome: '', sobrenome: '' }
+  const idx = trimmed.indexOf(' ')
+  if (idx === -1) return { nome: trimmed, sobrenome: '' }
+  return { nome: trimmed.slice(0, idx), sobrenome: trimmed.slice(idx + 1).trim() }
+}
+
+/* ---- CEP BR ---- */
+
+/** Máscara de CEP: NNNNN-NNN */
+export function maskCEP(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 5) return digits
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`
 }

@@ -4,12 +4,16 @@ import { pb } from '../../lib/pb'
 import {
   COLLECTIONS,
   type Cliente,
+  type ConfigAtuacao,
+  type ConfigAtuacaoCidade,
   type Servico,
   type User,
   maskPhoneBR,
+  maskCEP,
   onlyDigitsPhone,
   localInputToPBDate,
   userDisplayName,
+  splitNome,
 } from '../../lib/collections'
 import {
   OSFormSection,
@@ -17,6 +21,7 @@ import {
   emptyOSFields,
   validateOSFields,
 } from '../../components/ui/OSFormSection'
+import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -26,24 +31,39 @@ import {
   IconPhone,
   IconMapPin,
   IconChevronRight,
+  IconSettings,
+  IconX,
+  IconTrash,
+  IconCheckCircle,
 } from '../../components/ui/Icon'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { CardAvatar } from '../../components/ui/MobileCards'
 
 /* ---- Types ---- */
-type ClienteForm = Omit<Cliente, 'id' | 'created' | 'updated'>
+type ClienteForm = {
+  nomeCompleto: string
+  telefone: string
+  email: string
+  endereco_rua: string
+  endereco_complemento: string
+  endereco_bairro: string
+  endereco_cidade: string
+  endereco_estado: string
+  endereco_cep: string
+  ativo: boolean
+  observacoes: string
+}
 
 function emptyForm(): ClienteForm {
   return {
-    nome: '',
-    sobrenome: '',
+    nomeCompleto: '',
     telefone: '',
     email: '',
     endereco_rua: '',
-    endereco_numero: '',
     endereco_complemento: '',
     endereco_bairro: '',
     endereco_cidade: '',
+    endereco_estado: '',
     endereco_cep: '',
     ativo: true,
     observacoes: '',
@@ -52,7 +72,7 @@ function emptyForm(): ClienteForm {
 
 function validateForm(f: ClienteForm): Record<string, string> {
   const errs: Record<string, string> = {}
-  if (!f.nome.trim()) errs.nome = 'Nome é obrigatório'
+  if (!f.nomeCompleto.trim()) errs.nomeCompleto = 'Nome é obrigatório'
   const telDigits = onlyDigitsPhone(f.telefone)
   if (telDigits.length < 10) errs.telefone = telDigits.length === 0 ? 'Telefone é obrigatório' : 'Telefone incompleto — informe DDD + número'
   if (!f.endereco_bairro.trim()) errs.endereco_bairro = 'Bairro é obrigatório'
@@ -84,13 +104,26 @@ function pbError(err: unknown): string {
   return 'Ocorreu um erro inesperado.'
 }
 
+/* ---- ViaCEP response shape ---- */
+interface ViaCEPResponse {
+  logradouro?: string
+  bairro?: string
+  localidade?: string
+  uf?: string
+  erro?: boolean
+}
+
 export default function Clientes() {
   const isMobile = useIsMobile()
+  const { role } = useAuth()
+  const canManageConfig = role === 'admin' || role === 'gerente'
+
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
+  /* Modal criar/editar state */
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Cliente | null>(null)
   const [form, setForm] = useState<ClienteForm>(emptyForm())
@@ -98,7 +131,11 @@ export default function Clientes() {
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
-  /* OS inline state — only used in create mode */
+  /* CEP autofill state */
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepWarning, setCepWarning] = useState<string | null>(null)
+
+  /* OS inline state — only in create mode */
   const [gerarOS, setGerarOS] = useState(false)
   const [osForm, setOSForm] = useState<OSFields>(emptyOSFields())
   const [osFormErrs, setOSFormErrs] = useState<Record<string, string>>({})
@@ -106,6 +143,17 @@ export default function Clientes() {
   const [profissionais, setProfissionais] = useState<User[]>([])
   const [loadingLookups, setLoadingLookups] = useState(false)
 
+  /* Config atuação state */
+  const [configAtuacao, setConfigAtuacao] = useState<ConfigAtuacao | null>(null)
+  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [configEdit, setConfigEdit] = useState<{ estado: string; cidades: ConfigAtuacaoCidade[] }>({ estado: '', cidades: [] })
+  const [configSaving, setConfigSaving] = useState(false)
+  const [configErr, setConfigErr] = useState<string | null>(null)
+  const [configSucc, setConfigSucc] = useState(false)
+  const [newCidadeInput, setNewCidadeInput] = useState('')
+  const [newBairroInputs, setNewBairroInputs] = useState<Record<number, string>>({})
+
+  /* ---- Load clientes ---- */
   const load = useCallback(async () => {
     try {
       setLoading(true)
@@ -121,8 +169,22 @@ export default function Clientes() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  /* ---- Load config_atuacao ---- */
+  const loadConfigAtuacao = useCallback(async () => {
+    try {
+      const list = await pb.collection(COLLECTIONS.CONFIG_ATUACAO).getFullList<ConfigAtuacao>()
+      setConfigAtuacao(list[0] ?? null)
+    } catch {
+      setConfigAtuacao(null)
+    }
+  }, [])
 
+  useEffect(() => {
+    load()
+    loadConfigAtuacao()
+  }, [load, loadConfigAtuacao])
+
+  /* ---- Load lookup data for OS selects ---- */
   async function loadLookups() {
     try {
       setLoadingLookups(true)
@@ -145,22 +207,30 @@ export default function Clientes() {
     }
   }
 
+  /* ---- Filtered list ---- */
   const searchLower = search.toLowerCase()
   const filtered = clientes.filter((c) => {
     if (!search) return true
+    const fullName = [c.nome, c.sobrenome].filter(Boolean).join(' ')
     return (
-      c.nome.toLowerCase().includes(searchLower) ||
-      (c.sobrenome ?? '').toLowerCase().includes(searchLower) ||
+      fullName.toLowerCase().includes(searchLower) ||
       c.telefone.includes(search) ||
       c.endereco_bairro.toLowerCase().includes(searchLower)
     )
   })
 
+  /* ---- Open create ---- */
   function openCreate() {
+    const cidadePrincipal = configAtuacao?.cidades?.find((c) => c.principal) ?? null
     setEditing(null)
-    setForm(emptyForm())
+    setForm({
+      ...emptyForm(),
+      endereco_cidade: cidadePrincipal?.nome ?? '',
+      endereco_estado: configAtuacao?.estado ?? '',
+    })
     setFormErrs({})
     setSaveErr(null)
+    setCepWarning(null)
     setGerarOS(false)
     setOSForm(emptyOSFields())
     setOSFormErrs({})
@@ -168,30 +238,60 @@ export default function Clientes() {
     loadLookups()
   }
 
+  /* ---- Open edit ---- */
   function openEdit(c: Cliente) {
     setEditing(c)
     setForm({
-      nome: c.nome,
-      sobrenome: c.sobrenome ?? '',
+      nomeCompleto: [c.nome, c.sobrenome].filter(Boolean).join(' '),
       telefone: maskPhoneBR(c.telefone),
       email: c.email ?? '',
       endereco_rua: c.endereco_rua ?? '',
-      endereco_numero: c.endereco_numero ?? '',
       endereco_complemento: c.endereco_complemento ?? '',
       endereco_bairro: c.endereco_bairro,
       endereco_cidade: c.endereco_cidade ?? '',
-      endereco_cep: c.endereco_cep ?? '',
+      endereco_estado: c.endereco_estado ?? '',
+      endereco_cep: maskCEP(c.endereco_cep ?? ''),
       ativo: c.ativo,
       observacoes: c.observacoes ?? '',
     })
     setFormErrs({})
     setSaveErr(null)
+    setCepWarning(null)
     setModalOpen(true)
   }
 
+  /* ---- Field helpers ---- */
   function setField<K extends keyof ClienteForm>(k: K, v: ClienteForm[K]) {
     setForm((prev) => ({ ...prev, [k]: v }))
     setFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
+  }
+
+  /* ---- CEP autofill ---- */
+  async function handleCEPChange(rawValue: string) {
+    const masked = maskCEP(rawValue)
+    setField('endereco_cep', masked)
+    setCepWarning(null)
+    const digits = rawValue.replace(/\D/g, '')
+    if (digits.length !== 8) return
+
+    try {
+      setCepLoading(true)
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      if (!res.ok) throw new Error('HTTP error')
+      const data = await res.json() as ViaCEPResponse
+      if (data.erro) {
+        setCepWarning('CEP não encontrado.')
+        return
+      }
+      setField('endereco_rua', data.logradouro ?? '')
+      setField('endereco_bairro', data.bairro ?? '')
+      setField('endereco_cidade', data.localidade ?? '')
+      setField('endereco_estado', data.uf ?? '')
+    } catch {
+      setCepWarning('Não foi possível consultar o CEP.')
+    } finally {
+      setCepLoading(false)
+    }
   }
 
   /* Always prefill nome and valor when a service is selected */
@@ -205,6 +305,7 @@ export default function Clientes() {
     setOSFormErrs((prev) => { const n = { ...prev }; delete n.servicoId; return n })
   }
 
+  /* ---- Save cliente ---- */
   async function handleSave() {
     const errs = validateForm(form)
     const osErrs = (gerarOS && !editing) ? validateOSInlineForm(osForm) : {}
@@ -216,16 +317,18 @@ export default function Clientes() {
     try {
       setSaving(true)
       setSaveErr(null)
+      const { nome, sobrenome } = splitNome(form.nomeCompleto)
       const payload = {
-        nome: form.nome.trim(),
-        sobrenome: form.sobrenome?.trim() ?? '',
+        nome,
+        sobrenome,
         telefone: form.telefone.trim(),
         email: form.email?.trim() ?? '',
         endereco_rua: form.endereco_rua?.trim() ?? '',
-        endereco_numero: form.endereco_numero?.trim() ?? '',
+        endereco_numero: '',
         endereco_complemento: form.endereco_complemento?.trim() ?? '',
         endereco_bairro: form.endereco_bairro.trim(),
         endereco_cidade: form.endereco_cidade?.trim() ?? '',
+        endereco_estado: form.endereco_estado?.trim() ?? '',
         endereco_cep: form.endereco_cep?.trim() ?? '',
         ativo: form.ativo,
         observacoes: form.observacoes?.trim() ?? '',
@@ -270,6 +373,7 @@ export default function Clientes() {
     }
   }
 
+  /* ---- Toggle ativo ---- */
   async function toggleAtivo(c: Cliente) {
     try {
       await pb.collection(COLLECTIONS.CLIENTES).update(c.id, { ativo: !c.ativo })
@@ -278,6 +382,117 @@ export default function Clientes() {
       setError(pbError(err))
     }
   }
+
+  /* ---- Config atuação ---- */
+  function openConfigModal() {
+    setConfigEdit({
+      estado: configAtuacao?.estado ?? '',
+      cidades: configAtuacao?.cidades
+        ? JSON.parse(JSON.stringify(configAtuacao.cidades)) as ConfigAtuacaoCidade[]
+        : [],
+    })
+    setNewCidadeInput('')
+    setNewBairroInputs({})
+    setConfigErr(null)
+    setConfigSucc(false)
+    setConfigModalOpen(true)
+  }
+
+  function addCidade() {
+    const nome = newCidadeInput.trim()
+    if (!nome) return
+    setConfigEdit((prev) => ({
+      ...prev,
+      cidades: [
+        ...prev.cidades,
+        { nome, principal: prev.cidades.length === 0, bairros: [] },
+      ],
+    }))
+    setNewCidadeInput('')
+  }
+
+  function removeCidade(idx: number) {
+    setConfigEdit((prev) => {
+      const cidades = prev.cidades.filter((_, i) => i !== idx)
+      if (prev.cidades[idx]?.principal && cidades.length > 0) {
+        cidades[0] = { ...cidades[0], principal: true }
+      }
+      return { ...prev, cidades }
+    })
+    setNewBairroInputs((prev) => {
+      const next: Record<number, string> = {}
+      Object.entries(prev).forEach(([k, v]) => {
+        const ki = Number(k)
+        if (ki < idx) next[ki] = v
+        else if (ki > idx) next[ki - 1] = v
+      })
+      return next
+    })
+  }
+
+  function setPrincipal(idx: number) {
+    setConfigEdit((prev) => ({
+      ...prev,
+      cidades: prev.cidades.map((c, i) => ({ ...c, principal: i === idx })),
+    }))
+  }
+
+  function addBairro(cidadeIdx: number) {
+    const bairro = (newBairroInputs[cidadeIdx] ?? '').trim()
+    if (!bairro) return
+    setConfigEdit((prev) => ({
+      ...prev,
+      cidades: prev.cidades.map((c, i) =>
+        i === cidadeIdx ? { ...c, bairros: [...c.bairros, bairro] } : c
+      ),
+    }))
+    setNewBairroInputs((prev) => ({ ...prev, [cidadeIdx]: '' }))
+  }
+
+  function removeBairro(cidadeIdx: number, bairroIdx: number) {
+    setConfigEdit((prev) => ({
+      ...prev,
+      cidades: prev.cidades.map((c, i) =>
+        i === cidadeIdx
+          ? { ...c, bairros: c.bairros.filter((_, bi) => bi !== bairroIdx) }
+          : c
+      ),
+    }))
+  }
+
+  async function handleSaveConfig() {
+    try {
+      setConfigSaving(true)
+      setConfigErr(null)
+      const payload = {
+        estado: configEdit.estado.trim().toUpperCase().slice(0, 2),
+        cidades: configEdit.cidades,
+      }
+      if (configAtuacao?.id) {
+        const updated = await pb.collection(COLLECTIONS.CONFIG_ATUACAO).update<ConfigAtuacao>(configAtuacao.id, payload)
+        setConfigAtuacao(updated)
+      } else {
+        const created = await pb.collection(COLLECTIONS.CONFIG_ATUACAO).create<ConfigAtuacao>(payload)
+        setConfigAtuacao(created)
+      }
+      setConfigSucc(true)
+      setTimeout(() => {
+        setConfigModalOpen(false)
+        setConfigSucc(false)
+      }, 800)
+    } catch (err) {
+      setConfigErr(pbError(err))
+    } finally {
+      setConfigSaving(false)
+    }
+  }
+
+  /* ---- Derived values for form ---- */
+  const configCidades = configAtuacao?.cidades ?? []
+  const hasCidades = configCidades.length > 0
+  const bairrosSugeridos =
+    configCidades.find((c) => c.nome === form.endereco_cidade)?.bairros ?? []
+  const clienteNomeCompleto = (c: Cliente) => [c.nome, c.sobrenome].filter(Boolean).join(' ')
 
   /* ---- Render ---- */
   return (
@@ -292,6 +507,17 @@ export default function Clientes() {
             aria-label="Buscar clientes"
           />
         </div>
+        {canManageConfig && (
+          <button
+            className="clx-btn clx-btn-ghost clx-btn-sm"
+            onClick={openConfigModal}
+            title="Área de atuação"
+            aria-label="Área de atuação"
+            style={{ padding: '10px 12px' }}
+          >
+            <IconSettings size={16} />
+          </button>
+        )}
         <button className="clx-btn clx-btn-accent" onClick={openCreate}>
           <IconPlus size={15} /> Novo cliente
         </button>
@@ -319,7 +545,7 @@ export default function Clientes() {
                 <div className="mob-card-top">
                   <CardAvatar name={c.nome} />
                   <div className="mob-card-meta">
-                    <div className="mob-card-title">{c.nome} {c.sobrenome}</div>
+                    <div className="mob-card-title">{clienteNomeCompleto(c)}</div>
                     {c.email && <div className="mob-card-sub">{c.email}</div>}
                   </div>
                   <div className="mob-card-badge">
@@ -373,14 +599,8 @@ export default function Clientes() {
                     <td colSpan={5}>
                       <div className="empty-state">
                         <IconSearch size={32} />
-                        <h4>
-                          {search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
-                        </h4>
-                        <p>
-                          {search
-                            ? 'Tente outros termos de busca.'
-                            : 'Clique em "Novo cliente" para começar.'}
-                        </p>
+                        <h4>{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}</h4>
+                        <p>{search ? 'Tente outros termos de busca.' : 'Clique em "Novo cliente" para começar.'}</p>
                       </div>
                     </td>
                   </tr>
@@ -394,7 +614,7 @@ export default function Clientes() {
                       style={{ cursor: 'pointer' }}
                     >
                       <td data-label="Nome">
-                        <strong>{c.nome} {c.sobrenome}</strong>
+                        <strong>{clienteNomeCompleto(c)}</strong>
                         {c.email && <><br /><small>{c.email}</small></>}
                       </td>
                       <td data-label="Telefone">{maskPhoneBR(c.telefone)}</td>
@@ -419,7 +639,7 @@ export default function Clientes() {
         </div>
       )}
 
-      {/* Modal criar/editar */}
+      {/* ---- Modal criar/editar ---- */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -443,21 +663,15 @@ export default function Clientes() {
         )}
 
         <div className="form-grid form-grid-2">
-          <Field label="Nome" required err={formErrs.nome}>
+          {/* Nome único (campo único, split em nome+sobrenome no save) */}
+          <Field label="Nome" required err={formErrs.nomeCompleto} className="form-col-span-2">
             <input
               type="text"
-              value={form.nome}
-              onChange={(e) => setField('nome', e.target.value)}
-              placeholder="Carlos"
-              className={formErrs.nome ? 'err' : ''}
-            />
-          </Field>
-          <Field label="Sobrenome" err={formErrs.sobrenome}>
-            <input
-              type="text"
-              value={form.sobrenome ?? ''}
-              onChange={(e) => setField('sobrenome', e.target.value)}
-              placeholder="Silva"
+              value={form.nomeCompleto}
+              onChange={(e) => setField('nomeCompleto', e.target.value)}
+              placeholder="Carlos Silva"
+              className={formErrs.nomeCompleto ? 'err' : ''}
+              autoComplete="name"
             />
           </Field>
 
@@ -475,65 +689,35 @@ export default function Clientes() {
           <Field label="E-mail" err={formErrs.email}>
             <input
               type="email"
-              value={form.email ?? ''}
+              value={form.email}
               onChange={(e) => setField('email', e.target.value)}
               placeholder="cliente@email.com"
               className={formErrs.email ? 'err' : ''}
             />
           </Field>
 
-          <Field label="Rua" err={formErrs.endereco_rua} className="form-col-span-2">
+          {/* CEP com autofill */}
+          <div className="form-field">
+            <label>
+              CEP
+              {cepLoading && (
+                <span style={{ marginLeft: 8, color: 'var(--clx-ink-3)', fontWeight: 400 }}>
+                  <Spinner size={11} /> buscando…
+                </span>
+              )}
+            </label>
             <input
               type="text"
-              value={form.endereco_rua ?? ''}
-              onChange={(e) => setField('endereco_rua', e.target.value)}
-              placeholder="Rua das Flores"
+              inputMode="numeric"
+              value={form.endereco_cep}
+              onChange={(e) => handleCEPChange(e.target.value)}
+              placeholder="00000-000"
+              maxLength={9}
             />
-          </Field>
-
-          <Field label="Número" err={formErrs.endereco_numero}>
-            <input
-              type="text"
-              value={form.endereco_numero ?? ''}
-              onChange={(e) => setField('endereco_numero', e.target.value)}
-              placeholder="123"
-            />
-          </Field>
-          <Field label="Complemento" err={formErrs.endereco_complemento}>
-            <input
-              type="text"
-              value={form.endereco_complemento ?? ''}
-              onChange={(e) => setField('endereco_complemento', e.target.value)}
-              placeholder="Apto 4B"
-            />
-          </Field>
-
-          <Field label="Bairro" required err={formErrs.endereco_bairro}>
-            <input
-              type="text"
-              value={form.endereco_bairro}
-              onChange={(e) => setField('endereco_bairro', e.target.value)}
-              placeholder="Centro"
-              className={formErrs.endereco_bairro ? 'err' : ''}
-            />
-          </Field>
-          <Field label="Cidade" err={formErrs.endereco_cidade}>
-            <input
-              type="text"
-              value={form.endereco_cidade ?? ''}
-              onChange={(e) => setField('endereco_cidade', e.target.value)}
-              placeholder="São Paulo"
-            />
-          </Field>
-
-          <Field label="CEP" err={formErrs.endereco_cep}>
-            <input
-              type="text"
-              value={form.endereco_cep ?? ''}
-              onChange={(e) => setField('endereco_cep', e.target.value)}
-              placeholder="01310-100"
-            />
-          </Field>
+            {cepWarning && (
+              <span className="field-err">{cepWarning}</span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
             <div className="toggle-row">
               <label className="toggle" htmlFor="cliente-ativo">
@@ -551,9 +735,78 @@ export default function Clientes() {
             </div>
           </div>
 
+          {/* Rua e número (campo único) */}
+          <Field label="Rua e número" err={formErrs.endereco_rua} className="form-col-span-2">
+            <input
+              type="text"
+              value={form.endereco_rua}
+              onChange={(e) => setField('endereco_rua', e.target.value)}
+              placeholder="Rua das Flores, 123"
+            />
+          </Field>
+
+          <Field label="Complemento" err={formErrs.endereco_complemento}>
+            <input
+              type="text"
+              value={form.endereco_complemento}
+              onChange={(e) => setField('endereco_complemento', e.target.value)}
+              placeholder="Apto 4B"
+            />
+          </Field>
+
+          {/* Bairro com autocomplete (datalist) */}
+          <div className="form-field">
+            <label>Bairro <span className="req">*</span></label>
+            <input
+              type="text"
+              list="bairros-datalist"
+              value={form.endereco_bairro}
+              onChange={(e) => setField('endereco_bairro', e.target.value)}
+              placeholder="Centro"
+              className={formErrs.endereco_bairro ? 'err' : ''}
+            />
+            {bairrosSugeridos.length > 0 && (
+              <datalist id="bairros-datalist">
+                {bairrosSugeridos.map((b) => <option key={b} value={b} />)}
+              </datalist>
+            )}
+            {formErrs.endereco_bairro && <span className="field-err">{formErrs.endereco_bairro}</span>}
+          </div>
+
+          {/* Cidade: select quando há config, input livre caso contrário */}
+          <div className="form-field">
+            <label>Cidade</label>
+            {hasCidades ? (
+              <select
+                value={form.endereco_cidade}
+                onChange={(e) => {
+                  setField('endereco_cidade', e.target.value)
+                }}
+                className={formErrs.endereco_cidade ? 'err' : ''}
+              >
+                <option value="">— Selecionar —</option>
+                {configCidades.map((c) => (
+                  <option key={c.nome} value={c.nome}>{c.nome}</option>
+                ))}
+                {form.endereco_cidade && !configCidades.find((c) => c.nome === form.endereco_cidade) && (
+                  <option value={form.endereco_cidade}>{form.endereco_cidade}</option>
+                )}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={form.endereco_cidade}
+                onChange={(e) => setField('endereco_cidade', e.target.value)}
+                placeholder="São Paulo"
+                className={formErrs.endereco_cidade ? 'err' : ''}
+              />
+            )}
+            {formErrs.endereco_cidade && <span className="field-err">{formErrs.endereco_cidade}</span>}
+          </div>
+
           <Field label="Observações" err={formErrs.observacoes} className="form-col-span-2">
             <textarea
-              value={form.observacoes ?? ''}
+              value={form.observacoes}
               onChange={(e) => setField('observacoes', e.target.value)}
               placeholder="Informações adicionais sobre o cliente…"
               rows={3}
@@ -617,6 +870,179 @@ export default function Clientes() {
               />
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* ---- Modal Área de Atuação ---- */}
+      <Modal
+        open={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+        title="Área de atuação"
+        size="md"
+        footer={
+          <>
+            <button className="clx-btn clx-btn-ghost" onClick={() => setConfigModalOpen(false)} disabled={configSaving}>
+              Cancelar
+            </button>
+            <button className="clx-btn clx-btn-accent" onClick={handleSaveConfig} disabled={configSaving}>
+              {configSaving ? <><Spinner size={14} /> Salvando…</> : configSucc ? <><IconCheckCircle size={14} /> Salvo!</> : 'Salvar'}
+            </button>
+          </>
+        }
+      >
+        {configErr && (
+          <div className="error-banner" role="alert" style={{ marginBottom: 14 }}>
+            <IconAlertCircle size={15} /> {configErr}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Estado */}
+          <div className="form-field">
+            <label>Estado (UF)</label>
+            <input
+              type="text"
+              value={configEdit.estado}
+              onChange={(e) => setConfigEdit((prev) => ({ ...prev, estado: e.target.value.toUpperCase().slice(0, 2) }))}
+              placeholder="SP"
+              maxLength={2}
+              style={{ textTransform: 'uppercase', maxWidth: 80 }}
+            />
+          </div>
+
+          {/* Lista de cidades */}
+          <div>
+            <div style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--clx-ink-2)',
+              marginBottom: 10,
+            }}>
+              Cidades atendidas
+            </div>
+
+            {configEdit.cidades.length === 0 && (
+              <p style={{ fontSize: '0.85rem', color: 'var(--clx-ink-3)', marginBottom: 12 }}>
+                Nenhuma cidade cadastrada.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {configEdit.cidades.map((cidade, ci) => (
+                <div key={ci} style={{
+                  background: 'var(--clx-bg-2)',
+                  border: '1px solid var(--clx-line)',
+                  borderRadius: 'var(--clx-r-md)',
+                  padding: '12px 14px',
+                }}>
+                  {/* Cidade header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', flex: 1 }}>{cidade.nome}</span>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: '0.78rem',
+                      color: 'var(--clx-ink-2)',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      <input
+                        type="radio"
+                        name="cidade-principal"
+                        checked={cidade.principal}
+                        onChange={() => setPrincipal(ci)}
+                        style={{ accentColor: 'var(--clx-primary)', cursor: 'pointer' }}
+                      />
+                      Principal
+                    </label>
+                    <button
+                      className="icon-btn danger"
+                      onClick={() => removeCidade(ci)}
+                      title="Remover cidade"
+                      style={{ width: 28, height: 28 }}
+                    >
+                      <IconTrash size={14} />
+                    </button>
+                  </div>
+
+                  {/* Bairros chips */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {cidade.bairros.map((bairro, bi) => (
+                      <span key={bi} className="clx-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {bairro}
+                        <button
+                          onClick={() => removeBairro(ci, bi)}
+                          style={{ display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', opacity: 0.7 }}
+                          title="Remover bairro"
+                        >
+                          <IconX size={11} />
+                        </button>
+                      </span>
+                    ))}
+                    {cidade.bairros.length === 0 && (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--clx-ink-3)' }}>Nenhum bairro cadastrado.</span>
+                    )}
+                  </div>
+
+                  {/* Add bairro */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type="text"
+                      value={newBairroInputs[ci] ?? ''}
+                      onChange={(e) => setNewBairroInputs((prev) => ({ ...prev, [ci]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addBairro(ci) } }}
+                      placeholder="Adicionar bairro…"
+                      style={{
+                        flex: 1,
+                        padding: '7px 10px',
+                        background: 'var(--clx-bg)',
+                        border: '1.5px solid var(--clx-line)',
+                        borderRadius: 'var(--clx-r-md)',
+                        fontSize: '0.82rem',
+                        color: 'var(--clx-ink)',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      className="clx-btn clx-btn-ghost clx-btn-sm"
+                      onClick={() => addBairro(ci)}
+                      type="button"
+                    >
+                      <IconPlus size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add cidade */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <input
+                type="text"
+                value={newCidadeInput}
+                onChange={(e) => setNewCidadeInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCidade() } }}
+                placeholder="Nome da nova cidade…"
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  background: 'var(--clx-bg)',
+                  border: '1.5px solid var(--clx-line)',
+                  borderRadius: 'var(--clx-r-md)',
+                  fontSize: '0.875rem',
+                  color: 'var(--clx-ink)',
+                  outline: 'none',
+                }}
+              />
+              <button className="clx-btn clx-btn-ghost clx-btn-sm" onClick={addCidade} type="button">
+                <IconPlus size={14} /> Cidade
+              </button>
+            </div>
+          </div>
         </div>
       </Modal>
     </div>
