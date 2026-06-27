@@ -19,6 +19,8 @@ import {
   COLLECTIONS,
   maskPhoneBR,
   onlyDigitsPhone,
+  splitNome,
+  maskCEP,
 } from './collections'
 
 describe('osStatusLabel', () => {
@@ -339,6 +341,74 @@ describe('onlyDigitsPhone', () => {
 
   it('string vazia → vazia', () => {
     expect(onlyDigitsPhone('')).toBe('')
+  })
+})
+
+describe('splitNome', () => {
+  it('nome com sobrenome → divide no primeiro espaço', () => {
+    const r = splitNome('Carlos Silva')
+    expect(r.nome).toBe('Carlos')
+    expect(r.sobrenome).toBe('Silva')
+  })
+
+  it('nome composto no sobrenome → restante vai todo pro sobrenome', () => {
+    const r = splitNome('João da Silva Sauro')
+    expect(r.nome).toBe('João')
+    expect(r.sobrenome).toBe('da Silva Sauro')
+  })
+
+  it('só uma palavra → sobrenome vazio', () => {
+    const r = splitNome('Carlos')
+    expect(r.nome).toBe('Carlos')
+    expect(r.sobrenome).toBe('')
+  })
+
+  it('string vazia → ambos vazios', () => {
+    const r = splitNome('')
+    expect(r.nome).toBe('')
+    expect(r.sobrenome).toBe('')
+  })
+
+  it('string só com espaços → ambos vazios', () => {
+    const r = splitNome('   ')
+    expect(r.nome).toBe('')
+    expect(r.sobrenome).toBe('')
+  })
+
+  it('espaços extras entre palavras → sobrenome sem espaço líder', () => {
+    const r = splitNome('  Ana   Lima  ')
+    expect(r.nome).toBe('Ana')
+    expect(r.sobrenome).toBe('Lima')
+  })
+})
+
+describe('maskCEP', () => {
+  it('8 dígitos → NNNNN-NNN', () => {
+    expect(maskCEP('01310100')).toBe('01310-100')
+  })
+
+  it('já mascarado → mantém corretamente', () => {
+    expect(maskCEP('01310-100')).toBe('01310-100')
+  })
+
+  it('parcial 4 dígitos → sem traço', () => {
+    expect(maskCEP('0131')).toBe('0131')
+  })
+
+  it('parcial 6 dígitos → NNNNN-N', () => {
+    expect(maskCEP('013101')).toBe('01310-1')
+  })
+
+  it('string vazia → vazia', () => {
+    expect(maskCEP('')).toBe('')
+  })
+
+  it('ignora excedente além de 8 dígitos', () => {
+    expect(maskCEP('013101009999')).toBe('01310-100')
+  })
+
+  it('remove não-dígitos antes de mascarar', () => {
+    expect(maskCEP('abc01310xyz100')).toBe('01310-100')
   })
 })
 
