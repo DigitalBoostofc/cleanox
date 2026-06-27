@@ -363,7 +363,7 @@ export function gerarSlotsDisponiveis(
       const m = cur % 60
       slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
     }
-    cur += duracaoMin
+    cur += 15
   }
   return slots
 }

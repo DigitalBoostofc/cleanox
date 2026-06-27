@@ -219,6 +219,16 @@ export function OSFormSection({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSlotMode, slotLoading, slotsDisponiveis.join(','), currentSlot])
 
+  /* ---- valid hours/minutes for slot mode ---- */
+  const validHours = isSlotMode && slotsDisponiveis.length > 0
+    ? [...new Set(slotsDisponiveis.map((s) => s.split(':')[0]))]
+    : []
+  const validMins = isSlotMode && slotsDisponiveis.length > 0
+    ? slotsDisponiveis
+        .filter((s) => s.split(':')[0] === fields.data_time_h)
+        .map((s) => s.split(':')[1])
+    : []
+
   /* ---- Render ---- */
   return (
     <>
@@ -299,18 +309,31 @@ export function OSFormSection({
               Sem horários disponíveis nesta data
             </div>
           ) : (
-            <select
-              value={currentSlot}
-              onChange={(e) => {
-                const [h, m] = e.target.value.split(':')
-                onChange('data_time_h', h)
-                onChange('data_time_m', m)
-              }}
-            >
-              {slotsDisponiveis.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                value={fields.data_time_h}
+                onChange={(e) => {
+                  const newH = e.target.value
+                  onChange('data_time_h', newH)
+                  const firstSlot = slotsDisponiveis.find((s) => s.startsWith(newH + ':'))
+                  if (firstSlot) onChange('data_time_m', firstSlot.split(':')[1])
+                }}
+                style={{ flex: 1 }}
+              >
+                {validHours.map((h) => (
+                  <option key={h} value={h}>{h}h</option>
+                ))}
+              </select>
+              <select
+                value={fields.data_time_m}
+                onChange={(e) => onChange('data_time_m', e.target.value)}
+                style={{ width: 72 }}
+              >
+                {validMins.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
           )
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
