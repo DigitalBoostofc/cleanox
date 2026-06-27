@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
-import { COLLECTIONS, type Cliente } from '../../lib/collections'
+import { COLLECTIONS, type Cliente, maskPhoneBR, onlyDigitsPhone } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -38,7 +38,8 @@ function emptyForm(): ClienteForm {
 function validateForm(f: ClienteForm): Record<string, string> {
   const errs: Record<string, string> = {}
   if (!f.nome.trim()) errs.nome = 'Nome é obrigatório'
-  if (!f.telefone.trim()) errs.telefone = 'Telefone é obrigatório'
+  const telDigits = onlyDigitsPhone(f.telefone)
+  if (telDigits.length < 10) errs.telefone = telDigits.length === 0 ? 'Telefone é obrigatório' : 'Telefone incompleto — informe DDD + número'
   if (!f.endereco_bairro.trim()) errs.endereco_bairro = 'Bairro é obrigatório'
   if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) {
     errs.email = 'E-mail inválido'
@@ -122,7 +123,7 @@ export default function Clientes() {
     setForm({
       nome: c.nome,
       sobrenome: c.sobrenome ?? '',
-      telefone: c.telefone,
+      telefone: maskPhoneBR(c.telefone),
       email: c.email ?? '',
       endereco_rua: c.endereco_rua ?? '',
       endereco_numero: c.endereco_numero ?? '',
@@ -246,7 +247,7 @@ export default function Clientes() {
                 <div className="mob-card-rows">
                   <div className="mob-card-row">
                     <span className="mob-card-row-icon"><IconPhone size={14} /></span>
-                    <span>{c.telefone}</span>
+                    <span>{maskPhoneBR(c.telefone)}</span>
                   </div>
                   {(c.endereco_bairro || c.endereco_cidade) && (
                     <div className="mob-card-row">
@@ -307,7 +308,7 @@ export default function Clientes() {
                         <strong>{c.nome} {c.sobrenome}</strong>
                         {c.email && <><br /><small>{c.email}</small></>}
                       </td>
-                      <td data-label="Telefone">{c.telefone}</td>
+                      <td data-label="Telefone">{maskPhoneBR(c.telefone)}</td>
                       <td data-label="Bairro">{c.endereco_bairro}</td>
                       <td data-label="Cidade">{c.endereco_cidade || '—'}</td>
                       <td data-label="Status">
@@ -374,9 +375,11 @@ export default function Clientes() {
           <Field label="Telefone" required err={formErrs.telefone}>
             <input
               type="tel"
+              inputMode="tel"
               value={form.telefone}
-              onChange={(e) => setField('telefone', e.target.value)}
-              placeholder="(11) 99999-9999"
+              onChange={(e) => setField('telefone', maskPhoneBR(e.target.value))}
+              placeholder="(85) 99999-9999"
+              maxLength={15}
               className={formErrs.telefone ? 'err' : ''}
             />
           </Field>

@@ -17,6 +17,8 @@ import {
   formatHour,
   OS_STATUS_LIST,
   COLLECTIONS,
+  maskPhoneBR,
+  onlyDigitsPhone,
 } from './collections'
 
 describe('osStatusLabel', () => {
@@ -283,6 +285,60 @@ describe('getBrtDayBounds', () => {
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
     const endMs = new Date(tomorrowStart.replace(' ', 'T') + 'Z').getTime()
     expect(endMs).toBe(nextMidnight.getTime())
+  })
+})
+
+describe('maskPhoneBR', () => {
+  it('celular 11 dígitos: 85997385758 → (85) 99738-5758', () => {
+    expect(maskPhoneBR('85997385758')).toBe('(85) 99738-5758')
+  })
+
+  it('fixo 10 dígitos: 8534567890 → (85) 3456-7890', () => {
+    expect(maskPhoneBR('8534567890')).toBe('(85) 3456-7890')
+  })
+
+  it('entrada com lixo é formatada corretamente', () => {
+    expect(maskPhoneBR('(85) 99738-5758')).toBe('(85) 99738-5758')
+    expect(maskPhoneBR('85 99738 5758')).toBe('(85) 99738-5758')
+    expect(maskPhoneBR('abc85xyz997385758zzz')).toBe('(85) 99738-5758')
+  })
+
+  it('parcial 4 dígitos: 8599 → (85) 99', () => {
+    expect(maskPhoneBR('8599')).toBe('(85) 99')
+  })
+
+  it('parcial 2 dígitos: 85 → (85', () => {
+    expect(maskPhoneBR('85')).toBe('(85')
+  })
+
+  it('parcial 1 dígito: 8 → (8', () => {
+    expect(maskPhoneBR('8')).toBe('(8')
+  })
+
+  it('string vazia → string vazia', () => {
+    expect(maskPhoneBR('')).toBe('')
+  })
+
+  it('limita a 11 dígitos (ignora excedente)', () => {
+    expect(maskPhoneBR('859973857589999')).toBe('(85) 99738-5758')
+  })
+
+  it('parcial 7 dígitos (fixo parcial): 8534567 → (85) 3456-7', () => {
+    expect(maskPhoneBR('8534567')).toBe('(85) 3456-7')
+  })
+})
+
+describe('onlyDigitsPhone', () => {
+  it('remove não-dígitos', () => {
+    expect(onlyDigitsPhone('(85) 99738-5758')).toBe('85997385758')
+  })
+
+  it('string só com dígitos permanece igual', () => {
+    expect(onlyDigitsPhone('85997385758')).toBe('85997385758')
+  })
+
+  it('string vazia → vazia', () => {
+    expect(onlyDigitsPhone('')).toBe('')
   })
 })
 

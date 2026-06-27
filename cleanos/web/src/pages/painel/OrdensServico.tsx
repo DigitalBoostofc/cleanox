@@ -15,6 +15,7 @@ import {
   pbDateToLocalInput,
   localInputToPBDate,
   userDisplayName,
+  maskPhoneBR,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { StarRating } from '../../components/ui/StarRating'
@@ -527,7 +528,7 @@ export default function OrdensServico() {
                         >
                           <strong>{c.nome} {c.sobrenome}</strong>
                           <span style={{ color: 'var(--clx-ink-3)', fontSize: '0.78rem', marginLeft: 8 }}>
-                            {c.endereco_bairro} · {c.telefone}
+                            {c.endereco_bairro} · {maskPhoneBR(c.telefone)}
                           </span>
                         </div>
                       ))}
