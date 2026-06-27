@@ -459,62 +459,113 @@ describe('gerarSlotsDisponiveis', () => {
     expect(gerarSlotsDisponiveis(inativo, 60, [])).toEqual([])
   })
 
-  it('dia ativo sem ocupação gera todos os slots', () => {
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, [])
-    expect(r).toEqual(['08:00', '09:00'])
-  })
-
-  it('slot ocupado é excluído', () => {
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00'])
-    expect(r).toEqual(['09:00'])
-  })
-
-  it('todos os slots ocupados → []', () => {
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00', '09:00'])
-    expect(r).toEqual([])
-  })
-
-  it('duração 120 min gera slots corretos', () => {
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, [])
-    expect(r).toEqual(['08:00', '10:00'])
-  })
-
-  it('borda do fim — slot que termina exatamente no fim é incluído', () => {
-    // 08:00 + 120 = 10:00 === fim(10:00) → incluído
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 120, [])
-    expect(r).toEqual(['08:00'])
-  })
-
-  it('borda do fim — slot que ultrapassaria o fim é excluído', () => {
-    // 08:00 + 120 = 10:00 > fim(09:30) → nenhum slot
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:30' }, 120, [])
-    expect(r).toEqual([])
-  })
-
-  it('OS às 08:00 com duração 120 bloqueia só o slot das 08:00', () => {
-    // Slot 10:00: 600 < 480+120=600 → false (não colide)
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['08:00'])
-    expect(r).toEqual(['10:00'])
-  })
-
-  it('OS fora do grid bloqueia slots sobrepostos', () => {
-    // OS às 09:00 ocupa 09:00-11:00; slot 08:00 ocupa 08:00-10:00 → sobreposição; slot 10:00 ocupa 10:00-12:00 → sobreposição
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['09:00'])
-    expect(r).toEqual([])
-  })
-
-  it('duração 15 min gera 4 slots por hora', () => {
-    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:00' }, 15, [])
-    expect(r).toEqual(['08:00', '08:15', '08:30', '08:45'])
+  it('duracaoMin <= 0 → []', () => {
+    expect(gerarSlotsDisponiveis(ativo, 0, [])).toEqual([])
+    expect(gerarSlotsDisponiveis(ativo, -5, [])).toEqual([])
   })
 
   it('inicio >= fim → []', () => {
     expect(gerarSlotsDisponiveis({ ativo: true, inicio: '10:00', fim: '08:00' }, 60, [])).toEqual([])
   })
 
-  it('gera slots do ativo com larga janela e colisões parciais', () => {
-    // 8h-18h, dur=60, ocupados: 08:00, 10:00, 14:00
+  it('passo é sempre 15 min, não a duração', () => {
+    // 08:00–10:00, dur 60: candidatos 08:00,08:15,08:30,08:45,09:00 (todos cabem; 09:15+60>10:00)
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, [])
+    expect(r).toEqual(['08:00', '08:15', '08:30', '08:45', '09:00'])
+  })
+
+  it('duração 15 min — passo coincide com duração: 4 slots por hora', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:00' }, 15, [])
+    expect(r).toEqual(['08:00', '08:15', '08:30', '08:45'])
+  })
+
+  it('borda do fim — slot que termina exatamente no fim é incluído', () => {
+    // 08:00 + 120 = 10:00 === fim → incluído
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 120, [])
+    expect(r).toEqual(['08:00'])
+  })
+
+  it('borda do fim — slot que ultrapassaria o fim é excluído', () => {
+    // 08:00 + 120 = 10:00 > 09:30 → nenhum slot
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:30' }, 120, [])
+    expect(r).toEqual([])
+  })
+
+  // ---- Exemplos canônicos do spec ----
+
+  it('exemplo 1: 08:00–18:00, dur 120, sem ocupação → 08:00..16:00 passo 15 (33 slots)', () => {
+    const r = gerarSlotsDisponiveis(ativo, 120, [])
+    expect(r[0]).toBe('08:00')
+    expect(r[r.length - 1]).toBe('16:00')
+    expect(r.length).toBe(33)
+    // confere passo de 15 min
+    expect(r[1]).toBe('08:15')
+    expect(r[4]).toBe('09:00')
+  })
+
+  it('exemplo 2: 08:00–18:00, dur 120, ocupado 09:00 → nada antes de 11:00; 11:00..16:00 (21 slots)', () => {
+    // 08:00..10:45 todos colidem com [540,660)
+    const r = gerarSlotsDisponiveis(ativo, 120, ['09:00'])
+    expect(r[0]).toBe('11:00')
+    expect(r[r.length - 1]).toBe('16:00')
+    expect(r.length).toBe(21)
+    expect(r.includes('08:00')).toBe(false)
+    expect(r.includes('10:45')).toBe(false)
+  })
+
+  it('exemplo 3: 07:00–18:00, dur 120, ocupado 09:00 → 07:00 livre, 07:15 colide, depois 11:00..16:00', () => {
+    const dia: DisponibilidadeDia = { ativo: true, inicio: '07:00', fim: '18:00' }
+    const r = gerarSlotsDisponiveis(dia, 120, ['09:00'])
+    expect(r[0]).toBe('07:00')
+    expect(r.includes('07:15')).toBe(false) // [435,555) sobrepõe [540,660)
+    expect(r[1]).toBe('11:00')
+    expect(r[r.length - 1]).toBe('16:00')
+  })
+
+  it('exemplo 4: 08:00–18:00, dur 60, sem ocupação → 08:00..17:00 passo 15 (37 slots)', () => {
+    const r = gerarSlotsDisponiveis(ativo, 60, [])
+    expect(r[0]).toBe('08:00')
+    expect(r[r.length - 1]).toBe('17:00')
+    expect(r.length).toBe(37)
+  })
+
+  // ---- Colisão por sobreposição parcial ----
+
+  it('OS ocupando [480,540) bloqueia todos candidatos que colidem; 09:00 fica livre', () => {
+    // 08:00–10:00, dur 60, ocupado '08:00': 08:15..08:45 ainda colidem com [480,540)
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00'])
+    expect(r).toEqual(['09:00'])
+  })
+
+  it('todos os candidatos colidem → []', () => {
+    // 08:00–10:00, dur 60, ocupados '08:00' e '09:00'
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00', '09:00'])
+    expect(r).toEqual([])
+  })
+
+  it('OS às 08:00 dur 120 bloqueia 08:00..09:45; primeiro livre é 10:00', () => {
+    // 08:00–12:00, dur 120, ocupado '08:00'
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['08:00'])
+    expect(r).toEqual(['10:00'])
+  })
+
+  it('OS às 09:00 dur 120 bloqueia 08:00..10:45 E 09:00..10:45 — janela 08:00-12:00 fica vazia', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['09:00'])
+    expect(r).toEqual([])
+  })
+
+  it('larga janela 08:00–18:00, dur 60, ocupados 08:00, 10:00, 14:00', () => {
+    // 09:00 livre (termina às 10:00, não solapa 10:00); 09:15 colide com 10:00; 11:00..13:00 livres; 13:15 colide com 14:00; 15:00..17:00 livres
     const r = gerarSlotsDisponiveis(ativo, 60, ['08:00', '10:00', '14:00'])
-    expect(r).toEqual(['09:00', '11:00', '12:00', '13:00', '15:00', '16:00', '17:00'])
+    expect(r.includes('09:00')).toBe(true)
+    expect(r.includes('09:15')).toBe(false)
+    expect(r.includes('11:00')).toBe(true)
+    expect(r.includes('13:00')).toBe(true)
+    expect(r.includes('13:15')).toBe(false)
+    expect(r.includes('15:00')).toBe(true)
+    expect(r.includes('17:00')).toBe(true)
+    expect(r.includes('08:00')).toBe(false)
+    expect(r.includes('10:00')).toBe(false)
+    expect(r.includes('14:00')).toBe(false)
   })
 })
