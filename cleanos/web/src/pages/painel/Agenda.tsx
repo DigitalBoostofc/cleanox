@@ -4,10 +4,14 @@ import { pb } from '../../lib/pb'
 import {
   COLLECTIONS,
   type OrdemServico,
+  type User,
+  type Disponibilidade,
+  type DisponibilidadeDia,
   osStatusLabel,
   formatDateTime,
   formatCurrency,
   formaPagamentoLabel,
+  userDisplayName,
 } from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
@@ -15,8 +19,11 @@ import {
   IconAlertCircle,
   IconChevronLeft,
   IconChevronRight,
+  IconSettings,
+  IconCheckCircle,
 } from '../../components/ui/Icon'
 import { useIsMobile } from '../../hooks/useIsMobile'
+import { useAuth } from '../../contexts/AuthContext'
 
 /* ---- Types ---- */
 type AgendaView = 'dia' | 'semana' | 'mes'
@@ -24,6 +31,8 @@ type AgendaView = 'dia' | 'semana' | 'mes'
 const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 const DOW_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DOW_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+const DEFAULT_DIA: DisponibilidadeDia = { ativo: false, inicio: '08:00', fim: '18:00' }
 
 /* ---- Date helpers ---- */
 
@@ -114,10 +123,209 @@ function getLoadRange(view: AgendaView, anchor: Date): { from: Date; to: Date } 
   return { from, to }
 }
 
+/* ======================================================
+   DISPONIBILIDADE MODAL
+   ====================================================== */
+
+function DisponibilidadeModal({
+  profissional,
+  open,
+  onClose,
+}: {
+  profissional: User
+  open: boolean
+  onClose: () => void
+}) {
+  const [dias, setDias] = useState<DisponibilidadeDia[]>(
+    () => Array.from({ length: 7 }, () => ({ ...DEFAULT_DIA }))
+  )
+  const [duracaoMin, setDuracaoMin] = useState(60)
+  const [existingId, setExistingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [saveOk, setSaveOk] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    setSaveErr(null)
+    setSaveOk(false)
+    pb.collection(COLLECTIONS.DISPONIBILIDADE)
+      .getFullList<Disponibilidade>({ filter: `profissional='${profissional.id}'` })
+      .then((list) => {
+        const d = list[0]
+        if (d) {
+          setExistingId(d.id)
+          setDias(d.dias.map((x) => ({ ...x })))
+          setDuracaoMin(d.duracao_min)
+        } else {
+          setExistingId(null)
+          setDias(Array.from({ length: 7 }, () => ({ ...DEFAULT_DIA })))
+          setDuracaoMin(60)
+        }
+      })
+      .catch(() => {
+        setExistingId(null)
+        setDias(Array.from({ length: 7 }, () => ({ ...DEFAULT_DIA })))
+        setDuracaoMin(60)
+      })
+      .finally(() => setLoading(false))
+  }, [open, profissional.id])
+
+  function updateDia(idx: number, patch: Partial<DisponibilidadeDia>) {
+    setDias((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveErr(null)
+    setSaveOk(false)
+    try {
+      const payload = { profissional: profissional.id, duracao_min: duracaoMin, dias }
+      if (existingId) {
+        await pb.collection(COLLECTIONS.DISPONIBILIDADE).update(existingId, payload)
+      } else {
+        const record = await pb.collection(COLLECTIONS.DISPONIBILIDADE).create<Disponibilidade>(payload)
+        setExistingId(record.id)
+      }
+      setSaveOk(true)
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : 'Erro ao salvar disponibilidade.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Disponibilidade — ${userDisplayName(profissional)}`}
+      size="md"
+      footer={
+        <>
+          <button className="clx-btn clx-btn-ghost" onClick={onClose} disabled={saving}>
+            Fechar
+          </button>
+          <button className="clx-btn clx-btn-accent" onClick={handleSave} disabled={saving || loading}>
+            {saving ? <><Spinner size={14} /> Salvando…</> : 'Salvar'}
+          </button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="loading-overlay"><Spinner size={20} /> Carregando…</div>
+      ) : (
+        <>
+          {saveErr && (
+            <div className="error-banner" role="alert" style={{ marginBottom: 12 }}>
+              <IconAlertCircle size={15} /> {saveErr}
+            </div>
+          )}
+          {saveOk && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--clx-success, #16a34a)', marginBottom: 12, fontSize: '0.875rem' }}>
+              <IconCheckCircle size={15} /> Salvo com sucesso
+            </div>
+          )}
+
+          <div className="form-field" style={{ marginBottom: 16 }}>
+            <label>Duração do serviço (min)</label>
+            <input
+              type="number"
+              min="15"
+              step="15"
+              value={duracaoMin}
+              onChange={(e) => setDuracaoMin(Math.max(15, Number(e.target.value)))}
+              style={{ maxWidth: 120 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {DIAS_SEMANA.map((nome, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  padding: '8px 10px',
+                  background: dias[idx].ativo ? 'var(--clx-bg-2)' : 'transparent',
+                  borderRadius: 'var(--clx-r-md)',
+                  border: '1px solid var(--clx-line)',
+                }}
+              >
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    minWidth: 90,
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={dias[idx].ativo}
+                    onChange={(e) => updateDia(idx, { ativo: e.target.checked })}
+                  />
+                  {nome}
+                </label>
+                {dias[idx].ativo && (
+                  <>
+                    <input
+                      type="time"
+                      value={dias[idx].inicio}
+                      step="900"
+                      onChange={(e) => updateDia(idx, { inicio: e.target.value })}
+                      style={{
+                        padding: '4px 8px',
+                        background: 'var(--clx-bg)',
+                        border: '1.5px solid var(--clx-line)',
+                        borderRadius: 'var(--clx-r-md)',
+                        fontSize: '0.875rem',
+                        color: 'var(--clx-ink)',
+                      }}
+                    />
+                    <span style={{ color: 'var(--clx-ink-3)', fontSize: '0.85rem' }}>até</span>
+                    <input
+                      type="time"
+                      value={dias[idx].fim}
+                      step="900"
+                      onChange={(e) => updateDia(idx, { fim: e.target.value })}
+                      style={{
+                        padding: '4px 8px',
+                        background: 'var(--clx-bg)',
+                        border: '1.5px solid var(--clx-line)',
+                        borderRadius: 'var(--clx-r-md)',
+                        fontSize: '0.875rem',
+                        color: 'var(--clx-ink)',
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
+/* ======================================================
+   MAIN Agenda COMPONENT
+   ====================================================== */
+
 export default function Agenda() {
   const navigate = useNavigate()
   const today = new Date()
   const isMobile = useIsMobile()
+  const { role } = useAuth()
+  const canManageDisp = role === 'admin' || role === 'gerente'
 
   const [view, setView] = useState<AgendaView>(isMobile ? 'dia' : 'semana')
   const [anchor, setAnchor] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), today.getDate()))
@@ -129,7 +337,25 @@ export default function Agenda() {
 
   const [detailOS, setDetailOS] = useState<OrdemServico | null>(null)
 
+  /* profissional filter */
+  const [profs, setProfs] = useState<User[]>([])
+  const [filterProfId, setFilterProfId] = useState('')
+  const [dispModalOpen, setDispModalOpen] = useState(false)
+
   const loadGenRef = useRef(0)
+
+  /* load profissionais on mount */
+  useEffect(() => {
+    pb.collection(COLLECTIONS.USERS)
+      .getFullList<User>({ filter: "role='profissional'", sort: 'nome,name' })
+      .then(setProfs)
+      .catch(() => {})
+  }, [])
+
+  /* close disp modal when filter cleared */
+  useEffect(() => {
+    if (!filterProfId) setDispModalOpen(false)
+  }, [filterProfId])
 
   // Sync selectedDay when navigating months in mobile month view
   useEffect(() => {
@@ -171,6 +397,11 @@ export default function Agenda() {
 
   useEffect(() => { load() }, [load])
 
+  /* profissional filter applied in-memory */
+  const filteredOsData = filterProfId
+    ? osData.filter((o) => o.profissional === filterProfId)
+    : osData
+
   /* Navigation */
   function goToday() {
     const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -190,7 +421,7 @@ export default function Agenda() {
 
   /* Events for a given day + hour */
   function eventsFor(day: Date, hour: number): OrdemServico[] {
-    return osData.filter((o) => {
+    return filteredOsData.filter((o) => {
       const d = new Date(o.data_hora)
       return sameDay(d, day) && hourSlot(o) === hour
     })
@@ -198,12 +429,14 @@ export default function Agenda() {
 
   /* All events for a given day */
   function eventsForDay(day: Date): OrdemServico[] {
-    return osData.filter((o) => sameDay(new Date(o.data_hora), day))
+    return filteredOsData.filter((o) => sameDay(new Date(o.data_hora), day))
   }
 
   /* Week days */
   const weekStart = startOfWeek(anchor)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+
+  const selectedProf = filterProfId ? profs.find((p) => p.id === filterProfId) : undefined
 
   return (
     <div className="agenda-root">
@@ -225,6 +458,38 @@ export default function Agenda() {
         <button className="clx-btn clx-btn-ghost clx-btn-sm" onClick={load} style={{ marginLeft: 4 }}>
           Atualizar
         </button>
+
+        {/* Profissional filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <select
+            value={filterProfId}
+            onChange={(e) => setFilterProfId(e.target.value)}
+            style={{
+              padding: '4px 10px',
+              background: 'var(--clx-bg-2)',
+              border: '1.5px solid var(--clx-line)',
+              borderRadius: 'var(--clx-r-md)',
+              fontSize: '0.8rem',
+              color: 'var(--clx-ink)',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">Todos os profissionais</option>
+            {profs.map((p) => (
+              <option key={p.id} value={p.id}>{userDisplayName(p)}</option>
+            ))}
+          </select>
+          {filterProfId && canManageDisp && (
+            <button
+              className="icon-btn"
+              title="Configurar disponibilidade"
+              onClick={() => setDispModalOpen(true)}
+            >
+              <IconSettings size={15} />
+            </button>
+          )}
+        </div>
 
         <div className="agenda-view-tabs">
           {(['dia', 'semana', 'mes'] as AgendaView[]).map((v) => (
@@ -331,6 +596,15 @@ export default function Agenda() {
         >
           <OSMiniDetail os={detailOS} />
         </Modal>
+      )}
+
+      {/* Disponibilidade modal */}
+      {selectedProf && (
+        <DisponibilidadeModal
+          profissional={selectedProf}
+          open={dispModalOpen}
+          onClose={() => setDispModalOpen(false)}
+        />
       )}
     </div>
   )

@@ -21,7 +21,9 @@ import {
   onlyDigitsPhone,
   splitNome,
   maskCEP,
+  gerarSlotsDisponiveis,
 } from './collections'
+import type { DisponibilidadeDia } from './collections'
 
 describe('osStatusLabel', () => {
   it('mapeia cada status para o label correto', () => {
@@ -251,11 +253,12 @@ describe('formatHour', () => {
 })
 
 describe('COLLECTIONS constantes', () => {
-  it('tem os 4 nomes de coleção corretos', () => {
+  it('tem os 5 nomes de coleção corretos', () => {
     expect(COLLECTIONS.USERS).toBe('users')
     expect(COLLECTIONS.CLIENTES).toBe('clientes')
     expect(COLLECTIONS.SERVICOS).toBe('servicos')
     expect(COLLECTIONS.ORDENS_SERVICO).toBe('ordens_servico')
+    expect(COLLECTIONS.DISPONIBILIDADE).toBe('disponibilidade')
   })
 })
 
@@ -445,5 +448,73 @@ describe('getBrtMonthBounds', () => {
     const startMs = new Date(start.replace(' ', 'T') + 'Z').getTime()
     const endMs = new Date(end.replace(' ', 'T') + 'Z').getTime()
     expect((endMs - startMs) / (24 * 60 * 60 * 1000)).toBe(30)
+  })
+})
+
+describe('gerarSlotsDisponiveis', () => {
+  const ativo: DisponibilidadeDia = { ativo: true, inicio: '08:00', fim: '18:00' }
+  const inativo: DisponibilidadeDia = { ativo: false, inicio: '08:00', fim: '18:00' }
+
+  it('dia inativo → []', () => {
+    expect(gerarSlotsDisponiveis(inativo, 60, [])).toEqual([])
+  })
+
+  it('dia ativo sem ocupação gera todos os slots', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, [])
+    expect(r).toEqual(['08:00', '09:00'])
+  })
+
+  it('slot ocupado é excluído', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00'])
+    expect(r).toEqual(['09:00'])
+  })
+
+  it('todos os slots ocupados → []', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 60, ['08:00', '09:00'])
+    expect(r).toEqual([])
+  })
+
+  it('duração 120 min gera slots corretos', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, [])
+    expect(r).toEqual(['08:00', '10:00'])
+  })
+
+  it('borda do fim — slot que termina exatamente no fim é incluído', () => {
+    // 08:00 + 120 = 10:00 === fim(10:00) → incluído
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '10:00' }, 120, [])
+    expect(r).toEqual(['08:00'])
+  })
+
+  it('borda do fim — slot que ultrapassaria o fim é excluído', () => {
+    // 08:00 + 120 = 10:00 > fim(09:30) → nenhum slot
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:30' }, 120, [])
+    expect(r).toEqual([])
+  })
+
+  it('OS às 08:00 com duração 120 bloqueia só o slot das 08:00', () => {
+    // Slot 10:00: 600 < 480+120=600 → false (não colide)
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['08:00'])
+    expect(r).toEqual(['10:00'])
+  })
+
+  it('OS fora do grid bloqueia slots sobrepostos', () => {
+    // OS às 09:00 ocupa 09:00-11:00; slot 08:00 ocupa 08:00-10:00 → sobreposição; slot 10:00 ocupa 10:00-12:00 → sobreposição
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '12:00' }, 120, ['09:00'])
+    expect(r).toEqual([])
+  })
+
+  it('duração 15 min gera 4 slots por hora', () => {
+    const r = gerarSlotsDisponiveis({ ativo: true, inicio: '08:00', fim: '09:00' }, 15, [])
+    expect(r).toEqual(['08:00', '08:15', '08:30', '08:45'])
+  })
+
+  it('inicio >= fim → []', () => {
+    expect(gerarSlotsDisponiveis({ ativo: true, inicio: '10:00', fim: '08:00' }, 60, [])).toEqual([])
+  })
+
+  it('gera slots do ativo com larga janela e colisões parciais', () => {
+    // 8h-18h, dur=60, ocupados: 08:00, 10:00, 14:00
+    const r = gerarSlotsDisponiveis(ativo, 60, ['08:00', '10:00', '14:00'])
+    expect(r).toEqual(['09:00', '11:00', '12:00', '13:00', '15:00', '16:00', '17:00'])
   })
 })
