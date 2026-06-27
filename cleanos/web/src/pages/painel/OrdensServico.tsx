@@ -12,11 +12,17 @@ import {
   osStatusLabel,
   formatCurrency,
   formatDateTime,
-  pbDateToLocalInput,
   localInputToPBDate,
   userDisplayName,
   maskPhoneBR,
 } from '../../lib/collections'
+import {
+  OSFormSection,
+  type OSFields,
+  emptyOSFields,
+  pbDateToOSFields,
+  validateOSFields,
+} from '../../components/ui/OSFormSection'
 import { Spinner } from '../../components/ui/Spinner'
 import { StarRating } from '../../components/ui/StarRating'
 import { Modal } from '../../components/ui/Modal'
@@ -25,7 +31,6 @@ import {
   IconEdit,
   IconAlertCircle,
   IconXCircle,
-  IconCheckCircle,
   IconArrowRight,
   IconCalendar,
   IconDollar,
@@ -51,35 +56,18 @@ function pbError(err: unknown): string {
 }
 
 /* ---- OS Form ---- */
-interface OSForm {
+interface OSForm extends OSFields {
   clienteId: string
   clienteSearch: string
-  servicoId: string
-  tipo_servico_nome: string
-  data_hora: string
-  valor_servico: string
-  profissionalId: string
-  observacoes: string
 }
 
 function emptyOSForm(): OSForm {
-  return {
-    clienteId: '',
-    clienteSearch: '',
-    servicoId: '',
-    tipo_servico_nome: '',
-    data_hora: '',
-    valor_servico: '',
-    profissionalId: '',
-    observacoes: '',
-  }
+  return { clienteId: '', clienteSearch: '', ...emptyOSFields() }
 }
 
 function validateOSForm(f: OSForm): Record<string, string> {
-  const errs: Record<string, string> = {}
+  const errs = { ...validateOSFields(f) }
   if (!f.clienteId) errs.clienteId = 'Selecione um cliente'
-  if (!f.data_hora) errs.data_hora = 'Data e hora são obrigatórios'
-  if (!f.valor_servico || Number(f.valor_servico) <= 0) errs.valor_servico = 'Informe o valor'
   return errs
 }
 
@@ -95,12 +83,10 @@ export default function OrdensServico() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<OSStatus | 'todas'>('todas')
 
-  /* Lookup data */
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
   const [profissionais, setProfissionais] = useState<User[]>([])
 
-  /* Modal */
   const [modalMode, setModalMode] = useState<ModalMode>('view')
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null)
@@ -109,10 +95,8 @@ export default function OrdensServico() {
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
-  /* Client search dropdown */
   const [clienteDropdown, setClienteDropdown] = useState(false)
 
-  /* Load data — retorna as OS carregadas para permitir sync pós-ação */
   const load = useCallback(async (): Promise<OrdemServico[] | undefined> => {
     try {
       setLoading(true)
@@ -146,17 +130,13 @@ export default function OrdensServico() {
 
   useEffect(() => { load() }, [load])
 
-  /* Filtered by tab */
   const filtered =
-    activeTab === 'todas'
-      ? ordens
-      : ordens.filter((o) => o.status === activeTab)
+    activeTab === 'todas' ? ordens : ordens.filter((o) => o.status === activeTab)
 
   function countByStatus(s: OSStatus) {
     return ordens.filter((o) => o.status === s).length
   }
 
-  /* Open create modal */
   function openCreate() {
     setModalMode('create')
     setOSForm(emptyOSForm())
@@ -166,18 +146,20 @@ export default function OrdensServico() {
     setModalOpen(true)
   }
 
-  /* Open edit modal */
   function openEdit(os: OrdemServico) {
     setModalMode('edit')
     setSelectedOS(os)
     const cli = clientes.find((c) => c.id === os.cliente)
+    const dt = pbDateToOSFields(os.data_hora)
     setOSForm({
       clienteId: os.cliente,
       clienteSearch: cli ? `${cli.nome} ${cli.sobrenome ?? ''}`.trim() : os.nome_curto,
       servicoId: os.servico ?? '',
       tipo_servico_nome: os.tipo_servico_nome ?? '',
-      data_hora: pbDateToLocalInput(os.data_hora),
-      valor_servico: String(os.valor_servico),
+      data_date: dt.data_date,
+      data_time_h: dt.data_time_h,
+      data_time_m: dt.data_time_m,
+      valor_servico: String(os.valor_servico ?? ''),
       profissionalId: os.profissional ?? '',
       observacoes: os.observacoes ?? '',
     })
@@ -186,7 +168,6 @@ export default function OrdensServico() {
     setModalOpen(true)
   }
 
-  /* Open view modal */
   function openView(os: OrdemServico) {
     setModalMode('view')
     setSelectedOS(os)
@@ -194,25 +175,22 @@ export default function OrdensServico() {
     setModalOpen(true)
   }
 
-  /* Form field update */
   function setField<K extends keyof OSForm>(k: K, v: OSForm[K]) {
     setOSForm((prev) => ({ ...prev, [k]: v }))
     setFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
   }
 
-  /* Serviço change → prefill nome and valor */
+  /* Always prefill nome and valor when a service is selected */
   function onServicoChange(id: string) {
-    const svc = servicos.find((s) => s.id === id)
-    setField('servicoId', id)
-    if (svc) {
-      setField('tipo_servico_nome', svc.nome)
-      if (!osForm.valor_servico || osForm.valor_servico === '0') {
-        setField('valor_servico', String(svc.preco_base))
-      }
-    }
+    const svc = id ? servicos.find((s) => s.id === id) : undefined
+    setOSForm((prev) => ({
+      ...prev,
+      servicoId: id,
+      ...(svc ? { tipo_servico_nome: svc.nome, valor_servico: String(svc.preco_base) } : {}),
+    }))
+    setFormErrs((prev) => { const n = { ...prev }; delete n.servicoId; return n })
   }
 
-  /* Save OS */
   async function handleSave() {
     const errs = validateOSForm(osForm)
     if (Object.keys(errs).length > 0) { setFormErrs(errs); return }
@@ -224,7 +202,7 @@ export default function OrdensServico() {
         cliente: osForm.clienteId,
         servico: osForm.servicoId || null,
         tipo_servico_nome: osForm.tipo_servico_nome.trim(),
-        data_hora: localInputToPBDate(osForm.data_hora),
+        data_hora: localInputToPBDate(`${osForm.data_date}T${osForm.data_time_h}:${osForm.data_time_m}`),
         valor_servico: Number(osForm.valor_servico),
         profissional: hasProfissional ? osForm.profissionalId : null,
         observacoes: osForm.observacoes.trim(),
@@ -252,7 +230,6 @@ export default function OrdensServico() {
     }
   }
 
-  /* Cancel OS */
   async function handleCancel(os: OrdemServico) {
     if (!window.confirm('Cancelar esta ordem de serviço?')) return
     try {
@@ -260,12 +237,10 @@ export default function OrdensServico() {
       await load()
       if (selectedOS?.id === os.id) setModalOpen(false)
     } catch (err) {
-      // Erro visível na barra de página (não no modal de formulário)
       setError(pbError(err))
     }
   }
 
-  /* Atribuir profissional inline */
   async function handleAtribuir(os: OrdemServico, profId: string) {
     try {
       await pb.collection(COLLECTIONS.ORDENS_SERVICO).update(os.id, {
@@ -278,14 +253,13 @@ export default function OrdensServico() {
     } catch (err) {
       const msg = pbError(err)
       setError(msg)
-      throw new Error(msg)  // re-lança para o OSDetail exibir localmente
+      throw new Error(msg)
     }
   }
 
   /* ---- Render ---- */
   return (
     <div>
-      {/* Toolbar */}
       <div className="page-toolbar">
         <button className="clx-btn clx-btn-accent" onClick={openCreate}>
           <IconPlus size={15} /> Nova OS
@@ -300,7 +274,6 @@ export default function OrdensServico() {
         </button>
       </div>
 
-      {/* Status tabs */}
       <div className="tab-bar">
         <button
           className={`tab-item${activeTab === 'todas' ? ' active' : ''}`}
@@ -545,85 +518,18 @@ export default function OrdensServico() {
               {formErrs.clienteId && <span className="field-err">{formErrs.clienteId}</span>}
             </div>
 
-            {/* Serviço */}
-            <div className="form-field">
-              <label>Serviço</label>
-              <select
-                value={osForm.servicoId}
-                onChange={(e) => onServicoChange(e.target.value)}
-              >
-                <option value="">— Selecionar —</option>
-                {servicos.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tipo serviço nome */}
-            <div className="form-field">
-              <label>Nome do serviço (snapshot)</label>
-              <input
-                type="text"
-                value={osForm.tipo_servico_nome}
-                onChange={(e) => setField('tipo_servico_nome', e.target.value)}
-                placeholder="Ex: Sofá 3 lugares"
-              />
-            </div>
-
-            {/* Data/hora */}
-            <div className="form-field">
-              <label>Data e hora <span className="req">*</span></label>
-              <input
-                type="datetime-local"
-                value={osForm.data_hora}
-                onChange={(e) => setField('data_hora', e.target.value)}
-                className={formErrs.data_hora ? 'err' : ''}
-              />
-              {formErrs.data_hora && <span className="field-err">{formErrs.data_hora}</span>}
-            </div>
-
-            {/* Valor */}
-            <div className="form-field">
-              <label>Valor do serviço (R$) <span className="req">*</span></label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={osForm.valor_servico}
-                onChange={(e) => setField('valor_servico', e.target.value)}
-                placeholder="0,00"
-                className={formErrs.valor_servico ? 'err' : ''}
-              />
-              {formErrs.valor_servico && <span className="field-err">{formErrs.valor_servico}</span>}
-            </div>
-
-            {/* Profissional */}
-            <div className="form-field form-col-span-2">
-              <label>Profissional</label>
-              <select
-                value={osForm.profissionalId}
-                onChange={(e) => setField('profissionalId', e.target.value)}
-              >
-                <option value="">— Não atribuído (status: Agendada) —</option>
-                {profissionais.map((p) => (
-                  <option key={p.id} value={p.id}>{userDisplayName(p)}</option>
-                ))}
-              </select>
-              <span style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}>
-                Ao atribuir um profissional, o status passa para "Atribuída".
-              </span>
-            </div>
-
-            {/* Observações */}
-            <div className="form-field form-col-span-2">
-              <label>Observações</label>
-              <textarea
-                value={osForm.observacoes}
-                onChange={(e) => setField('observacoes', e.target.value)}
-                placeholder="Detalhes adicionais para o serviço…"
-                rows={3}
-              />
-            </div>
+            {/* Campos de OS — compartilhados com Clientes via OSFormSection */}
+            <OSFormSection
+              servicos={servicos}
+              profissionais={profissionais}
+              fields={osForm}
+              errs={formErrs}
+              onChange={(k, v) => {
+                setOSForm((prev) => ({ ...prev, [k]: v }))
+                setFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
+              }}
+              onServicoChange={onServicoChange}
+            />
           </div>
         </Modal>
       )}

@@ -276,3 +276,10 @@ export function maskPhoneBR(value: string): string {
 export function onlyDigitsPhone(value: string): string {
   return value.replace(/\D/g, '')
 }
+
+/** Data de hoje no fuso local como "YYYY-MM-DD" — para uso em <input type="date" min> */
+export function todayLocalDate(): string {
+  const now = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+}
