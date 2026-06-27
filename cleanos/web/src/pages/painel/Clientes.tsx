@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
-import { COLLECTIONS, type Cliente, maskPhoneBR, onlyDigitsPhone } from '../../lib/collections'
+import {
+  COLLECTIONS,
+  type Cliente,
+  type Servico,
+  type User,
+  maskPhoneBR,
+  onlyDigitsPhone,
+  localInputToPBDate,
+  userDisplayName,
+} from '../../lib/collections'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -35,6 +44,26 @@ function emptyForm(): ClienteForm {
   }
 }
 
+interface OSInlineForm {
+  servicoId: string
+  tipo_servico_nome: string
+  data_hora: string
+  valor_servico: string
+  profissionalId: string
+  os_observacoes: string
+}
+
+function emptyOSInlineForm(): OSInlineForm {
+  return {
+    servicoId: '',
+    tipo_servico_nome: '',
+    data_hora: '',
+    valor_servico: '',
+    profissionalId: '',
+    os_observacoes: '',
+  }
+}
+
 function validateForm(f: ClienteForm): Record<string, string> {
   const errs: Record<string, string> = {}
   if (!f.nome.trim()) errs.nome = 'Nome é obrigatório'
@@ -44,6 +73,14 @@ function validateForm(f: ClienteForm): Record<string, string> {
   if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) {
     errs.email = 'E-mail inválido'
   }
+  return errs
+}
+
+function validateOSInlineForm(f: OSInlineForm): Record<string, string> {
+  const errs: Record<string, string> = {}
+  if (!f.servicoId) errs.servicoId = 'Selecione um serviço'
+  if (!f.data_hora) errs.data_hora = 'Data e hora são obrigatórios'
+  if (!f.valor_servico || Number(f.valor_servico) <= 0) errs.valor_servico = 'Informe o valor'
   return errs
 }
 
@@ -78,6 +115,14 @@ export default function Clientes() {
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
+  /* OS inline state — only used in create mode */
+  const [gerarOS, setGerarOS] = useState(false)
+  const [osForm, setOSForm] = useState<OSInlineForm>(emptyOSInlineForm())
+  const [osFormErrs, setOSFormErrs] = useState<Record<string, string>>({})
+  const [servicos, setServicos] = useState<Servico[]>([])
+  const [profissionais, setProfissionais] = useState<User[]>([])
+  const [loadingLookups, setLoadingLookups] = useState(false)
+
   /* Load */
   const load = useCallback(async () => {
     try {
@@ -95,6 +140,29 @@ export default function Clientes() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  /* Load lookup data for OS selects */
+  async function loadLookups() {
+    try {
+      setLoadingLookups(true)
+      const [svcs, profs] = await Promise.all([
+        pb.collection(COLLECTIONS.SERVICOS).getFullList<Servico>({
+          filter: 'ativo = true',
+          sort: 'nome',
+        }),
+        pb.collection(COLLECTIONS.USERS).getFullList<User>({
+          filter: "role = 'profissional'",
+          sort: 'nome,name',
+        }),
+      ])
+      setServicos(svcs)
+      setProfissionais(profs)
+    } catch {
+      /* selects remain empty; user can retry by toggling off/on */
+    } finally {
+      setLoadingLookups(false)
+    }
+  }
 
   /* Filtered */
   const searchLower = search.toLowerCase()
@@ -114,7 +182,11 @@ export default function Clientes() {
     setForm(emptyForm())
     setFormErrs({})
     setSaveErr(null)
+    setGerarOS(false)
+    setOSForm(emptyOSInlineForm())
+    setOSFormErrs({})
     setModalOpen(true)
+    loadLookups()
   }
 
   /* Open edit */
@@ -145,10 +217,33 @@ export default function Clientes() {
     setFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
   }
 
+  /* OS field change */
+  function setOSField<K extends keyof OSInlineForm>(k: K, v: OSInlineForm[K]) {
+    setOSForm((prev) => ({ ...prev, [k]: v }))
+    setOSFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
+  }
+
+  /* Serviço change → prefill nome and sugere valor */
+  function onOSServicoChange(id: string) {
+    const svc = servicos.find((s) => s.id === id)
+    setOSField('servicoId', id)
+    if (svc) {
+      setOSField('tipo_servico_nome', svc.nome)
+      if (!osForm.valor_servico || osForm.valor_servico === '0') {
+        setOSField('valor_servico', String(svc.preco_base))
+      }
+    }
+  }
+
   /* Save */
   async function handleSave() {
     const errs = validateForm(form)
-    if (Object.keys(errs).length > 0) { setFormErrs(errs); return }
+    const osErrs = (gerarOS && !editing) ? validateOSInlineForm(osForm) : {}
+    if (Object.keys(errs).length > 0 || Object.keys(osErrs).length > 0) {
+      setFormErrs(errs)
+      setOSFormErrs(osErrs)
+      return
+    }
     try {
       setSaving(true)
       setSaveErr(null)
@@ -168,11 +263,38 @@ export default function Clientes() {
       }
       if (editing) {
         await pb.collection(COLLECTIONS.CLIENTES).update(editing.id, payload)
-      } else {
-        await pb.collection(COLLECTIONS.CLIENTES).create(payload)
+        setModalOpen(false)
+        await load()
+        return
       }
-      setModalOpen(false)
-      await load()
+
+      /* Create mode */
+      const novoCliente = await pb.collection(COLLECTIONS.CLIENTES).create<Cliente>(payload)
+
+      if (gerarOS) {
+        try {
+          const hasProfissional = osForm.profissionalId !== ''
+          await pb.collection(COLLECTIONS.ORDENS_SERVICO).create({
+            cliente: novoCliente.id,
+            servico: osForm.servicoId || null,
+            tipo_servico_nome: osForm.tipo_servico_nome.trim(),
+            data_hora: localInputToPBDate(osForm.data_hora),
+            valor_servico: Number(osForm.valor_servico),
+            profissional: hasProfissional ? osForm.profissionalId : null,
+            status: hasProfissional ? 'atribuida' : 'agendada',
+            observacoes: osForm.os_observacoes.trim(),
+          })
+          setModalOpen(false)
+          await load()
+        } catch (osErr) {
+          /* Cliente criado com sucesso; OS falhou — mantém cliente na lista */
+          setSaveErr(`Cliente criado, mas houve um erro ao gerar a OS: ${pbError(osErr)}`)
+          await load()
+        }
+      } else {
+        setModalOpen(false)
+        await load()
+      }
     } catch (err) {
       setSaveErr(pbError(err))
     } finally {
@@ -470,6 +592,123 @@ export default function Clientes() {
               rows={3}
             />
           </Field>
+
+          {/* Toggle Gerar OS — only in create mode */}
+          {!editing && (
+            <div className="form-col-span-2" style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 2 }}>
+              <div className="toggle-row">
+                <label className="toggle" htmlFor="gerar-os">
+                  <input
+                    id="gerar-os"
+                    type="checkbox"
+                    checked={gerarOS}
+                    onChange={(e) => {
+                      setGerarOS(e.target.checked)
+                      if (!e.target.checked) setOSFormErrs({})
+                    }}
+                  />
+                  <span className="toggle-track" />
+                </label>
+                <label htmlFor="gerar-os" style={{ fontSize: '0.875rem', color: 'var(--clx-ink-2)', fontWeight: 500 }}>
+                  Gerar OS
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* OS section — revealed when toggle is on */}
+          {!editing && gerarOS && (
+            <>
+              <div className="form-col-span-2" style={{
+                borderTop: '1.5px solid var(--clx-line)',
+                paddingTop: 14,
+                marginTop: 4,
+              }}>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--clx-ink-3)',
+                }}>
+                  Ordem de Serviço
+                </span>
+              </div>
+
+              {/* Serviço */}
+              <div className="form-field">
+                <label>Serviço <span className="req">*</span></label>
+                <select
+                  value={osForm.servicoId}
+                  onChange={(e) => onOSServicoChange(e.target.value)}
+                  className={osFormErrs.servicoId ? 'err' : ''}
+                  disabled={loadingLookups}
+                >
+                  <option value="">— Selecionar —</option>
+                  {servicos.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+                {osFormErrs.servicoId && <span className="field-err">{osFormErrs.servicoId}</span>}
+              </div>
+
+              {/* Data e hora */}
+              <div className="form-field">
+                <label>Data e hora <span className="req">*</span></label>
+                <input
+                  type="datetime-local"
+                  value={osForm.data_hora}
+                  onChange={(e) => setOSField('data_hora', e.target.value)}
+                  className={osFormErrs.data_hora ? 'err' : ''}
+                />
+                {osFormErrs.data_hora && <span className="field-err">{osFormErrs.data_hora}</span>}
+              </div>
+
+              {/* Valor do serviço */}
+              <div className="form-field">
+                <label>Valor do serviço (R$) <span className="req">*</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={osForm.valor_servico}
+                  onChange={(e) => setOSField('valor_servico', e.target.value)}
+                  placeholder="0,00"
+                  className={osFormErrs.valor_servico ? 'err' : ''}
+                />
+                {osFormErrs.valor_servico && <span className="field-err">{osFormErrs.valor_servico}</span>}
+              </div>
+
+              {/* Profissional */}
+              <div className="form-field">
+                <label>Profissional</label>
+                <select
+                  value={osForm.profissionalId}
+                  onChange={(e) => setOSField('profissionalId', e.target.value)}
+                  disabled={loadingLookups}
+                >
+                  <option value="">— Não atribuído (Agendada) —</option>
+                  {profissionais.map((p) => (
+                    <option key={p.id} value={p.id}>{userDisplayName(p)}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.75rem', color: 'var(--clx-ink-3)' }}>
+                  Ao atribuir um profissional, o status passa para "Atribuída".
+                </span>
+              </div>
+
+              {/* Observações da OS */}
+              <div className="form-field form-col-span-2">
+                <label>Observações da OS</label>
+                <textarea
+                  value={osForm.os_observacoes}
+                  onChange={(e) => setOSField('os_observacoes', e.target.value)}
+                  placeholder="Detalhes adicionais para a ordem de serviço…"
+                  rows={3}
+                />
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>
