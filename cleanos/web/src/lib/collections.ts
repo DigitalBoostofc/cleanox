@@ -10,6 +10,7 @@ export const COLLECTIONS = {
   SERVICOS: 'servicos',
   ORDENS_SERVICO: 'ordens_servico',
   CONFIG_ATUACAO: 'config_atuacao',
+  DISPONIBILIDADE: 'disponibilidade',
 } as const
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS]
@@ -75,6 +76,23 @@ export interface Cliente extends PBRecord {
   endereco_cep?: string
   ativo: boolean
   observacoes?: string
+}
+
+/* ---- disponibilidade (admin/gerente, por profissional) ---- */
+export interface DisponibilidadeDia {
+  ativo: boolean
+  /** 'HH:MM' */
+  inicio: string
+  /** 'HH:MM' */
+  fim: string
+}
+
+export interface Disponibilidade extends PBRecord {
+  /** Relation → users */
+  profissional: string
+  duracao_min: number
+  /** Array de 7 itens: índice 0 = Dom … 6 = Sáb */
+  dias: [DisponibilidadeDia, DisponibilidadeDia, DisponibilidadeDia, DisponibilidadeDia, DisponibilidadeDia, DisponibilidadeDia, DisponibilidadeDia]
 }
 
 /* ---- config_atuacao (singleton, admin/gerente) ---- */
@@ -310,6 +328,45 @@ export function splitNome(nomeCompleto: string): { nome: string; sobrenome: stri
 }
 
 /* ---- CEP BR ---- */
+
+/* ---- Disponibilidade — geração de slots ---- */
+
+/**
+ * Gera os horários disponíveis para um profissional em um dia.
+ * @param dia - config do dia (ativo, inicio 'HH:MM', fim 'HH:MM')
+ * @param duracaoMin - duração de cada slot em minutos
+ * @param horariosOcupados - 'HH:MM'[] de OS já agendadas (mesmo prof+data, não canceladas, OS em edição excluída)
+ * @returns 'HH:MM'[] disponíveis, ordenados, ou [] se dia inativo
+ */
+export function gerarSlotsDisponiveis(
+  dia: DisponibilidadeDia,
+  duracaoMin: number,
+  horariosOcupados: string[],
+): string[] {
+  if (!dia.ativo || duracaoMin <= 0) return []
+  const toMin = (hhmm: string): number => {
+    const [h, m] = hhmm.split(':').map(Number)
+    return h * 60 + m
+  }
+  const inicioMin = toMin(dia.inicio)
+  const fimMin = toMin(dia.fim)
+  if (inicioMin >= fimMin) return []
+  const ocupadosMin = horariosOcupados.map(toMin)
+  const slots: string[] = []
+  let cur = inicioMin
+  while (cur + duracaoMin <= fimMin) {
+    const colide = ocupadosMin.some(
+      (o) => cur < o + duracaoMin && o < cur + duracaoMin,
+    )
+    if (!colide) {
+      const h = Math.floor(cur / 60)
+      const m = cur % 60
+      slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+    }
+    cur += duracaoMin
+  }
+  return slots
+}
 
 /** Máscara de CEP: NNNNN-NNN */
 export function maskCEP(value: string): string {

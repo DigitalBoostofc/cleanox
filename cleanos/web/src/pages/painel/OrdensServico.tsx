@@ -529,6 +529,7 @@ export default function OrdensServico() {
                 setFormErrs((prev) => { const n = { ...prev }; delete n[k as string]; return n })
               }}
               onServicoChange={onServicoChange}
+              editingOSId={modalMode === 'edit' ? selectedOS?.id : undefined}
             />
           </div>
         </Modal>
