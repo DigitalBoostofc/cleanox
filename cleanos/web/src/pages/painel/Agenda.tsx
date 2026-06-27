@@ -206,7 +206,7 @@ export default function Agenda() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   return (
-    <div>
+    <div className="agenda-root">
       {/* Toolbar */}
       <div className="agenda-toolbar">
         <div className="agenda-nav">
@@ -245,6 +245,7 @@ export default function Agenda() {
         </div>
       )}
 
+      <div className="agenda-body">
       {loading ? (
         <div className="loading-overlay"><Spinner size={22} /> Carregando agenda…</div>
       ) : (
@@ -305,6 +306,7 @@ export default function Agenda() {
           )}
         </>
       )}
+      </div>{/* /agenda-body */}
 
       {/* Detail modal */}
       {detailOS && (
