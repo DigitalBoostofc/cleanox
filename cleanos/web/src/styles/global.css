@@ -1346,6 +1346,65 @@ img, svg { display: block; max-width: 100%; }
 
 /* OS event colors — see token-based rules appended below */
 
+/* ---- AGENDA — desktop full-height (≥768px) ---- */
+@media (min-width: 768px) {
+  /* Root da agenda vira flex column de altura total */
+  .agenda-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* Corpo da agenda (loading ou calendário) ocupa o espaço restante */
+  .agenda-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Semana e Dia: containers viram flex column de altura total */
+  .cal-week,
+  .cal-day-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Grade de horas (Semana): remove max-height fixo, ocupa resto */
+  .cal-week-body {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  /* Slots de hora (Dia): remove max-height fixo, ocupa resto */
+  .cal-day-slots {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  /* Mês: container de altura total com flex column */
+  .cal-month {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Grade do mês: ocupa o restante e distribui linhas de semana igualmente */
+  .cal-month-grid {
+    flex: 1;
+    min-height: 0;
+    grid-auto-rows: 1fr;
+    align-content: stretch;
+  }
+
+  /* Células do mês: sem min-height fixo — deixa o grid determinar */
+  .cal-month .cal-day {
+    min-height: 0;
+  }
+}
+
 /* ---- FINANCEIRO ---- */
 .fin-grid {
   display: grid;
