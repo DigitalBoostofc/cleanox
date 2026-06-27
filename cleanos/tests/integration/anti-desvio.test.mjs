@@ -48,6 +48,9 @@ const DELETE = (path, tok)        => api('DELETE', path, tok)
 function todayUTC()     { return new Date().toISOString().slice(0, 10) }
 function futureUTC()    { return new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10) }
 function yesterdayUTC() { return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) }
+// BRT = UTC-3; usar nas datas enviadas ao day-check para evitar divergência nas primeiras horas UTC
+function todayBRT()     { return new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10) }
+function yesterdayBRT() { return new Date(Date.now() - 3 * 3_600_000 - 86_400_000).toISOString().slice(0, 10) }
 
 // Segredo de serviço (deve bater com o valor de CLEANOS_SERVICE_SECRET no PocketBase).
 // Para rodar os testes L/N: inicie o PocketBase com
@@ -290,11 +293,13 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       })).id
 
       // OS de hoje → fluxo completo atribuida→em_andamento→concluida (E2–E4)
+      // Usa todayBRT() para que o dia coincida com o que o hook calcula em BRT,
+      // mesmo quando os testes rodam nas primeiras horas UTC (≠ dia BRT).
       flow.osId = (await createOS(s.adminTok, {
         cliente: s.clienteId,
         servico: s.servicoId,
         profissional: s.profId,
-        data_hora: `${todayUTC()} 10:00:00.000Z`,
+        data_hora: `${todayBRT()} 10:00:00.000Z`,
         status: 'atribuida',
         valor_servico: 100,
       })).id
@@ -1373,12 +1378,15 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
     let osYesterdayNight
 
     before(async () => {
-      // OS com data_hora = ontem 23:00 UTC = ontem 20:00 BRT → é dia ANTERIOR em BRT
+      // OS com data_hora = ontem BRT 23:00 UTC = ontem BRT 20:00 BRT → dia ANTERIOR em BRT.
+      // Usa yesterdayBRT() (não yesterdayUTC()) para garantir que o dia seja corretamente
+      // "ontem em BRT" mesmo quando o teste roda nas primeiras horas UTC (00-03h UTC),
+      // período em que yesterdayUTC() coincidiria com "hoje em BRT".
       osYesterdayNight = (await createOS(s.adminTok, {
         cliente: s.clienteId,
         servico: s.servicoId,
         profissional: s.profId,
-        data_hora: `${yesterdayUTC()} 23:00:00.000Z`,
+        data_hora: `${yesterdayBRT()} 23:00:00.000Z`,
         status: 'atribuida',
         valor_servico: 100,
       })).id
