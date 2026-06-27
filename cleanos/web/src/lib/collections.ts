@@ -258,3 +258,21 @@ export function formatHour(iso: string): string {
   if (!iso) return '--:--'
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
+
+/* ---- Telefone BR ---- */
+
+/** Máscara progressiva BR: (DD) NNNNN-NNNN (celular) ou (DD) NNNN-NNNN (fixo). */
+export function maskPhoneBR(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  const n = digits.length
+  if (n === 0) return ''
+  if (n <= 2) return `(${digits}`
+  if (n <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (n <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+}
+
+/** Retorna apenas os dígitos de um telefone (para validação/armazenamento). */
+export function onlyDigitsPhone(value: string): string {
+  return value.replace(/\D/g, '')
+}
