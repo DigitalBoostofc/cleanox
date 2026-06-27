@@ -1216,6 +1216,155 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
   })
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('U · config_atuacao e disponibilidade — controle de acesso', () => {
+    // config_atuacao: singleton criado pela migration; testa update (não create)
+    // disponibilidade: testa create + get como admin/gerente; nega profissional
+
+    let dispId    // id do registro de disponibilidade criado pelo admin
+    let atuacaoId // id do singleton de config_atuacao
+
+    before(async () => {
+      // pega o id do singleton de config_atuacao (criado pela migration 7)
+      const r = await GET('/api/collections/config_atuacao/records?perPage=1', s.adminTok)
+      atuacaoId = r.body?.items?.[0]?.id ?? null
+    })
+
+    after(async () => {
+      if (dispId) await DELETE(`/api/collections/disponibilidade/records/${dispId}`, s.adminTok)
+    })
+
+    it('U1 · admin lê config_atuacao → 200', async () => {
+      const { status } = await GET('/api/collections/config_atuacao/records', s.adminTok)
+      assert.strictEqual(status, 200, `Admin deveria ler config_atuacao, got ${status}`)
+    })
+
+    it('U2 · gerente lê config_atuacao → 200', async () => {
+      const { status } = await GET('/api/collections/config_atuacao/records', s.gerenteTok)
+      assert.strictEqual(status, 200, `Gerente deveria ler config_atuacao, got ${status}`)
+    })
+
+    it('U3 · profissional NÃO lê config_atuacao → 403 ou lista vazia', async () => {
+      const { status, body } = await GET('/api/collections/config_atuacao/records', s.profTok)
+      const total = body?.totalItems ?? 0
+      assert.ok(
+        status === 403 || status === 404 || total === 0,
+        `Profissional não deveria ler config_atuacao: HTTP ${status}, totalItems=${total}`
+      )
+    })
+
+    it('U4 · admin edita config_atuacao (PATCH singleton) → 200', async () => {
+      if (!atuacaoId) return assert.fail('Singleton config_atuacao não encontrado — migration 7 aplicada?')
+      const payload = {
+        estado: 'SP',
+        cidades: [{ nome: 'São Paulo', principal: true, bairros: ['Centro', 'Vila Madalena'] }],
+      }
+      const { status, body } = await PATCH(
+        `/api/collections/config_atuacao/records/${atuacaoId}`,
+        s.adminTok,
+        payload
+      )
+      assert.strictEqual(status, 200, `Admin deveria editar config_atuacao, got ${status}: ${JSON.stringify(body)}`)
+      assert.strictEqual(body?.estado, 'SP', 'Campo estado não persistiu')
+    })
+
+    it('U5 · gerente edita config_atuacao → 200', async () => {
+      if (!atuacaoId) return assert.fail('Singleton config_atuacao não encontrado')
+      const { status } = await PATCH(
+        `/api/collections/config_atuacao/records/${atuacaoId}`,
+        s.gerenteTok,
+        { estado: 'SP' }
+      )
+      assert.strictEqual(status, 200, `Gerente deveria editar config_atuacao, got ${status}`)
+    })
+
+    it('U6 · profissional NÃO edita config_atuacao → 403 ou 404', async () => {
+      if (!atuacaoId) return assert.fail('Singleton config_atuacao não encontrado')
+      const { status } = await PATCH(
+        `/api/collections/config_atuacao/records/${atuacaoId}`,
+        s.profTok,
+        { estado: 'RJ' }
+      )
+      assert.ok(
+        status === 403 || status === 404,
+        `Profissional não deveria editar config_atuacao, got ${status}`
+      )
+    })
+
+    it('U7 · admin cria disponibilidade para profissional → 200', async () => {
+      const payload = {
+        profissional: s.profId,
+        duracao_min:  60,
+        dias: [
+          { ativo: false, inicio: '08:00', fim: '18:00' }, // dom
+          { ativo: true,  inicio: '08:00', fim: '18:00' }, // seg
+          { ativo: true,  inicio: '08:00', fim: '18:00' }, // ter
+          { ativo: true,  inicio: '08:00', fim: '18:00' }, // qua
+          { ativo: true,  inicio: '08:00', fim: '18:00' }, // qui
+          { ativo: true,  inicio: '08:00', fim: '18:00' }, // sex
+          { ativo: false, inicio: '08:00', fim: '18:00' }, // sáb
+        ],
+      }
+      const { status, body } = await POST(
+        '/api/collections/disponibilidade/records',
+        s.adminTok,
+        payload
+      )
+      assert.strictEqual(status, 200, `Admin deveria criar disponibilidade, got ${status}: ${JSON.stringify(body)}`)
+      dispId = body?.id
+    })
+
+    it('U8 · gerente lê disponibilidade → 200', async () => {
+      const { status } = await GET('/api/collections/disponibilidade/records', s.gerenteTok)
+      assert.strictEqual(status, 200, `Gerente deveria ler disponibilidade, got ${status}`)
+    })
+
+    it('U9 · profissional NÃO lê disponibilidade → 403 ou lista vazia', async () => {
+      const { status, body } = await GET('/api/collections/disponibilidade/records', s.profTok)
+      const total = body?.totalItems ?? 0
+      assert.ok(
+        status === 403 || status === 404 || total === 0,
+        `Profissional não deveria ler disponibilidade: HTTP ${status}, totalItems=${total}`
+      )
+    })
+
+    it('U10 · profissional NÃO cria disponibilidade → 403 ou 400', async () => {
+      const { status } = await POST(
+        '/api/collections/disponibilidade/records',
+        s.profTok,
+        { profissional: s.profId, duracao_min: 60, dias: [] }
+      )
+      assert.ok(
+        status === 403 || status === 400,
+        `Profissional não deveria criar disponibilidade, got ${status}`
+      )
+    })
+
+    it('U11 · admin atualiza disponibilidade (duracao_min) → 200', async () => {
+      if (!dispId) return assert.fail('Registro de disponibilidade não criado em U7')
+      const { status, body } = await PATCH(
+        `/api/collections/disponibilidade/records/${dispId}`,
+        s.adminTok,
+        { duracao_min: 90 }
+      )
+      assert.strictEqual(status, 200, `Admin deveria atualizar disponibilidade, got ${status}: ${JSON.stringify(body)}`)
+      assert.strictEqual(body?.duracao_min, 90, 'duracao_min não foi atualizado')
+    })
+
+    it('U12 · profissional NÃO edita disponibilidade → 403 ou 404', async () => {
+      if (!dispId) return assert.fail('Registro de disponibilidade não criado em U7')
+      const { status } = await PATCH(
+        `/api/collections/disponibilidade/records/${dispId}`,
+        s.profTok,
+        { duracao_min: 30 }
+      )
+      assert.ok(
+        status === 403 || status === 404,
+        `Profissional não deveria editar disponibilidade, got ${status}`
+      )
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('J · F-04 — Day-check em BRT (UTC-3)', () => {
     // Valida que o day-check usa fuso BRT, não UTC cru.
     // Cobre o cenário: data_hora ontem 23h UTC = ontem 20h BRT → deve BLOQUEAR.

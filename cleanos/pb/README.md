@@ -184,6 +184,7 @@ Legenda de visibilidade: **A**=admin, **G**=gerente, **P**=profissional.
 | endereco_complemento   | text    | —      | ✅       |                                |
 | endereco_bairro        | text    | sim    | —        | seguro → vira `bairro` na OS   |
 | endereco_cidade        | text    | —      | ✅       |                                |
+| **endereco_estado**    | text    | —      | ✅       | UF (2 letras) — autofill CEP   |
 | endereco_cep           | text    | —      | ✅       |                                |
 | ativo                  | bool    | —      |          |                                |
 | observacoes            | text    | —      | ✅       |                                |
@@ -191,6 +192,9 @@ Legenda de visibilidade: **A**=admin, **G**=gerente, **P**=profissional.
 
 **Regras de acesso** — list/view/create/update: **A, G** · delete: **A** ·
 **P: negado em tudo** (esta é a trava central anti-desvio).
+
+> `endereco_estado`: populado pelo frontend via autofill de CEP (ViaCEP ou similar).
+> Permite pré-filtrar clientes pela área de atuação definida em `config_atuacao`.
 
 ### 4.3 `servicos` (base) — catálogo (não sensível)
 
@@ -250,6 +254,88 @@ expandir/ler `clientes`).
 já trazem o que a tela do profissional precisa. `endereco_liberado` só vem
 preenchido quando `status == "em_andamento"`.
 
+### 4.5 `config_atuacao` (base, singleton) — área geográfica de cobertura
+
+Coleção de **configuração administrativa** (profissional não acessa). Exatamente
+**1 registro** é criado na migration 7; o app atualiza via `PATCH /records/:id`.
+
+| Campo           | Tipo | Obrig. | Notas                                                               |
+|-----------------|------|--------|---------------------------------------------------------------------|
+| id              | text | —      | PK (gerado na migration, fixo)                                      |
+| estado          | text | —      | UF de operação (2 letras, ex.: `"SP"`)                              |
+| cidades         | json | —      | Array de objetos (ver shape abaixo)                                 |
+| created/updated | auto | —      |                                                                     |
+
+**Shape de `cidades`:**
+```json
+[
+  {
+    "nome": "São Paulo",
+    "principal": true,
+    "bairros": ["Centro", "Vila Madalena", "Pinheiros"]
+  },
+  {
+    "nome": "Guarulhos",
+    "principal": false,
+    "bairros": ["Centro", "Bonsucesso"]
+  }
+]
+```
+
+**Regras de acesso** — list/view/create/update: **A, G** · delete: **A** ·
+**P: negado em tudo.**
+
+**Endpoints do frontend:**
+```
+GET  /api/collections/config_atuacao/records          → lista (somente 1 item)
+PATCH /api/collections/config_atuacao/records/:id     → atualiza (admin/gerente)
+```
+
+---
+
+### 4.6 `disponibilidade` (base) — grade de horários por profissional
+
+Um registro por profissional (garantido por `UNIQUE INDEX idx_disp_profissional`).
+O frontend sempre faz **upsert**: busca por `profissional`, atualiza se existir,
+cria se não existir.
+
+| Campo           | Tipo     | Obrig. | Notas                                                  |
+|-----------------|----------|--------|--------------------------------------------------------|
+| id              | text     | —      | PK                                                     |
+| profissional    | relation→users | sim | single, required — UNIQUE via índice           |
+| duracao_min     | number   | —      | Duração padrão do serviço em minutos; **default 60** (app grava 60 na criação) |
+| dias            | json     | —      | Array de 7 objetos, um por dia da semana (ver shape)   |
+| created/updated | autodate | —      |                                                        |
+
+**Shape de `dias`** — array indexado pela posição (0=domingo, 1=segunda … 6=sábado):
+```json
+[
+  { "ativo": false, "inicio": "08:00", "fim": "18:00" },
+  { "ativo": true,  "inicio": "08:00", "fim": "18:00" },
+  { "ativo": true,  "inicio": "08:00", "fim": "18:00" },
+  { "ativo": true,  "inicio": "08:00", "fim": "18:00" },
+  { "ativo": true,  "inicio": "08:00", "fim": "18:00" },
+  { "ativo": true,  "inicio": "08:00", "fim": "18:00" },
+  { "ativo": false, "inicio": "08:00", "fim": "18:00" }
+]
+```
+
+**Regras de acesso** — list/view/create/update: **A, G** · delete: **A** ·
+**P: negado em tudo** (config administrativa; sem impacto anti-desvio).
+
+**Endpoints do frontend (upsert pattern):**
+```
+GET  /api/collections/disponibilidade/records?filter=(profissional='<id>')
+     → array; length=0 → criar; length=1 → atualizar via PATCH
+
+POST  /api/collections/disponibilidade/records          → criar (admin/gerente)
+PATCH /api/collections/disponibilidade/records/:id      → atualizar (admin/gerente)
+```
+
+> Tentar criar um segundo registro para o mesmo profissional retorna 400 (violação
+> do UNIQUE INDEX no banco). O frontend deve sempre verificar se já existe antes
+> de criar.
+
 ---
 
 ## 5. Máquina de estados e hooks (regras de negócio na API)
@@ -305,7 +391,13 @@ cleanos/pb/
 ├── pocketbase                 # binário (não versionado — baixar por release)
 ├── pb_migrations/
 │   ├── 1700000001_init_collections.js   # schema + regras de acesso
-│   └── 1700000002_seed.js               # superuser, usuários, catálogo, clientes, OS (todos os estados)
+│   ├── 1700000002_seed.js               # superuser, usuários, catálogo, clientes, OS (todos os estados)
+│   ├── 1700000002_catalog_prod.js       # catálogo prod (sem dados de dev)
+│   ├── 1700000003_whatsapp.js           # app_config + aviso_a_caminho_em
+│   ├── 1700000004_ratings.js            # campos de avaliação + templates
+│   ├── 1700000005_debug_events.js       # captura temporária de webhooks (removida)
+│   ├── 1700000006_drop_debug_events.js  # remove a coleção debug
+│   └── 1700000007_config_scheduling.js  # config_atuacao + disponibilidade + endereco_estado
 ├── pb_hooks/
 │   ├── main.pb.js             # registro dos hooks (modelo + request)
 │   └── os_logic.js            # lógica de negócio (CommonJS)
