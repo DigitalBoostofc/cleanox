@@ -147,9 +147,16 @@ onRecordRequestEmailChangeRequest((e) => {
 
 // ----------------------------------------------------------------------------
 // F3 — CRON: limpa endereco_liberado de OS eternamente em_andamento.
-// Roda 03:05 UTC (= 00:05 BRT, UTC-3 fixo). Idempotente.
+//
+// F-401 (nota secundária do fuso): a expressão cron roda no fuso LOCAL do
+// processo PocketBase, que depende do TZ da VPS (UTC numa Ubuntu "crua", mas
+// não garantido). Para tornar o alvo "00:05 BRT" CORRETO independentemente do
+// TZ da VPS, roda DE HORA EM HORA (minuto :05): assim a virada do dia BRT é
+// sempre coberta dentro de ~1h, qualquer que seja o fuso do processo. O corte é
+// por DIA BRT (`diaBRT < todayBRT`) e o save é idempotente, então rodadas extras
+// não limpam OS do dia corrente nem têm efeito colateral.
 // ----------------------------------------------------------------------------
-cronAdd("cleanStaleEndereco", "5 3 * * *", () => {
+cronAdd("cleanStaleEndereco", "5 * * * *", () => {
   try {
     const nowBRT   = new Date(Date.now() - 3 * 3600 * 1000);
     const todayBRT = nowBRT.toISOString().slice(0, 10);
