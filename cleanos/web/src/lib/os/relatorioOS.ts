@@ -8,8 +8,12 @@
  * Toda a lógica é PURA e síncrona — não toca rede nem DOM. As regras financeiras
  * reaproveitam {@link calcTotalOS} para ficar consistentes com o resto da OS.
  *
- * Dados ainda são MOCKADOS (ver ../servicos/store); a estrutura já reflete o
- * contrato canônico em ../servicos/types.
+ * Os dados vêm da OS REAL no PocketBase (service_snapshot, checklist_exec,
+ * adicionais e observacoes_prof em `ordens_servico`; evidências em `os_evidencias`
+ * com URLs reais). Estas funções permanecem puras: o caller (página de execução /
+ * modal) é quem materializa o {@link BuildRelatorioOSInput} a partir do registro PB.
+ * O ENVIO em si é server-side (POST /api/cleanos/os/{id}/relatorio, infra uazapi);
+ * {@link buildWhatsAppMessage} serve a pré-visualização/cópia no cliente.
  */
 
 import type {
@@ -118,11 +122,11 @@ export function buildRelatorioOS(input: BuildRelatorioOSInput): RelatorioOS {
 }
 
 /**
- * Link (placeholder) de avaliação enviado ao cliente. No mock aponta para uma
- * rota fictícia por OS; quando houver backend, troque pela URL real de coleta.
+ * Link de avaliação enviado ao cliente. Aponta para o domínio real de produção
+ * (cleanox.wenox.com.br) na rota /avaliar/{osId}.
  */
 export function avaliacaoLink(rel: RelatorioOS): string {
-  return `https://cleanox.app/avaliar/${encodeURIComponent(rel.osId)}`
+  return `https://cleanox.wenox.com.br/avaliar/${encodeURIComponent(rel.osId)}`
 }
 
 /**

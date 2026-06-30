@@ -1,141 +1,274 @@
 /**
- * servicos/store.ts — Store MOCK do catálogo de serviços, com persistência em localStorage.
+ * servicos/store.ts — Camada de dados do catálogo de Serviços (PocketBase).
  *
- * API desenhada para ser trocada por chamadas pb.collection('servicos') depois:
- * o CRUD é assíncrono (Promise) como será no PocketBase; os helpers puros
- * (buildSnapshot / snapshotToChecklistExec / calcTotalOS) permanecem síncronos.
+ * O CRUD conversa com pb.collection(COLLECTIONS.SERVICOS) (coleção `servicos`,
+ * schema RICO snake_case — ver ServicoPB em ../collections). Os mapeadores
+ * pbToServico / servicoToPB traduzem entre o registro PB e o tipo de domínio
+ * camelCase `Servico` (./types).
  *
- * Veja os comentários // TODO PB nos pontos de troca.
+ * As assinaturas públicas são IDÊNTICAS às da versão localStorage anterior, para
+ * não quebrar consumidores (ServicosListPage, ServicoEditorPage, OSExecucaoPage,
+ * relatorioOS). Os helpers puros (buildSnapshot / snapshotToChecklistExec /
+ * calcTotalOS) continuam síncronos e operam só sobre o domínio.
+ *
+ * Back-compat: ao GRAVAR, os campos legados são sincronizados —
+ *   preco_base = valorBase · ativo = (status === 'ativo').
+ * Todo serviço criado recebe um `slug` único (slugify do nome + sufixo).
  */
 
-import { SERVICOS_SEED } from './seed'
+import { ClientResponseError } from 'pocketbase'
+import { pb } from '../pb'
+import { COLLECTIONS } from '../collections'
+import type { ServicoPB } from '../collections'
 import type {
+  Categoria,
   ChecklistExecItem,
+  ChecklistTemplateItem,
+  Grupo,
   Servico,
   ServicoAdicionalOS,
   ServicoInput,
+  ServicoStatus,
   ServiceSnapshot,
+  TipoValor,
 } from './types'
 
-/** Chave de persistência no localStorage. */
-export const STORAGE_KEY = 'cleanox.servicos.v1'
-
-/* ---- Utilidades internas ---- */
+/* ============================================================
+ * Utilidades internas (puras)
+ * ============================================================ */
 
 /** Clone profundo simples (dados são JSON-safe). */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-/** ISO datetime atual (runtime). */
+/** ISO datetime atual (runtime) — usado pelos helpers de snapshot. */
 function nowIso(): string {
   return new Date().toISOString()
 }
 
-/** Gera um ID único com prefixo (mock; o PB geraria o ID no servidor). */
+/** Gera um ID local único com prefixo (itens do checklist de execução da OS). */
 function genId(prefix: string): string {
   const rand = Math.random().toString(36).slice(2, 8)
   const time = Date.now().toString(36)
   return `${prefix}_${time}${rand}`
 }
 
-/** Persiste a lista no localStorage (no-op em ambientes sem localStorage). */
-function persist(servicos: Servico[]): void {
-  if (typeof localStorage === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(servicos))
+/**
+ * Normaliza um campo JSON do PB em array. O SDK normalmente já entrega o valor
+ * parseado (array), mas tratamos string defensivamente (sem JSON.parse cego).
+ */
+function asArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed as T[]
+      } catch {
+        /* conteúdo inesperado → array vazio */
+      }
+    }
+  }
+  return []
+}
+
+/* ============================================================
+ * Mapeadores domínio ↔ PocketBase
+ * ============================================================ */
+
+/**
+ * Converte um registro PB (snake_case) no tipo de domínio `Servico` (camelCase).
+ * Selects vazios ('') de linhas não enriquecidas caem em defaults seguros, e
+ * `status` deriva do `ativo` legado quando ausente.
+ */
+export function pbToServico(rec: ServicoPB): Servico {
+  return {
+    id: rec.id,
+    categoria: (rec.categoria || 'veicular') as Categoria,
+    grupo: (rec.grupo || 'outros') as Grupo,
+    nome: rec.nome,
+    valorBase: rec.valor_base ?? 0,
+    // 0 / ausente = sem máximo
+    valorBaseMax: rec.valor_base_max ? rec.valor_base_max : undefined,
+    tipoValor: (rec.tipo_valor || 'fixo') as TipoValor,
+    // 0 / ausente = Variável (sem tempo determinável)
+    tempoMedioMin: rec.tempo_medio_min ? rec.tempo_medio_min : undefined,
+    tempoMedioLabel: rec.tempo_medio_label ?? '',
+    status: (rec.status || (rec.ativo ? 'ativo' : 'inativo')) as ServicoStatus,
+    observacao: rec.observacao || undefined,
+    checklistPadrao: asArray<ChecklistTemplateItem>(rec.checklist_padrao).map((i) => ({ ...i })),
+    orientacoesPre: rec.orientacoes_pre || undefined,
+    orientacoesPos: rec.orientacoes_pos || undefined,
+    adicionaisRelacionados: [...asArray<string>(rec.adicionais_relacionados)],
+    created: rec.created,
+    updated: rec.updated,
+  }
 }
 
 /**
- * Carrega a lista do localStorage; faz seed automático a partir de SERVICOS_SEED
- * na primeira carga (ou se o conteúdo estiver corrompido).
+ * Converte um `ServicoInput` (ou parcial) no payload PB snake_case.
+ * Só inclui as chaves PRESENTES no input (suporta updates parciais, ex.: só
+ * `{ status }`). Sincroniza os campos legados (preco_base, ativo). NÃO inclui
+ * `slug` — ele é gerado/garantido em createServico.
  */
-// TODO PB: substituir por pb.collection(COLLECTIONS.SERVICOS).getFullList()
-function load(): Servico[] {
-  if (typeof localStorage === 'undefined') return clone(SERVICOS_SEED)
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as Servico[]
-      if (Array.isArray(parsed)) return parsed
-    } catch {
-      /* conteúdo corrompido → re-seed abaixo */
-    }
+export function servicoToPB(input: Partial<ServicoInput>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const has = (k: keyof ServicoInput): boolean =>
+    Object.prototype.hasOwnProperty.call(input, k)
+
+  if (has('categoria')) out.categoria = input.categoria
+  if (has('grupo')) out.grupo = input.grupo
+  if (has('nome')) out.nome = input.nome
+  if (has('valorBase')) {
+    out.valor_base = input.valorBase
+    out.preco_base = input.valorBase // 🔁 legado sincronizado
   }
-  persist(SERVICOS_SEED)
-  return clone(SERVICOS_SEED)
+  if (has('valorBaseMax')) out.valor_base_max = input.valorBaseMax ?? 0
+  if (has('tipoValor')) out.tipo_valor = input.tipoValor
+  if (has('tempoMedioMin')) out.tempo_medio_min = input.tempoMedioMin ?? 0
+  if (has('tempoMedioLabel')) out.tempo_medio_label = input.tempoMedioLabel ?? ''
+  if (has('status')) {
+    out.status = input.status
+    out.ativo = input.status === 'ativo' // 🔁 legado sincronizado
+  }
+  if (has('observacao')) out.observacao = input.observacao ?? ''
+  if (has('checklistPadrao')) out.checklist_padrao = input.checklistPadrao ?? []
+  if (has('orientacoesPre')) out.orientacoes_pre = input.orientacoesPre ?? ''
+  if (has('orientacoesPos')) out.orientacoes_pos = input.orientacoesPos ?? ''
+  if (has('adicionaisRelacionados')) {
+    out.adicionais_relacionados = input.adicionaisRelacionados ?? []
+  }
+  return out
 }
 
-/* ---- CRUD (assíncrono, espelhando o PocketBase) ---- */
+/* ============================================================
+ * Slug (referência estável, única via índice parcial no PB)
+ * ============================================================ */
 
-/** Lista todos os serviços do catálogo. */
-// TODO PB: pb.collection(COLLECTIONS.SERVICOS).getFullList({ sort: 'nome' })
+/** Slugify estável: minúsculas sem acento, não-alfanumérico → "_". */
+export function slugify(nome: string): string {
+  const base = nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos (diacríticos combinados)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_') // não-alfanumérico → _
+    .replace(/^_+|_+$/g, '') // trim de _
+  return base || 'servico'
+}
+
+/** Primeiro slug livre a partir de `base` (`base`, `base_2`, `base_3`, …). */
+function nextFreeSlug(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base
+  let i = 2
+  while (taken.has(`${base}_${i}`)) i++
+  return `${base}_${i}`
+}
+
+/** Slugs já em uso no catálogo (índice parcial ignora os vazios). */
+async function takenSlugs(): Promise<Set<string>> {
+  // TODO otimizar p/ catálogo grande: hoje varre todos os slugs (getFullList) a
+  // cada create. Para muitos serviços, trocar por uma checagem pontual do slug.
+  const rows = await pb
+    .collection(COLLECTIONS.SERVICOS)
+    .getFullList<Pick<ServicoPB, 'slug'>>({ fields: 'slug' })
+  return new Set(rows.map((r) => r.slug).filter(Boolean))
+}
+
+/** A falha de criação foi violação de unicidade do slug (índice parcial)? */
+function isSlugConflict(err: unknown): boolean {
+  if (!(err instanceof ClientResponseError) || err.status !== 400) return false
+  const body = err.response as { data?: Record<string, unknown> } | undefined
+  return !!body?.data && Object.prototype.hasOwnProperty.call(body.data, 'slug')
+}
+
+/* ============================================================
+ * CRUD (assíncrono — PocketBase)
+ * ============================================================ */
+
+/** Lista todos os serviços do catálogo (ordenado por nome). */
 export async function listServicos(): Promise<Servico[]> {
-  return clone(load())
+  const records = await pb
+    .collection(COLLECTIONS.SERVICOS)
+    .getFullList<ServicoPB>({ sort: 'nome' })
+  return records.map(pbToServico)
 }
 
 /** Busca um serviço pelo ID (undefined se não existir). */
-// TODO PB: pb.collection(COLLECTIONS.SERVICOS).getOne(id)
 export async function getServico(id: string): Promise<Servico | undefined> {
-  const found = load().find((s) => s.id === id)
-  return found ? clone(found) : undefined
-}
-
-/** Cria um novo serviço; gera id/created/updated. */
-// TODO PB: pb.collection(COLLECTIONS.SERVICOS).create(data)
-export async function createServico(data: ServicoInput): Promise<Servico> {
-  const list = load()
-  const ts = nowIso()
-  const novo: Servico = {
-    ...clone(data),
-    id: genId('svc'),
-    created: ts,
-    updated: ts,
+  try {
+    const rec = await pb.collection(COLLECTIONS.SERVICOS).getOne<ServicoPB>(id)
+    return pbToServico(rec)
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return undefined
+    throw err
   }
-  list.push(novo)
-  persist(list)
-  return clone(novo)
 }
 
-/** Atualiza um serviço existente; refaz updated. Lança se o ID não existir. */
-// TODO PB: pb.collection(COLLECTIONS.SERVICOS).update(id, data)
+/**
+ * Cria um serviço novo. Gera um slug ÚNICO (a UI sempre manda slug; o índice
+ * parcial é a garantia final) e sincroniza os campos legados.
+ */
+export async function createServico(data: ServicoInput): Promise<Servico> {
+  const base = slugify(data.nome)
+  const taken = await takenSlugs()
+  let slug = nextFreeSlug(base, taken)
+  // Retry defensivo contra a corrida entre takenSlugs() e create(): o índice
+  // parcial de `slug` rejeita duplicatas com 400 → reescolhemos e tentamos de novo.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const rec = await pb
+        .collection(COLLECTIONS.SERVICOS)
+        .create<ServicoPB>({ ...servicoToPB(data), slug })
+      return pbToServico(rec)
+    } catch (err) {
+      if (attempt < 3 && isSlugConflict(err)) {
+        taken.add(slug)
+        slug = nextFreeSlug(base, taken)
+        continue
+      }
+      throw err
+    }
+  }
+}
+
+/**
+ * Atualiza um serviço existente (parcial). Propaga ClientResponseError 404 se o
+ * ID não existir (o consumidor trata via error-banner).
+ */
 export async function updateServico(
   id: string,
   data: Partial<ServicoInput>,
 ): Promise<Servico> {
-  const list = load()
-  const idx = list.findIndex((s) => s.id === id)
-  if (idx === -1) throw new Error(`Serviço não encontrado: ${id}`)
-  const atualizado: Servico = {
-    ...list[idx],
-    ...clone(data),
-    id: list[idx].id,
-    created: list[idx].created,
-    updated: nowIso(),
-  }
-  list[idx] = atualizado
-  persist(list)
-  return clone(atualizado)
+  const rec = await pb
+    .collection(COLLECTIONS.SERVICOS)
+    .update<ServicoPB>(id, servicoToPB(data))
+  return pbToServico(rec)
 }
 
-/** Remove um serviço. Retorna true se algo foi removido. */
-// TODO PB: pb.collection(COLLECTIONS.SERVICOS).delete(id)
+/** Remove um serviço. Retorna true se removido, false se não existia. */
 export async function deleteServico(id: string): Promise<boolean> {
-  const list = load()
-  const next = list.filter((s) => s.id !== id)
-  const removed = next.length !== list.length
-  if (removed) persist(next)
-  return removed
+  try {
+    await pb.collection(COLLECTIONS.SERVICOS).delete(id)
+    return true
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return false
+    throw err
+  }
 }
 
-/** Duplica um serviço (novo id, nome com sufixo "(cópia)"). Lança se o ID não existir. */
+/** Duplica um serviço (slug novo, nome com sufixo "(cópia)"). Lança se o ID não existir. */
 export async function duplicateServico(id: string): Promise<Servico> {
-  const original = load().find((s) => s.id === id)
+  const original = await getServico(id)
   if (!original) throw new Error(`Serviço não encontrado: ${id}`)
-  const { id: _id, created: _c, updated: _u, ...rest } = original
-  return createServico({ ...clone(rest), nome: `${original.nome} (cópia)` })
+  const { id: _id, created: _created, updated: _updated, ...rest } = original
+  return createServico({ ...rest, nome: `${original.nome} (cópia)` })
 }
 
-/* ---- Helpers de integração Serviço → OS (puros, síncronos) ---- */
+/* ============================================================
+ * Helpers de integração Serviço → OS (puros, síncronos)
+ * ============================================================ */
 
 /**
  * Cria o snapshot congelado do serviço para gravar dentro da OS.
@@ -196,10 +329,14 @@ export function calcTotalOS(
   return Math.max(0, valorPrincipal + totalAdicionais - descontos)
 }
 
-/* ---- Utilitário de manutenção (dev/testes) ---- */
+/* ============================================================
+ * Compat / deprecated (não há mais localStorage)
+ * ============================================================ */
 
-/** Limpa a persistência e reaplica o seed. Útil em dev/testes. */
+/** @deprecated A persistência agora é o PocketBase; mantido só p/ compat de imports. */
+export const STORAGE_KEY = 'cleanox.servicos.v1'
+
+/** @deprecated No-op — não há mais store local para resetar (dados vivem no PB). */
 export function resetServicosStore(): void {
-  if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY)
-  persist(SERVICOS_SEED)
+  /* no-op */
 }

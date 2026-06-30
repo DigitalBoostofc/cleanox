@@ -1,6 +1,13 @@
 /**
- * servicos/seed.ts — Dados iniciais (mock) do catálogo de serviços da Cleanox.
- * 32 serviços: 15 veiculares + 17 residenciais. IDs estáveis (ex: 'svc_veic_essencial').
+ * servicos/seed.ts — Catálogo de referência da Cleanox (32 serviços:
+ * 15 veiculares + 17 residenciais). IDs estáveis (ex: 'svc_veic_essencial')
+ * — os mesmos viram `slug` no PocketBase.
+ *
+ * ⚠️ NÃO é mais a fonte de dados em runtime. O app lê/escreve o catálogo no
+ * PocketBase (ver ./store + coleção `servicos`), que já foi seedado pela
+ * Migration 9 (cleanos/pb/pb_migrations/1700000009_seed_servicos_rich.js, cuja
+ * fonte de verdade é justamente este arquivo). SERVICOS_SEED permanece exportado
+ * como fonte do seed da migration e como fixture dos testes — não do app.
  *
  * tempoMedioMin é DERIVADO de tempoMedioLabel via parseTempoMedio (limite superior),
  * garantindo que rótulo e minutos nunca divirjam.

@@ -1,13 +1,29 @@
 /**
  * EvidenciasSection — Evidências do serviço (fotos antes/durante/depois) da OS.
  *
- * Componente 100% standalone e CONTROLADO: o estado das fotos vive no pai e chega
- * por `fotos`; toda mutação é propagada por `onChange`. Não há backend — o upload é
- * mockado com URL.createObjectURL. As fotos podem ser vinculadas opcionalmente a um
- * item do checklist, a uma observação do profissional ou a um serviço adicional.
+ * Componente CONTROLADO com SIDE-EFFECTS de rede: a lista de fotos vive no pai
+ * (`fotos` + `onChange`), mas as mutações são persistidas DE VERDADE no PocketBase
+ * pela coleção `os_evidencias` (ver ../../lib/os/osStore):
+ *   - upload  → createEvidencia (FormData com o arquivo). O preview local
+ *     (objectURL) aparece OTIMISTA enquanto sobe; ao concluir, é trocado pela URL
+ *     real do PB; em erro, o item é removido e o usuário avisado.
+ *   - legenda → updateEvidencia (debounce).
+ *   - vínculo → updateEvidencia (imediato; seta um e limpa os outros).
+ *   - remover → deleteEvidencia.
+ *
+ * `enviado_por` é preenchido com o usuário atual (useAuth). As fotos podem ser
+ * vinculadas opcionalmente a um item do checklist, observação ou serviço adicional.
  */
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
+import { userDisplayName } from '../../lib/collections'
+import {
+  createEvidencia,
+  updateEvidencia,
+  deleteEvidencia,
+  describeOSError,
+} from '../../lib/os/osStore'
 import type {
   ChecklistExecItem,
   EvidenciaFoto,
@@ -17,29 +33,47 @@ import type {
 } from '../../lib/servicos/types'
 import { faseFotoLabel } from '../../lib/servicos/labels'
 import { IconPlus, IconTrash, IconAlertCircle, IconX, IconCheck } from '../ui/Icon'
+import { Spinner } from '../ui/Spinner'
 
 export interface EvidenciasSectionProps {
+  /** OS dona das evidências (obrigatória para persistir). */
+  osId: string
   fotos: EvidenciaFoto[]
-  onChange: (fotos: EvidenciaFoto[]) => void
+  /** Aceita updater funcional (compatível com o setState do pai) para updates sem corrida. */
+  onChange: (
+    updater: EvidenciaFoto[] | ((prev: EvidenciaFoto[]) => EvidenciaFoto[]),
+  ) => void
   checklistItems?: ChecklistExecItem[]
   adicionais?: ServicoAdicionalOS[]
   observacoes?: ObservacaoProfissional[]
+  /** Nome de exibição para o preview otimista; cai para o nome do usuário logado. */
   enviadoPor?: string
+  /** Desabilita uploads (ex.: OS ainda carregando ou modo demonstração). */
+  disabled?: boolean
+  /** Notificação opcional ao pai (toast). */
+  onNotify?: (text: string, type: 'success' | 'error' | 'info') => void
 }
 
 // ── constantes ────────────────────────────────────────────────────────
 const FASES: FaseFoto[] = ['antes', 'durante', 'depois']
 const MAX_SIZE_MB = 5
+const LEGENDA_DEBOUNCE_MS = 700
+/** Prefixo dos IDs temporários (otimistas) ainda não persistidos no PB. */
+const TMP_PREFIX = 'tmp_'
 
 // ── helpers ───────────────────────────────────────────────────────────
 
 let _seq = 0
-/** ID único mock (o PB geraria no servidor). */
-function genId(prefix: string): string {
+/** ID temporário local (substituído pelo ID real do PB ao concluir o upload). */
+function genTmpId(): string {
   _seq += 1
-  return `${prefix}_${Date.now().toString(36)}${_seq.toString(36)}${Math.random()
+  return `${TMP_PREFIX}${Date.now().toString(36)}${_seq.toString(36)}${Math.random()
     .toString(36)
     .slice(2, 6)}`
+}
+
+function isTmp(id: string): boolean {
+  return id.startsWith(TMP_PREFIX)
 }
 
 type VinculoKind = 'checklist' | 'obs' | 'adicional'
@@ -82,6 +116,15 @@ function parseVinculo(raw: string): Vinculo | null {
   return null
 }
 
+/** Converte um vínculo de domínio nos campos PB (string vazia limpa o campo). */
+function vinculoToPatch(v: Vinculo | null) {
+  return {
+    checklist_item_id: v?.kind === 'checklist' ? v.id : '',
+    observacao_id: v?.kind === 'obs' ? v.id : '',
+    adicional_id: v?.kind === 'adicional' ? v.id : '',
+  }
+}
+
 function truncate(s: string, n = 42): string {
   const t = s.trim()
   return t.length > n ? `${t.slice(0, n - 1)}…` : t
@@ -90,25 +133,41 @@ function truncate(s: string, n = 42): string {
 // ── componente ────────────────────────────────────────────────────────
 
 export default function EvidenciasSection({
+  osId,
   fotos,
   onChange,
   checklistItems = [],
   adicionais = [],
   observacoes = [],
   enviadoPor,
+  disabled = false,
+  onNotify,
 }: EvidenciasSectionProps) {
-  // URLs criadas por este componente (para revogar no remover e evitar leak).
+  const { user } = useAuth()
+
+  // URLs blob: criadas por este componente (para revogar e evitar memory leak).
   const createdUrls = useRef<Set<string>>(new Set())
+  // Timers de debounce de legenda por id.
+  const legendaTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  // IDs em upload (otimistas) e em remoção — para overlays/disable por card.
+  const [pending, setPending] = useState<Set<string>>(new Set())
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Revoga no unmount qualquer blob URL ainda viva (evita memory leak).
+  // Revoga no unmount qualquer blob URL ainda viva e limpa timers pendentes.
   useEffect(() => {
     const urls = createdUrls.current
+    const timers = legendaTimers.current
     return () => {
       for (const u of urls) URL.revokeObjectURL(u)
+      for (const t of Object.values(timers)) clearTimeout(t)
     }
   }, [])
+
+  const displayName = enviadoPor || (user ? userDisplayName(user) : undefined)
+  const canUpload = !disabled && !!osId
 
   const linkable =
     checklistItems.length > 0 || observacoes.length > 0 || adicionais.length > 0
@@ -127,59 +186,155 @@ export default function EvidenciasSection({
     return a ? `Adicional: ${truncate(a.nome, 28)}` : 'Adicional'
   }
 
+  // ── pending helpers ──
+  function markPending(id: string, on: boolean) {
+    setPending((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  function revoke(url: string) {
+    if (url.startsWith('blob:') && createdUrls.current.has(url)) {
+      URL.revokeObjectURL(url)
+      createdUrls.current.delete(url)
+    }
+  }
+
+  function notifyError(msg: string) {
+    setWarning(msg)
+    onNotify?.(msg, 'error')
+  }
+
+  // ── upload (otimista) ──
   function handleFiles(fase: FaseFoto, e: ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
+    // permite reescolher o mesmo arquivo em seguida
+    e.target.value = ''
 
-    const novas: EvidenciaFoto[] = []
+    if (!canUpload) {
+      setWarning('Não é possível enviar fotos agora.')
+      return
+    }
+
     const grandes: string[] = []
 
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue
-      if (file.size > MAX_SIZE_MB * 1024 * 1024) grandes.push(file.name)
-      const url = URL.createObjectURL(file)
-      createdUrls.current.add(url)
-      novas.push({
-        id: genId('ev'),
-        url,
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        // O PB rejeita arquivos acima do limite; nem tenta subir.
+        grandes.push(file.name)
+        continue
+      }
+
+      const tmpId = genTmpId()
+      const localUrl = URL.createObjectURL(file)
+      createdUrls.current.add(localUrl)
+      const legenda = file.name.replace(/\.[^.]+$/, '') || undefined
+
+      // 1) Preview otimista imediato.
+      const tmpFoto: EvidenciaFoto = {
+        id: tmpId,
+        url: localUrl,
         fase,
-        legenda: file.name.replace(/\.[^.]+$/, '') || undefined,
+        legenda,
         criadoEm: new Date().toISOString(),
-        enviadoPor,
+        enviadoPor: displayName,
+      }
+      onChange((prev) => [...prev, tmpFoto])
+      markPending(tmpId, true)
+
+      // 2) Upload real ao PB.
+      createEvidencia(osId, {
+        file,
+        fase,
+        legenda,
+        enviadoPorId: user?.id,
       })
+        .then((real) => {
+          // Troca o item temporário pelo registro real (id + URL do PB).
+          onChange((prev) => prev.map((f) => (f.id === tmpId ? real : f)))
+          revoke(localUrl)
+          markPending(tmpId, false)
+        })
+        .catch((err) => {
+          // Remove o item otimista e avisa.
+          onChange((prev) => prev.filter((f) => f.id !== tmpId))
+          revoke(localUrl)
+          markPending(tmpId, false)
+          const { message } = describeOSError(err)
+          notifyError(`Falha ao enviar a foto: ${message}`)
+        })
     }
 
-    if (novas.length > 0) onChange([...fotos, ...novas])
     setWarning(
       grandes.length > 0
-        ? `${grandes.length} arquivo(s) acima de ${MAX_SIZE_MB} MB (${grandes
+        ? `${grandes.length} arquivo(s) acima de ${MAX_SIZE_MB} MB não enviado(s): ${grandes
             .map((n) => truncate(n, 20))
-            .join(', ')}). Foram adicionados, mas considere otimizar antes de enviar.`
+            .join(', ')}. Otimize e tente de novo.`
         : null,
     )
-    // permite reescolher o mesmo arquivo em seguida
-    e.target.value = ''
   }
 
-  function handleRemove(id: string) {
+  // ── remover ──
+  async function handleRemove(id: string) {
     const f = fotos.find((x) => x.id === id)
-    if (f && f.url.startsWith('blob:') && createdUrls.current.has(f.url)) {
-      URL.revokeObjectURL(f.url)
-      createdUrls.current.delete(f.url)
+    if (!f) {
+      setConfirmId(null)
+      return
     }
-    onChange(fotos.filter((x) => x.id !== id))
-    setConfirmId(null)
+    // Itens temporários (upload em curso) não existem no PB — só remove local.
+    if (isTmp(id)) {
+      revoke(f.url)
+      onChange((prev) => prev.filter((x) => x.id !== id))
+      setConfirmId(null)
+      return
+    }
+
+    setDeletingId(id)
+    try {
+      await deleteEvidencia(id)
+      revoke(f.url)
+      onChange((prev) => prev.filter((x) => x.id !== id))
+      setConfirmId(null)
+    } catch (err) {
+      const { message } = describeOSError(err)
+      notifyError(`Não foi possível remover a foto: ${message}`)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
+  // ── legenda (debounce) ──
   function handleLegenda(id: string, value: string) {
-    onChange(
-      fotos.map((f) => (f.id === id ? { ...f, legenda: value || undefined } : f)),
-    )
+    const legenda = value || undefined
+    // Atualização local imediata (UI responsiva).
+    onChange((prev) => prev.map((f) => (f.id === id ? { ...f, legenda } : f)))
+    if (isTmp(id)) return // ainda subindo — persiste depois via vínculo/recarregar
+
+    const timers = legendaTimers.current
+    if (timers[id]) clearTimeout(timers[id])
+    timers[id] = setTimeout(() => {
+      delete timers[id]
+      updateEvidencia(id, { legenda: value }).catch((err) => {
+        const { message } = describeOSError(err)
+        notifyError(`Não foi possível salvar a legenda: ${message}`)
+      })
+    }, LEGENDA_DEBOUNCE_MS)
   }
 
+  // ── vínculo (imediato) ──
   function handleVinculo(id: string, raw: string) {
     const v = raw ? parseVinculo(raw) : null
-    onChange(fotos.map((f) => (f.id === id ? applyVinculo(f, v) : f)))
+    onChange((prev) => prev.map((f) => (f.id === id ? applyVinculo(f, v) : f)))
+    if (isTmp(id)) return
+    updateEvidencia(id, vinculoToPatch(v)).catch((err) => {
+      const { message } = describeOSError(err)
+      notifyError(`Não foi possível salvar o vínculo: ${message}`)
+    })
   }
 
   return (
@@ -217,6 +372,12 @@ export default function EvidenciasSection({
         </div>
       )}
 
+      {disabled && (
+        <div style={{ ...emptyGroupStyle, marginTop: 12 }}>
+          As fotos ficam disponíveis após a OS carregar.
+        </div>
+      )}
+
       {FASES.map((fase) => {
         const doGrupo = fotos.filter((f) => f.fase === fase)
         return (
@@ -231,21 +392,23 @@ export default function EvidenciasSection({
                 )}
               </span>
 
-              <label
-                className="clx-btn clx-btn-ghost clx-btn-sm"
-                style={{ cursor: 'pointer', minHeight: 44 }}
-              >
-                <IconPlus size={15} />
-                Adicionar foto
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleFiles(fase, e)}
-                  style={{ display: 'none' }}
-                  aria-label={`Adicionar fotos da fase ${faseFotoLabel(fase)}`}
-                />
-              </label>
+              {canUpload && (
+                <label
+                  className="clx-btn clx-btn-ghost clx-btn-sm"
+                  style={{ cursor: 'pointer', minHeight: 44 }}
+                >
+                  <IconPlus size={15} />
+                  Adicionar foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleFiles(fase, e)}
+                    style={{ display: 'none' }}
+                    aria-label={`Adicionar fotos da fase ${faseFotoLabel(fase)}`}
+                  />
+                </label>
+              )}
             </div>
 
             {doGrupo.length === 0 ? (
@@ -255,6 +418,9 @@ export default function EvidenciasSection({
                 {doGrupo.map((foto) => {
                   const v = getVinculo(foto)
                   const confirming = confirmId === foto.id
+                  const uploading = pending.has(foto.id)
+                  const removing = deletingId === foto.id
+                  const busy = uploading || removing
                   return (
                     <div key={foto.id} className="clx-card" style={cardStyle}>
                       <div style={thumbWrapStyle}>
@@ -268,7 +434,17 @@ export default function EvidenciasSection({
                           style={thumbStyle}
                           loading="lazy"
                         />
-                        {!confirming ? (
+
+                        {busy && (
+                          <div style={busyOverlayStyle} role="status">
+                            <Spinner size={20} />
+                            <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>
+                              {uploading ? 'Enviando…' : 'Removendo…'}
+                            </span>
+                          </div>
+                        )}
+
+                        {!busy && !confirming && (
                           <button
                             type="button"
                             aria-label="Remover foto"
@@ -278,7 +454,8 @@ export default function EvidenciasSection({
                           >
                             <IconTrash size={15} />
                           </button>
-                        ) : (
+                        )}
+                        {!busy && confirming && (
                           <div style={confirmBarStyle} role="group" aria-label="Confirmar remoção">
                             <span style={{ flex: 1, fontSize: '0.72rem', fontWeight: 600 }}>
                               Remover?
@@ -286,7 +463,7 @@ export default function EvidenciasSection({
                             <button
                               type="button"
                               aria-label="Confirmar remoção"
-                              onClick={() => handleRemove(foto.id)}
+                              onClick={() => { void handleRemove(foto.id) }}
                               style={{ ...confirmIconBtn, color: '#fff', background: 'var(--clx-error)' }}
                             >
                               <IconCheck size={14} />
@@ -314,6 +491,7 @@ export default function EvidenciasSection({
                             placeholder="Descreva a foto…"
                             value={foto.legenda ?? ''}
                             onChange={(e) => handleLegenda(foto.id, e.target.value)}
+                            disabled={busy}
                             style={{ fontSize: '0.82rem' }}
                           />
                         </div>
@@ -327,6 +505,7 @@ export default function EvidenciasSection({
                               id={`vinc-${foto.id}`}
                               value={v ? `${v.kind}:${v.id}` : ''}
                               onChange={(e) => handleVinculo(foto.id, e.target.value)}
+                              disabled={busy}
                               style={{ fontSize: '0.82rem' }}
                             >
                               <option value="">Sem vínculo</option>
@@ -443,6 +622,17 @@ const thumbStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
   objectFit: 'cover',
+}
+const busyOverlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  background: 'rgba(0,0,0,0.55)',
+  color: '#fff',
 }
 const removeBtnStyle: React.CSSProperties = {
   position: 'absolute',

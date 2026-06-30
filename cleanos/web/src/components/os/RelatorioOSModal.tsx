@@ -19,6 +19,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
+import { ClientResponseError } from 'pocketbase'
 import { Modal } from '../ui/Modal'
 import { Spinner } from '../ui/Spinner'
 import { IconWhatsApp, IconOrdens, IconCheck, IconAlertCircle } from '../ui/Icon'
@@ -35,13 +36,19 @@ import {
 import { formatCurrency, formatDateTime } from '../../lib/collections'
 import { buildWhatsAppMessage } from '../../lib/os/relatorioOS'
 import { gerarPDFOS } from '../../lib/os/pdfOS'
+import { pb } from '../../lib/pb'
 
 export interface RelatorioOSModalProps {
   open: boolean
   onClose: () => void
   relatorio: RelatorioOS
-  /** Handler real de envio (dono do POST + tratamento de erros). Sem ele, usa mock. */
-  onEnviarWhatsApp?: () => void
+  /**
+   * Handler de envio do PAI. Quando fornecido, o modal DELEGA o envio a ele (o pai
+   * é dono do POST e do feedback) — pode ser síncrono ou assíncrono. Quando AUSENTE,
+   * o próprio modal dispara `POST /api/cleanos/os/{relatorio.osId}/relatorio`, reflete
+   * o `relatorio_enviado_em` e trata 409 (WhatsApp desconectado) como em MeusServicos.
+   */
+  onEnviarWhatsApp?: () => void | Promise<void>
   /** Handler de geração de PDF. Sem ele, usa {@link gerarPDFOS}. */
   onGerarPDF?: () => void
 }
@@ -49,6 +56,24 @@ export interface RelatorioOSModalProps {
 /** Mensagem amigável quando o WhatsApp da empresa não está conectado (espelha o 409). */
 const WHATSAPP_NAO_CONECTADO =
   'WhatsApp da empresa não está conectado. Avise o administrador.'
+
+/** Traduz um erro de envio numa mensagem curta e amigável (espelha MeusServicos). */
+function friendlyError(err: unknown): string {
+  if (err instanceof ClientResponseError) {
+    if (err.status === 0) return 'Sem conexão com o servidor.'
+    const data = err.data as Record<string, unknown> | undefined
+    if (typeof data?.message === 'string' && data.message) return data.message
+    if (typeof data?.error === 'string' && data.error) return data.error
+    return `Erro ${err.status}: tente novamente.`
+  }
+  if (err instanceof Error && err.message) return err.message
+  return 'Não foi possível enviar o relatório. Tente novamente.'
+}
+
+/** Um osId só dispara a rota real quando é uma OS de verdade (não vazio nem 'demo'). */
+function isRealOsId(osId: string | undefined | null): boolean {
+  return !!osId && osId !== 'demo'
+}
 
 const FASES: FaseFoto[] = ['antes', 'durante', 'depois']
 
@@ -136,6 +161,8 @@ export default function RelatorioOSModal({
   const [sendingWhats, setSendingWhats] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  /** ISO/datetime de quando o relatório foi enviado nesta sessão do modal (reflete relatorio_enviado_em). */
+  const [sentAt, setSentAt] = useState<string | null>(null)
   const [toast, setToast] = useState<{
     text: string
     type: 'success' | 'error' | 'info'
@@ -148,6 +175,7 @@ export default function RelatorioOSModal({
     setHoverNota(0)
     setConfirmado(false)
     setToast(null)
+    setSentAt(null)
   }, [open, relatorio.osId, relatorio.avaliacaoNota])
 
   /* Auto-dismiss do toast. */
@@ -160,14 +188,14 @@ export default function RelatorioOSModal({
   const showToast = (text: string, type: 'success' | 'error' | 'info') =>
     setToast({ text, type })
 
-  const evidenciasPorFase = useMemo(
-    () =>
-      FASES.map((fase) => ({
-        fase,
-        fotos: relatorio.evidencias.filter((e) => e.fase === fase),
-      })).filter((g) => g.fotos.length > 0),
-    [relatorio.evidencias],
-  )
+  const evidenciasPorFase = useMemo(() => {
+    const fotos = relatorio.evidencias ?? []
+    return FASES.map((fase) => ({
+      fase,
+      // Só fotos com URL real do PB (descarta entradas sem arquivo).
+      fotos: fotos.filter((e) => e.fase === fase && !!e.url),
+    })).filter((g) => g.fotos.length > 0)
+  }, [relatorio.evidencias])
 
   const checklistConcluidos = relatorio.checklist.filter(
     (c) => c.status === 'concluido',
@@ -178,18 +206,32 @@ export default function RelatorioOSModal({
     setSendingWhats(true)
     try {
       if (onEnviarWhatsApp) {
-        // Envio real é do pai (inclui o tratamento de 409). Pequeno respiro visual.
-        onEnviarWhatsApp()
-        await new Promise((r) => setTimeout(r, 150))
+        // Pai é dono do envio e do próprio feedback. Aguarda (sync OU async) para
+        // manter o loading; erros do pai caem no catch e viram mensagem amigável.
+        await onEnviarWhatsApp()
+      } else if (isRealOsId(relatorio.osId)) {
+        // Sem handler do pai: o modal dispara a rota real de envio do backend.
+        const res = await pb.send<{ ok: boolean; sentAt: string }>(
+          `/api/cleanos/os/${encodeURIComponent(relatorio.osId)}/relatorio`,
+          { method: 'POST' },
+        )
+        setSentAt(res?.sentAt ?? new Date().toISOString())
+        showToast('Relatório enviado ✓', 'success')
       } else {
-        // Mock: copia a mensagem pronta para colar no WhatsApp do cliente.
+        // Sem OS real (preview/demo): copia a mensagem pronta para colar no WhatsApp.
         const msg = buildWhatsAppMessage(relatorio)
         await copyToClipboard(msg)
         showToast('Resumo copiado! Cole no WhatsApp do cliente ✓', 'success')
       }
-    } catch {
-      // Falha de entrega → mensagem amigável (mesmo padrão do 409 em MeusServicos).
-      showToast(WHATSAPP_NAO_CONECTADO, 'error')
+    } catch (err) {
+      if (err instanceof ClientResponseError && err.status === 409) {
+        // WhatsApp da empresa desconectado — mesma mensagem do a-caminho em MeusServicos.
+        showToast(WHATSAPP_NAO_CONECTADO, 'error')
+      } else if (err instanceof ClientResponseError && err.status === 403) {
+        showToast('Você não tem permissão para enviar este relatório.', 'error')
+      } else {
+        showToast(friendlyError(err), 'error')
+      }
     } finally {
       setSendingWhats(false)
     }
@@ -253,9 +295,16 @@ export default function RelatorioOSModal({
         className="clx-btn clx-btn-primary"
         onClick={handleWhatsApp}
         disabled={sendingWhats}
+        aria-label={sentAt ? 'Reenviar relatório por WhatsApp' : 'Enviar relatório por WhatsApp'}
       >
-        {sendingWhats ? <Spinner size={16} /> : <IconWhatsApp size={16} />}
-        Enviar por WhatsApp
+        {sendingWhats ? (
+          <Spinner size={16} />
+        ) : sentAt ? (
+          <IconCheck size={16} />
+        ) : (
+          <IconWhatsApp size={16} />
+        )}
+        {sentAt ? 'Reenviar por WhatsApp' : 'Enviar por WhatsApp'}
       </button>
     </>
   )
@@ -303,6 +352,30 @@ export default function RelatorioOSModal({
           }}
         >
           {toast.text}
+        </div>
+      )}
+
+      {/* Confirmação de envio (reflete relatorio_enviado_em) */}
+      {sentAt && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            marginBottom: 18,
+            background: 'var(--clx-success-bg)',
+            border: '1px solid rgba(34,197,94,0.20)',
+            borderRadius: 'var(--clx-r-md)',
+            color: 'var(--clx-success)',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+          }}
+        >
+          <IconCheck size={16} />
+          Relatório enviado ao cliente em {formatDateTime(sentAt.replace(' ', 'T'))}
         </div>
       )}
 
@@ -540,6 +613,10 @@ export default function RelatorioOSModal({
                         src={foto.url}
                         alt={foto.legenda ?? faseFotoLabel(foto.fase)}
                         loading="lazy"
+                        onError={(ev) => {
+                          // Imagem real do PB indisponível → esconde sem quebrar o layout.
+                          ev.currentTarget.style.display = 'none'
+                        }}
                         style={{
                           width: '100%',
                           aspectRatio: '4 / 3',

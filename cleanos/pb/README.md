@@ -196,22 +196,46 @@ Legenda de visibilidade: **A**=admin, **G**=gerente, **P**=profissional.
 > `endereco_estado`: populado pelo frontend via autofill de CEP (ViaCEP ou similar).
 > Permite pré-filtrar clientes pela área de atuação definida em `config_atuacao`.
 
-### 4.3 `servicos` (base) — catálogo (não sensível)
+### 4.3 `servicos` (base) — catálogo RICO (não sensível)
 
-| Campo           | Tipo    | Obrig. | Notas                                       |
-|-----------------|---------|--------|---------------------------------------------|
-| id              | text    | —      | PK                                          |
-| nome            | text    | sim    | ex.: "Sofá 3 lugares"                        |
-| descricao       | text    | —      |                                             |
-| preco_base      | number  | —      | **PLACEHOLDER** (preço real é gate G-03)    |
-| ativo           | bool    | —      |                                             |
-| created/updated | autodate| —      |                                             |
+Catálogo enriquecido pelo módulo **Serviços** (Migrations 8 e 9). Os campos
+legados (`descricao`, `preco_base`, `ativo`) **continuam existindo** e são
+mantidos **sincronizados** com os campos canônicos ricos.
 
-**Regras de acesso** — list/view: **qualquer autenticado (A, G, P)** ·
+| Campo                    | Tipo    | Obrig. | Notas                                                              |
+|--------------------------|---------|--------|--------------------------------------------------------------------|
+| id                       | text    | —      | PK                                                                 |
+| nome                     | text    | sim    | ex.: "Cleanox Essencial"                                           |
+| **slug**                 | text    | —      | referência estável (ex.: `svc_veic_essencial`) — **única** via índice parcial |
+| **categoria**            | select  | —      | `veicular` \| `residencial`                                        |
+| **grupo**                | select  | —      | `plano` \| `promocao` \| `adicional` \| `avulsos` \| `sofa` \| `colchao` \| `outros` |
+| **valor_base**           | number  | —      | valor canônico (ou limite inferior quando `tipo_valor='faixa'`)    |
+| **valor_base_max**       | number  | —      | limite superior p/ `faixa` (0 = sem máximo)                        |
+| **tipo_valor**           | select  | —      | `fixo` \| `faixa` \| `variavel`                                    |
+| **tempo_medio_min**      | number  | —      | minutos (limite superior; 0 = Variável)                            |
+| **tempo_medio_label**    | text    | —      | rótulo humano, ex.: "1h30 a 2h"                                    |
+| **status**               | select  | —      | `ativo` \| `inativo`                                               |
+| **observacao**           | text    | —      | observação comercial/técnica (máx 1000)                            |
+| **checklist_padrao**     | json    | —      | array de `{ id, titulo, ordem }`                                   |
+| **orientacoes_pre**      | text    | —      | orientações pré-serviço (máx 1000)                                 |
+| **orientacoes_pos**      | text    | —      | orientações pós-serviço (máx 1000)                                 |
+| **adicionais_relacionados** | json | —      | array de **slugs** sugeridos junto deste                          |
+| descricao                | text    | —      | **legado** (módulo rico usa `observacao`)                         |
+| preco_base               | number  | —      | **legado — sincronizado = `valor_base`**                          |
+| ativo                    | bool    | —      | **legado — sincronizado = (`status` === `ativo`)**                |
+| created/updated          | autodate| —      |                                                                   |
+
+- **Unicidade do `slug`**: `CREATE UNIQUE INDEX idx_servicos_slug ON servicos (slug) WHERE slug != ''`
+  (índice **parcial** — múltiplos slugs vazios são permitidos; convivem com linhas legadas).
+- `slug` é **`required:false`** no schema (a unicidade real é o índice; back-compat com
+  fluxos que criam serviço sem slug). O seed e a UI do módulo Serviços sempre o preenchem.
+
+**Regras de acesso** (inalteradas) — list/view: **qualquer autenticado (A, G, P)** ·
 create/update: **A, G** · delete: **A**.
 
-> ⚠ Preços do seed são **placeholders**. O preço real depende do gate de negócio
-> **G-03** (catálogo + preços) ainda em aberto.
+> ⚠ `preco_base`/`valor_base` do seed continuam **placeholders** até o gate **G-03**.
+> A sincronia `preco_base = valor_base` e `ativo = (status==='ativo')` é responsabilidade
+> do **seed (Migration 9)** e da **UI** — o schema só cria as colunas.
 
 ### 4.4 `ordens_servico` (base) — "visão de job"
 
@@ -237,11 +261,31 @@ expandir/ler `clientes`).
 | repasse_status      | select   | —      | **só A**             | sim          |
 | repasse_valor       | number   | —      | só A                 | sim          |
 | observacoes         | text     | —      | A, G                 | sim          |
+| **service_snapshot**   | json  | —      | UI/hook (na seleção) | sim          |
+| **checklist_exec**     | json  | —      | **P** (e A, G)       | sim          |
+| **adicionais**         | json  | —      | **P** (e A, G)       | sim          |
+| **observacoes_prof**   | json  | —      | **P** (e A, G)       | sim          |
+| **relatorio_enviado_em** | date | —     | backend/UI           | sim          |
 | created/updated     | autodate | —      | —                    | sim          |
 
 - `status`: `agendada` \| `atribuida` \| `em_andamento` \| `concluida` \| `cancelada`
 - `forma_pagamento`: `debito` \| `credito` \| `pix_maquininha`
 - `repasse_status`: `pendente` \| `pago`
+
+**Campos ricos do módulo Serviços/OS (Migration 8, JSON):**
+- `service_snapshot` — **cópia imutável** do serviço no instante da seleção
+  (`ServiceSnapshot`: nome, categoria, grupo, valores, tempo, checklist, orientações).
+  A OS guarda o snapshot — alterações futuras no catálogo **não** afetam OS antigas.
+- `checklist_exec` — array de `ChecklistExecItem` (marcável pelo profissional na execução).
+- `adicionais` — array de `ServicoAdicionalOS` (serviços extras lançados na OS).
+- `observacoes_prof` — array de `ObservacaoProfissional`. **NÃO confundir** com o
+  campo texto `observacoes` (livre, admin/gerente) já existente.
+- `relatorio_enviado_em` — ISO datetime de quando o relatório final foi enviado ao cliente.
+
+> 🔒 **Cofre preservado**: nenhum desses campos grava telefone/endereço. O único
+> dado de endereço continua sendo o `endereco_liberado` efêmero (só em `em_andamento`).
+> ⚠️ As travas de campo do profissional (hook `guardOrdemUpdateRequest` em
+> `os_logic.js`) **ainda não cobrem** estes campos novos — ver §5 / nota de integração.
 
 **Regras de acesso**
 - list/view: A, G, **e o profissional atribuído** (`profissional = @request.auth.id`)
@@ -338,6 +382,52 @@ PATCH /api/collections/disponibilidade/records/:id      → atualizar (admin/ger
 
 ---
 
+### 4.7 `os_evidencias` (base) — 🔒 COFRE (fotos antes/durante/depois)
+
+Evidências fotográficas de uma OS (Migration 8). Segue o **mesmo modelo de cofre**
+de `ordens_servico`: o profissional só enxerga/edita evidências de **OS atribuídas
+a ele** (regra de registro via relação `os.profissional`). Nada de telefone/endereço
+é gravado aqui.
+
+| Campo             | Tipo     | Obrig. | Notas                                                       |
+|-------------------|----------|--------|-------------------------------------------------------------|
+| id                | text     | —      | PK                                                          |
+| os                | relation→ordens_servico | sim | single, required; **cascadeDelete** (apagar a OS apaga a evidência) |
+| foto              | file     | —      | 1 imagem, **maxSize 5MB**, mime `image/jpeg,png,webp,gif,heic,heif` |
+| fase              | select   | —      | `antes` \| `durante` \| `depois`                            |
+| legenda           | text     | —      | máx 300                                                     |
+| checklist_item_id | text     | —      | vínculo opcional a um item de `checklist_exec` da OS        |
+| observacao_id     | text     | —      | vínculo opcional a uma `observacoes_prof` da OS             |
+| adicional_id      | text     | —      | vínculo opcional a um `adicionais` da OS                    |
+| enviado_por       | relation→users | —  | quem enviou (single)                                       |
+| created/updated   | autodate | —      |                                                            |
+
+- **Índice**: `CREATE INDEX idx_evid_os ON os_evidencias (os)`
+
+**Regras de acesso** (idênticas em list/view/create/update/delete) — admin/gerente
+**sempre**; profissional **só** as evidências de OS dele. Expressão literal:
+
+```
+@request.auth.id != "" && (@request.auth.role = "admin" || @request.auth.role = "gerente" || os.profissional = @request.auth.id)
+```
+
+- **create**: o profissional só consegue criar evidência cuja `os` é dele
+  (`os.profissional = @request.auth.id`); admin/gerente criam para qualquer OS.
+- **update/delete**: dono da OS (`os.profissional`) ou admin/gerente.
+
+**Endpoints do frontend:**
+```
+GET    /api/collections/os_evidencias/records?filter=(os='<osId>')&sort=created
+POST   /api/collections/os_evidencias/records   (multipart: os, foto, fase, legenda, …)
+DELETE /api/collections/os_evidencias/records/:id
+```
+
+> 🔒 O profissional **não** consegue listar/ler evidências de OS que não são dele —
+> a regra atravessa a relação `os → profissional`. Isso espelha a proteção de
+> `ordens_servico` e mantém a garantia anti-desvio.
+
+---
+
 ## 5. Máquina de estados e hooks (regras de negócio na API)
 
 ```
@@ -397,7 +487,9 @@ cleanos/pb/
 │   ├── 1700000004_ratings.js            # campos de avaliação + templates
 │   ├── 1700000005_debug_events.js       # captura temporária de webhooks (removida)
 │   ├── 1700000006_drop_debug_events.js  # remove a coleção debug
-│   └── 1700000007_config_scheduling.js  # config_atuacao + disponibilidade + endereco_estado
+│   ├── 1700000007_config_scheduling.js  # config_atuacao + disponibilidade + endereco_estado
+│   ├── 1700000008_servicos_os_rich.js   # servicos rico + campos ricos da OS + os_evidencias
+│   └── 1700000009_seed_servicos_rich.js # UPSERT dos 32 serviços ricos (enriquece placeholders)
 ├── pb_hooks/
 │   ├── main.pb.js             # registro dos hooks (modelo + request)
 │   └── os_logic.js            # lógica de negócio (CommonJS)

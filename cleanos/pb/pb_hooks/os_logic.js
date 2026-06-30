@@ -26,6 +26,20 @@ function relId(v) {
   return v ? String(v) : "";
 }
 
+// Lê um JSONField de um record como valor JS JÁ PARSEADO.
+//
+// IMPORTANTE (goja/PocketBase): record.get() num campo JSON devolve um
+// types.JSONRaw exposto pelo JSVM como ARRAY DE BYTES — iterá-lo dá lixo.
+// getString() faz o cast []byte→string (o TEXTO JSON, preservando UTF-8);
+// então é seguro JSON.parse(). Defensivo: devolve null se vazio/ilegível.
+function readJsonField(rec, key) {
+  let raw = "";
+  try { raw = rec.getString(key); } catch (_) { raw = ""; }
+  raw = String(raw == null ? "" : raw).trim();
+  if (!raw || raw === "null") return null;
+  try { return JSON.parse(raw); } catch (_) { return null; }
+}
+
 // normaliza telefone para só dígitos, prefixando '55' (DDI BR) se necessário.
 // "11 99999-0001" → "5511999990001"   "5511999990001" → "5511999990001"
 function normalizePhone(raw) {
@@ -101,6 +115,71 @@ function syncDenormalized(app, record) {
   }
 }
 
+// RISCO #2 (defesa em profundidade): preenche, no SERVIDOR, o snapshot imutável
+// do serviço dentro da OS — espelha buildSnapshot() do frontend
+// (web/src/lib/servicos/store.ts). Garante que, mesmo que a UI não envie o
+// snapshot (ou que um cliente malicioso o omita), a OS congele os dados do
+// serviço a partir do registro `servicos` correspondente.
+//
+// Invariantes:
+//   - só age quando `servico` (relation) está setado;
+//   - NUNCA sobrescreve um snapshot já existente (imutabilidade) — detecta via
+//     presença de `serviceId`;
+//   - serviço removido/órfão NÃO trava o save (degrada como syncDenormalized);
+//   - as CHAVES do JSON são camelCase, idênticas ao ServiceSnapshot do frontend,
+//     pois é a UI/relatório que consome este objeto.
+function fillServiceSnapshot(app, record) {
+  try {
+    const sid = relId(record.get("servico"));
+    if (!sid) return; // sem serviço de origem — nada a congelar
+
+    // imutabilidade: se já há snapshot real, não toca.
+    const existing = readJsonField(record, "service_snapshot");
+    if (existing && existing.serviceId) return;
+
+    let s;
+    try {
+      s = app.findRecordById("servicos", sid);
+    } catch (_) {
+      return; // serviço removido — ignora (igual ao snapshot de nome em syncDenormalized)
+    }
+
+    const rawChecklist = readJsonField(s, "checklist_padrao");
+    const checklistPadrao = Array.isArray(rawChecklist)
+      ? rawChecklist.map(function (it) {
+          it = it || {};
+          return {
+            id: String(it.id || ""),
+            titulo: String(it.titulo || ""),
+            ordem: Number(it.ordem || 0),
+          };
+        })
+      : [];
+
+    const snapshot = {
+      serviceId: s.id,
+      nome: s.getString("nome"),
+      categoria: s.getString("categoria"),
+      grupo: s.getString("grupo"),
+      valorBase: s.getFloat("valor_base"),
+      valorBaseMax: s.getFloat("valor_base_max"),
+      tipoValor: s.getString("tipo_valor"),
+      tempoMedioMin: s.getFloat("tempo_medio_min"),
+      tempoMedioLabel: s.getString("tempo_medio_label"),
+      observacaoTecnica: s.getString("observacao"),
+      checklistPadrao: checklistPadrao,
+      orientacoesPreServico: s.getString("orientacoes_pre"),
+      orientacoesPosServico: s.getString("orientacoes_pos"),
+      capturedAt: new Date().toISOString(),
+    };
+
+    record.set("service_snapshot", snapshot);
+  } catch (err) {
+    // best-effort: loga mas nunca bloqueia a gravação da OS.
+    console.error("[snapshot] Falha ao preencher service_snapshot (ignorado): " + err);
+  }
+}
+
 // libera/limpa o endereço efêmero conforme o status.
 // SOMENTE `em_andamento` tem endereço. Telefone NUNCA é tocado aqui.
 //
@@ -147,8 +226,13 @@ function assertPaymentIfConcluida(record) {
   }
 }
 
+// F-02: compara via getString() em vez de String(get()). Para JSONField, get()
+// devolve um JSONRaw (array de bytes em goja) e String(...) produz lixo instável,
+// fazendo a trava de campo passar batido. getString() devolve o TEXTO JSON
+// (cast []byte→string), comparável de forma estável. Para Text/Number/Select/Date
+// o getString() é equivalente — drop-in seguro.
 function changed(orig, rec, field) {
-  return String(orig.get(field)) !== String(rec.get(field));
+  return orig.getString(field) !== rec.getString(field);
 }
 
 // data_hora precisa ser HOJE (dia do serviço, em BRT = UTC-3) para iniciar.
@@ -237,6 +321,14 @@ function guardOrdemUpdateRequest(e) {
     "repasse_status",
     "repasse_valor",
     "observacoes",
+    // RISCO #2: snapshot imutável do serviço — só o servidor escreve (hook
+    // fillServiceSnapshot). O profissional NUNCA pode forjar/alterar valores
+    // congelados (valorBase, checklist padrão, etc.).
+    "service_snapshot",
+    // marcado pelo fluxo server-side de envio do relatório ao cliente.
+    "relatorio_enviado_em",
+    // NB: checklist_exec, adicionais e observacoes_prof ficam de FORA da denylist
+    //     de propósito — são o TRABALHO do profissional na OS (campos editáveis).
   ];
   for (let i = 0; i < locked.length; i++) {
     if (changed(orig, e.record, locked[i])) {
@@ -343,10 +435,12 @@ function triggerRatingWebhookIfConcluida(app, record) {
 module.exports = {
   shortName,
   relId,
+  readJsonField,
   normalizePhone,
   phonesMatch,
   buildEndereco,
   syncDenormalized,
+  fillServiceSnapshot,
   manageEndereco,
   assertPaymentIfConcluida,
   setRepasseIfConcluida,

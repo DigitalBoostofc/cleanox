@@ -1,21 +1,24 @@
 /**
  * OSExecucaoPage — superfície de EXECUÇÃO da Ordem de Serviço (pós-venda).
  *
- * Demonstra a integração Serviço → OS via SNAPSHOT IMUTÁVEL: ao selecionar o serviço
- * principal, gravamos uma cópia congelada (buildSnapshot) dentro da OS; o checklist
- * executável é derivado desse snapshot. O estado é mockado (useState + localStorage),
- * desenhado para depois virar gravação no PocketBase.
+ * Integração Serviço → OS via SNAPSHOT IMUTÁVEL: ao selecionar o serviço principal,
+ * gravamos uma cópia congelada (buildSnapshot) dentro da OS; o checklist executável é
+ * derivado desse snapshot. TODA a persistência é REAL no PocketBase (ver
+ * ../../lib/os/osStore): os campos JSON da `ordens_servico`
+ * (service_snapshot/checklist_exec/adicionais/observacoes_prof) e as fotos na coleção
+ * `os_evidencias`.
+ *
+ * IMUTABILIDADE: o snapshot é enviado UMA vez (na seleção) — os saves de rotina
+ * (checklist/adicionais/observações, com debounce) NÃO reenviam o snapshot, então
+ * nunca colidem com a trava do hook do servidor (idempotente).
  *
  * NÃO substitui o funil de criação/edição de OS (OrdensServico/OSFormSection) — é uma
  * superfície nova e independente, acessível por /painel/ordens/:osId/execucao.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { pb } from '../../lib/pb'
 import {
-  COLLECTIONS,
-  type OrdemServico,
   type OSStatus,
   osStatusLabel,
   formatCurrency,
@@ -28,6 +31,13 @@ import {
   snapshotToChecklistExec,
   calcTotalOS,
 } from '../../lib/servicos/store'
+import {
+  loadOSExec,
+  saveOSExecPatch,
+  listEvidencias,
+  describeOSError,
+  type OSExecPatch,
+} from '../../lib/os/osStore'
 import type {
   Servico,
   ServiceSnapshot,
@@ -50,6 +60,8 @@ import {
   IconUser,
   IconMapPin,
   IconCalendar,
+  IconAlertCircle,
+  IconRefresh,
 } from '../../components/ui/Icon'
 
 import SnapshotResumo from '../../components/os/SnapshotResumo'
@@ -57,7 +69,6 @@ import ChecklistExecucao from '../../components/os/ChecklistExecucao'
 import ServicosAdicionaisSection from '../../components/os/ServicosAdicionaisSection'
 
 // ── Dependências cross-pane (B3/B4) — programadas contra os contratos acordados.
-//    Podem ainda não existir no momento do typecheck desta pane (ver handoff).
 import EvidenciasSection from '../../components/os/EvidenciasSection'
 import ObservacoesProfissionalSection from '../../components/os/ObservacoesProfissionalSection'
 import RelatorioOSModal from '../../components/os/RelatorioOSModal'
@@ -76,23 +87,14 @@ interface OSHeader {
   status?: OSStatus
 }
 
-/** Estado persistido da execução (localStorage por OS). */
-interface ExecPersist {
-  selectedServiceId: string
-  snapshot: ServiceSnapshot | null
-  valorPrincipal: number
-  checklist: ChecklistExecItem[]
-  adicionais: ServicoAdicionalOS[]
-  descontos: number
-  fotos: EvidenciaFoto[]
-  observacoes: ObservacaoProfissional[]
-}
-
 interface Toast {
   id: number
   text: string
   type: 'success' | 'error' | 'info'
 }
+
+/** Estado do save automático dos campos JSON da execução. */
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 let toastSeq = 0
 
@@ -114,21 +116,17 @@ function mockHeader(osId: string): OSHeader {
   }
 }
 
-function loadPersist(key: string): ExecPersist | null {
-  if (typeof localStorage === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ExecPersist
-    return {
-      ...parsed,
-      // URLs blob: persistidas ficam inválidas após o reload (imagens quebradas) —
-      // descarta fotos órfãs ao hidratar.
-      fotos: (parsed.fotos ?? []).filter((f) => !f.url.startsWith('blob:')),
-    }
-  } catch {
-    return null
-  }
+/** Serializa o trio de rotina para comparar e evitar saves redundantes. */
+function serializeRoutine(
+  checklist: ChecklistExecItem[],
+  adicionais: ServicoAdicionalOS[],
+  observacoes: ObservacaoProfissional[],
+): string {
+  return JSON.stringify({
+    checklist_exec: checklist,
+    adicionais,
+    observacoes_prof: observacoes,
+  })
 }
 
 // ── Wrapper: garante remount (state limpo) ao trocar de OS ─────────────
@@ -143,80 +141,117 @@ export default function OSExecucaoPage() {
 
 function OSExecucao({ osId }: { osId: string }) {
   const navigate = useNavigate()
-  const storageKey = `cleanox.os-exec.${osId}`
-
-  // Hidratação síncrona (uma vez) a partir do localStorage.
-  const initialRef = useRef<ExecPersist | null | undefined>(undefined)
-  if (initialRef.current === undefined) initialRef.current = loadPersist(storageKey)
-  const initial = initialRef.current
+  const isReal = !!osId && osId !== 'demo'
 
   const [header, setHeader] = useState<OSHeader | null>(null)
-  const [headerLoading, setHeaderLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [servicos, setServicos] = useState<Servico[]>([])
   const [servicosLoading, setServicosLoading] = useState(true)
 
-  const [selectedServiceId, setSelectedServiceId] = useState(initial?.selectedServiceId ?? '')
-  const [snapshot, setSnapshot] = useState<ServiceSnapshot | null>(initial?.snapshot ?? null)
-  const [valorPrincipal, setValorPrincipal] = useState(initial?.valorPrincipal ?? 0)
-  const [checklist, setChecklist] = useState<ChecklistExecItem[]>(initial?.checklist ?? [])
-  const [adicionais, setAdicionais] = useState<ServicoAdicionalOS[]>(initial?.adicionais ?? [])
-  const [descontos, setDescontos] = useState(initial?.descontos ?? 0)
-  const [fotos, setFotos] = useState<EvidenciaFoto[]>(initial?.fotos ?? [])
-  const [observacoes, setObservacoes] = useState<ObservacaoProfissional[]>(initial?.observacoes ?? [])
+  const [selectedServiceId, setSelectedServiceId] = useState('')
+  const [snapshot, setSnapshot] = useState<ServiceSnapshot | null>(null)
+  const [valorPrincipal, setValorPrincipal] = useState(0)
+  const [checklist, setChecklist] = useState<ChecklistExecItem[]>([])
+  const [adicionais, setAdicionais] = useState<ServicoAdicionalOS[]>([])
+  // descontos não tem coluna no PB — permanece local (reinicia ao recarregar).
+  const [descontos, setDescontos] = useState(0)
+  const [fotos, setFotos] = useState<EvidenciaFoto[]>([])
+  const [fotosLoading, setFotosLoading] = useState(true)
+  const [observacoes, setObservacoes] = useState<ObservacaoProfissional[]>([])
 
   const [relatorioOpen, setRelatorioOpen] = useState(false)
   const [relatorio, setRelatorio] = useState<RelatorioOS | null>(null)
+
+  // Save automático (debounce) dos campos JSON.
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const hydratedRef = useRef(false)
+  const lastSavedRef = useRef<string | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Troca de serviço principal com checklist em progresso (confirmação via Modal).
   const [pendingServiceId, setPendingServiceId] = useState<string | null>(null)
 
   // toasts
   const [toasts, setToasts] = useState<Toast[]>([])
-  function showToast(text: string, type: Toast['type'] = 'info') {
+  const showToast = useCallback((text: string, type: Toast['type'] = 'info') => {
     const id = ++toastSeq
     setToasts((prev) => [...prev, { id, text, type }])
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3600)
-  }
+  }, [])
 
-  // ── Carrega cabeçalho da OS (PB com fallback mock) ──
-  useEffect(() => {
-    let cancelled = false
-    async function loadHeader() {
-      if (!osId || osId === 'demo') {
-        if (!cancelled) {
-          setHeader(mockHeader(osId))
-          setHeaderLoading(false)
-        }
-        return
-      }
-      try {
-        const rec = await pb
-          .collection(COLLECTIONS.ORDENS_SERVICO)
-          .getOne<OrdemServico>(osId, { expand: 'profissional' })
-        if (cancelled) return
-        setHeader({
-          numeroOS: numeroFromId(rec.id),
-          clienteNome: rec.nome_curto || 'Cliente',
-          bairro: rec.bairro,
-          enderecoCompleto: rec.endereco_liberado,
-          dataHora: rec.data_hora,
-          profissionalNome: rec.expand?.profissional
-            ? userDisplayName(rec.expand.profissional)
-            : undefined,
-          status: rec.status,
-        })
-      } catch {
-        if (!cancelled) setHeader(mockHeader(osId))
-      } finally {
-        if (!cancelled) setHeaderLoading(false)
-      }
+  // ── Carrega a OS real (cabeçalho + campos JSON da execução) ──
+  const loadOS = useCallback(async () => {
+    if (!isReal) {
+      setHeader(mockHeader(osId))
+      setLoading(false)
+      return
     }
-    loadHeader()
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const rec = await loadOSExec(osId)
+      setHeader({
+        numeroOS: numeroFromId(rec.id),
+        clienteNome: rec.nome_curto || 'Cliente',
+        bairro: rec.bairro,
+        enderecoCompleto: rec.endereco_liberado,
+        dataHora: rec.data_hora,
+        profissionalNome: rec.expand?.profissional
+          ? userDisplayName(rec.expand.profissional)
+          : undefined,
+        status: rec.status,
+      })
+      const snap = rec.service_snapshot ?? null
+      setSnapshot(snap)
+      setSelectedServiceId(snap?.serviceId ?? '')
+      setValorPrincipal(snap?.valorBase ?? 0)
+      const ck = rec.checklist_exec ?? []
+      const ad = rec.adicionais ?? []
+      const ob = rec.observacoes_prof ?? []
+      setChecklist(ck)
+      setAdicionais(ad)
+      setObservacoes(ob)
+      // marca o estado já persistido para o debounce não re-salvar a hidratação.
+      lastSavedRef.current = serializeRoutine(ck, ad, ob)
+      hydratedRef.current = true
+    } catch (err) {
+      const info = describeOSError(err)
+      setLoadError(info.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [osId, isReal])
+
+  useEffect(() => {
+    void loadOS()
+  }, [loadOS])
+
+  // ── Carrega evidências (fotos) da OS ──
+  useEffect(() => {
+    if (!isReal) {
+      setFotosLoading(false)
+      return
+    }
+    let cancelled = false
+    setFotosLoading(true)
+    listEvidencias(osId)
+      .then((list) => {
+        if (!cancelled) setFotos(list)
+      })
+      .catch(() => {
+        if (!cancelled) setFotos([])
+      })
+      .finally(() => {
+        if (!cancelled) setFotosLoading(false)
+      })
     return () => {
       cancelled = true
     }
-  }, [osId])
+  }, [osId, isReal])
 
   // ── Carrega catálogo de serviços (mock store) ──
   useEffect(() => {
@@ -236,35 +271,60 @@ function OSExecucao({ osId }: { osId: string }) {
     }
   }, [])
 
-  // ── Persistência do estado de execução ──
+  // ── Persistência dos campos JSON (PB) ──
+  const doSave = useCallback(
+    async (patch: OSExecPatch, serialized: string) => {
+      setSaveState('saving')
+      setSaveError(null)
+      try {
+        await saveOSExecPatch(osId, patch)
+        lastSavedRef.current = serialized
+        setSaveState('saved')
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2200)
+      } catch (err) {
+        const info = describeOSError(err)
+        setSaveState('error')
+        const msg = info.isPermission
+          ? 'Sem permissão para salvar alterações nesta OS.'
+          : info.message
+        setSaveError(msg)
+        showToast(msg, 'error')
+      }
+    },
+    [osId, showToast],
+  )
+
+  // Debounce dos saves de rotina (checklist/adicionais/observações).
   useEffect(() => {
-    if (typeof localStorage === 'undefined') return
-    const payload: ExecPersist = {
-      selectedServiceId,
-      snapshot,
-      valorPrincipal,
-      checklist,
-      adicionais,
-      descontos,
-      fotos,
-      observacoes,
+    if (!isReal || !hydratedRef.current) return
+    const serialized = serializeRoutine(checklist, adicionais, observacoes)
+    if (serialized === lastSavedRef.current) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      // re-checa no disparo: o snapshot pode ter salvo o mesmo estado nesse meio-tempo.
+      if (serialized === lastSavedRef.current) return
+      void doSave(
+        {
+          checklist_exec: checklist,
+          adicionais,
+          observacoes_prof: observacoes,
+        },
+        serialized,
+      )
+    }, 800)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(payload))
-    } catch {
-      /* quota/serialização — ignorar no mock */
+  }, [checklist, adicionais, observacoes, isReal, doSave])
+
+  // Limpa timers ao desmontar.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
     }
-  }, [
-    storageKey,
-    selectedServiceId,
-    snapshot,
-    valorPrincipal,
-    checklist,
-    adicionais,
-    descontos,
-    fotos,
-    observacoes,
-  ])
+  }, [])
 
   // ── Serviços agrupados para o <select> do principal ──
   const servicosAgrupados = useMemo(() => {
@@ -283,17 +343,54 @@ function OSExecucao({ osId }: { osId: string }) {
     )
   }, [servicos])
 
+  // ── Persiste o snapshot (gravação ÚNICA, na seleção do serviço) ──
+  const persistSnapshot = useCallback(
+    async (
+      snap: ServiceSnapshot,
+      newChecklist: ChecklistExecItem[],
+      adic: ServicoAdicionalOS[],
+      obs: ObservacaoProfissional[],
+    ) => {
+      if (!isReal) return
+      setSaveState('saving')
+      setSaveError(null)
+      try {
+        await saveOSExecPatch(osId, {
+          service_snapshot: snap,
+          checklist_exec: newChecklist,
+        })
+        // o trio de rotina passa a refletir o checklist recém-derivado.
+        lastSavedRef.current = serializeRoutine(newChecklist, adic, obs)
+        setSaveState('saved')
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2200)
+      } catch (err) {
+        const info = describeOSError(err)
+        setSaveState('error')
+        const msg = info.isPermission
+          ? 'Sem permissão para gravar o serviço nesta OS.'
+          : info.message
+        setSaveError(msg)
+        showToast(msg, 'error')
+      }
+    },
+    [osId, isReal, showToast],
+  )
+
   // ── Seleção do serviço principal → snapshot imutável + checklist derivado ──
   function applyServico(svc: Servico) {
     const snap = buildSnapshot(svc)
+    const newChecklist = snapshotToChecklistExec(snap)
     setSelectedServiceId(svc.id)
     setSnapshot(snap)
     setValorPrincipal(snap.valorBase)
-    setChecklist(snapshotToChecklistExec(snap))
-    // O checklist ganha novos IDs; desvincula fotos que apontavam para o checklist
-    // anterior (evita checklistItemId dangling). Os demais vínculos seguem válidos.
+    setChecklist(newChecklist)
+    // O checklist ganha novos IDs; desvincula (localmente) fotos que apontavam para o
+    // checklist anterior. Obs.: vínculos já gravados no PB são raros aqui (troca de
+    // serviço zera a execução) e ficam como chip genérico até nova edição.
     setFotos((prev) => prev.map((f) => ({ ...f, checklistItemId: undefined })))
     showToast(`Snapshot de "${svc.nome}" capturado.`, 'success')
+    void persistSnapshot(snap, newChecklist, adicionais, observacoes)
   }
 
   function onSelectServico(id: string) {
@@ -396,276 +493,326 @@ function OSExecucao({ osId }: { osId: string }) {
         <IconChevronLeft size={15} /> Voltar para Ordens
       </button>
 
-      {/* (a) Cabeçalho da OS */}
-      <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
-        {headerLoading ? (
-          <div className="loading-overlay" style={{ padding: '8px 0' }}>
-            <Spinner size={18} /> Carregando OS…
+      {/* Erro de carregamento da OS */}
+      {loadError && !loading ? (
+        <section className="clx-card" style={{ padding: '20px 18px' }}>
+          <div className="error-banner" style={{ marginBottom: 14 }}>
+            <IconAlertCircle size={15} />
+            <span style={{ flex: 1 }}>{loadError}</span>
           </div>
-        ) : header ? (
-          <>
+          <button type="button" className="clx-btn clx-btn-ghost clx-btn-sm" onClick={() => void loadOS()}>
+            <IconRefresh size={15} /> Tentar novamente
+          </button>
+        </section>
+      ) : (
+        <>
+          {/* (a) Cabeçalho da OS */}
+          <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
+            {loading ? (
+              <div className="loading-overlay" style={{ padding: '8px 0' }}>
+                <Spinner size={18} /> Carregando OS…
+              </div>
+            ) : header ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--clx-font-display)',
+                        fontSize: '1.25rem',
+                        fontWeight: 800,
+                        color: 'var(--clx-ink)',
+                        letterSpacing: '-0.02em',
+                      }}
+                    >
+                      Execução da OS {header.numeroOS}
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--clx-ink)', marginTop: 2 }}>
+                      {header.clienteNome}
+                    </div>
+                  </div>
+                  {header.status && (
+                    <span className={`clx-status clx-status-${header.status}`} style={{ whiteSpace: 'nowrap' }}>
+                      {osStatusLabel(header.status)}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px 18px',
+                    marginTop: 12,
+                    fontSize: '0.83rem',
+                    color: 'var(--clx-ink-2)',
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <IconCalendar size={14} /> {formatDateTime(header.dataHora)}
+                  </span>
+                  {header.bairro && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <IconMapPin size={14} /> {header.bairro}
+                    </span>
+                  )}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <IconUser size={14} /> {profissionalNome}
+                  </span>
+                </div>
+
+                {/* Indicador de auto-save */}
+                {isReal && saveState !== 'idle' && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: '0.78rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: saveState === 'error' ? 'var(--clx-error)' : 'var(--clx-ink-3)',
+                    }}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {saveState === 'saving' && (
+                      <>
+                        <Spinner size={13} /> Salvando…
+                      </>
+                    )}
+                    {saveState === 'saved' && (
+                      <>
+                        <IconCheckCircle size={13} /> Alterações salvas
+                      </>
+                    )}
+                    {saveState === 'error' && (
+                      <>
+                        <IconAlertCircle size={13} /> {saveError ?? 'Erro ao salvar'}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : null}
+          </section>
+
+          {/* (b) Serviço principal + snapshot */}
+          <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
+            <h3
+              style={{
+                margin: '0 0 12px',
+                fontFamily: 'var(--clx-font-display)',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: 'var(--clx-ink)',
+              }}
+            >
+              Serviço principal
+            </h3>
+
+            <div className="form-field" style={{ marginBottom: snapshot ? 16 : 0 }}>
+              <label htmlFor="svc-principal">Selecione o serviço do catálogo</label>
+              <select
+                id="svc-principal"
+                value={selectedServiceId}
+                onChange={(e) => onSelectServico(e.target.value)}
+                disabled={servicosLoading || loading}
+              >
+                <option value="">{servicosLoading ? 'Carregando serviços…' : 'Selecione…'}</option>
+                {servicosAgrupados.map((bucket) => (
+                  <optgroup
+                    key={`${bucket.categoria}-${bucket.grupo}`}
+                    label={`${categoriaLabel(bucket.categoria)} · ${grupoLabel(bucket.grupo)}`}
+                  >
+                    {bucket.itens.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nome} — {formatValorServico(s)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            {snapshot ? (
+              <SnapshotResumo snapshot={snapshot} />
+            ) : (
+              <div className="empty-state" style={{ padding: '20px 12px', marginTop: 12 }}>
+                <h4>Nenhum serviço selecionado</h4>
+                <p>Escolha o serviço principal para capturar o snapshot e gerar o checklist.</p>
+              </div>
+            )}
+          </section>
+
+          {/* (c) Checklist de execução */}
+          <div style={{ marginBottom: 16 }}>
+            <ChecklistExecucao items={checklist} onChange={setChecklist} concluidoPor={profissionalNome} />
+          </div>
+
+          {/* (d) Serviços adicionais */}
+          <div style={{ marginBottom: 16 }}>
+            <ServicosAdicionaisSection adicionais={adicionais} onChange={setAdicionais} servicos={servicos} />
+          </div>
+
+          {/* (e) Resumo financeiro */}
+          <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
+            <h3
+              style={{
+                margin: '0 0 14px',
+                fontFamily: 'var(--clx-font-display)',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: 'var(--clx-ink)',
+              }}
+            >
+              Resumo financeiro
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                <span style={{ color: 'var(--clx-ink-2)' }}>Valor principal</span>
+                <strong style={{ color: 'var(--clx-ink)' }}>{formatCurrency(valorPrincipal)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                <span style={{ color: 'var(--clx-ink-2)' }}>
+                  + Adicionais aprovados
+                  <span style={{ color: 'var(--clx-ink-3)', fontSize: '0.78rem' }}>
+                    {' '}(aprovado / não requer)
+                  </span>
+                </span>
+                <strong style={{ color: 'var(--clx-ink)' }}>{formatCurrency(valorAdicionais)}</strong>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontSize: '0.9rem',
+                }}
+              >
+                <label htmlFor="descontos" style={{ color: 'var(--clx-ink-2)' }}>
+                  − Descontos (R$)
+                </label>
+                <input
+                  id="descontos"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={descontos === 0 ? '' : String(descontos)}
+                  placeholder="0,00"
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value.replace(',', '.'))
+                    setDescontos(Number.isNaN(v) || v < 0 ? 0 : v)
+                  }}
+                  style={{
+                    width: 120,
+                    textAlign: 'right',
+                    padding: '6px 10px',
+                    fontSize: '0.88rem',
+                    background: 'var(--clx-bg-2)',
+                    border: '1.5px solid var(--clx-line)',
+                    borderRadius: 'var(--clx-r-md)',
+                    color: 'var(--clx-ink)',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 6,
+                  paddingTop: 12,
+                  borderTop: '1.5px solid var(--clx-line)',
+                }}
+              >
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--clx-ink)' }}>Total</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--clx-font-display)',
+                    fontSize: '1.3rem',
+                    fontWeight: 800,
+                    color: 'var(--clx-accent)',
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  {formatCurrency(total)}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* (f) Evidências + Observações (componentes da pane B3) */}
+          <div style={{ marginBottom: 16 }}>
+            <EvidenciasSection
+              osId={osId}
+              fotos={fotos}
+              onChange={setFotos}
+              checklistItems={checklist}
+              adicionais={adicionais}
+              observacoes={observacoes}
+              enviadoPor={profissionalNome}
+              disabled={!isReal || loading || fotosLoading}
+              onNotify={showToast}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <ObservacoesProfissionalSection
+              observacoes={observacoes}
+              onChange={setObservacoes}
+              fotos={fotos}
+              criadoPor={profissionalNome}
+            />
+          </div>
+
+          {/* (g) Finalizar */}
+          <section className="clx-card" style={{ padding: '16px 18px' }}>
             <div
               style={{
                 display: 'flex',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 12,
                 flexWrap: 'wrap',
               }}
             >
-              <div>
-                <div
-                  style={{
-                    fontFamily: 'var(--clx-font-display)',
-                    fontSize: '1.25rem',
-                    fontWeight: 800,
-                    color: 'var(--clx-ink)',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  Execução da OS {header.numeroOS}
-                </div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--clx-ink)', marginTop: 2 }}>
-                  {header.clienteNome}
-                </div>
+              <div style={{ fontSize: '0.84rem', color: 'var(--clx-ink-2)' }}>
+                {snapshot ? (
+                  <>
+                    {checklistDone} de {checklist.length} itens concluídos · {adicionais.length} adicional(is) ·
+                    Total {formatCurrency(total)}
+                  </>
+                ) : (
+                  'Selecione o serviço principal para habilitar o relatório.'
+                )}
               </div>
-              {header.status && (
-                <span className={`clx-status clx-status-${header.status}`} style={{ whiteSpace: 'nowrap' }}>
-                  {osStatusLabel(header.status)}
-                </span>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '6px 18px',
-                marginTop: 12,
-                fontSize: '0.83rem',
-                color: 'var(--clx-ink-2)',
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <IconCalendar size={14} /> {formatDateTime(header.dataHora)}
-              </span>
-              {header.bairro && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <IconMapPin size={14} /> {header.bairro}
-                </span>
-              )}
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <IconUser size={14} /> {profissionalNome}
+              <span title={!snapshot ? 'Selecione o serviço principal' : undefined}>
+                <button
+                  type="button"
+                  className="clx-btn clx-btn-primary"
+                  onClick={handleFinalizar}
+                  disabled={!snapshot}
+                >
+                  <IconCheckCircle size={16} /> Finalizar e gerar relatório
+                </button>
               </span>
             </div>
-          </>
-        ) : null}
-      </section>
-
-      {/* (b) Serviço principal + snapshot */}
-      <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
-        <h3
-          style={{
-            margin: '0 0 12px',
-            fontFamily: 'var(--clx-font-display)',
-            fontSize: '1rem',
-            fontWeight: 700,
-            color: 'var(--clx-ink)',
-          }}
-        >
-          Serviço principal
-        </h3>
-
-        <div className="form-field" style={{ marginBottom: snapshot ? 16 : 0 }}>
-          <label htmlFor="svc-principal">Selecione o serviço do catálogo</label>
-          <select
-            id="svc-principal"
-            value={selectedServiceId}
-            onChange={(e) => onSelectServico(e.target.value)}
-            disabled={servicosLoading}
-          >
-            <option value="">{servicosLoading ? 'Carregando serviços…' : 'Selecione…'}</option>
-            {servicosAgrupados.map((bucket) => (
-              <optgroup
-                key={`${bucket.categoria}-${bucket.grupo}`}
-                label={`${categoriaLabel(bucket.categoria)} · ${grupoLabel(bucket.grupo)}`}
-              >
-                {bucket.itens.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nome} — {formatValorServico(s)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        {snapshot ? (
-          <SnapshotResumo snapshot={snapshot} />
-        ) : (
-          <div className="empty-state" style={{ padding: '20px 12px', marginTop: 12 }}>
-            <h4>Nenhum serviço selecionado</h4>
-            <p>Escolha o serviço principal para capturar o snapshot e gerar o checklist.</p>
-          </div>
-        )}
-      </section>
-
-      {/* (c) Checklist de execução */}
-      <div style={{ marginBottom: 16 }}>
-        <ChecklistExecucao items={checklist} onChange={setChecklist} concluidoPor={profissionalNome} />
-      </div>
-
-      {/* (d) Serviços adicionais */}
-      <div style={{ marginBottom: 16 }}>
-        <ServicosAdicionaisSection adicionais={adicionais} onChange={setAdicionais} servicos={servicos} />
-      </div>
-
-      {/* (e) Resumo financeiro */}
-      <section className="clx-card" style={{ padding: '16px 18px', marginBottom: 16 }}>
-        <h3
-          style={{
-            margin: '0 0 14px',
-            fontFamily: 'var(--clx-font-display)',
-            fontSize: '1rem',
-            fontWeight: 700,
-            color: 'var(--clx-ink)',
-          }}
-        >
-          Resumo financeiro
-        </h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-            <span style={{ color: 'var(--clx-ink-2)' }}>Valor principal</span>
-            <strong style={{ color: 'var(--clx-ink)' }}>{formatCurrency(valorPrincipal)}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-            <span style={{ color: 'var(--clx-ink-2)' }}>
-              + Adicionais aprovados
-              <span style={{ color: 'var(--clx-ink-3)', fontSize: '0.78rem' }}>
-                {' '}(aprovado / não requer)
-              </span>
-            </span>
-            <strong style={{ color: 'var(--clx-ink)' }}>{formatCurrency(valorAdicionais)}</strong>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              fontSize: '0.9rem',
-            }}
-          >
-            <label htmlFor="descontos" style={{ color: 'var(--clx-ink-2)' }}>
-              − Descontos (R$)
-            </label>
-            <input
-              id="descontos"
-              type="number"
-              min="0"
-              step="0.01"
-              value={descontos === 0 ? '' : String(descontos)}
-              placeholder="0,00"
-              onChange={(e) => {
-                const v = parseFloat(e.target.value.replace(',', '.'))
-                setDescontos(Number.isNaN(v) || v < 0 ? 0 : v)
-              }}
-              style={{
-                width: 120,
-                textAlign: 'right',
-                padding: '6px 10px',
-                fontSize: '0.88rem',
-                background: 'var(--clx-bg-2)',
-                border: '1.5px solid var(--clx-line)',
-                borderRadius: 'var(--clx-r-md)',
-                color: 'var(--clx-ink)',
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: 6,
-              paddingTop: 12,
-              borderTop: '1.5px solid var(--clx-line)',
-            }}
-          >
-            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--clx-ink)' }}>Total</span>
-            <span
-              style={{
-                fontFamily: 'var(--clx-font-display)',
-                fontSize: '1.3rem',
-                fontWeight: 800,
-                color: 'var(--clx-accent)',
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {formatCurrency(total)}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* (f) Evidências + Observações (componentes da pane B3) */}
-      <div style={{ marginBottom: 16 }}>
-        <EvidenciasSection
-          fotos={fotos}
-          onChange={setFotos}
-          checklistItems={checklist}
-          adicionais={adicionais}
-          observacoes={observacoes}
-          enviadoPor={profissionalNome}
-        />
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <ObservacoesProfissionalSection
-          observacoes={observacoes}
-          onChange={setObservacoes}
-          fotos={fotos}
-          criadoPor={profissionalNome}
-        />
-      </div>
-
-      {/* (g) Finalizar */}
-      <section className="clx-card" style={{ padding: '16px 18px' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ fontSize: '0.84rem', color: 'var(--clx-ink-2)' }}>
-            {snapshot ? (
-              <>
-                {checklistDone} de {checklist.length} itens concluídos · {adicionais.length} adicional(is) ·
-                Total {formatCurrency(total)}
-              </>
-            ) : (
-              'Selecione o serviço principal para habilitar o relatório.'
-            )}
-          </div>
-          <span title={!snapshot ? 'Selecione o serviço principal' : undefined}>
-            <button
-              type="button"
-              className="clx-btn clx-btn-primary"
-              onClick={handleFinalizar}
-              disabled={!snapshot}
-            >
-              <IconCheckCircle size={16} /> Finalizar e gerar relatório
-            </button>
-          </span>
-        </div>
-      </section>
+          </section>
+        </>
+      )}
 
       {/* Modal do relatório (pane B4) — o próprio modal gera o PDF A4 (gerarPDFOS). */}
       {relatorio && (
@@ -673,7 +820,14 @@ function OSExecucao({ osId }: { osId: string }) {
           open={relatorioOpen}
           onClose={() => setRelatorioOpen(false)}
           relatorio={relatorio}
-          onEnviarWhatsApp={() => showToast('Relatório pronto para envio via WhatsApp (demo).', 'success')}
+          // OS REAL: NÃO passa handler → o modal cai na ramificação da rota real
+          // (POST /api/cleanos/os/{id}/relatorio). Só em demo (osId vazio/'demo')
+          // entregamos o handler-mock que apenas notifica.
+          onEnviarWhatsApp={
+            !isReal
+              ? () => showToast('Relatório pronto para envio via WhatsApp (demo).', 'info')
+              : undefined
+          }
         />
       )}
 
