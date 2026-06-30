@@ -218,6 +218,8 @@ export interface OrdemServico extends PBRecord {
   adicionais?: ServicoAdicionalOS[]
   /** observações técnicas do profissional — NÃO confundir com `observacoes` (texto livre) */
   observacoes_prof?: ObservacaoProfissional[]
+  /** desconto (R$) aplicado no resumo financeiro da execução; abatido no total/relatório */
+  descontos?: number
   /** ISO datetime de quando o relatório final foi enviado ao cliente */
   relatorio_enviado_em?: string
   expand?: {

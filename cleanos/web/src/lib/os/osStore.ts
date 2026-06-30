@@ -78,6 +78,8 @@ export interface OSExecPatch {
   checklist_exec?: ChecklistExecItem[]
   adicionais?: ServicoAdicionalOS[]
   observacoes_prof?: ObservacaoProfissional[]
+  /** desconto (R$) aplicado no resumo financeiro — abatido no total e no relatório */
+  descontos?: number
 }
 
 /**

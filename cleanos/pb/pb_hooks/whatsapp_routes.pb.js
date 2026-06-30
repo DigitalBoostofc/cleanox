@@ -307,11 +307,13 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
       lines.push("");
     }
 
-    // Resumo financeiro
-    const total = Math.max(0, valorPrincipal + valorAdicionais);
+    // Resumo financeiro (espelha calcTotalOS do frontend: principal + adicionais − descontos)
+    const descontos = Math.max(0, Number(os.get("descontos") || 0));
+    const total = Math.max(0, valorPrincipal + valorAdicionais - descontos);
     lines.push("💰 *Resumo financeiro:*");
     lines.push("   Serviço: " + brl(valorPrincipal));
     if (valorAdicionais > 0) lines.push("   Adicionais: " + brl(valorAdicionais));
+    if (descontos > 0) lines.push("   Descontos: -" + brl(descontos));
     lines.push("   *Total: " + brl(total) + "*");
     lines.push("");
 
