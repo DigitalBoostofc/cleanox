@@ -3,6 +3,22 @@
  * ÚNICO ponto de verdade dos nomes de coleções e tipos no frontend.
  */
 
+// Tipos camelCase do domínio Serviços/OS (fonte de verdade em ./servicos/types).
+// Import SÓ de tipo (apagado no build) — usado para tipar os campos JSON da OS e
+// o catálogo rico (ServicoPB). Não cria ciclo de runtime.
+import type {
+  Categoria,
+  Grupo,
+  TipoValor,
+  ServicoStatus,
+  FaseFoto,
+  ChecklistTemplateItem,
+  ServiceSnapshot,
+  ChecklistExecItem,
+  ServicoAdicionalOS,
+  ObservacaoProfissional,
+} from './servicos/types'
+
 /* ---- Nomes das coleções ---- */
 export const COLLECTIONS = {
   USERS: 'users',
@@ -11,6 +27,7 @@ export const COLLECTIONS = {
   ORDENS_SERVICO: 'ordens_servico',
   CONFIG_ATUACAO: 'config_atuacao',
   DISPONIBILIDADE: 'disponibilidade',
+  OS_EVIDENCIAS: 'os_evidencias',
 } as const
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS]
@@ -107,12 +124,50 @@ export interface ConfigAtuacao extends PBRecord {
   cidades: ConfigAtuacaoCidade[]
 }
 
-/* ---- servicos (catálogo) ---- */
+/* ---- servicos (catálogo simples — LEGADO) ---- */
 export interface Servico extends PBRecord {
   nome: string
   descricao?: string
   /** PLACEHOLDER — gate G-03 em aberto */
   preco_base: number
+  ativo: boolean
+}
+
+/* ---- servicos (catálogo RICO) — contrato PB snake_case (Migrations 8 e 9) ----
+ * O `Servico` legado acima continua válido para o catálogo simples. Este é o
+ * shape RICO completo do módulo Serviços: taxonomia, valores, tempo médio,
+ * checklist padrão e orientações. Campos legados são mantidos SINCRONIZADOS:
+ *   preco_base = valor_base · ativo = (status === 'ativo').
+ * Linhas ainda não enriquecidas (placeholders) podem trazer selects vazios ('').
+ */
+export interface ServicoPB extends PBRecord {
+  /** referência estável (ex.: 'svc_veic_essencial') — única via índice parcial */
+  slug: string
+  categoria: Categoria | ''
+  grupo: Grupo | ''
+  nome: string
+  /** descrição legada (opcional; o módulo rico usa `observacao`) */
+  descricao?: string
+  /** valor base canônico (ou limite inferior quando tipo_valor === 'faixa') */
+  valor_base: number
+  /** limite superior — usado quando tipo_valor === 'faixa' (0 = sem máximo) */
+  valor_base_max?: number
+  tipo_valor: TipoValor | ''
+  /** tempo médio em minutos (limite superior; 0 = Variável) */
+  tempo_medio_min?: number
+  /** rótulo humano do tempo médio, ex.: '1h30 a 2h' */
+  tempo_medio_label?: string
+  status: ServicoStatus | ''
+  observacao?: string
+  /** itens do checklist padrão (template do serviço) */
+  checklist_padrao?: ChecklistTemplateItem[]
+  orientacoes_pre?: string
+  orientacoes_pos?: string
+  /** slugs de serviços adicionais sugeridos junto deste */
+  adicionais_relacionados?: string[]
+  /** 🔁 legado sincronizado = valor_base */
+  preco_base: number
+  /** 🔁 legado sincronizado = (status === 'ativo') */
   ativo: boolean
 }
 
@@ -154,10 +209,47 @@ export interface OrdemServico extends PBRecord {
   /** ISO datetime de quando a pesquisa foi enviada pelo backend */
   avaliacao_solicitada_em?: string
   observacoes?: string
+  /* ---- campos RICOS do módulo Serviços/OS (Migration 8, JSON) ---- */
+  /** snapshot IMUTÁVEL do serviço no instante da seleção (não muda se o catálogo mudar) */
+  service_snapshot?: ServiceSnapshot
+  /** checklist executável, marcável pelo profissional durante a execução */
+  checklist_exec?: ChecklistExecItem[]
+  /** serviços adicionais lançados dentro da OS */
+  adicionais?: ServicoAdicionalOS[]
+  /** observações técnicas do profissional — NÃO confundir com `observacoes` (texto livre) */
+  observacoes_prof?: ObservacaoProfissional[]
+  /** ISO datetime de quando o relatório final foi enviado ao cliente */
+  relatorio_enviado_em?: string
   expand?: {
     cliente?: Cliente
     profissional?: User
     servico?: Servico
+  }
+}
+
+/* ---- os_evidencias — 🔒 COFRE (profissional só vê evidências de OS atribuídas a ele) ----
+ * Fotos antes/durante/depois vinculadas a uma OS (Migration 8). `cascadeDelete`:
+ * apagar a OS apaga automaticamente suas evidências. Vínculos opcionais permitem
+ * amarrar a foto a um item do checklist, observação ou adicional específico.
+ */
+export interface OSEvidenciaPB extends PBRecord {
+  /** Relation → ordens_servico (ID opaco) */
+  os: string
+  /** nome do arquivo de imagem (1 por registro, até ~5MB) */
+  foto?: string
+  fase?: FaseFoto | ''
+  legenda?: string
+  /** vínculo opcional a um item do checklist de execução (id dentro de checklist_exec) */
+  checklist_item_id?: string
+  /** vínculo opcional a uma observação do profissional (id dentro de observacoes_prof) */
+  observacao_id?: string
+  /** vínculo opcional a um serviço adicional (id dentro de adicionais) */
+  adicional_id?: string
+  /** Relation → users (ID) — quem enviou a foto */
+  enviado_por?: string
+  expand?: {
+    os?: OrdemServico
+    enviado_por?: User
   }
 }
 

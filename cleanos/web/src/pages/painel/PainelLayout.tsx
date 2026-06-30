@@ -53,6 +53,20 @@ const PAGE_TITLES: Record<string, string> = {
   '/painel/whatsapp':    'WhatsApp',
 }
 
+/**
+ * Resolve o título da topbar. Primeiro tenta o match exato (títulos existentes);
+ * depois cai para regras por prefixo/segmento, cobrindo as rotas aninhadas novas
+ * (servicos/novo, servicos/:id, ordens/:osId/execucao) que o match exato não pega.
+ */
+function resolveTitle(pathname: string): string {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
+  if (/^\/painel\/ordens\/[^/]+\/execucao\/?$/.test(pathname)) return 'Execução da OS'
+  if (pathname === '/painel/servicos' || pathname.startsWith('/painel/servicos/')) {
+    return 'Serviços'
+  }
+  return 'Painel'
+}
+
 export default function PainelLayout() {
   const { user, role, logout } = useAuth()
   const navigate = useNavigate()
@@ -63,7 +77,7 @@ export default function PainelLayout() {
     ? [...BASE_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
     : BASE_NAV_ITEMS
 
-  const currentTitle = PAGE_TITLES[location.pathname] ?? 'Painel'
+  const currentTitle = resolveTitle(location.pathname)
 
   const handleLogout = () => {
     logout()
