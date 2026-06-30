@@ -12,7 +12,14 @@ import Clientes from './pages/painel/Clientes'
 import OrdensServico from './pages/painel/OrdensServico'
 import OSExecucaoPage from './pages/painel/OSExecucaoPage'
 import Agenda from './pages/painel/Agenda'
-import Financeiro from './pages/painel/Financeiro'
+import FinanceiroLayout from './pages/painel/financeiro/FinanceiroLayout'
+import VisaoGeral from './pages/painel/financeiro/VisaoGeral'
+import Lancamentos from './pages/painel/financeiro/Lancamentos'
+import ContasPagarReceber from './pages/painel/financeiro/ContasPagarReceber'
+import Categorias from './pages/painel/financeiro/Categorias'
+import Relatorios from './pages/painel/financeiro/Relatorios'
+import LimiteGastos from './pages/painel/financeiro/LimiteGastos'
+import ContasCarteiras from './pages/painel/financeiro/ContasCarteiras'
 import Usuarios from './pages/painel/Usuarios'
 import Conta from './pages/painel/Conta'
 import WhatsAppAdmin from './pages/painel/WhatsApp'
@@ -61,7 +68,15 @@ function AppRoutes() {
         <Route path="ordens"    element={<OrdensServico />} />
         <Route path="ordens/:osId/execucao" element={<OSExecucaoPage />} />
         <Route path="agenda"    element={<Agenda />} />
-        <Route path="financeiro"element={<Financeiro />} />
+        <Route path="financeiro" element={<FinanceiroLayout />}>
+          <Route index element={<VisaoGeral />} />
+          <Route path="lancamentos" element={<Lancamentos />} />
+          <Route path="contas"      element={<ContasPagarReceber />} />
+          <Route path="categorias"  element={<Categorias />} />
+          <Route path="relatorios"  element={<Relatorios />} />
+          <Route path="limites"     element={<LimiteGastos />} />
+          <Route path="carteiras"   element={<ContasCarteiras />} />
+        </Route>
         <Route path="usuarios"    element={<Usuarios />} />
         <Route path="avaliacoes" element={<Avaliacoes />} />
         <Route path="servicos"        element={<ServicosListPage />} />

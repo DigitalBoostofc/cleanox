@@ -101,6 +101,27 @@
   --clx-group-sofa-bg:      rgba(192,132,252,0.16);
   --clx-group-colchao-bg:   rgba(192,132,252,0.16);
   --clx-group-outros-bg:    rgba(100,116,139,0.12);
+
+  /* ---- Financeiro (módulo estilo Organizze: off-white + cards brancos) ---- */
+  --clx-fin-bg:        #F7F9FB;  /* fundo do módulo (off-white) */
+  --clx-fin-surface:   #FFFFFF;  /* cards/blocos */
+  --clx-fin-surface-2: #F7F9FB;  /* headers de tabela, zebra */
+  --clx-fin-line:      rgba(15, 76, 92, 0.10);
+  --clx-fin-track:     #EEF3F7;  /* trilho de progress/donut */
+  --clx-fin-income:    #22C55E;  /* receita (verde) */
+  --clx-fin-expense:   #EF4444;  /* despesa (vermelho) */
+  --clx-fin-accent:    #00C2B8;  /* teal destaque */
+  --clx-fin-info:      #3B82F6;  /* azul previsto/info */
+  --clx-fin-muted:     #7A8893;  /* cinza secundário */
+  /* paleta de séries (donut/barras) — teal → cinza claro */
+  --clx-fin-c1: #00C2B8;
+  --clx-fin-c2: #22C55E;
+  --clx-fin-c3: #3B82F6;
+  --clx-fin-c4: #F59E0B;
+  --clx-fin-c5: #8B5CF6;
+  --clx-fin-c6: #EC4899;
+  --clx-fin-c7: #64748B;
+  --clx-fin-c8: #D1D5DB;
 }
 
 /* ---- Tema escuro (opcional — não é o padrão) ---- */
@@ -171,4 +192,24 @@
   --clx-group-sofa-bg:      rgba(216,180,254,0.18);
   --clx-group-colchao-bg:   rgba(216,180,254,0.18);
   --clx-group-outros-bg:    rgba(148,163,184,0.18);
+
+  /* ---- Financeiro — variantes escuras ---- */
+  --clx-fin-bg:        #0C0C0C;
+  --clx-fin-surface:   #191919;
+  --clx-fin-surface-2: #212121;
+  --clx-fin-line:      rgba(255, 255, 255, 0.08);
+  --clx-fin-track:     #262626;
+  --clx-fin-income:    #4ADE80;
+  --clx-fin-expense:   #F87171;
+  --clx-fin-accent:    #00C2B8;
+  --clx-fin-info:      #60A5FA;
+  --clx-fin-muted:     #7A7A7A;
+  --clx-fin-c1: #2DD4BF;
+  --clx-fin-c2: #4ADE80;
+  --clx-fin-c3: #60A5FA;
+  --clx-fin-c4: #FBBF24;
+  --clx-fin-c5: #A78BFA;
+  --clx-fin-c6: #F472B6;
+  --clx-fin-c7: #94A3B8;
+  --clx-fin-c8: #4B5563;
 }

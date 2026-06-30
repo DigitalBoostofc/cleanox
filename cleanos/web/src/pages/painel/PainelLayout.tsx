@@ -60,6 +60,9 @@ const PAGE_TITLES: Record<string, string> = {
  */
 function resolveTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
+  if (pathname === '/painel/financeiro' || pathname.startsWith('/painel/financeiro/')) {
+    return 'Financeiro'
+  }
   if (/^\/painel\/ordens\/[^/]+\/execucao\/?$/.test(pathname)) return 'Execução da OS'
   if (pathname === '/painel/servicos' || pathname.startsWith('/painel/servicos/')) {
     return 'Serviços'
