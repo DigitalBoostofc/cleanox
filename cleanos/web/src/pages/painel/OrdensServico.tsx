@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
 import {
@@ -77,6 +78,12 @@ type ModalMode = 'view' | 'create' | 'edit'
 export default function OrdensServico() {
   const { role } = useAuth()
   const isMobile = useIsMobile()
+  const navigate = useNavigate()
+
+  const goExecucao = useCallback(
+    (os: OrdemServico) => navigate(`/painel/ordens/${os.id}/execucao`),
+    [navigate],
+  )
 
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [loading, setLoading] = useState(true)
@@ -342,6 +349,9 @@ export default function OrdensServico() {
                     )}
                   </div>
                   <div className="mob-card-actions">
+                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); goExecucao(os) }} title="Execução da OS" aria-label="Execução da OS">
+                      <IconArrowRight size={15} />
+                    </button>
                     {os.status !== 'concluida' && os.status !== 'cancelada' && (
                       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(os) }} title="Editar">
                         <IconEdit size={15} />
@@ -417,6 +427,9 @@ export default function OrdensServico() {
                         </td>
                         <td>
                           <div className="td-actions">
+                            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); goExecucao(os) }} title="Execução da OS" aria-label="Execução da OS">
+                              <IconArrowRight size={15} />
+                            </button>
                             {os.status !== 'concluida' && os.status !== 'cancelada' && (
                               <button className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(os) }} title="Editar">
                                 <IconEdit size={15} />
@@ -545,6 +558,9 @@ export default function OrdensServico() {
           footer={
             <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="clx-btn clx-btn-accent clx-btn-sm" onClick={() => { setModalOpen(false); goExecucao(selectedOS) }}>
+                  <IconArrowRight size={13} /> Execução
+                </button>
                 {selectedOS.status !== 'concluida' && selectedOS.status !== 'cancelada' && (
                   <button className="clx-btn clx-btn-ghost clx-btn-sm" onClick={() => { setModalOpen(false); openEdit(selectedOS) }}>
                     <IconEdit size={13} /> Editar

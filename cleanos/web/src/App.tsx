@@ -10,13 +10,15 @@ import PainelLayout from './pages/painel/PainelLayout'
 import Dashboard from './pages/painel/Dashboard'
 import Clientes from './pages/painel/Clientes'
 import OrdensServico from './pages/painel/OrdensServico'
+import OSExecucaoPage from './pages/painel/OSExecucaoPage'
 import Agenda from './pages/painel/Agenda'
 import Financeiro from './pages/painel/Financeiro'
 import Usuarios from './pages/painel/Usuarios'
 import Conta from './pages/painel/Conta'
 import WhatsAppAdmin from './pages/painel/WhatsApp'
 import Avaliacoes from './pages/painel/Avaliacoes'
-import Servicos from './pages/painel/Servicos'
+import ServicosListPage from './pages/painel/servicos/ServicosListPage'
+import ServicoEditorPage from './pages/painel/servicos/ServicoEditorPage'
 
 import AppLayout from './pages/app/AppLayout'
 import MeusServicos from './pages/app/MeusServicos'
@@ -57,11 +59,14 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="clientes"  element={<Clientes />} />
         <Route path="ordens"    element={<OrdensServico />} />
+        <Route path="ordens/:osId/execucao" element={<OSExecucaoPage />} />
         <Route path="agenda"    element={<Agenda />} />
         <Route path="financeiro"element={<Financeiro />} />
         <Route path="usuarios"    element={<Usuarios />} />
         <Route path="avaliacoes" element={<Avaliacoes />} />
-        <Route path="servicos"   element={<Servicos />} />
+        <Route path="servicos"        element={<ServicosListPage />} />
+        <Route path="servicos/novo"   element={<ServicoEditorPage />} />
+        <Route path="servicos/:id"    element={<ServicoEditorPage />} />
         <Route path="conta"      element={<Conta />} />
         <Route
           path="whatsapp"

@@ -2181,3 +2181,457 @@ img, svg { display: block; max-width: 100%; }
 [data-theme="dark"] .review-card { background: var(--clx-bg-2); }
 [data-theme="dark"] .select-search-dropdown { background: var(--clx-bg-2); }
 [data-theme="dark"] .select-search-item:hover { background: var(--clx-bg-3); color: var(--clx-ink); }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — chips de grupo
+   ==================================================== */
+.clx-chip-group-plano     { background: var(--clx-group-plano-bg);     color: var(--clx-group-plano);     border-color: transparent; }
+.clx-chip-group-promocao  { background: var(--clx-group-promocao-bg);  color: var(--clx-group-promocao);  border-color: transparent; }
+.clx-chip-group-adicional { background: var(--clx-group-adicional-bg); color: var(--clx-group-adicional); border-color: transparent; }
+.clx-chip-group-avulsos   { background: var(--clx-group-avulsos-bg);   color: var(--clx-group-avulsos);   border-color: transparent; }
+.clx-chip-group-sofa      { background: var(--clx-group-sofa-bg);      color: var(--clx-group-sofa);      border-color: transparent; }
+.clx-chip-group-colchao   { background: var(--clx-group-colchao-bg);   color: var(--clx-group-colchao);   border-color: transparent; }
+.clx-chip-group-outros    { background: var(--clx-group-outros-bg);    color: var(--clx-group-outros);    border-color: transparent; }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — célula categoria/grupo + ícone
+   ==================================================== */
+.svc-cat-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--clx-r-md);
+  flex-shrink: 0;
+}
+.svc-cat-veicular    { background: var(--clx-primary-bg); color: var(--clx-primary-2); }
+.svc-cat-residencial { background: rgba(15,76,92,0.08);   color: var(--clx-accent); }
+[data-theme="dark"] .svc-cat-residencial { background: rgba(61,165,217,0.14); color: var(--clx-accent); }
+
+.svc-row-name { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.svc-row-name strong { color: var(--clx-ink); font-weight: 600; }
+
+.svc-cat-grp { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.svc-cat-grp-cat { color: var(--clx-ink-3); font-size: 0.82rem; white-space: nowrap; }
+
+.svc-muted { color: var(--clx-ink-3); font-size: 0.82rem; }
+
+/* Status pill com bolinha (estático e como botão de toggle) */
+.svc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.svc-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.svc-status-ativo   { color: var(--clx-success); }
+.svc-status-inativo { color: var(--clx-ink-3); }
+.svc-status-btn {
+  background: none;
+  border: none;
+  padding: 5px 8px;
+  border-radius: var(--clx-r-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 32px;
+}
+.svc-status-btn:hover:not(:disabled) { background: var(--clx-bg-2); }
+.svc-status-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — toolbar da lista
+   ==================================================== */
+.svc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.svc-toolbar-search { flex: 1 1 240px; }
+.svc-filter {
+  padding: 10px 12px;
+  background: var(--clx-bg);
+  border: 1.5px solid var(--clx-line);
+  border-radius: var(--clx-r-md);
+  font-size: 0.85rem;
+  color: var(--clx-ink);
+  outline: none;
+  min-height: 42px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.svc-filter:focus {
+  border-color: var(--clx-primary);
+  box-shadow: 0 0 0 3px rgba(0,194,184,0.14);
+}
+
+/* ====================================================
+   MÓDULO SERVIÇOS — tabela + ações/kebab
+   ==================================================== */
+.svc-table .svc-actions-cell { text-align: right; white-space: nowrap; }
+.svc-row-actions { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.svc-kebab-wrap { position: relative; }
+.svc-kebab-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 168px;
+  background: var(--clx-bg);
+  border: 1px solid var(--clx-line);
+  border-radius: var(--clx-r-md);
+  box-shadow: var(--clx-shadow-md);
+  z-index: 50;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.svc-kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--clx-r-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--clx-ink-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s, color 0.12s;
+}
+.svc-kebab-item:hover { background: var(--clx-bg-2); color: var(--clx-ink); }
+.svc-kebab-item.danger { color: var(--clx-error); }
+.svc-kebab-item.danger:hover { background: rgba(239,68,68,0.08); }
+[data-theme="dark"] .svc-kebab-menu { background: var(--clx-bg-2); }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — editor full-page
+   ==================================================== */
+.svc-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.svc-editor-head-text { min-width: 0; }
+.svc-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--clx-ink-3);
+  margin-bottom: 8px;
+}
+.svc-breadcrumb a { color: var(--clx-primary-2); font-weight: 600; }
+.svc-breadcrumb a:hover { text-decoration: underline; }
+.svc-breadcrumb-sep { color: var(--clx-line-2); }
+.svc-editor-title {
+  font-family: var(--clx-font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--clx-ink);
+  line-height: 1.1;
+}
+.svc-editor-subtitle {
+  font-size: 0.875rem;
+  color: var(--clx-ink-3);
+  margin-top: 6px;
+  max-width: 64ch;
+  line-height: 1.5;
+}
+.svc-editor-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.svc-stack { display: flex; flex-direction: column; gap: 16px; }
+.svc-card {
+  background: var(--clx-bg);
+  border: 1px solid var(--clx-line);
+  border-radius: var(--clx-r-lg);
+  box-shadow: var(--clx-shadow-sm);
+  padding: 20px 22px;
+}
+.svc-card-title {
+  font-family: var(--clx-font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--clx-ink);
+  margin-bottom: 16px;
+}
+.svc-card-title-inline { margin-bottom: 0; }
+.svc-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.svc-card-hint {
+  font-size: 0.75rem;
+  color: var(--clx-ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.svc-card-desc {
+  font-size: 0.85rem;
+  color: var(--clx-ink-3);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* Grid de informações principais (flui e quebra naturalmente) */
+.svc-info-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+.svc-info-grid > .form-field { flex: 1 1 150px; min-width: 0; }
+.svc-info-grid > .svc-f-sm   { flex: 1 1 140px; }
+.svc-info-grid > .svc-f-valor { flex: 1.4 1 180px; }
+.svc-info-grid > .svc-f-nome  { flex: 2.2 1 240px; }
+
+.svc-field-hint { font-size: 0.72rem; color: var(--clx-ink-3); }
+
+.money-range { display: flex; align-items: center; gap: 8px; }
+.money-range input { flex: 1; min-width: 0; }
+.money-range-sep { color: var(--clx-ink-3); font-size: 0.85rem; flex-shrink: 0; }
+
+/* Linha de status */
+.svc-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--clx-line);
+  flex-wrap: wrap;
+}
+.svc-status-row-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--clx-ink-2);
+}
+.svc-status-row-text { font-size: 0.875rem; color: var(--clx-ink-2); cursor: pointer; }
+
+/* Pares de cards lado a lado */
+.svc-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .svc-grid-2 { grid-template-columns: 1fr; } }
+
+/* Textarea do módulo */
+.svc-textarea {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--clx-bg-2);
+  border: 1.5px solid var(--clx-line);
+  border-radius: var(--clx-r-md);
+  font-size: 0.9rem;
+  color: var(--clx-ink);
+  outline: none;
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.55;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.svc-textarea::placeholder { color: var(--clx-ink-3); }
+.svc-textarea:focus {
+  border-color: var(--clx-primary);
+  box-shadow: 0 0 0 3px rgba(0,194,184,0.13);
+  background: var(--clx-bg);
+}
+
+/* ====================================================
+   MÓDULO SERVIÇOS — editor de checklist
+   ==================================================== */
+.checklist-editor { display: flex; flex-direction: column; gap: 10px; }
+.checklist-empty { font-size: 0.85rem; color: var(--clx-ink-3); line-height: 1.5; padding: 6px 2px; }
+.checklist-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--clx-bg-2);
+  border: 1px solid var(--clx-line);
+  border-radius: var(--clx-r-md);
+  transition: border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
+}
+.checklist-item.dragging { opacity: 0.5; }
+.checklist-item.drag-over {
+  border-color: var(--clx-primary);
+  box-shadow: 0 0 0 2px var(--clx-primary-border);
+}
+.checklist-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--clx-ink-3);
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+}
+.checklist-handle:active { cursor: grabbing; }
+.checklist-check {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--clx-primary);
+  color: #fff;
+  flex-shrink: 0;
+}
+.checklist-title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  background: var(--clx-bg);
+  border: 1.5px solid transparent;
+  border-radius: var(--clx-r-sm);
+  font-size: 0.875rem;
+  color: var(--clx-ink);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.checklist-title-input:focus {
+  border-color: var(--clx-primary);
+  box-shadow: 0 0 0 3px rgba(0,194,184,0.12);
+}
+.checklist-row-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.checklist-move:disabled { opacity: 0.35; cursor: default; }
+.checklist-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--clx-primary-2);
+  font-family: var(--clx-font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--clx-r-md);
+  transition: background 0.12s;
+}
+.checklist-add:hover { background: var(--clx-primary-bg); }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — orientações
+   ==================================================== */
+.orientation-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.orientation-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--clx-r-md);
+  background: var(--clx-primary-bg);
+  color: var(--clx-primary-2);
+  flex-shrink: 0;
+}
+.orientation-text { min-height: 84px; }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — regras na OS
+   ==================================================== */
+.rules-list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: var(--clx-primary-bg);
+  border: 1px solid var(--clx-primary-border);
+  border-radius: var(--clx-r-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--clx-primary-2);
+}
+.rule-chip svg { color: var(--clx-primary); flex-shrink: 0; }
+
+/* ====================================================
+   MÓDULO SERVIÇOS — pré-visualização na OS
+   ==================================================== */
+.preview-os-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px 18px;
+  background: var(--clx-bg-2);
+  border: 1px solid var(--clx-primary-border);
+  border-radius: var(--clx-r-lg);
+}
+.preview-icon { display: flex; }
+.preview-icon .svc-cat-icon { width: 46px; height: 46px; border-radius: 50%; }
+.preview-body { min-width: 0; }
+.preview-name {
+  font-family: var(--clx-font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--clx-ink);
+  margin-bottom: 4px;
+}
+.preview-desc { font-size: 0.8rem; color: var(--clx-ink-3); line-height: 1.5; margin-bottom: 12px; }
+.preview-meta { display: flex; gap: 24px; flex-wrap: wrap; }
+.preview-meta-item { display: flex; flex-direction: column; gap: 2px; }
+.preview-meta-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--clx-ink-3);
+}
+.preview-meta-value { font-size: 0.875rem; font-weight: 700; color: var(--clx-ink); }
+.preview-inclui { min-width: 0; max-width: 220px; }
+.preview-inclui-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--clx-ink-3);
+  display: block;
+  margin-bottom: 6px;
+}
+.preview-inclui-list { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.preview-inclui-list li { font-size: 0.78rem; color: var(--clx-ink-2); line-height: 1.35; }
+.preview-inclui-more { color: var(--clx-primary-2); font-weight: 700; }
+.preview-inclui-empty { font-size: 0.78rem; color: var(--clx-ink-3); font-style: italic; }
+
+@media (max-width: 560px) {
+  .preview-os-card { grid-template-columns: auto 1fr; }
+  .preview-inclui {
+    grid-column: 1 / -1;
+    max-width: none;
+    border-top: 1px dashed var(--clx-line);
+    padding-top: 10px;
+  }
+}
+
+/* ====================================================
+   MÓDULO SERVIÇOS — responsivo (mobile)
+   ==================================================== */
+@media (max-width: 767px) {
+  .svc-toolbar { flex-direction: column; align-items: stretch; }
+  .svc-toolbar-search, .svc-filter { width: 100%; flex-basis: auto; }
+  .svc-toolbar .clx-btn { width: 100%; min-height: 44px; }
+
+  .svc-editor-actions { width: 100%; }
+  .svc-editor-actions .clx-btn { flex: 1 1 auto; min-height: 44px; }
+  .svc-editor-title { font-size: 1.3rem; }
+  .svc-card { padding: 16px 16px; }
+}

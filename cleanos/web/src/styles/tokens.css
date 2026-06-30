@@ -84,6 +84,23 @@
   /* Easing */
   --clx-ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
   --clx-ease-soft: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Cores de grupo de serviço (chips do módulo Serviços) */
+  --clx-group-plano:     #64748B;
+  --clx-group-promocao:  #F59E0B; /* Promoção: amarelo/âmbar (alinhado a --clx-warning) */
+  --clx-group-adicional: #2563EB;
+  --clx-group-avulsos:   #FF8C42;
+  --clx-group-sofa:      #C084FC;
+  --clx-group-colchao:   #C084FC; /* Colchão: mesma paleta lilás do Sofá */
+  --clx-group-outros:    #64748B;
+
+  --clx-group-plano-bg:     rgba(100,116,139,0.12);
+  --clx-group-promocao-bg:  rgba(245,158,11,0.12);
+  --clx-group-adicional-bg: rgba(37,99,235,0.10);
+  --clx-group-avulsos-bg:   rgba(255,140,66,0.14);
+  --clx-group-sofa-bg:      rgba(192,132,252,0.16);
+  --clx-group-colchao-bg:   rgba(192,132,252,0.16);
+  --clx-group-outros-bg:    rgba(100,116,139,0.12);
 }
 
 /* ---- Tema escuro (opcional — não é o padrão) ---- */
@@ -137,4 +154,21 @@
   --clx-status-em_andamento-bg: rgba(251,191,36,0.18);
   --clx-status-concluida-bg:    rgba(74,222,128,0.16);
   --clx-status-cancelada-bg:    rgba(248,113,113,0.16);
+
+  /* Cores de grupo de serviço — variantes para tema escuro */
+  --clx-group-plano:     #94A3B8;
+  --clx-group-promocao:  #FBBF24; /* Promoção: amarelo/âmbar (alinhado a --clx-warning dark) */
+  --clx-group-adicional: #60A5FA;
+  --clx-group-avulsos:   #FFB27A;
+  --clx-group-sofa:      #D8B4FE;
+  --clx-group-colchao:   #D8B4FE; /* Colchão: mesma paleta lilás do Sofá */
+  --clx-group-outros:    #94A3B8;
+
+  --clx-group-plano-bg:     rgba(148,163,184,0.18);
+  --clx-group-promocao-bg:  rgba(251,191,36,0.18);
+  --clx-group-adicional-bg: rgba(96,165,250,0.16);
+  --clx-group-avulsos-bg:   rgba(255,178,122,0.18);
+  --clx-group-sofa-bg:      rgba(216,180,254,0.18);
+  --clx-group-colchao-bg:   rgba(216,180,254,0.18);
+  --clx-group-outros-bg:    rgba(148,163,184,0.18);
 }
