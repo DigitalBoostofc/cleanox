@@ -23,6 +23,7 @@ onRecordCreate((e) => {
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record); // limpa/define endereço conforme status
   lib.assertPaymentIfConcluida(e.record);
+  lib.setRepasseIfConcluida(e.record); // F-002: cobre create-as-concluida (OS nascendo concluida)
   e.next();
 }, "ordens_servico");
 

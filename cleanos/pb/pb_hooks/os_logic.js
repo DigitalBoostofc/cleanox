@@ -359,24 +359,33 @@ function guardOrdemUpdateRequest(e) {
 }
 
 /**
- * F-002: inicializa repasse na transição para `concluida`.
- * Só age em onRecordUpdate (não em CREATE — CREATE não é transição de status).
- * Não sobrescreve se admin já tiver definido manualmente.
+ * F-002: inicializa o repasse quando a OS passa a `concluida` COM pagamento.
+ * Vale para os DOIS caminhos (chamado tanto em onRecordCreate quanto onRecordUpdate):
+ *   - update-to-concluida: detecta a TRANSIÇÃO x → concluida (orig.status !== concluida);
+ *   - create-as-concluida: OS nascendo já concluida (sem original()) — ex.: admin/gerente
+ *     lançando uma OS já finalizada, ou import. Sem este ramo a OS jamais entraria na
+ *     fila "A repassar" do Financeiro (que filtra repasse_status === 'pendente').
+ * Só preenche se `repasse_status` estiver VAZIO — NUNCA sobrescreve 'pago' (admin já
+ * repassou) nem 'pendente' já definido manualmente.
  */
 function setRepasseIfConcluida(record) {
-  const orig = record.original ? record.original() : null;
-  if (!orig) return; // create — não é transição de status
+  if (String(record.get("status")) !== "concluida") return; // não está concluida
 
-  if (String(orig.get("status")) === "concluida") return; // já estava concluida
-  if (String(record.get("status")) !== "concluida") return; // não está concluindo agora
+  const orig = record.original ? record.original() : null;
+  // update: só age na TRANSIÇÃO; se já estava concluida, não reage a saves seguintes.
+  // create: orig === null → segue (OS nascendo concluida).
+  if (orig && String(orig.get("status")) === "concluida") return;
+
+  // só com pagamento registrado (espelha assertPaymentIfConcluida, que roda antes).
+  const valorPago = Number(record.get("valor_pago") || 0);
+  if (!(valorPago > 0)) return;
 
   if (!record.get("repasse_status")) {
     record.set("repasse_status", "pendente");
   }
   const rv = Number(record.get("repasse_valor") || 0);
   if (!(rv > 0)) {
-    const valorPago = Number(record.get("valor_pago") || 0);
-    if (valorPago > 0) record.set("repasse_valor", valorPago);
+    record.set("repasse_valor", valorPago);
   }
 }
 
