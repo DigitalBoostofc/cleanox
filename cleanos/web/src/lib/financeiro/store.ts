@@ -73,6 +73,7 @@ function pbToConta(rec: FinContaPB): Conta {
     saldoInicial: rec.saldo_inicial,
     saldoAtual: rec.saldo_atual,
     ativo: rec.ativo,
+    padrao: rec.padrao ?? false,
     cor: rec.cor,
     icone: rec.icone,
   }
@@ -143,6 +144,7 @@ function contaToPB(input: Partial<ContaInput>): Record<string, unknown> {
   if (has('saldoInicial')) out.saldo_inicial = input.saldoInicial
   if (has('saldoAtual'))   out.saldo_atual   = input.saldoAtual
   if (has('ativo'))        out.ativo         = input.ativo
+  if (has('padrao'))       out.padrao        = input.padrao
   if (has('cor'))          out.cor           = input.cor ?? null
   if (has('icone'))        out.icone         = input.icone ?? null
   return out
@@ -211,34 +213,39 @@ function efeitoNoSaldo(tipo: Lancamento['tipo'], valor: number, status: Lancamen
 }
 
 /**
- * Aplica `delta` ao saldo_atual de uma conta de forma INCREMENTAL: relê o saldo
- * corrente do servidor IMEDIATAMENTE antes de somar, minimizando a janela de
- * lost-update com incrementos concorrentes (ex.: hook OS→Financeiro). Nunca grava
- * um saldo absoluto a partir de estado de UI stale. Best-effort: ignora se a conta
- * não existir. Exportada para o painel (transferência/editar conta) usar a MESMA
- * estratégia incremental do hook, evitando clobber de incrementos concorrentes.
+ * Aplica `delta` ao saldo_atual de uma conta de forma ATÔMICA no SERVIDOR (F-220):
+ * chama a rota `POST /api/cleanos/contas/ajustar`, que dentro de uma transação DB
+ * lê o saldo FRESCO e soma o delta — sem janela entre ler e escrever, então não
+ * clobbera o incremento concorrente do hook OS→Financeiro (lost-update). O painel
+ * nunca mais grava saldo_atual absoluto a partir de estado de UI stale. Best-effort:
+ * ignora 404 (conta inexistente) para não quebrar reverts de lançamento órfão.
  */
 export async function ajustarSaldoConta(contaId: string, delta: number): Promise<void> {
   if (delta === 0) return
-  const conta = await getConta(contaId)
-  if (!conta) return
-  await updateConta(contaId, { saldoAtual: conta.saldoAtual + delta })
+  try {
+    await pb.send('/api/cleanos/contas/ajustar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contaId, delta }),
+    })
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return // conta ausente → no-op
+    throw err
+  }
 }
 
 /**
- * Transferência entre contas aplicando DELTAS incrementais (−valor na origem,
- * +valor no destino) via ajustarSaldoConta — cada perna relê o saldo fresco antes
- * de somar, então não sobrescreve incrementos concorrentes (lost-update). Se o
- * crédito no destino falhar, faz rollback do débito da origem (+valor).
+ * Transferência entre contas ATÔMICA no SERVIDOR (F-220): chama a rota
+ * `POST /api/cleanos/contas/transferir`, que debita −valor na origem e credita
+ * +valor no destino na MESMA transação DB (all-or-nothing), lendo os dois saldos
+ * frescos dentro dela — sem janela de lost-update e sem rollback manual no cliente.
  */
 export async function transferirSaldo(fromId: string, toId: string, valor: number): Promise<void> {
-  await ajustarSaldoConta(fromId, -valor)
-  try {
-    await ajustarSaldoConta(toId, valor)
-  } catch (e) {
-    await ajustarSaldoConta(fromId, valor) // rollback do débito
-    throw e
-  }
+  await pb.send('/api/cleanos/contas/transferir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ de: fromId, para: toId, valor }),
+  })
 }
 
 /* ============================================================
@@ -404,6 +411,20 @@ export async function deleteConta(id: string): Promise<boolean> {
     if (err instanceof ClientResponseError && err.status === 404) return false
     throw err
   }
+}
+
+/**
+ * Define `contaId` como a conta PADRÃO para receita de OS (F-223) de forma ATÔMICA
+ * no servidor: a rota `POST /api/cleanos/contas/padrao` desmarca todas as demais
+ * `padrao=true` e marca só esta na MESMA transação — garantindo que exista sempre
+ * no máximo UMA conta padrão, mesmo sob corrida. Restrita a admin/gerente.
+ */
+export async function definirContaPadrao(contaId: string): Promise<void> {
+  await pb.send('/api/cleanos/contas/padrao', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contaId }),
+  })
 }
 
 /* ============================================================

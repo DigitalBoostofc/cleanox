@@ -63,6 +63,12 @@ export interface Conta extends FinRecord {
   /** Saldo corrente (saldoInicial ± movimentações). Por ora vem do seed/store. */
   saldoAtual: number
   ativo: boolean
+  /**
+   * Conta PADRÃO para receita de OS (F-223): o hook OS→Financeiro credita a receita
+   * na conta ativa marcada `padrao`. Só UMA conta é padrão por vez (garantido pela
+   * rota server-side que desmarca as demais atomicamente).
+   */
+  padrao?: boolean
   /** Cor de destaque (hex) para o badge/ícone na UI. */
   cor?: string
   /** Nome lógico do ícone (convenção lucide-react) para a UI mapear. */
