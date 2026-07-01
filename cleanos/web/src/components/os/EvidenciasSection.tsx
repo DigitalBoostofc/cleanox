@@ -149,6 +149,10 @@ export default function EvidenciasSection({
   const createdUrls = useRef<Set<string>>(new Set())
   // Timers de debounce de legenda por id.
   const legendaTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // F-503: legenda editada pelo usuário ENQUANTO um item tmp ainda está em upload.
+  // Como o item tmp não persiste (handleLegenda retorna cedo), guardamos a edição
+  // aqui para mesclá-la (e persisti-la) quando o upload resolver.
+  const editedTmpLegenda = useRef<Record<string, string>>({})
 
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -255,13 +259,27 @@ export default function EvidenciasSection({
         enviadoPorId: user?.id,
       })
         .then((real) => {
+          // F-503: se o usuário editou a legenda durante o upload, preserva a edição
+          // (merge) em vez de sobrescrever com a legenda original do nome do arquivo,
+          // e persiste a legenda editada no PB (o item tmp não chegou a persistir).
+          const edited = editedTmpLegenda.current[tmpId]
+          const hasEdit = edited !== undefined && edited !== (real.legenda ?? '')
+          const merged = hasEdit ? { ...real, legenda: edited || undefined } : real
+          delete editedTmpLegenda.current[tmpId]
           // Troca o item temporário pelo registro real (id + URL do PB).
-          onChange((prev) => prev.map((f) => (f.id === tmpId ? real : f)))
+          onChange((prev) => prev.map((f) => (f.id === tmpId ? merged : f)))
           revoke(localUrl)
           markPending(tmpId, false)
+          if (hasEdit) {
+            updateEvidencia(real.id, { legenda: edited }).catch((err) => {
+              const { message } = describeOSError(err)
+              notifyError(`Não foi possível salvar a legenda: ${message}`)
+            })
+          }
         })
         .catch((err) => {
           // Remove o item otimista e avisa.
+          delete editedTmpLegenda.current[tmpId]
           onChange((prev) => prev.filter((f) => f.id !== tmpId))
           revoke(localUrl)
           markPending(tmpId, false)
@@ -313,7 +331,12 @@ export default function EvidenciasSection({
     const legenda = value || undefined
     // Atualização local imediata (UI responsiva).
     onChange((prev) => prev.map((f) => (f.id === id ? { ...f, legenda } : f)))
-    if (isTmp(id)) return // ainda subindo — persiste depois via vínculo/recarregar
+    if (isTmp(id)) {
+      // F-503: ainda subindo — registra a edição p/ o .then do upload mesclar e
+      // persistir (antes era perdida quando o item tmp era trocado pelo real).
+      editedTmpLegenda.current[id] = value
+      return
+    }
 
     const timers = legendaTimers.current
     if (timers[id]) clearTimeout(timers[id])

@@ -174,6 +174,33 @@ function fillServiceSnapshot(app, record) {
     };
 
     record.set("service_snapshot", snapshot);
+
+    // F-010: materializa o checklist de EXECUÇÃO já na criação da OS, espelhando
+    // snapshotToChecklistExec() do frontend (web/src/lib/servicos/store.ts).
+    // Antes, uma OS criada pelo modal "Nova OS" (que só envia o relation `servico`,
+    // sem snapshot/checklist) chegava na tela de Execução com checklist VAZIO — os
+    // itens só apareciam ao RE-selecionar o serviço no dropdown. Como este bloco só
+    // roda quando ACABAMOS de congelar o snapshot (snapshot vazio antes), e ainda
+    // assim só preenche se checklist_exec estiver vazio, nunca clobbera um checklist
+    // em progresso nem o checklist já derivado pela UI (que envia snapshot+checklist
+    // juntos, caso em que retornamos antes na guarda de imutabilidade).
+    const existingExec = readJsonField(record, "checklist_exec");
+    if (!Array.isArray(existingExec) || existingExec.length === 0) {
+      const ordered = checklistPadrao.slice().sort(function (a, b) {
+        return a.ordem - b.ordem;
+      });
+      if (ordered.length > 0) {
+        const exec = ordered.map(function (it, i) {
+          return {
+            id: "cke_" + Date.now().toString(36) + i.toString(36) +
+                Math.floor(Math.random() * 1e9).toString(36),
+            titulo: it.titulo,
+            status: "pendente",
+          };
+        });
+        record.set("checklist_exec", exec);
+      }
+    }
   } catch (err) {
     // best-effort: loga mas nunca bloqueia a gravação da OS.
     console.error("[snapshot] Falha ao preencher service_snapshot (ignorado): " + err);

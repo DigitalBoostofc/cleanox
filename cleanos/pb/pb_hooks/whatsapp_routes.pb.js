@@ -176,10 +176,21 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
   }
 
   // 7) Lê telefone do COFRE server-side — NUNCA expõe na resposta.
+  // F-502: OS sem cliente associado → 400 explícito (espelha o guard de /relatorio).
+  // Sem isso, clienteId vazio levaria findRecordById a um 404/500 cru.
   const clienteId     = lib.relId(os.get("cliente"));
+  if (!clienteId) {
+    throw new BadRequestError("Esta OS não possui cliente associado.");
+  }
   const cliente       = $app.findRecordById("clientes", clienteId);
   const telefoneBruto = cliente.getString("telefone");
   const numero        = uazapi.normalizePhone(telefoneBruto);
+
+  // F-502: telefone ausente/inválido → normalizePhone devolve "". Aborta com erro
+  // de negócio em vez de seguir para o sendText com número vazio.
+  if (!numero) {
+    throw new BadRequestError("O cliente desta OS não possui telefone válido para o aviso.");
+  }
 
   // 8) Monta o texto com placeholders simples.
   const nomeCurto = os.getString("nome_curto") || "Cliente";
@@ -307,11 +318,13 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
       lines.push("");
     }
 
-    // Resumo financeiro
-    const total = Math.max(0, valorPrincipal + valorAdicionais);
+    // Resumo financeiro (espelha calcTotalOS do frontend: principal + adicionais − descontos)
+    const descontos = Math.max(0, Number(os.get("descontos") || 0));
+    const total = Math.max(0, valorPrincipal + valorAdicionais - descontos);
     lines.push("💰 *Resumo financeiro:*");
     lines.push("   Serviço: " + brl(valorPrincipal));
     if (valorAdicionais > 0) lines.push("   Adicionais: " + brl(valorAdicionais));
+    if (descontos > 0) lines.push("   Descontos: -" + brl(descontos));
     lines.push("   *Total: " + brl(total) + "*");
     lines.push("");
 

@@ -191,9 +191,15 @@ export default function ServicoEditorPage() {
       setDirty(true)
     }
     setFieldErrs((prev) => {
-      if (!prev[key as string]) return prev
+      // F-009: a validação de faixa (mín/máx) só se aplica quando tipoValor === 'faixa';
+      // o erro fica sob a chave `valorBaseMaxCents`. Ao trocar o Tipo de valor para algo
+      // que não usa máximo (variável/fixo), limpamos esse erro órfão junto, senão a
+      // mensagem "valor máximo deve ser maior que o mínimo" persiste stale sob o campo.
+      const dropMax = key === 'tipoValor' && value !== 'faixa' && !!prev.valorBaseMaxCents
+      if (!prev[key as string] && !dropMax) return prev
       const next = { ...prev }
       delete next[key as string]
+      if (dropMax) delete next.valorBaseMaxCents
       return next
     })
   }

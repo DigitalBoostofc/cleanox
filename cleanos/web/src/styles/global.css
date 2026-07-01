@@ -3115,6 +3115,15 @@ img, svg { display: block; max-width: 100%; }
 .svc-kebab-item.danger:hover { background: rgba(239,68,68,0.08); }
 [data-theme="dark"] .svc-kebab-menu { background: var(--clx-bg-2); }
 
+/* F-008: enquanto o kebab está aberto, libera o overflow dos containers da tabela
+   para o menu suspenso (Duplicar/Excluir) não ser CLIPADO em listas curtas/
+   filtradas (poucas linhas → container baixo → menu cai fora e some).
+   O `.svc-kebab-menu` só existe no DOM quando aberto, então o :has() só ativa
+   nesse intervalo transiente; fora disso a tabela mantém o scroll/clip normais
+   (`.table-wrap` overflow:hidden + `.table-scroll` overflow-x:auto). */
+.table-wrap:has(.svc-kebab-menu) { overflow: visible; }
+.table-wrap:has(.svc-kebab-menu) .table-scroll { overflow: visible; }
+
 /* ====================================================
    MÓDULO SERVIÇOS — editor full-page
    ==================================================== */

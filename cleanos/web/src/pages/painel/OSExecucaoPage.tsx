@@ -116,16 +116,18 @@ function mockHeader(osId: string): OSHeader {
   }
 }
 
-/** Serializa o trio de rotina para comparar e evitar saves redundantes. */
+/** Serializa o trio de rotina (+ descontos) para comparar e evitar saves redundantes. */
 function serializeRoutine(
   checklist: ChecklistExecItem[],
   adicionais: ServicoAdicionalOS[],
   observacoes: ObservacaoProfissional[],
+  descontos: number,
 ): string {
   return JSON.stringify({
     checklist_exec: checklist,
     adicionais,
     observacoes_prof: observacoes,
+    descontos,
   })
 }
 
@@ -155,7 +157,7 @@ function OSExecucao({ osId }: { osId: string }) {
   const [valorPrincipal, setValorPrincipal] = useState(0)
   const [checklist, setChecklist] = useState<ChecklistExecItem[]>([])
   const [adicionais, setAdicionais] = useState<ServicoAdicionalOS[]>([])
-  // descontos não tem coluna no PB — permanece local (reinicia ao recarregar).
+  // descontos é persistido na OS (coluna `descontos`) e abatido no total/relatório.
   const [descontos, setDescontos] = useState(0)
   const [fotos, setFotos] = useState<EvidenciaFoto[]>([])
   const [fotosLoading, setFotosLoading] = useState(true)
@@ -212,11 +214,13 @@ function OSExecucao({ osId }: { osId: string }) {
       const ck = rec.checklist_exec ?? []
       const ad = rec.adicionais ?? []
       const ob = rec.observacoes_prof ?? []
+      const desc = rec.descontos ?? 0
       setChecklist(ck)
       setAdicionais(ad)
       setObservacoes(ob)
+      setDescontos(desc)
       // marca o estado já persistido para o debounce não re-salvar a hidratação.
-      lastSavedRef.current = serializeRoutine(ck, ad, ob)
+      lastSavedRef.current = serializeRoutine(ck, ad, ob, desc)
       hydratedRef.current = true
     } catch (err) {
       const info = describeOSError(err)
@@ -295,10 +299,10 @@ function OSExecucao({ osId }: { osId: string }) {
     [osId, showToast],
   )
 
-  // Debounce dos saves de rotina (checklist/adicionais/observações).
+  // Debounce dos saves de rotina (checklist/adicionais/observações/descontos).
   useEffect(() => {
     if (!isReal || !hydratedRef.current) return
-    const serialized = serializeRoutine(checklist, adicionais, observacoes)
+    const serialized = serializeRoutine(checklist, adicionais, observacoes, descontos)
     if (serialized === lastSavedRef.current) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
@@ -309,6 +313,7 @@ function OSExecucao({ osId }: { osId: string }) {
           checklist_exec: checklist,
           adicionais,
           observacoes_prof: observacoes,
+          descontos,
         },
         serialized,
       )
@@ -316,7 +321,7 @@ function OSExecucao({ osId }: { osId: string }) {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [checklist, adicionais, observacoes, isReal, doSave])
+  }, [checklist, adicionais, observacoes, descontos, isReal, doSave])
 
   // Limpa timers ao desmontar.
   useEffect(() => {
@@ -350,6 +355,7 @@ function OSExecucao({ osId }: { osId: string }) {
       newChecklist: ChecklistExecItem[],
       adic: ServicoAdicionalOS[],
       obs: ObservacaoProfissional[],
+      desc: number,
     ) => {
       if (!isReal) return
       setSaveState('saving')
@@ -358,9 +364,10 @@ function OSExecucao({ osId }: { osId: string }) {
         await saveOSExecPatch(osId, {
           service_snapshot: snap,
           checklist_exec: newChecklist,
+          descontos: desc,
         })
-        // o trio de rotina passa a refletir o checklist recém-derivado.
-        lastSavedRef.current = serializeRoutine(newChecklist, adic, obs)
+        // o trio de rotina (+ descontos) passa a refletir o checklist recém-derivado.
+        lastSavedRef.current = serializeRoutine(newChecklist, adic, obs, desc)
         setSaveState('saved')
         if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
         savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2200)
@@ -390,7 +397,7 @@ function OSExecucao({ osId }: { osId: string }) {
     // serviço zera a execução) e ficam como chip genérico até nova edição.
     setFotos((prev) => prev.map((f) => ({ ...f, checklistItemId: undefined })))
     showToast(`Snapshot de "${svc.nome}" capturado.`, 'success')
-    void persistSnapshot(snap, newChecklist, adicionais, observacoes)
+    void persistSnapshot(snap, newChecklist, adicionais, observacoes, descontos)
   }
 
   function onSelectServico(id: string) {
