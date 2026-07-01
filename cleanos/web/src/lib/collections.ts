@@ -18,6 +18,14 @@ import type {
   ServicoAdicionalOS,
   ObservacaoProfissional,
 } from './servicos/types'
+import type {
+  Anexo,
+  ContaTipo,
+  LancamentoStatus,
+  OrigemLancamento,
+  RecorrenciaTipo,
+  TipoLancamento,
+} from './financeiro/types'
 
 /* ---- Nomes das coleções ---- */
 export const COLLECTIONS = {
@@ -467,4 +475,61 @@ export function maskCEP(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
   if (digits.length <= 5) return digits
   return `${digits.slice(0, 5)}-${digits.slice(5)}`
+}
+
+/* ---- Módulo Financeiro — nomes das coleções e tipos PB (snake_case) ---- */
+
+export const FIN_COLLECTIONS = {
+  CONTAS: 'fin_contas',
+  CATEGORIAS: 'fin_categorias',
+  LANCAMENTOS: 'fin_lancamentos',
+  LIMITES: 'fin_limites',
+} as const
+
+export interface FinContaPB extends PBRecord {
+  nome: string
+  tipo: ContaTipo
+  saldo_inicial: number
+  saldo_atual: number
+  ativo: boolean
+  cor?: string
+  icone?: string
+}
+
+export interface FinCategoriaPB extends PBRecord {
+  nome: string
+  tipo: TipoLancamento
+  icone?: string
+  cor?: string
+  parent_id?: string
+  arquivada: boolean
+}
+
+export interface FinLancamentoPB extends PBRecord {
+  tipo: TipoLancamento
+  descricao: string
+  categoria_id: string
+  subcategoria_id?: string
+  valor: number
+  conta_id: string
+  data: string
+  vencimento?: string
+  status: LancamentoStatus
+  recorrencia: RecorrenciaTipo
+  parcela_atual?: number
+  parcelas_total?: number
+  origem: OrigemLancamento
+  os_id?: string
+  os_numero?: string
+  cliente_nome?: string
+  servico_nome?: string
+  forma_pagamento?: string
+  observacao?: string
+  tags?: string[]
+  anexos?: Anexo[]
+}
+
+export interface FinLimitePB extends PBRecord {
+  categoria_id: string
+  limite: number
 }

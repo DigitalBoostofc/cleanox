@@ -1,8 +1,70 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+/* ============================================================
+ * Mock do cliente PocketBase (../pb)
+ *
+ * A store agora conversa com pb.collection(FIN_COLLECTIONS.*). Trocamos a
+ * camada de rede por um DB em memória multi-coleção que fala o MESMO protocolo
+ * do SDK (getFullList/getOne/create/update/delete + ClientResponseError 404).
+ * O DB é semeado a cada teste com os dados do seed.ts convertidos para o shape
+ * PB (snake_case). As DERIVAÇÕES PURAS não tocam o pb e são testadas sem mock,
+ * diretamente sobre LANCAMENTOS_SEED (valores de conferência jun/2026).
+ * ============================================================ */
+
+// DB compartilhado entre o factory do mock e o reset dos testes (via vi.hoisted).
+const db = vi.hoisted(() => ({
+  stores: {} as Record<string, Record<string, unknown>[]>,
+  seq: 0,
+}))
+
+vi.mock('../pb', async () => {
+  const { ClientResponseError } =
+    await vi.importActual<typeof import('pocketbase')>('pocketbase')
+  const notFound = () =>
+    new ClientResponseError({ status: 404, response: { code: 404, message: 'Not found.' } })
+  const dup = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
+  const stamp = (): string => {
+    db.seq += 1
+    return new Date(Date.UTC(2026, 5, 30, 0, 0, 0, db.seq)).toISOString()
+  }
+  return {
+    pb: {
+      collection: (name: string) => ({
+        getFullList: async () => (db.stores[name] ?? []).map(dup),
+        getOne: async (id: string) => {
+          const rec = (db.stores[name] ?? []).find((r) => r.id === id)
+          if (!rec) throw notFound()
+          return dup(rec)
+        },
+        create: async (data: Record<string, unknown>) => {
+          if (!db.stores[name]) db.stores[name] = []
+          const ts = stamp()
+          const rec = { id: `rec_${db.seq}`, created: ts, updated: ts, ...data }
+          db.stores[name].push(rec)
+          return dup(rec)
+        },
+        update: async (id: string, data: Record<string, unknown>) => {
+          const list = db.stores[name] ?? []
+          const idx = list.findIndex((r) => r.id === id)
+          if (idx === -1) throw notFound()
+          const rec = { ...list[idx], ...data, updated: stamp() }
+          list[idx] = rec
+          return dup(rec)
+        },
+        delete: async (id: string) => {
+          const list = db.stores[name] ?? []
+          const idx = list.findIndex((r) => r.id === id)
+          if (idx === -1) throw notFound()
+          list.splice(idx, 1)
+          return true
+        },
+      }),
+    },
+  }
+})
+
 import {
-  STORAGE_KEYS,
-  resetFinanceiroStore,
   // Lançamentos
   listLancamentos,
   getLancamento,
@@ -49,41 +111,73 @@ import type {
   LimiteInput,
 } from './types'
 
-/* ============================================================
- * Stub de localStorage (env node — não há Web Storage).
- *
- * O store (financeiro/store.ts) usa `localStorage` quando disponível e cai num
- * fallback em memória quando não. Aqui instalamos um stub Map-backed FRESCO a
- * cada teste, exercendo de fato o caminho de persistência real (getRaw/setRaw),
- * e garantindo isolamento entre os casos. Espelha a abordagem de isolar a camada
- * de dados de src/lib/servicos/store.test.ts (lá via mock do pb).
- * ============================================================ */
+/* ---- Conversores seed (camelCase) → registros PB (snake_case) para o mock ---- */
 
-class LocalStorageStub {
-  private map = new Map<string, string>()
-  get length(): number {
-    return this.map.size
+function contaSeedToPB(c: (typeof CONTAS_SEED)[number]): Record<string, unknown> {
+  return {
+    id: c.id, created: c.created, updated: c.updated,
+    nome: c.nome, tipo: c.tipo,
+    saldo_inicial: c.saldoInicial,
+    saldo_atual: c.saldoAtual,
+    ativo: c.ativo,
+    cor: c.cor ?? null,
+    icone: c.icone ?? null,
   }
-  clear(): void {
-    this.map.clear()
+}
+
+function categoriaSeedToPB(c: (typeof CATEGORIAS_SEED)[number]): Record<string, unknown> {
+  return {
+    id: c.id, created: c.created, updated: c.updated,
+    nome: c.nome, tipo: c.tipo,
+    icone: c.icone ?? null,
+    cor: c.cor ?? null,
+    parent_id: c.parentId ?? null,
+    arquivada: c.arquivada,
   }
-  getItem(key: string): string | null {
-    return this.map.has(key) ? this.map.get(key)! : null
+}
+
+function lancamentoSeedToPB(l: (typeof LANCAMENTOS_SEED)[number]): Record<string, unknown> {
+  return {
+    id: l.id, created: l.created, updated: l.updated,
+    tipo: l.tipo, descricao: l.descricao,
+    categoria_id: l.categoriaId,
+    subcategoria_id: l.subcategoriaId ?? null,
+    valor: l.valor,
+    conta_id: l.contaId,
+    data: l.data,
+    vencimento: l.vencimento ?? null,
+    status: l.status,
+    recorrencia: l.recorrencia,
+    parcela_atual: l.parcelaAtual ?? null,
+    parcelas_total: l.parcelasTotal ?? null,
+    origem: l.origem,
+    os_id: l.osId ?? null,
+    os_numero: l.osNumero ?? null,
+    cliente_nome: l.clienteNome ?? null,
+    servico_nome: l.servicoNome ?? null,
+    forma_pagamento: l.formaPagamento ?? null,
+    observacao: l.observacao ?? null,
+    tags: l.tags ?? null,
+    anexos: l.anexos ?? null,
   }
-  key(index: number): string | null {
-    return Array.from(this.map.keys())[index] ?? null
-  }
-  removeItem(key: string): void {
-    this.map.delete(key)
-  }
-  setItem(key: string, value: string): void {
-    this.map.set(key, String(value))
+}
+
+function limiteSeedToPB(l: (typeof LIMITES_SEED)[number]): Record<string, unknown> {
+  return {
+    id: l.id, created: l.created, updated: l.updated,
+    categoria_id: l.categoriaId,
+    limite: l.limite,
   }
 }
 
 beforeEach(() => {
-  globalThis.localStorage = new LocalStorageStub() as unknown as Storage
-  resetFinanceiroStore()
+  db.stores = {
+    fin_contas: CONTAS_SEED.map(contaSeedToPB),
+    fin_categorias: CATEGORIAS_SEED.map(categoriaSeedToPB),
+    fin_lancamentos: LANCAMENTOS_SEED.map(lancamentoSeedToPB),
+    fin_limites: LIMITES_SEED.map(limiteSeedToPB),
+  }
+  db.seq = 0
 })
 
 /* ---- Builders de input mínimos válidos ---- */
@@ -153,11 +247,6 @@ describe('seed inicial', () => {
   it('6 limites', async () => {
     expect(await listLimites()).toHaveLength(6)
   })
-  it('persiste o seed no localStorage na primeira leitura', async () => {
-    expect(globalThis.localStorage.getItem(STORAGE_KEYS.lancamentos)).toBeNull()
-    await listLancamentos()
-    expect(globalThis.localStorage.getItem(STORAGE_KEYS.lancamentos)).not.toBeNull()
-  })
 })
 
 /* ============================================================
@@ -191,7 +280,7 @@ describe('CRUD lancamentos', () => {
     const l1 = await listLancamentos()
     l1[0].descricao = 'MUTADO'
     const l2 = await listLancamentos()
-    expect(l2[0].descricao).not.toBe('MUTADO')
+    expect(l2.every((l) => l.descricao !== 'MUTADO')).toBe(true)
   })
 
   it('update altera campo + refaz updated e preserva id/created', async () => {
@@ -476,6 +565,73 @@ describe('gastoPorCategoria (conferência — maiores gastos do mês)', () => {
   })
 })
 
+/* ============================================================
+ * A-001 — saldo_atual incremental nos CRUDs de lançamento
+ * ============================================================ */
+
+describe('saldo_atual — createLancamento', () => {
+  it('despesa pago reduz saldo_atual da conta', async () => {
+    const before = (await getConta('conta_carteira'))!.saldoAtual // 306.16
+    await createLancamento(lancInput({ tipo: 'despesa', valor: 100, contaId: 'conta_carteira', status: 'pago' }))
+    const after = (await getConta('conta_carteira'))!.saldoAtual
+    expect(after).toBeCloseTo(before - 100, 2)
+  })
+
+  it('receita pago aumenta saldo_atual da conta', async () => {
+    const before = (await getConta('conta_carteira'))!.saldoAtual // 306.16
+    await createLancamento(lancInput({ tipo: 'receita', valor: 200, contaId: 'conta_carteira', status: 'pago' }))
+    const after = (await getConta('conta_carteira'))!.saldoAtual
+    expect(after).toBeCloseTo(before + 200, 2)
+  })
+
+  it('status pendente NÃO altera saldo_atual', async () => {
+    const before = (await getConta('conta_carteira'))!.saldoAtual
+    await createLancamento(lancInput({ tipo: 'despesa', valor: 100, contaId: 'conta_carteira', status: 'pendente' }))
+    const after = (await getConta('conta_carteira'))!.saldoAtual
+    expect(after).toBeCloseTo(before, 2)
+  })
+})
+
+describe('saldo_atual — deleteLancamento', () => {
+  it('deletar lançamento pago reverte o efeito no saldo', async () => {
+    // lanc_seed_10: despesa, pago, 155.34, conta_carteira
+    const before = (await getConta('conta_carteira'))!.saldoAtual // 306.16
+    await deleteLancamento('lanc_seed_10')
+    const after = (await getConta('conta_carteira'))!.saldoAtual
+    expect(after).toBeCloseTo(before + 155.34, 2) // reverte o efeito -155.34
+  })
+})
+
+describe('saldo_atual — updateLancamento', () => {
+  it('mudança de status pendente→pago aplica o efeito', async () => {
+    // lanc_seed_18: despesa, pendente, 1200, conta_inter (efeito era 0)
+    const before = (await getConta('conta_inter'))!.saldoAtual // 6450
+    await updateLancamento('lanc_seed_18', { status: 'pago' })
+    const after = (await getConta('conta_inter'))!.saldoAtual
+    expect(after).toBeCloseTo(before - 1200, 2)
+  })
+
+  it('mudança de contaId move o efeito entre as duas contas', async () => {
+    // lanc_seed_10: despesa, pago, 155.34, conta_carteira → transferir para conta_inter
+    const carteiraAntes = (await getConta('conta_carteira'))!.saldoAtual // 306.16
+    const interAntes = (await getConta('conta_inter'))!.saldoAtual // 6450
+    await updateLancamento('lanc_seed_10', { contaId: 'conta_inter' })
+    const carteiraDepois = (await getConta('conta_carteira'))!.saldoAtual
+    const interDepois = (await getConta('conta_inter'))!.saldoAtual
+    expect(carteiraDepois).toBeCloseTo(carteiraAntes + 155.34, 2) // reverte na carteira
+    expect(interDepois).toBeCloseTo(interAntes - 155.34, 2) // aplica no inter
+  })
+
+  it('mudança de valor ajusta o delta incremental', async () => {
+    // lanc_seed_10: despesa, pago, 155.34, conta_carteira → valor 200
+    const before = (await getConta('conta_carteira'))!.saldoAtual // 306.16
+    await updateLancamento('lanc_seed_10', { valor: 200 })
+    const after = (await getConta('conta_carteira'))!.saldoAtual
+    // delta = -200 - (-155.34) = -44.66
+    expect(after).toBeCloseTo(before - 44.66, 2)
+  })
+})
+
 describe('progressoLimite', () => {
   const limProdutos = LIMITES_SEED.find((l) => l.id === 'lim_produtos')!
   const limCombustivel = LIMITES_SEED.find((l) => l.id === 'lim_combustivel')!
@@ -512,6 +668,68 @@ describe('progressoLimite', () => {
     expect(p.gasto).toBeCloseTo(3250, 2)
     expect(p.pct).toBe(1)
   })
+
+/* ============================================================
+ * M-002 — pbToLancamento: 0 de NumberField tratado como ausente
+ * ============================================================ */
+
+describe('pbToLancamento — parcela_atual/parcelas_total zero → undefined (M-002)', () => {
+  it('não-parcelado com parcela_atual=0/parcelas_total=0 → parcelaAtual/parcelasTotal undefined', async () => {
+    db.stores['fin_lancamentos'] = [
+      {
+        id: 'lanc_m002_nao_parc',
+        created: '2026-06-01T00:00:00.000Z',
+        updated: '2026-06-01T00:00:00.000Z',
+        tipo: 'despesa',
+        descricao: 'Não-parcelado PB',
+        categoria_id: 'cat_outros',
+        subcategoria_id: null,
+        valor: 50,
+        conta_id: 'conta_carteira',
+        data: '2026-06-15T10:00:00.000Z',
+        vencimento: null,
+        status: 'pago',
+        recorrencia: 'unica',
+        parcela_atual: 0,
+        parcelas_total: 0,
+        origem: 'manual',
+        os_id: null, os_numero: null, cliente_nome: null, servico_nome: null,
+        forma_pagamento: null, observacao: null, tags: [], anexos: [],
+      },
+    ]
+    const [l] = await listLancamentos()
+    expect(l.parcelaAtual).toBeUndefined()
+    expect(l.parcelasTotal).toBeUndefined()
+  })
+
+  it('parcelado com parcela_atual=1/parcelas_total=10 → preserva 1 e 10', async () => {
+    db.stores['fin_lancamentos'] = [
+      {
+        id: 'lanc_m002_parc',
+        created: '2026-06-01T00:00:00.000Z',
+        updated: '2026-06-01T00:00:00.000Z',
+        tipo: 'despesa',
+        descricao: 'Parcelado PB',
+        categoria_id: 'cat_equipamentos',
+        subcategoria_id: null,
+        valor: 280,
+        conta_id: 'conta_inter',
+        data: '2026-06-15T10:00:00.000Z',
+        vencimento: null,
+        status: 'pago',
+        recorrencia: 'parcelada',
+        parcela_atual: 1,
+        parcelas_total: 10,
+        origem: 'manual',
+        os_id: null, os_numero: null, cliente_nome: null, servico_nome: null,
+        forma_pagamento: null, observacao: null, tags: [], anexos: [],
+      },
+    ]
+    const [l] = await listLancamentos()
+    expect(l.parcelaAtual).toBe(1)
+    expect(l.parcelasTotal).toBe(10)
+  })
+})
 
   it('limite ≤ 0 → pct 0 (sem divisão por zero)', () => {
     const zero: LimiteGasto = {

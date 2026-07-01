@@ -1,31 +1,25 @@
 /**
- * financeiro/store.ts — Camada de dados MOCK do módulo Financeiro.
+ * financeiro/store.ts — Camada de dados do módulo Financeiro (PocketBase).
  *
- * Persiste em localStorage (chaves 'cleanox.fin.*.v1') e expõe uma API ASSÍNCRONA
- * que ESPELHA a forma de pb.collection() — list/get/create/update/delete — para
- * que a troca por PocketBase depois seja mecânica (ver // TODO PB). Em ambientes
- * sem localStorage (testes em Node puro), cai para um fallback em memória.
- *
- * Além do CRUD, este módulo concentra as DERIVAÇÕES puras e testáveis (resumo do
+ * O CRUD conversa com pb.collection(FIN_COLLECTIONS.*). Os mapeadores
+ * pbToConta/pbToCategoria/pbToLancamento/pbToLimite traduzem o registro PB
+ * (snake_case) para o tipo de domínio camelCase. As derivações puras (resumo do
  * período, saldo geral, agrupamento por data, contas a pagar/receber, gasto por
- * categoria e progresso de limite). Elas recebem os dados por parâmetro e NÃO
- * leem o relógio — qualquer "data de referência" (hoje) entra como argumento.
+ * categoria, progresso de limite) recebem dados por parâmetro e NÃO tocam a rede.
  */
 
-import {
-  CATEGORIAS_SEED,
-  CONTAS_SEED,
-  LANCAMENTOS_SEED,
-  LIMITES_SEED,
-} from './seed'
+import { ClientResponseError } from 'pocketbase'
+import { pb } from '../pb'
+import { FIN_COLLECTIONS } from '../collections'
+import type { FinContaPB, FinCategoriaPB, FinLancamentoPB, FinLimitePB } from '../collections'
 import { signedValue } from './labels'
 import type {
+  Anexo,
   Categoria,
   CategoriaInput,
   Conta,
   ContaInput,
   ContaPendente,
-  FinRecord,
   GrupoPorData,
   Lancamento,
   LancamentoInput,
@@ -37,192 +31,257 @@ import type {
 } from './types'
 
 /* ============================================================
- * Chaves de armazenamento (versão v1)
- * ============================================================ */
-
-export const STORAGE_KEYS = {
-  lancamentos: 'cleanox.fin.lancamentos.v1',
-  contas: 'cleanox.fin.contas.v1',
-  categorias: 'cleanox.fin.categorias.v1',
-  limites: 'cleanox.fin.limites.v1',
-} as const
-
-/* ============================================================
  * Utilidades internas (puras)
  * ============================================================ */
-
-/** Clone profundo simples (dados são JSON-safe). */
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
-/** ISO datetime atual (runtime) — usado em created/updated dos registros do store. */
-function nowIso(): string {
-  return new Date().toISOString()
-}
-
-/** Sequência local para IDs (combinada com timestamp p/ evitar colisão entre reloads). */
-let _seq = 0
-
-/** Gera um ID local único com prefixo, ex.: 'lanc_lq3x8_2'. */
-function genId(prefix: string): string {
-  _seq += 1
-  return `${prefix}_${Date.now().toString(36)}_${_seq.toString(36)}`
-}
 
 /** Só a parte 'YYYY-MM-DD' de uma string ISO (datetime ou date). */
 function dateOnly(iso: string): string {
   return iso.slice(0, 10)
 }
 
+/**
+ * Normaliza um campo JSON do PB em array. O SDK normalmente já entrega o valor
+ * parseado (array), mas tratamos string defensivamente.
+ */
+function asArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed as T[]
+      } catch {
+        /* conteúdo inesperado → array vazio */
+      }
+    }
+  }
+  return []
+}
+
 /* ============================================================
- * Camada de persistência (localStorage + fallback em memória)
+ * Mapeadores PB (snake_case) → domínio (camelCase)
  * ============================================================ */
 
-/** Fallback usado quando localStorage não existe/está bloqueado (ex.: testes Node). */
-const memFallback = new Map<string, string>()
-
-function getRaw(key: string): string | null {
-  try {
-    if (typeof localStorage !== 'undefined') return localStorage.getItem(key)
-  } catch {
-    /* acesso bloqueado → fallback */
+function pbToConta(rec: FinContaPB): Conta {
+  return {
+    id: rec.id,
+    created: rec.created,
+    updated: rec.updated,
+    nome: rec.nome,
+    tipo: rec.tipo,
+    saldoInicial: rec.saldo_inicial,
+    saldoAtual: rec.saldo_atual,
+    ativo: rec.ativo,
+    cor: rec.cor,
+    icone: rec.icone,
   }
-  return memFallback.has(key) ? memFallback.get(key)! : null
 }
 
-function setRaw(key: string, value: string): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(key, value)
-      return
-    }
-  } catch {
-    /* acesso bloqueado → fallback */
+function pbToCategoria(rec: FinCategoriaPB): Categoria {
+  return {
+    id: rec.id,
+    created: rec.created,
+    updated: rec.updated,
+    nome: rec.nome,
+    tipo: rec.tipo,
+    icone: rec.icone ?? '',
+    cor: rec.cor ?? '',
+    parentId: rec.parent_id || undefined,
+    arquivada: rec.arquivada,
   }
-  memFallback.set(key, value)
 }
 
-function removeRaw(key: string): void {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(key)
-      return
-    }
-  } catch {
-    /* ignore */
+function pbToLancamento(rec: FinLancamentoPB): Lancamento {
+  return {
+    id: rec.id,
+    created: rec.created,
+    updated: rec.updated,
+    tipo: rec.tipo,
+    descricao: rec.descricao,
+    categoriaId: rec.categoria_id,
+    subcategoriaId: rec.subcategoria_id || undefined,
+    valor: rec.valor,
+    contaId: rec.conta_id,
+    data: rec.data,
+    vencimento: rec.vencimento || undefined,
+    status: rec.status,
+    recorrencia: rec.recorrencia,
+    parcelaAtual: rec.parcela_atual || undefined,
+    parcelasTotal: rec.parcelas_total || undefined,
+    origem: rec.origem,
+    osId: rec.os_id || undefined,
+    osNumero: rec.os_numero || undefined,
+    clienteNome: rec.cliente_nome || undefined,
+    servicoNome: rec.servico_nome || undefined,
+    formaPagamento: rec.forma_pagamento || undefined,
+    observacao: rec.observacao || undefined,
+    tags: asArray<string>(rec.tags),
+    anexos: asArray<Anexo>(rec.anexos),
   }
-  memFallback.delete(key)
 }
+
+function pbToLimite(rec: FinLimitePB): LimiteGasto {
+  return {
+    id: rec.id,
+    created: rec.created,
+    updated: rec.updated,
+    categoriaId: rec.categoria_id,
+    limite: rec.limite,
+  }
+}
+
+/* ============================================================
+ * Conversores domínio → payload PB (suporte a patches parciais)
+ * ============================================================ */
+
+function contaToPB(input: Partial<ContaInput>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const has = (k: keyof ContaInput) => Object.prototype.hasOwnProperty.call(input, k)
+  if (has('nome'))         out.nome          = input.nome
+  if (has('tipo'))         out.tipo          = input.tipo
+  if (has('saldoInicial')) out.saldo_inicial = input.saldoInicial
+  if (has('saldoAtual'))   out.saldo_atual   = input.saldoAtual
+  if (has('ativo'))        out.ativo         = input.ativo
+  if (has('cor'))          out.cor           = input.cor ?? null
+  if (has('icone'))        out.icone         = input.icone ?? null
+  return out
+}
+
+function categoriaToPB(input: Partial<CategoriaInput>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const has = (k: keyof CategoriaInput) => Object.prototype.hasOwnProperty.call(input, k)
+  if (has('nome'))      out.nome      = input.nome
+  if (has('tipo'))      out.tipo      = input.tipo
+  if (has('icone'))     out.icone     = input.icone ?? null
+  if (has('cor'))       out.cor       = input.cor ?? null
+  if (has('parentId'))  out.parent_id = input.parentId ?? null
+  if (has('arquivada')) out.arquivada = input.arquivada
+  return out
+}
+
+function lancamentoToPB(input: Partial<LancamentoInput>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const has = (k: keyof LancamentoInput) => Object.prototype.hasOwnProperty.call(input, k)
+  if (has('tipo'))           out.tipo            = input.tipo
+  if (has('descricao'))      out.descricao        = input.descricao
+  if (has('categoriaId'))    out.categoria_id     = input.categoriaId
+  if (has('subcategoriaId')) out.subcategoria_id  = input.subcategoriaId ?? null
+  if (has('valor'))          out.valor            = input.valor
+  if (has('contaId'))        out.conta_id         = input.contaId
+  if (has('data'))           out.data             = input.data
+  if (has('vencimento'))     out.vencimento       = input.vencimento ?? null
+  if (has('status'))         out.status           = input.status
+  if (has('recorrencia'))    out.recorrencia      = input.recorrencia
+  if (has('parcelaAtual'))   out.parcela_atual    = input.parcelaAtual ?? null
+  if (has('parcelasTotal'))  out.parcelas_total   = input.parcelasTotal ?? null
+  if (has('origem'))         out.origem           = input.origem
+  if (has('osId'))           out.os_id            = input.osId ?? null
+  if (has('osNumero'))       out.os_numero        = input.osNumero ?? null
+  if (has('clienteNome'))    out.cliente_nome     = input.clienteNome ?? null
+  if (has('servicoNome'))    out.servico_nome     = input.servicoNome ?? null
+  if (has('formaPagamento')) out.forma_pagamento  = input.formaPagamento ?? null
+  if (has('observacao'))     out.observacao       = input.observacao ?? null
+  if (has('tags'))           out.tags             = input.tags ?? []
+  if (has('anexos'))         out.anexos           = input.anexos ?? []
+  return out
+}
+
+function limiteToPB(input: Partial<LimiteInput>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const has = (k: keyof LimiteInput) => Object.prototype.hasOwnProperty.call(input, k)
+  if (has('categoriaId')) out.categoria_id = input.categoriaId
+  if (has('limite'))      out.limite       = input.limite
+  return out
+}
+
+/* ============================================================
+ * Helpers internos de saldo (modelo incremental)
+ * ============================================================ */
 
 /**
- * Lê a coleção do storage. Na 1ª carga (chave ausente ou conteúdo inválido),
- * faz o SEED automático: grava uma cópia do seed e a retorna.
+ * Efeito de um lançamento no saldo_atual da conta: +valor para receita paga, −valor para
+ * despesa paga. Não pagos (pendente/previsto/em_atraso) têm efeito zero.
+ * MODELO INCREMENTAL: coexiste com transferências (ContasCarteiras.updateConta) que também
+ * ajustam saldo_atual diretamente. Nunca recompute do zero — isso apagaria o efeito das transferências.
  */
-function loadCollection<T>(key: string, seed: readonly T[]): T[] {
-  const raw = getRaw(key)
-  if (raw !== null) {
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed as T[]
-    } catch {
-      /* conteúdo corrompido → reseed abaixo */
-    }
-  }
-  const initial = clone(seed) as T[]
-  setRaw(key, JSON.stringify(initial))
-  return initial
+function efeitoNoSaldo(tipo: Lancamento['tipo'], valor: number, status: Lancamento['status']): number {
+  if (status !== 'pago') return 0
+  return tipo === 'receita' ? valor : -valor
 }
 
-/** Persiste a coleção inteira. */
-function saveCollection<T>(key: string, rows: T[]): void {
-  setRaw(key, JSON.stringify(rows))
-}
-
-/* ============================================================
- * CRUD genérico (assíncrono — espelha pb.collection)
- *   TODO PB: trocar cada operação por pb.collection(NOME).<op>().
- * ============================================================ */
-
-/** Cria os campos de auditoria de um registro novo. */
-function stampNew<T extends FinRecord>(prefix: string, input: Omit<T, keyof FinRecord>): T {
-  const ts = nowIso()
-  return { ...(input as object), id: genId(prefix), created: ts, updated: ts } as T
-}
-
-async function list<T>(key: string, seed: readonly T[]): Promise<T[]> {
-  return loadCollection<T>(key, seed)
-}
-
-async function getById<T extends FinRecord>(
-  key: string,
-  seed: readonly T[],
-  id: string,
-): Promise<T | undefined> {
-  return loadCollection<T>(key, seed).find((r) => r.id === id)
-}
-
-async function create<T extends FinRecord>(
-  key: string,
-  seed: readonly T[],
-  prefix: string,
-  input: Omit<T, keyof FinRecord>,
-): Promise<T> {
-  const rows = loadCollection<T>(key, seed)
-  const record = stampNew<T>(prefix, input)
-  rows.push(record)
-  saveCollection(key, rows)
-  return clone(record)
-}
-
-async function update<T extends FinRecord>(
-  key: string,
-  seed: readonly T[],
-  id: string,
-  patch: Partial<Omit<T, keyof FinRecord>>,
-): Promise<T> {
-  const rows = loadCollection<T>(key, seed)
-  const idx = rows.findIndex((r) => r.id === id)
-  if (idx === -1) throw new Error(`Registro não encontrado: ${id}`)
-  const updated: T = { ...rows[idx], ...(patch as object), updated: nowIso() } as T
-  rows[idx] = updated
-  saveCollection(key, rows)
-  return clone(updated)
-}
-
-async function remove<T extends FinRecord>(
-  key: string,
-  seed: readonly T[],
-  id: string,
-): Promise<boolean> {
-  const rows = loadCollection<T>(key, seed)
-  const next = rows.filter((r) => r.id !== id)
-  if (next.length === rows.length) return false
-  saveCollection(key, next)
-  return true
+/** Aplica `delta` ao saldo_atual de uma conta. Best-effort: ignora silenciosamente se a conta não existir. */
+async function ajustarSaldoConta(contaId: string, delta: number): Promise<void> {
+  if (delta === 0) return
+  const conta = await getConta(contaId)
+  if (!conta) return
+  await updateConta(contaId, { saldoAtual: conta.saldoAtual + delta })
 }
 
 /* ============================================================
  * Lançamentos
  * ============================================================ */
 
-export function listLancamentos(): Promise<Lancamento[]> {
-  return list(STORAGE_KEYS.lancamentos, LANCAMENTOS_SEED)
+export async function listLancamentos(): Promise<Lancamento[]> {
+  const rows = await pb
+    .collection(FIN_COLLECTIONS.LANCAMENTOS)
+    .getFullList<FinLancamentoPB>({ sort: '-data' })
+  return rows.map(pbToLancamento)
 }
-export function getLancamento(id: string): Promise<Lancamento | undefined> {
-  return getById(STORAGE_KEYS.lancamentos, LANCAMENTOS_SEED, id)
+
+export async function getLancamento(id: string): Promise<Lancamento | undefined> {
+  try {
+    const rec = await pb.collection(FIN_COLLECTIONS.LANCAMENTOS).getOne<FinLancamentoPB>(id)
+    return pbToLancamento(rec)
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return undefined
+    throw err
+  }
 }
-export function createLancamento(input: LancamentoInput): Promise<Lancamento> {
-  return create(STORAGE_KEYS.lancamentos, LANCAMENTOS_SEED, 'lanc', input)
+
+export async function createLancamento(input: LancamentoInput): Promise<Lancamento> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.LANCAMENTOS)
+    .create<FinLancamentoPB>(lancamentoToPB(input))
+  const lanc = pbToLancamento(rec)
+  await ajustarSaldoConta(lanc.contaId, efeitoNoSaldo(lanc.tipo, lanc.valor, lanc.status))
+  return lanc
 }
-export function updateLancamento(
+
+export async function updateLancamento(
   id: string,
   patch: Partial<LancamentoInput>,
 ): Promise<Lancamento> {
-  return update(STORAGE_KEYS.lancamentos, LANCAMENTOS_SEED, id, patch)
+  const old = await getLancamento(id)
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.LANCAMENTOS)
+    .update<FinLancamentoPB>(id, lancamentoToPB(patch))
+  const updated = pbToLancamento(rec)
+  if (old) {
+    const oldEfeito = efeitoNoSaldo(old.tipo, old.valor, old.status)
+    const newEfeito = efeitoNoSaldo(updated.tipo, updated.valor, updated.status)
+    if (old.contaId === updated.contaId) {
+      await ajustarSaldoConta(old.contaId, newEfeito - oldEfeito)
+    } else {
+      await ajustarSaldoConta(old.contaId, -oldEfeito)
+      await ajustarSaldoConta(updated.contaId, newEfeito)
+    }
+  }
+  return updated
 }
-export function deleteLancamento(id: string): Promise<boolean> {
-  return remove(STORAGE_KEYS.lancamentos, LANCAMENTOS_SEED, id)
+
+export async function deleteLancamento(id: string): Promise<boolean> {
+  try {
+    const lanc = await getLancamento(id)
+    await pb.collection(FIN_COLLECTIONS.LANCAMENTOS).delete(id)
+    if (lanc) {
+      await ajustarSaldoConta(lanc.contaId, -efeitoNoSaldo(lanc.tipo, lanc.valor, lanc.status))
+    }
+    return true
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return false
+    throw err
+  }
 }
 
 /** Copia um lançamento como NOVO (sufixo " (cópia)" na descrição, mesmo status). */
@@ -261,72 +320,147 @@ export async function repeatLancamento(
  * Contas / Carteiras
  * ============================================================ */
 
-export function listContas(): Promise<Conta[]> {
-  return list(STORAGE_KEYS.contas, CONTAS_SEED)
+export async function listContas(): Promise<Conta[]> {
+  const rows = await pb
+    .collection(FIN_COLLECTIONS.CONTAS)
+    .getFullList<FinContaPB>({ sort: 'nome' })
+  return rows.map(pbToConta)
 }
-export function getConta(id: string): Promise<Conta | undefined> {
-  return getById(STORAGE_KEYS.contas, CONTAS_SEED, id)
+
+export async function getConta(id: string): Promise<Conta | undefined> {
+  try {
+    const rec = await pb.collection(FIN_COLLECTIONS.CONTAS).getOne<FinContaPB>(id)
+    return pbToConta(rec)
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return undefined
+    throw err
+  }
 }
-export function createConta(input: ContaInput): Promise<Conta> {
-  return create(STORAGE_KEYS.contas, CONTAS_SEED, 'conta', input)
+
+export async function createConta(input: ContaInput): Promise<Conta> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.CONTAS)
+    .create<FinContaPB>(contaToPB(input))
+  return pbToConta(rec)
 }
-export function updateConta(id: string, patch: Partial<ContaInput>): Promise<Conta> {
-  return update(STORAGE_KEYS.contas, CONTAS_SEED, id, patch)
+
+export async function updateConta(id: string, patch: Partial<ContaInput>): Promise<Conta> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.CONTAS)
+    .update<FinContaPB>(id, contaToPB(patch))
+  return pbToConta(rec)
 }
-export function deleteConta(id: string): Promise<boolean> {
-  return remove(STORAGE_KEYS.contas, CONTAS_SEED, id)
+
+export async function deleteConta(id: string): Promise<boolean> {
+  try {
+    await pb.collection(FIN_COLLECTIONS.CONTAS).delete(id)
+    return true
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return false
+    throw err
+  }
 }
 
 /* ============================================================
  * Categorias
  * ============================================================ */
 
-export function listCategorias(): Promise<Categoria[]> {
-  return list(STORAGE_KEYS.categorias, CATEGORIAS_SEED)
+export async function listCategorias(): Promise<Categoria[]> {
+  const rows = await pb
+    .collection(FIN_COLLECTIONS.CATEGORIAS)
+    .getFullList<FinCategoriaPB>({ sort: 'nome' })
+  return rows.map(pbToCategoria)
 }
-export function getCategoria(id: string): Promise<Categoria | undefined> {
-  return getById(STORAGE_KEYS.categorias, CATEGORIAS_SEED, id)
+
+export async function getCategoria(id: string): Promise<Categoria | undefined> {
+  try {
+    const rec = await pb.collection(FIN_COLLECTIONS.CATEGORIAS).getOne<FinCategoriaPB>(id)
+    return pbToCategoria(rec)
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return undefined
+    throw err
+  }
 }
-export function createCategoria(input: CategoriaInput): Promise<Categoria> {
-  return create(STORAGE_KEYS.categorias, CATEGORIAS_SEED, 'cat', input)
+
+export async function createCategoria(input: CategoriaInput): Promise<Categoria> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.CATEGORIAS)
+    .create<FinCategoriaPB>(categoriaToPB(input))
+  return pbToCategoria(rec)
 }
-export function updateCategoria(
+
+export async function updateCategoria(
   id: string,
   patch: Partial<CategoriaInput>,
 ): Promise<Categoria> {
-  return update(STORAGE_KEYS.categorias, CATEGORIAS_SEED, id, patch)
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.CATEGORIAS)
+    .update<FinCategoriaPB>(id, categoriaToPB(patch))
+  return pbToCategoria(rec)
 }
-export function deleteCategoria(id: string): Promise<boolean> {
-  return remove(STORAGE_KEYS.categorias, CATEGORIAS_SEED, id)
+
+export async function deleteCategoria(id: string): Promise<boolean> {
+  try {
+    await pb.collection(FIN_COLLECTIONS.CATEGORIAS).delete(id)
+    return true
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return false
+    throw err
+  }
 }
 
 /* ============================================================
  * Limites de gasto
  * ============================================================ */
 
-export function listLimites(): Promise<LimiteGasto[]> {
-  return list(STORAGE_KEYS.limites, LIMITES_SEED)
+export async function listLimites(): Promise<LimiteGasto[]> {
+  const rows = await pb
+    .collection(FIN_COLLECTIONS.LIMITES)
+    .getFullList<FinLimitePB>({ sort: 'categoria_id' })
+  return rows.map(pbToLimite)
 }
-export function getLimite(id: string): Promise<LimiteGasto | undefined> {
-  return getById(STORAGE_KEYS.limites, LIMITES_SEED, id)
+
+export async function getLimite(id: string): Promise<LimiteGasto | undefined> {
+  try {
+    const rec = await pb.collection(FIN_COLLECTIONS.LIMITES).getOne<FinLimitePB>(id)
+    return pbToLimite(rec)
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return undefined
+    throw err
+  }
 }
-export function createLimite(input: LimiteInput): Promise<LimiteGasto> {
-  return create(STORAGE_KEYS.limites, LIMITES_SEED, 'lim', input)
+
+export async function createLimite(input: LimiteInput): Promise<LimiteGasto> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.LIMITES)
+    .create<FinLimitePB>(limiteToPB(input))
+  return pbToLimite(rec)
 }
-export function updateLimite(id: string, patch: Partial<LimiteInput>): Promise<LimiteGasto> {
-  return update(STORAGE_KEYS.limites, LIMITES_SEED, id, patch)
+
+export async function updateLimite(id: string, patch: Partial<LimiteInput>): Promise<LimiteGasto> {
+  const rec = await pb
+    .collection(FIN_COLLECTIONS.LIMITES)
+    .update<FinLimitePB>(id, limiteToPB(patch))
+  return pbToLimite(rec)
 }
-export function deleteLimite(id: string): Promise<boolean> {
-  return remove(STORAGE_KEYS.limites, LIMITES_SEED, id)
+
+export async function deleteLimite(id: string): Promise<boolean> {
+  try {
+    await pb.collection(FIN_COLLECTIONS.LIMITES).delete(id)
+    return true
+  } catch (err) {
+    if (err instanceof ClientResponseError && err.status === 404) return false
+    throw err
+  }
 }
 
 /* ============================================================
- * Reset (dev/testes) — limpa o storage e força reseed na próxima leitura
+ * Reset (dev-only) — no-op em modo PB
  * ============================================================ */
 
-/** Apaga todas as chaves do Financeiro. A próxima leitura recria o seed. */
+/** @dev-only No-op — dados vivem no PocketBase. Use a Admin UI para reset. */
 export function resetFinanceiroStore(): void {
-  Object.values(STORAGE_KEYS).forEach(removeRaw)
+  /* no-op */
 }
 
 /* ============================================================
