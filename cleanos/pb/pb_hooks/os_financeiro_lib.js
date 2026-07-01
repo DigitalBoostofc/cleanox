@@ -134,6 +134,17 @@ function criarLancamentoFinanceiro(app, record) {
 
   app.save(lanc);
   console.log("[fin] Lançamento receita criado (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
+
+  // Ajusta saldo_atual da conta — espelha o modelo incremental do frontend (A-001):
+  // receita paga soma no saldo. Best-effort: falha não quebra o fluxo (lançamento já criado).
+  try {
+    const conta = app.findRecordById("fin_contas", contaId);
+    conta.set("saldo_atual", Number(conta.get("saldo_atual") || 0) + valorPago);
+    app.save(conta);
+    console.log("[fin] saldo_atual da conta " + contaId + " ajustado em +" + valorPago + ".");
+  } catch (e) {
+    console.log("[fin] Falha ao ajustar saldo_atual da conta " + contaId + " (ignorado): " + e);
+  }
 }
 
 module.exports = { criarLancamentoFinanceiro };
