@@ -14,7 +14,7 @@
  * `window.print()` é o único diálogo usado.
  */
 
-import type { RelatorioOS } from '../servicos/types'
+import type { FaseFoto, RelatorioOS } from '../servicos/types'
 import { aprovacaoLabel, formatTempoMedio } from '../servicos/labels'
 import { formatCurrency, formatDateTime } from '../collections'
 
@@ -127,6 +127,48 @@ function sectionChecklist(rel: RelatorioOS): string {
   return `<section class="block">
     <h2>Checklist executado</h2>
     <ul class="checklist">${itens}</ul>
+  </section>`
+}
+
+const FASE_LABEL: Record<FaseFoto, string> = {
+  antes: 'Antes',
+  durante: 'Durante',
+  depois: 'Depois',
+}
+const FASE_ORDER: FaseFoto[] = ['antes', 'durante', 'depois']
+
+function sectionEvidencias(rel: RelatorioOS): string {
+  if (!rel.evidencias || rel.evidencias.length === 0) return ''
+
+  const porFase = new Map<FaseFoto, typeof rel.evidencias>()
+  for (const ev of rel.evidencias) {
+    const arr = porFase.get(ev.fase) ?? []
+    arr.push(ev)
+    porFase.set(ev.fase, arr)
+  }
+
+  const partes: string[] = []
+  for (const fase of FASE_ORDER) {
+    const fotos = porFase.get(fase)
+    if (!fotos || fotos.length === 0) continue
+    const figuras = fotos
+      .map((ev) => {
+        const caption = ev.legenda
+          ? `<figcaption>${esc(ev.legenda)}</figcaption>`
+          : ''
+        return `<figure class="foto-item"><img src="${esc(ev.url)}" alt="${esc(ev.legenda ?? FASE_LABEL[fase])}" loading="eager">${caption}</figure>`
+      })
+      .join('')
+    partes.push(
+      `<div class="foto-fase"><h3>${FASE_LABEL[fase]}</h3><div class="foto-grid">${figuras}</div></div>`,
+    )
+  }
+
+  if (partes.length === 0) return ''
+
+  return `<section class="block foto-section">
+    <h2>Registro fotográfico</h2>
+    ${partes.join('')}
   </section>`
 }
 
@@ -262,10 +304,16 @@ function buildPrintableHtml(rel: RelatorioOS): string {
     }
     .footer-note strong { color: #0F4C5C; }
     .gerado { margin-top: 14px; text-align: right; font-size: 10px; color: #7A8893; }
+    .foto-fase { margin-bottom: 12px; page-break-inside: avoid; }
+    .foto-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+    .foto-item { margin: 0; text-align: center; page-break-inside: avoid; }
+    .foto-item img { max-height: 140px; width: auto; max-width: 180px; display: block; border: 1px solid #E2EAEF; border-radius: 4px; }
+    .foto-item figcaption { font-size: 10px; color: #7A8893; margin-top: 4px; max-width: 180px; word-break: break-word; }
     @page { size: A4; margin: 14mm; }
     @media print {
       body { padding: 0; }
       .block, .manual, .footer-note { page-break-inside: avoid; }
+      .foto-fase, .foto-item { page-break-inside: avoid; }
     }
   `
 
@@ -304,6 +352,7 @@ function buildPrintableHtml(rel: RelatorioOS): string {
   ${sectionAdicionais(rel)}
   ${sectionFinanceiro(rel)}
   ${sectionChecklist(rel)}
+  ${sectionEvidencias(rel)}
   ${sectionOrientacoes(rel)}
   ${sectionObservacoes(rel)}
 

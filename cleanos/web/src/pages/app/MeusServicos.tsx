@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ClientResponseError } from 'pocketbase'
 import { pb } from '../../lib/pb'
 import { useAuth } from '../../contexts/AuthContext'
@@ -22,6 +23,8 @@ import {
   IconCheckCircle,
   IconDollar,
 } from '../../components/ui/Icon'
+import { loadOSExec } from '../../lib/os/osStore'
+import { temObrigatoriosPendentes } from '../../lib/os/checklistHelpers'
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -73,12 +76,13 @@ interface OSCardProps {
   onAvisar: (os: OrdemServico) => Promise<void>
   onPagar: (os: OrdemServico) => void
   onConcluir: (os: OrdemServico) => Promise<void>
+  onChecklist: (os: OrdemServico) => void
   actionLoading: boolean
   actionError: string | null
   avisoLoading: boolean
 }
 
-function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, actionError, avisoLoading }: OSCardProps) {
+function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, onChecklist, actionLoading, actionError, avisoLoading }: OSCardProps) {
   const hoje = isOsToday(os)
   // OS com data passada (ou hoje) pode ser iniciada — permite concluir OS atrasadas
   const podeIniciar = hoje || new Date(os.data_hora) < new Date()
@@ -237,9 +241,20 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
           </span>
         )}
 
-        {/* em_andamento → rotas + avisar + pagamento + concluir */}
+        {/* em_andamento → checklist + rotas + avisar + pagamento + concluir */}
         {os.status === 'em_andamento' && (
           <>
+            {/* Checklist e fotos */}
+            <button
+              type="button"
+              className="clx-btn clx-btn-accent clx-btn-block"
+              onClick={() => onChecklist(os)}
+              style={{ minHeight: 44 }}
+            >
+              <IconCheckCircle size={15} />
+              Checklist e fotos
+            </button>
+
             {/* Ver rota + Avisar */}
             <div style={{ display: 'flex', gap: 8 }}>
               {os.endereco_liberado && (
@@ -337,6 +352,7 @@ function OSCard({ os, onIniciar, onAvisar, onPagar, onConcluir, actionLoading, a
 
 export default function MeusServicos() {
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   const [todayOS, setTodayOS] = useState<OrdemServico[]>([])
   const [upcomingOS, setUpcomingOS] = useState<OrdemServico[]>([])
@@ -577,6 +593,19 @@ export default function MeusServicos() {
       showToast('Registre o pagamento antes de concluir.', 'error')
       return
     }
+
+    // Verifica itens obrigatórios do checklist antes de concluir
+    try {
+      const rec = await loadOSExec(os.id)
+      const items = rec.checklist_exec ?? []
+      if (items.length > 0 && temObrigatoriosPendentes(items)) {
+        navigate(`/app/os/${os.id}`, { state: { obrigatoriosPendentes: true } })
+        return
+      }
+    } catch {
+      // se falhar ao carregar, não bloqueia — segue para concluir normalmente
+    }
+
     setOsLoading(os.id, true)
     setOsError(os.id, null)
     try {
@@ -592,7 +621,11 @@ export default function MeusServicos() {
     } finally {
       setOsLoading(os.id, false)
     }
-  }, [showToast])
+  }, [showToast, navigate])
+
+  const handleChecklist = useCallback((os: OrdemServico) => {
+    navigate(`/app/os/${os.id}`)
+  }, [navigate])
 
   // ── render ────────────────────────────────────────────────────────────
 
@@ -724,6 +757,7 @@ export default function MeusServicos() {
                     onAvisar={handleAvisar}
                     onPagar={handlePagar}
                     onConcluir={handleConcluir}
+                    onChecklist={handleChecklist}
                     actionLoading={actionLoading[os.id] ?? false}
                     actionError={actionError[os.id] ?? null}
                     avisoLoading={avisoLoading[os.id] ?? false}
@@ -780,6 +814,7 @@ export default function MeusServicos() {
                     onAvisar={handleAvisar}
                     onPagar={handlePagar}
                     onConcluir={handleConcluir}
+                    onChecklist={handleChecklist}
                     actionLoading={actionLoading[os.id] ?? false}
                     actionError={actionError[os.id] ?? null}
                     avisoLoading={avisoLoading[os.id] ?? false}
@@ -813,6 +848,7 @@ export default function MeusServicos() {
                     onAvisar={handleAvisar}
                     onPagar={handlePagar}
                     onConcluir={handleConcluir}
+                    onChecklist={handleChecklist}
                     actionLoading={actionLoading[os.id] ?? false}
                     actionError={actionError[os.id] ?? null}
                     avisoLoading={avisoLoading[os.id] ?? false}

@@ -152,6 +152,7 @@ function fillServiceSnapshot(app, record) {
             id: String(it.id || ""),
             titulo: String(it.titulo || ""),
             ordem: Number(it.ordem || 0),
+            obrigatorio: Boolean(it.obrigatorio || false),
           };
         })
       : [];
@@ -196,6 +197,7 @@ function fillServiceSnapshot(app, record) {
                 Math.floor(Math.random() * 1e9).toString(36),
             titulo: it.titulo,
             status: "pendente",
+            obrigatorio: Boolean(it.obrigatorio || false),
           };
         });
         record.set("checklist_exec", exec);
@@ -381,6 +383,18 @@ function guardOrdemUpdateRequest(e) {
     // ao Concluir: o pagamento já tem que estar gravado.
     if (to === "concluida") {
       assertPaymentIfConcluida(e.record);
+      // itens obrigatórios pendentes bloqueiam a conclusão (server-side mirror do frontend).
+      const checklistExec = readJsonField(e.record, "checklist_exec");
+      if (Array.isArray(checklistExec)) {
+        for (let i = 0; i < checklistExec.length; i++) {
+          const it = checklistExec[i];
+          if (Boolean(it.obrigatorio) && String(it.status) !== "concluido") {
+            throw new BadRequestError(
+              "Conclua os itens obrigatórios do checklist antes de finalizar a OS."
+            );
+          }
+        }
+      }
     }
   }
 }
