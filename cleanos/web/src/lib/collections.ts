@@ -495,6 +495,8 @@ export interface FinContaPB extends PBRecord {
   saldo_inicial: number
   saldo_atual: number
   ativo: boolean
+  /** Conta padrão para receita de OS (F-223 / migration 16). */
+  padrao?: boolean
   cor?: string
   icone?: string
 }

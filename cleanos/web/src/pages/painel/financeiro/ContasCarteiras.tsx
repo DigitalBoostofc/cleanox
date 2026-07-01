@@ -21,6 +21,7 @@ import {
   deleteConta,
   ajustarSaldoConta,
   transferirSaldo,
+  definirContaPadrao,
   saldoGeral,
 } from '../../../lib/financeiro/store'
 import type { Conta, ContaTipo, Lancamento } from '../../../lib/financeiro/types'
@@ -28,7 +29,7 @@ import { contaTipoLabel } from '../../../lib/financeiro/labels'
 import { formatCurrency } from '../../../lib/collections'
 import { Spinner } from '../../../components/ui/Spinner'
 import { Modal } from '../../../components/ui/Modal'
-import { IconAlertCircle, IconPlus, IconEdit, IconTrash, IconArrowRight } from '../../../components/ui/Icon'
+import { IconAlertCircle, IconPlus, IconEdit, IconTrash, IconArrowRight, IconCheckCircle } from '../../../components/ui/Icon'
 
 const TIPO_OPTS: ContaTipo[] = ['carteira', 'banco', 'cartao', 'caixa']
 
@@ -61,6 +62,9 @@ export default function ContasCarteiras() {
   /* Modal exclusão */
   const [deleting, setDeleting] = useState<Conta | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
+
+  /* Definir conta padrão (destino da receita de OS) */
+  const [padraoBusyId, setPadraoBusyId] = useState<string | null>(null)
 
   /* Modal transferência */
   const [transferOpen, setTransferOpen] = useState(false)
@@ -167,6 +171,21 @@ export default function ContasCarteiras() {
       setDeleting(null)
     } finally {
       setDeletingBusy(false)
+    }
+  }
+
+  async function handleSetPadrao(c: Conta) {
+    if (c.padrao || padraoBusyId) return
+    try {
+      setPadraoBusyId(c.id)
+      setError(null)
+      // Atômico no servidor: marca esta e desmarca as demais na mesma transação (F-223).
+      await definirContaPadrao(c.id)
+      await load()
+    } catch {
+      setError('Não foi possível definir a conta padrão.')
+    } finally {
+      setPadraoBusyId(null)
     }
   }
 
@@ -286,6 +305,15 @@ export default function ContasCarteiras() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontWeight: 600, color: 'var(--clx-ink)' }}>{c.nome}</span>
                     {!c.ativo && <span className="clx-chip">Inativa</span>}
+                    {c.padrao && (
+                      <span
+                        className="clx-chip"
+                        title="Destino padrão da receita de OS"
+                        style={{ background: 'var(--clx-primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <IconCheckCircle size={12} /> Padrão
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--clx-ink-3)', marginTop: 2 }}>
                     {contaTipoLabel(c.tipo)} · Saldo inicial {formatCurrency(c.saldoInicial)}
@@ -303,6 +331,18 @@ export default function ContasCarteiras() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {c.ativo && (
+                    <button
+                      className="icon-btn"
+                      onClick={() => handleSetPadrao(c)}
+                      disabled={c.padrao || padraoBusyId === c.id}
+                      aria-label={c.padrao ? `${c.nome} é a conta padrão` : `Definir ${c.nome} como conta padrão`}
+                      title={c.padrao ? 'Conta padrão para receita de OS' : 'Definir como conta padrão (destino da receita de OS)'}
+                      style={c.padrao ? { color: 'var(--clx-primary)' } : undefined}
+                    >
+                      {padraoBusyId === c.id ? <Spinner size={14} /> : <IconCheckCircle size={15} />}
+                    </button>
+                  )}
                   <button className="icon-btn" onClick={() => openEdit(c)} aria-label={`Editar ${c.nome}`} title="Editar">
                     <IconEdit size={15} />
                   </button>

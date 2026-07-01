@@ -55,6 +55,13 @@ vi.mock('../pb', async () => {
             para: { id: cPara.id, saldoAtual: cPara.saldo_atual },
           }
         }
+        if (path === '/api/cleanos/contas/padrao') {
+          const alvo = find(String(body.contaId))
+          if (!alvo) throw notFound()
+          for (const c of contas) c.padrao = false // desmarca todas
+          alvo.padrao = true // marca só a alvo (atômico no servidor)
+          return { id: alvo.id, padrao: true }
+        }
         throw new Error(`send: rota não mockada: ${path}`)
       },
       collection: (name: string) => ({
@@ -108,6 +115,7 @@ import {
   deleteConta,
   ajustarSaldoConta,
   transferirSaldo,
+  definirContaPadrao,
   // Categorias
   listCategorias,
   getCategoria,
@@ -464,6 +472,31 @@ describe('CRUD contas', () => {
     expect(await deleteConta('conta_inter')).toBe(true)
     expect(await listContas()).toHaveLength(4)
     expect(await deleteConta('conta_inter')).toBe(false)
+  })
+})
+
+/* ============================================================
+ * F-223 — conta padrão (destino da receita de OS)
+ * ============================================================ */
+
+describe('F-223 — definirContaPadrao (só UMA padrão por vez)', () => {
+  it('marcar B como padrão desmarca A (atômico)', async () => {
+    await definirContaPadrao('conta_inter')
+    expect((await getConta('conta_inter'))!.padrao).toBe(true)
+
+    await definirContaPadrao('conta_carteira')
+    expect((await getConta('conta_carteira'))!.padrao).toBe(true)
+    expect((await getConta('conta_inter'))!.padrao).toBe(false)
+
+    // Invariante: no máximo UMA conta padrão em toda a lista.
+    const padroes = (await listContas()).filter((c) => c.padrao)
+    expect(padroes).toHaveLength(1)
+    expect(padroes[0].id).toBe('conta_carteira')
+  })
+
+  it('pbToConta expõe padrao=false quando o campo está ausente', async () => {
+    const c = await getConta('conta_nubank')
+    expect(c?.padrao).toBe(false)
   })
 })
 

@@ -76,3 +76,34 @@ routerAdd("POST", "/api/cleanos/contas/transferir", (e) => {
     para: { id: para, saldoAtual: saldoPara },
   });
 }, $apis.requireAuth());
+
+// ── POST /api/cleanos/contas/padrao ──────────────────────────────────────────
+// Body: { contaId }. Marca a conta como PADRÃO para receita de OS (F-223) e
+// DESMARCA todas as demais na MESMA transação — garante no máximo UMA conta
+// padrão por vez, mesmo sob corrida (o hook OS→Financeiro prefere `ativo && padrao`).
+routerAdd("POST", "/api/cleanos/contas/padrao", (e) => {
+  const h = require(`${__hooks}/whatsapp_helpers.js`);
+  h.requireAdminOrGerente(e);
+
+  const body    = e.requestInfo().body || {};
+  const contaId = String(body.contaId || "");
+  if (!contaId) throw new BadRequestError("contaId é obrigatório.");
+
+  $app.runInTransaction((txApp) => {
+    const alvo = txApp.findRecordById("fin_contas", contaId); // lança 404 se ausente
+
+    // Desmarca todas as outras padrão (deve haver no máximo 1, mas varre por segurança).
+    const atuais = txApp.findRecordsByFilter("fin_contas", "padrao = true", "nome", 200, 0, {});
+    for (let i = 0; i < atuais.length; i++) {
+      if (atuais[i].id !== contaId) {
+        atuais[i].set("padrao", false);
+        txApp.save(atuais[i]);
+      }
+    }
+
+    alvo.set("padrao", true);
+    txApp.save(alvo);
+  });
+
+  return e.json(200, { id: contaId, padrao: true });
+}, $apis.requireAuth());

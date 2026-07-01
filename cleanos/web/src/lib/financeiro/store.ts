@@ -73,6 +73,7 @@ function pbToConta(rec: FinContaPB): Conta {
     saldoInicial: rec.saldo_inicial,
     saldoAtual: rec.saldo_atual,
     ativo: rec.ativo,
+    padrao: rec.padrao ?? false,
     cor: rec.cor,
     icone: rec.icone,
   }
@@ -143,6 +144,7 @@ function contaToPB(input: Partial<ContaInput>): Record<string, unknown> {
   if (has('saldoInicial')) out.saldo_inicial = input.saldoInicial
   if (has('saldoAtual'))   out.saldo_atual   = input.saldoAtual
   if (has('ativo'))        out.ativo         = input.ativo
+  if (has('padrao'))       out.padrao        = input.padrao
   if (has('cor'))          out.cor           = input.cor ?? null
   if (has('icone'))        out.icone         = input.icone ?? null
   return out
@@ -409,6 +411,20 @@ export async function deleteConta(id: string): Promise<boolean> {
     if (err instanceof ClientResponseError && err.status === 404) return false
     throw err
   }
+}
+
+/**
+ * Define `contaId` como a conta PADRÃO para receita de OS (F-223) de forma ATÔMICA
+ * no servidor: a rota `POST /api/cleanos/contas/padrao` desmarca todas as demais
+ * `padrao=true` e marca só esta na MESMA transação — garantindo que exista sempre
+ * no máximo UMA conta padrão, mesmo sob corrida. Restrita a admin/gerente.
+ */
+export async function definirContaPadrao(contaId: string): Promise<void> {
+  await pb.send('/api/cleanos/contas/padrao', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contaId }),
+  })
 }
 
 /* ============================================================
