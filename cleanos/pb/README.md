@@ -157,7 +157,7 @@ Legenda de visibilidade: **A**=admin, **G**=gerente, **P**=profissional.
 | email            | email   | sim    | login                                                  |
 | password         | password| sim    | nunca retornado pela API                               |
 | verified         | bool    | —      | auth padrão                                            |
-| emailVisibility  | bool    | —      | manter `false`                                         |
+| emailVisibility  | bool    | —      | manter `true` (admin precisa ver e-mail na gestão)     |
 | name             | text    | —      | nome (campo auth padrão)                               |
 | **role**         | select  | sim    | `admin` \| `gerente` \| `profissional`                 |
 | **nome**         | text    | —      | nome de exibição do colaborador                        |
