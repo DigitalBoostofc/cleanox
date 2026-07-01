@@ -89,12 +89,21 @@ function criarLancamentoFinanceiro(app, record) {
     return;
   }
 
-  // Conta padrão: primeira fin_conta ativa (order by nome asc, limit 1).
+  // Conta-destino DETERMINÍSTICA (F-223): prefere a conta marcada como `padrao=true`
+  // (e ativa) — destino explícito/intencional, imune a uma nova conta cujo nome
+  // ordene antes. Fallback à 1ª conta ativa por nome asc (comportamento legado)
+  // quando nenhuma conta está marcada como padrão.
   let contaId = null;
   try {
-    const contas = app.findRecordsByFilter("fin_contas", "ativo = true", "nome", 1, 0, {});
-    if (contas && contas.length > 0) contaId = contas[0].id;
-  } catch (_) {}
+    const padrao = app.findRecordsByFilter("fin_contas", "ativo = true && padrao = true", "nome", 1, 0, {});
+    if (padrao && padrao.length > 0) contaId = padrao[0].id;
+  } catch (_) { /* campo padrao ausente (migration 16 pendente) ou nenhuma marcada → fallback */ }
+  if (!contaId) {
+    try {
+      const contas = app.findRecordsByFilter("fin_contas", "ativo = true", "nome", 1, 0, {});
+      if (contas && contas.length > 0) contaId = contas[0].id;
+    } catch (_) {}
+  }
 
   if (!contaId) {
     console.log("[fin] Nenhuma conta ativa em fin_contas — lançamento da OS não criado.");
