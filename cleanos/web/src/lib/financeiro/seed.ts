@@ -1,3 +1,6 @@
+// FIXTURE DE UNIT TEST — IDs semânticos (conta_carteira, cat_*, lanc_seed_*) são locais a estes
+// testes e diferem dos IDs reais do PocketBase (migration 1700000015 usa IDs alfanuméricos 15-char).
+
 /**
  * financeiro/seed.ts — Dados MOCK iniciais do módulo Financeiro (Junho/2026).
  *
