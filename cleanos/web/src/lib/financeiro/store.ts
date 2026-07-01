@@ -284,12 +284,32 @@ export async function deleteLancamento(id: string): Promise<boolean> {
   }
 }
 
+/**
+ * Sanitiza a cópia de um lançamento origem 'via_os': a nova cópia nasce como MANUAL
+ * e SEM o vínculo com a OS. Sem isso, "Copiar"/"Repetir" fabricaria um 2º recebimento
+ * fantasma da mesma OS (chip "Via OS" + os_id), inflando receita/saldo em dobro
+ * (double-count no cálculo de "receita Via OS"). Para origem 'manual' é no-op.
+ */
+function desvincularOsSeViaOs(input: LancamentoInput): LancamentoInput {
+  if (input.origem !== 'via_os') return input
+  return {
+    ...input,
+    origem: 'manual',
+    osId: undefined,
+    osNumero: undefined,
+    clienteNome: undefined,
+    servicoNome: undefined,
+  }
+}
+
 /** Copia um lançamento como NOVO (sufixo " (cópia)" na descrição, mesmo status). */
 export async function duplicateLancamento(id: string): Promise<Lancamento> {
   const base = await getLancamento(id)
   if (!base) throw new Error(`Lançamento não encontrado: ${id}`)
   const { id: _id, created: _c, updated: _u, ...rest } = base
-  return createLancamento({ ...rest, descricao: `${rest.descricao} (cópia)` })
+  return createLancamento(
+    desvincularOsSeViaOs({ ...rest, descricao: `${rest.descricao} (cópia)` }),
+  )
 }
 
 /**
@@ -308,12 +328,14 @@ export async function repeatLancamento(
     rest.recorrencia === 'parcelada' && typeof rest.parcelaAtual === 'number'
       ? rest.parcelaAtual + 1
       : rest.parcelaAtual
-  return createLancamento({
-    ...rest,
-    status: 'previsto',
-    parcelaAtual: proximaParcela,
-    ...overrides,
-  })
+  return createLancamento(
+    desvincularOsSeViaOs({
+      ...rest,
+      status: 'previsto',
+      parcelaAtual: proximaParcela,
+      ...overrides,
+    }),
+  )
 }
 
 /* ============================================================

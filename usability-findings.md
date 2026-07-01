@@ -249,9 +249,10 @@
 - Observado: a receita de OS é SEMPRE creditada na "primeira conta ativa por nome asc"; criar uma 2ª conta cujo nome ordene antes redireciona TODA a receita silenciosamente, sem configuração. Classe: atribuição arbitrária de receita/saldo.
 - (navegador) CONFIRMADO empírico em produção: a receita da OS de teste (R$200) caiu na "Banco Inter", que é a 1ª fin_conta ativa por nome asc.
 
-## F-224 | categoria: funcional | severidade: média | status: aberto
+## F-224 | categoria: funcional | severidade: média | status: corrigido
 - Tela: cleanos/web/src/pages/painel/financeiro/Lancamentos.tsx:305-317 e :597; store.ts:288-293 (duplicateLancamento), :242-249 (createLancamento), :188 (VisaoGeral receitaViaOs)
 - Passos: 1) Financeiro → Lançamentos. 2) Num lançamento origem "Via OS", clicar "Copiar"/"Repetir".
 - Esperado: não deveria fabricar um 2º recebimento fantasma da mesma OS (ou a cópia deveria virar lançamento Manual sem vínculo/duplo crédito).
 - Observado: "Copiar"/"Repetir" de um lançamento via_os cria um 2º lançamento que MANTÉM o chip "Via OS" e o VÍNCULO COM A OS → receita e saldo em dobro, sem guard. Classe: double-count de cálculo financeiro.
 - (navegador) CONFIRMADO empírico em produção: "Copiar" no lançamento "OS #000259 - Colchão casal" criou "...(cópia)" mantendo Via OS + vínculo à OS #000259; PREVISTAS R$880/4 → R$1.040/5 (+R$160 duplicado). Cópia deletada (dado limpo). Evidências ss_9395xvq9m, ss_6114vuzle, ss_76984r8wb.
+- (resolvedor) Correção: causa raiz = `duplicateLancamento`/`repeatLancamento` (store.ts) copiavam TODOS os campos do original, inclusive origem `via_os` + vínculo `os_id`/`os_numero`, então a cópia era contada de novo em "receita Via OS" (VisaoGeral :188, Relatorios :318) → double-count. Fix: helper `desvincularOsSeViaOs` aplicado nas DUAS funções — quando a origem é `via_os`, a cópia nasce como `manual` com `osId`/`osNumero`/`clienteNome`/`servicoNome` limpos (preserva a intenção de UX: copiar como lançamento manual, sem crédito duplicado da OS). Origem `manual` é no-op. Commit F-224. Validado: `tsc -b` exit 0. Arquivo: cleanos/web/src/lib/financeiro/store.ts.
