@@ -205,3 +205,52 @@
 - Observado: o snapshot do serviço É capturado na criação (card "Serviço principal" mostra a cópia com valor/observação e a nota "Capturado em ..."), MAS o checklist de execução fica VAZIO — "Checklist vazio · 0 de 0 concluídos · Selecione o serviço principal para gerar o checklist de execução." O checklist só é gerado quando alguém RE-SELECIONA o serviço no dropdown da própria tela de execução (aí aparece "0 de 2", Item B/Item A, e toast "Snapshot capturado"). Ou seja: uma OS criada pelo modal Nova OS com serviço definido chega na execução SEM checklist; o profissional não vê os itens a cumprir até refazer a seleção do serviço. Gap entre o snapshot do create (modal) e a geração do checklist (execução). Provável correção: gerar o checklist de execução a partir do checklist padrão do serviço no momento da criação/atribuição da OS (espelhar o que o re-select faz).
 - (resolvedor) Correção: causa raiz = o modal "Nova OS" cria a OS enviando só o relation `servico` (OrdensServico.tsx:210/227, sem snapshot/checklist); o hook `fillServiceSnapshot` (os_logic.js) congelava o snapshot mas NÃO materializava `checklist_exec`. Adicionado, no mesmo hook (logo após `record.set("service_snapshot")`), a derivação de `checklist_exec` a partir de `checklistPadrao` (ordenado por `ordem`, ids `cke_*`, status `pendente`) — espelha `snapshotToChecklistExec` do frontend. Só preenche quando `checklist_exec` está vazio (guarda anti-clobber) e o bloco só é alcançado quando o snapshot acabou de ser congelado (a UI, que envia snapshot+checklist juntos, retorna antes na guarda de imutabilidade). Commit e99c8cc. Validado em RUNTIME contra COPY descartável do pb_data (PB serve :8092 com os hooks reais): POST de OS no formato do modal (cliente+servico, sem checklist) retornou `checklist_exec` com 6 itens, todos `pendente`, ids únicos; PATCH posterior (status/observacoes/descontos) preservou os 6 itens (sem clobber). Produção não tocada.
 - (reviewer) Verificação: commit e99c8cc ok. O bloco roda dentro de `fillServiceSnapshot` LOGO após `record.set("service_snapshot")`, e só é alcançado quando o snapshot acabou de ser congelado — a guarda de imutabilidade (`if (existing && existing.serviceId) return`, os_logic.js:138) faz a UI (que envia snapshot+checklist juntos) retornar antes, então não clobbera o caminho de re-seleção. Anti-clobber adicional: só preenche quando `checklist_exec` está vazio (:188). Itens derivados de `checklistPadrao` ordenado por `ordem`, `status:"pendente"`, shape `{id,titulo,status}` idêntico a snapshotToChecklistExec do front (store.ts:301); ids únicos (Date.now+índice+random). Runtime testado pelo resolver (6 itens, PATCH preservou). VERIFICADO.
+
+## F-011 | categoria: funcional | severidade: média | status: corrigido
+- Tela: cleanos/web/src/lib/os/osStore.ts:143-151 (listEvidencias) — sintoma na Execução da OS, seção Evidências
+- Passos: 1) Abrir a Execução de uma OS que tenha evidências (fotos). 2) Observar a seção Evidências / rede.
+- Esperado: as fotos de evidência da OS são listadas e reexibidas.
+- Observado: listEvidencias usa getFullList({filter:'os = {:osId}', filterParams:{osId}}), mas o SDK JS do PocketBase NÃO tem a opção filterParams → o placeholder {:osId} vai cru no filter e o servidor retorna 400 (invalid filter) em TODA carga. Erro engolido (sem console); mascarado por empty-state em OS sem fotos, mas qualquer OS com evidências nunca reexibe suas fotos. Reproduzido 2x em produção (GET os_evidencias 400). Correção: filter: pb.filter('os = {:osId}', {osId}).
+- (navegador) Confirmado em produção na varredura do Painel (2x GET os_evidencias 400).
+- (resolvedor) Correção: listEvidencias agora usa filter: pb.filter('os = {:osId}', {osId}) — binding server-side seguro; removida a opção inexistente filterParams (único uso no arquivo). Valida com tsc -b (exit 0). Commit F-011.
+
+## F-012 | categoria: funcional | severidade: baixa | status: aberto
+- Tela: cleanos/web/src/pages/painel/financeiro/lancamentos/LancamentoFormModal.tsx (default do campo DATA) + lancamentos/dates.ts
+- Passos: 1) Após 21h BRT, abrir Financeiro → Lançamentos → Novo lançamento. 2) Observar o campo Data.
+- Esperado: o campo Data vem com o dia LOCAL corrente (o mesmo que o sistema exibe).
+- Observado: o default usa calendário UTC (new Date().toISOString()); após 21h BRT o campo já nasce com o dia SEGUINTE (ex.: sistema mostra 30/06 e o form pré-preenche 01/07). Mesma classe de fuso de F-222/F-203/F-204, superfície NOVA (default do form). Correlato: a aba "Contas a pagar/receber" abre em Julho enquanto abas irmãs abrem em Junho (mesma raiz UTC). Evidência ss_4790ykqgl.
+- (navegador) Confirmado em produção na varredura do Financeiro.
+
+## F-220 | categoria: funcional | severidade: média | status: aberto
+- Tela: cleanos/web/src/lib/financeiro/store.ts:214-219 (ajustarSaldoConta); ContasCarteiras.tsx:190-196 (handleTransfer), :124-131 (editar conta); cleanos/pb/pb_hooks/os_financeiro_lib.js:141-143
+- Passos: 1) Hook OS→Financeiro incrementa saldo_atool de uma conta (receita de OS) ao mesmo tempo em que o painel grava saldo_atual ABSOLUTO (transferência/editar conta) a partir de uma leitura stale.
+- Esperado: incrementos concorrentes se conservam.
+- Observado: as escritas absolutas do painel (handleTransfer / editar conta) partem de um saldo lido antes e podem sobrescrever o incremento concorrente do hook OS→Financeiro (lost-update). O hook usa incremento server-side; o painel usa set absoluto. Classe: integridade / saldo dessincronizado.
+- (navegador) Verificação parcial em produção: no HAPPY-PATH a transferência conserva a soma (R$10 Banco Inter→Caixa físico manteve Saldo geral R$9.126,26; revertido). A CORRIDA lost-update NÃO foi reproduzível com segurança (exigiria concluir OS concorrente, mutação não reversível) — risco permanece por inspeção de código.
+
+## F-221 | categoria: funcional | severidade: média | status: aberto
+- Tela: cleanos/pb/pb_hooks/os_financeiro_lib.js:135-147 (save lanc vs save conta), :42-49 (anti-dup); cleanos/web/src/lib/financeiro/store.ts:278 (deleteLancamento)
+- Passos: 1) Concluir OS: o hook salva o lançamento, depois ajusta o saldo. 2) Se o ajuste de saldo falhar após o lançamento persistir.
+- Esperado: atomicidade (lançamento + saldo) ou retry seguro.
+- Observado: lançamento é persistido mas o ajuste de saldo pode ser engolido (falha parcial); o anti-dup (:42-49) então impede reaplicar o ajuste em retry → saldo fica defasado. Delete posterior do lançamento pode deixar saldo negativo/defasado. Classe: erro engolido / falha parcial / integridade.
+- (navegador) Verificação em produção do HAPPY-PATH: idempotência OK (re-salvar a OS concluída 3x NÃO criou 2º lançamento nem somou saldo de novo); delete do lançamento via_os reverteu o saldo com precisão ao baseline (sem negativo). O cenário patológico (falha parcial no save do saldo) NÃO foi reproduzível nesta sessão — risco permanece por inspeção de código.
+
+## F-222 | categoria: funcional | severidade: média | status: aberto
+- Tela: cleanos/pb/pb_hooks/os_financeiro_lib.js:116 e :125; cleanos/web/src/lib/financeiro/store.ts:479-481 (dentroDoPeriodo/dateOnly)
+- Passos: 1) Concluir uma OS às 21:00–23:59 BRT. 2) Abrir Relatórios/Visão geral do mês.
+- Esperado: o lançamento via_os conta no dia/mês LOCAL (BRT) da conclusão.
+- Observado: a data do lançamento via_os usa new Date() UTC puro; conclusões 21:00–23:59 BRT caem no dia/mês SEGUINTE nos relatórios. Mesma classe de F-203/F-204, em código NOVO do hook (não é duplicata). Correção: aplicar offset BRT ao gerar a data do lançamento.
+
+## F-223 | categoria: funcional | severidade: baixa | status: aberto
+- Tela: cleanos/pb/pb_hooks/os_financeiro_lib.js:93-102
+- Passos: 1) Concluir uma OS com pagamento. 2) Verificar em qual conta a receita foi creditada.
+- Esperado: a conta de destino da receita da OS deveria ser configurável/explícita.
+- Observado: a receita de OS é SEMPRE creditada na "primeira conta ativa por nome asc"; criar uma 2ª conta cujo nome ordene antes redireciona TODA a receita silenciosamente, sem configuração. Classe: atribuição arbitrária de receita/saldo.
+- (navegador) CONFIRMADO empírico em produção: a receita da OS de teste (R$200) caiu na "Banco Inter", que é a 1ª fin_conta ativa por nome asc.
+
+## F-224 | categoria: funcional | severidade: média | status: aberto
+- Tela: cleanos/web/src/pages/painel/financeiro/Lancamentos.tsx:305-317 e :597; store.ts:288-293 (duplicateLancamento), :242-249 (createLancamento), :188 (VisaoGeral receitaViaOs)
+- Passos: 1) Financeiro → Lançamentos. 2) Num lançamento origem "Via OS", clicar "Copiar"/"Repetir".
+- Esperado: não deveria fabricar um 2º recebimento fantasma da mesma OS (ou a cópia deveria virar lançamento Manual sem vínculo/duplo crédito).
+- Observado: "Copiar"/"Repetir" de um lançamento via_os cria um 2º lançamento que MANTÉM o chip "Via OS" e o VÍNCULO COM A OS → receita e saldo em dobro, sem guard. Classe: double-count de cálculo financeiro.
+- (navegador) CONFIRMADO empírico em produção: "Copiar" no lançamento "OS #000259 - Colchão casal" criou "...(cópia)" mantendo Via OS + vínculo à OS #000259; PREVISTAS R$880/4 → R$1.040/5 (+R$160 duplicado). Cópia deletada (dado limpo). Evidências ss_9395xvq9m, ss_6114vuzle, ss_76984r8wb.

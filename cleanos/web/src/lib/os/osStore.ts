@@ -144,8 +144,7 @@ export async function listEvidencias(osId: string): Promise<EvidenciaFoto[]> {
   const recs = await pb
     .collection(COLLECTIONS.OS_EVIDENCIAS)
     .getFullList<OSEvidenciaPB>({
-      filter: 'os = {:osId}',
-      filterParams: { osId },
+      filter: pb.filter('os = {:osId}', { osId }),
       sort: 'created',
       expand: 'enviado_por',
     })
