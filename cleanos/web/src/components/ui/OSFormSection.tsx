@@ -11,6 +11,8 @@ import {
   gerarSlotsDisponiveis,
   COLLECTIONS,
 } from '../../lib/collections'
+import { categoriaLabel, grupoLabel } from '../../lib/servicos/labels'
+import type { Categoria, Grupo } from '../../lib/servicos/types'
 import { pb } from '../../lib/pb'
 import { Spinner } from './Spinner'
 
@@ -131,6 +133,10 @@ export function OSFormSection({
   const [ocupados, setOcupados] = useState<string[]>([])
   const [ocupadosLoading, setOcupadosLoading] = useState(false)
 
+  /* ---- cascade filter state ---- */
+  const [selectedCategoria, setSelectedCategoria] = useState<Categoria | ''>('')
+  const [selectedGrupo, setSelectedGrupo] = useState<Grupo | ''>('')
+
   /* fetch disponibilidade when profissional changes */
   useEffect(() => {
     if (!fields.profissionalId) {
@@ -186,6 +192,50 @@ export function OSFormSection({
     return () => { cancelled = true }
   }, [fields.profissionalId, fields.data_date, editingOSId])
 
+  /* initialize cascade from existing service (edit mode) — only when filters are empty */
+  useEffect(() => {
+    if (selectedCategoria !== '' || selectedGrupo !== '') return
+    if (!fields.servicoId || !servicos.length) return
+    const current = servicos.find((s) => s.id === fields.servicoId)
+    if (current?.categoria) setSelectedCategoria(current.categoria as Categoria)
+    if (current?.grupo) setSelectedGrupo(current.grupo as Grupo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields.servicoId, servicos])
+
+  /* ---- cascade computation ---- */
+  const categorias = [...new Set(
+    servicos.filter((s) => s.categoria).map((s) => s.categoria as Categoria)
+  )]
+
+  const grupos = [...new Set(
+    servicos
+      .filter((s) => s.grupo && (!selectedCategoria || s.categoria === selectedCategoria))
+      .map((s) => s.grupo as Grupo)
+  )]
+
+  const servicosFiltrados = servicos.filter((s) => {
+    if (selectedCategoria && s.categoria !== selectedCategoria) return false
+    if (selectedGrupo && s.grupo !== selectedGrupo) return false
+    return true
+  })
+
+  const handleCategoriaChange = (newCat: Categoria | '') => {
+    setSelectedCategoria(newCat)
+    setSelectedGrupo('')
+    if (newCat && fields.servicoId) {
+      const current = servicos.find((s) => s.id === fields.servicoId)
+      if (current?.categoria && current.categoria !== newCat) onServicoChange('')
+    }
+  }
+
+  const handleGrupoChange = (newGrupo: Grupo | '') => {
+    setSelectedGrupo(newGrupo)
+    if (newGrupo && fields.servicoId) {
+      const current = servicos.find((s) => s.id === fields.servicoId)
+      if (current?.grupo && current.grupo !== newGrupo) onServicoChange('')
+    }
+  }
+
   /* ---- slot computation ---- */
   const slotAttempt = !!fields.profissionalId
   const slotLoading =
@@ -232,7 +282,43 @@ export function OSFormSection({
   /* ---- Render ---- */
   return (
     <>
-      {/* 1. Serviço */}
+      {/* 1a. Categoria (filtro cascata) */}
+      {categorias.length > 0 && (
+        <div className="form-field">
+          <label htmlFor="select-categoria">Categoria</label>
+          <select
+            id="select-categoria"
+            value={selectedCategoria}
+            onChange={(e) => handleCategoriaChange(e.target.value as Categoria | '')}
+            disabled={loadingLookups}
+          >
+            <option value="">— Todas —</option>
+            {categorias.map((c) => (
+              <option key={c} value={c}>{categoriaLabel(c)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* 1b. Grupo (filtro cascata) */}
+      {grupos.length > 0 && (
+        <div className="form-field">
+          <label htmlFor="select-grupo">Grupo</label>
+          <select
+            id="select-grupo"
+            value={selectedGrupo}
+            onChange={(e) => handleGrupoChange(e.target.value as Grupo | '')}
+            disabled={loadingLookups}
+          >
+            <option value="">— Todos —</option>
+            {grupos.map((g) => (
+              <option key={g} value={g}>{grupoLabel(g)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* 1c. Serviço */}
       <div className="form-field">
         <label>Serviço</label>
         <select
@@ -242,7 +328,7 @@ export function OSFormSection({
           className={errs.servicoId ? 'err' : ''}
         >
           <option value="">— Selecionar —</option>
-          {servicos.map((s) => (
+          {servicosFiltrados.map((s) => (
             <option key={s.id} value={s.id}>{s.nome}</option>
           ))}
         </select>
