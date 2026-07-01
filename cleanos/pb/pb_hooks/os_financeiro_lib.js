@@ -132,19 +132,23 @@ function criarLancamentoFinanceiro(app, record) {
   lanc.set("servico_nome",     servicoNome);
   lanc.set("forma_pagamento",  formaPagamento);
 
-  app.save(lanc);
-  console.log("[fin] Lançamento receita criado (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
-
-  // Ajusta saldo_atual da conta — espelha o modelo incremental do frontend (A-001):
-  // receita paga soma no saldo. Best-effort: falha não quebra o fluxo (lançamento já criado).
-  try {
-    const conta = app.findRecordById("fin_contas", contaId);
+  // ATOMICIDADE (F-221): grava o lançamento E ajusta o saldo_atual da conta na MESMA
+  // transação. Sem isso, o lançamento podia persistir com o ajuste de saldo engolido
+  // (falha parcial) → saldo defasado, e o anti-duplicata (acima) impediria o retry de
+  // reaplicar o ajuste. Com runInTransaction, ou os DOIS saves persistem, ou NENHUM:
+  // numa falha o lançamento é revertido junto, então o anti-dup não bloqueia um retry
+  // legítimo e o saldo nunca fica defasado. O caller (os_financeiro.pb.js) envolve tudo
+  // em try/catch e sempre chama e.next(), então uma exceção aqui NÃO bloqueia a
+  // conclusão da OS (best-effort preservado no nível do handler).
+  //
+  // Espelha o modelo incremental do frontend (A-001): receita paga soma no saldo.
+  app.runInTransaction((txApp) => {
+    txApp.save(lanc);
+    const conta = txApp.findRecordById("fin_contas", contaId);
     conta.set("saldo_atual", Number(conta.get("saldo_atual") || 0) + valorPago);
-    app.save(conta);
-    console.log("[fin] saldo_atual da conta " + contaId + " ajustado em +" + valorPago + ".");
-  } catch (e) {
-    console.log("[fin] Falha ao ajustar saldo_atual da conta " + contaId + " (ignorado): " + e);
-  }
+    txApp.save(conta);
+  });
+  console.log("[fin] Lançamento receita criado + saldo ajustado atômico (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
 }
 
 module.exports = { criarLancamentoFinanceiro };
