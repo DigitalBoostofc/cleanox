@@ -30,6 +30,33 @@ vi.mock('../pb', async () => {
   }
   return {
     pb: {
+      // Espelha as rotas server-side de saldo (F-220): mutam fin_contas em memória
+      // com a MESMA semântica atômica read-fresh + delta das rotas PocketBase.
+      send: async (path: string, opts?: { body?: string }) => {
+        const body = opts?.body ? (JSON.parse(opts.body) as Record<string, unknown>) : {}
+        const contas = db.stores['fin_contas'] ?? []
+        const find = (id: string) => contas.find((r) => r.id === id)
+        if (path === '/api/cleanos/contas/ajustar') {
+          const conta = find(String(body.contaId))
+          if (!conta) throw notFound()
+          const saldo = Number(conta.saldo_atual ?? 0) + Number(body.delta)
+          conta.saldo_atual = saldo
+          return { id: conta.id, saldoAtual: saldo }
+        }
+        if (path === '/api/cleanos/contas/transferir') {
+          const cDe = find(String(body.de))
+          const cPara = find(String(body.para))
+          if (!cDe || !cPara) throw notFound()
+          const valor = Number(body.valor)
+          cDe.saldo_atual = Number(cDe.saldo_atual ?? 0) - valor
+          cPara.saldo_atual = Number(cPara.saldo_atual ?? 0) + valor
+          return {
+            de: { id: cDe.id, saldoAtual: cDe.saldo_atual },
+            para: { id: cPara.id, saldoAtual: cPara.saldo_atual },
+          }
+        }
+        throw new Error(`send: rota não mockada: ${path}`)
+      },
       collection: (name: string) => ({
         getFullList: async () => (db.stores[name] ?? []).map(dup),
         getOne: async (id: string) => {
@@ -79,6 +106,8 @@ import {
   createConta,
   updateConta,
   deleteConta,
+  ajustarSaldoConta,
+  transferirSaldo,
   // Categorias
   listCategorias,
   getCategoria,
@@ -435,6 +464,44 @@ describe('CRUD contas', () => {
     expect(await deleteConta('conta_inter')).toBe(true)
     expect(await listContas()).toHaveLength(4)
     expect(await deleteConta('conta_inter')).toBe(false)
+  })
+})
+
+/* ============================================================
+ * F-220 — saldo atômico server-side (ajustar / transferir)
+ * ============================================================ */
+
+describe('F-220 — ajustarSaldoConta (rota atômica)', () => {
+  it('aplica delta positivo relendo o saldo fresco do servidor', async () => {
+    const before = (await getConta('conta_inter'))!.saldoAtual
+    await ajustarSaldoConta('conta_inter', 250)
+    expect((await getConta('conta_inter'))!.saldoAtual).toBeCloseTo(before + 250, 2)
+  })
+
+  it('delta 0 é no-op (não chama a rota)', async () => {
+    const before = (await getConta('conta_inter'))!.saldoAtual
+    await ajustarSaldoConta('conta_inter', 0)
+    expect((await getConta('conta_inter'))!.saldoAtual).toBeCloseTo(before, 2)
+  })
+
+  it('best-effort: conta inexistente (404) é ignorada sem lançar', async () => {
+    await expect(ajustarSaldoConta('nao_existe', 100)).resolves.toBeUndefined()
+  })
+})
+
+describe('F-220 — transferirSaldo (rota atômica −X/+X)', () => {
+  it('debita origem e credita destino no mesmo valor', async () => {
+    const deAntes = (await getConta('conta_inter'))!.saldoAtual
+    const paraAntes = (await getConta('conta_carteira'))!.saldoAtual
+    await transferirSaldo('conta_inter', 'conta_carteira', 300)
+    expect((await getConta('conta_inter'))!.saldoAtual).toBeCloseTo(deAntes - 300, 2)
+    expect((await getConta('conta_carteira'))!.saldoAtual).toBeCloseTo(paraAntes + 300, 2)
+  })
+
+  it('preserva o saldo geral (soma conservada)', async () => {
+    const antes = saldoGeral(await listContas())
+    await transferirSaldo('conta_inter', 'conta_carteira', 123.45)
+    expect(saldoGeral(await listContas())).toBeCloseTo(antes, 2)
   })
 })
 
