@@ -113,7 +113,14 @@ function criarLancamentoFinanceiro(app, record) {
   const formaPagamento = FORMA_MAP[formaRaw] || formaRaw;
 
   const descricao = "OS " + osNumero + (clienteNome ? " - " + clienteNome : "");
-  const now = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  // F-222: data do lançamento no fuso BRT (UTC-3). `new Date()` puro (UTC) faria
+  // conclusões 21:00–23:59 BRT caírem no dia/mês SEGUINTE nos relatórios (que
+  // bucketizam pela PARTE-DATA 'YYYY-MM-DD' via slice/dentroDoPeriodo). Subtrai 3h
+  // do instante para que a parte-data reflita o dia BRT da conclusão — espelha a
+  // convenção dos fixes F-203/F-204/getUtcDayBounds do projeto. O processo PB pode
+  // rodar em UTC na VPS, então o offset é aplicado explicitamente (não via TZ local).
+  var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const now = new Date(Date.now() - BRT_OFFSET_MS).toISOString().replace("T", " ").slice(0, 23) + "Z";
 
   const finLancCol = app.findCollectionByNameOrId("fin_lancamentos");
   const lanc = new Record(finLancCol);
