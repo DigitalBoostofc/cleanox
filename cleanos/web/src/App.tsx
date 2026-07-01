@@ -31,6 +31,7 @@ import AppLayout from './pages/app/AppLayout'
 import MeusServicos from './pages/app/MeusServicos'
 import Mapa from './pages/app/Mapa'
 import Perfil from './pages/app/Perfil'
+import OSExecucaoApp from './pages/app/OSExecucaoApp'
 
 /** Redireciona / para o ambiente correto conforme o papel do usuário. */
 function RootRedirect() {
@@ -103,6 +104,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<MeusServicos />} />
+        <Route path="os/:osId" element={<OSExecucaoApp />} />
         <Route path="mapa"   element={<Mapa />} />
         <Route path="perfil" element={<Perfil />} />
       </Route>

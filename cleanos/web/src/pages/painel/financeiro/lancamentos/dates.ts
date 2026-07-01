@@ -44,3 +44,16 @@ export function formatLongDateBR(iso: string): string {
 export function formatMonthYear(year: number, month: number): string {
   return `${MESES_PT[month] ?? '—'} ${year}`
 }
+
+/**
+ * 'YYYY-MM-DD' do DIA LOCAL corrente (BRT), pronto para <input type="date">.
+ *
+ * Usa os getters LOCAIS de `Date` (getFullYear/getMonth/getDate) em vez de
+ * `toISOString()`, que devolve o dia em UTC — após 21h BRT o dia UTC já é o
+ * seguinte e o form nasceria pré-preenchido com a data errada.
+ */
+export function todayLocalInput(): string {
+  const now = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+}

@@ -42,6 +42,10 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
     onChange(items.map((it, i) => (i === index ? { ...it, titulo } : it)))
   }
 
+  function updateObrigatorio(index: number, obrigatorio: boolean) {
+    onChange(items.map((it, i) => (i === index ? { ...it, obrigatorio } : it)))
+  }
+
   function remove(index: number) {
     onChange(renumber(items.filter((_, i) => i !== index)))
   }
@@ -121,6 +125,23 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
                 onChange={(e) => updateTitulo(i, e.target.value)}
                 aria-label={`Item ${i + 1} do checklist`}
               />
+
+              <label
+                className="checklist-obrigatorio"
+                title="Bloqueia a conclusão da OS enquanto não concluído"
+                style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!item.obrigatorio}
+                  onChange={(e) => updateObrigatorio(i, e.target.checked)}
+                  aria-label={`Item ${i + 1} obrigatório`}
+                  style={{ width: 14, height: 14, accentColor: 'var(--clx-danger, #e53e3e)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.75rem', color: item.obrigatorio ? 'var(--clx-danger, #e53e3e)' : 'var(--clx-ink-2)', fontWeight: item.obrigatorio ? 700 : 400 }}>
+                  Obrigatório
+                </span>
+              </label>
 
               <div className="checklist-row-actions">
                 <button

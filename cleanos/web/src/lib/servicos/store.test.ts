@@ -615,6 +615,19 @@ describe('snapshotToChecklistExec', () => {
     expect(items[1].id).toBeTruthy()
     expect(items[0].id).not.toBe(items[1].id)
   })
+
+  it('propaga obrigatorio do template para o item executável', () => {
+    const svc = makeServico({
+      checklistPadrao: [
+        { id: 'c1', titulo: 'Obrigatório A', ordem: 1, obrigatorio: true },
+        { id: 'c2', titulo: 'Opcional B', ordem: 2 },
+      ],
+    })
+    const snap = buildSnapshot(svc)
+    const items = snapshotToChecklistExec(snap)
+    expect(items[0].obrigatorio).toBe(true)
+    expect(items[1].obrigatorio).toBe(false)
+  })
 })
 
 // ---- calcTotalOS ----

@@ -89,12 +89,21 @@ function criarLancamentoFinanceiro(app, record) {
     return;
   }
 
-  // Conta padrão: primeira fin_conta ativa (order by nome asc, limit 1).
+  // Conta-destino DETERMINÍSTICA (F-223): prefere a conta marcada como `padrao=true`
+  // (e ativa) — destino explícito/intencional, imune a uma nova conta cujo nome
+  // ordene antes. Fallback à 1ª conta ativa por nome asc (comportamento legado)
+  // quando nenhuma conta está marcada como padrão.
   let contaId = null;
   try {
-    const contas = app.findRecordsByFilter("fin_contas", "ativo = true", "nome", 1, 0, {});
-    if (contas && contas.length > 0) contaId = contas[0].id;
-  } catch (_) {}
+    const padrao = app.findRecordsByFilter("fin_contas", "ativo = true && padrao = true", "nome", 1, 0, {});
+    if (padrao && padrao.length > 0) contaId = padrao[0].id;
+  } catch (_) { /* campo padrao ausente (migration 16 pendente) ou nenhuma marcada → fallback */ }
+  if (!contaId) {
+    try {
+      const contas = app.findRecordsByFilter("fin_contas", "ativo = true", "nome", 1, 0, {});
+      if (contas && contas.length > 0) contaId = contas[0].id;
+    } catch (_) {}
+  }
 
   if (!contaId) {
     console.log("[fin] Nenhuma conta ativa em fin_contas — lançamento da OS não criado.");
@@ -113,7 +122,14 @@ function criarLancamentoFinanceiro(app, record) {
   const formaPagamento = FORMA_MAP[formaRaw] || formaRaw;
 
   const descricao = "OS " + osNumero + (clienteNome ? " - " + clienteNome : "");
-  const now = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  // F-222: data do lançamento no fuso BRT (UTC-3). `new Date()` puro (UTC) faria
+  // conclusões 21:00–23:59 BRT caírem no dia/mês SEGUINTE nos relatórios (que
+  // bucketizam pela PARTE-DATA 'YYYY-MM-DD' via slice/dentroDoPeriodo). Subtrai 3h
+  // do instante para que a parte-data reflita o dia BRT da conclusão — espelha a
+  // convenção dos fixes F-203/F-204/getUtcDayBounds do projeto. O processo PB pode
+  // rodar em UTC na VPS, então o offset é aplicado explicitamente (não via TZ local).
+  var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const now = new Date(Date.now() - BRT_OFFSET_MS).toISOString().replace("T", " ").slice(0, 23) + "Z";
 
   const finLancCol = app.findCollectionByNameOrId("fin_lancamentos");
   const lanc = new Record(finLancCol);
@@ -132,19 +148,23 @@ function criarLancamentoFinanceiro(app, record) {
   lanc.set("servico_nome",     servicoNome);
   lanc.set("forma_pagamento",  formaPagamento);
 
-  app.save(lanc);
-  console.log("[fin] Lançamento receita criado (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
-
-  // Ajusta saldo_atual da conta — espelha o modelo incremental do frontend (A-001):
-  // receita paga soma no saldo. Best-effort: falha não quebra o fluxo (lançamento já criado).
-  try {
-    const conta = app.findRecordById("fin_contas", contaId);
+  // ATOMICIDADE (F-221): grava o lançamento E ajusta o saldo_atual da conta na MESMA
+  // transação. Sem isso, o lançamento podia persistir com o ajuste de saldo engolido
+  // (falha parcial) → saldo defasado, e o anti-duplicata (acima) impediria o retry de
+  // reaplicar o ajuste. Com runInTransaction, ou os DOIS saves persistem, ou NENHUM:
+  // numa falha o lançamento é revertido junto, então o anti-dup não bloqueia um retry
+  // legítimo e o saldo nunca fica defasado. O caller (os_financeiro.pb.js) envolve tudo
+  // em try/catch e sempre chama e.next(), então uma exceção aqui NÃO bloqueia a
+  // conclusão da OS (best-effort preservado no nível do handler).
+  //
+  // Espelha o modelo incremental do frontend (A-001): receita paga soma no saldo.
+  app.runInTransaction((txApp) => {
+    txApp.save(lanc);
+    const conta = txApp.findRecordById("fin_contas", contaId);
     conta.set("saldo_atual", Number(conta.get("saldo_atual") || 0) + valorPago);
-    app.save(conta);
-    console.log("[fin] saldo_atual da conta " + contaId + " ajustado em +" + valorPago + ".");
-  } catch (e) {
-    console.log("[fin] Falha ao ajustar saldo_atual da conta " + contaId + " (ignorado): " + e);
-  }
+    txApp.save(conta);
+  });
+  console.log("[fin] Lançamento receita criado + saldo ajustado atômico (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
 }
 
 module.exports = { criarLancamentoFinanceiro };

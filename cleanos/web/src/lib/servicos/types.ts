@@ -42,6 +42,8 @@ export interface ChecklistTemplateItem {
   titulo: string
   /** Ordem de exibição/execução (1-based). */
   ordem: number
+  /** Se true, o item DEVE estar concluído antes de concluir a OS. */
+  obrigatorio?: boolean
 }
 
 /* ---- Serviço (catálogo rico) ---- */
@@ -117,6 +119,8 @@ export interface ChecklistExecItem {
   concluidoPor?: string
   /** IDs de EvidenciaFoto vinculadas a este item. */
   fotosIds?: string[]
+  /** Propagado do template: se true, bloqueia conclusão da OS enquanto pendente. */
+  obrigatorio?: boolean
 }
 
 /* ---- Serviços adicionais na OS ---- */

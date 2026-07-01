@@ -306,7 +306,8 @@ export function snapshotToChecklistExec(
     .map((item) => ({
       id: genId('cke'),
       titulo: item.titulo,
-      status: 'pendente',
+      status: 'pendente' as const,
+      obrigatorio: Boolean(item.obrigatorio),
     }))
 }
 

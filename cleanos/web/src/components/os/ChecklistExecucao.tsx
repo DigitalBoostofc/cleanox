@@ -147,7 +147,9 @@ export default function ChecklistExecucao({
                       <label
                         htmlFor={obsCheckboxId}
                         style={{
-                          display: 'block',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
                           fontSize: '0.9rem',
                           fontWeight: 600,
                           color: 'var(--clx-ink)',
@@ -156,6 +158,34 @@ export default function ChecklistExecucao({
                         }}
                       >
                         {it.titulo}
+                        {it.obrigatorio && (
+                          <>
+                            <span
+                              style={{ color: 'var(--clx-danger, #e53e3e)', fontWeight: 700, lineHeight: 1 }}
+                              aria-hidden="true"
+                              title="Item obrigatório"
+                            >
+                              *
+                            </span>
+                            {!concluido && (
+                              <span
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  color: 'var(--clx-danger, #e53e3e)',
+                                  background: 'var(--clx-danger-bg, #fff5f5)',
+                                  border: '1px solid var(--clx-danger, #e53e3e)',
+                                  borderRadius: 'var(--clx-r-pill)',
+                                  padding: '1px 6px',
+                                  whiteSpace: 'nowrap',
+                                  textDecoration: 'none',
+                                }}
+                              >
+                                Obrigatório
+                              </span>
+                            )}
+                          </>
+                        )}
                       </label>
                       {concluido && it.concluidoEm && (
                         <div

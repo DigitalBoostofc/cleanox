@@ -19,6 +19,8 @@ import {
   createConta,
   updateConta,
   deleteConta,
+  ajustarSaldoConta,
+  transferirSaldo,
   saldoGeral,
 } from '../../../lib/financeiro/store'
 import type { Conta, ContaTipo, Lancamento } from '../../../lib/financeiro/types'
@@ -120,15 +122,19 @@ export default function ContasCarteiras() {
       setSaving(true)
       setFormErr(null)
       if (editing) {
-        // Editar saldo inicial reflete no saldo atual pela diferença (mock).
+        // Editar saldo inicial reflete no saldo atual pela DIFERENÇA (incremental).
+        // NÃO grava saldoAtual absoluto a partir do estado de UI (que pode estar
+        // stale vs. o hook OS→Financeiro): atualiza os demais campos e aplica só o
+        // delta via ajustarSaldoConta (relê o saldo fresco antes de somar). Evita
+        // lost-update (F-220).
         const delta = saldoInicial - editing.saldoInicial
         await updateConta(editing.id, {
           nome,
           tipo: form.tipo,
           saldoInicial,
-          saldoAtual: editing.saldoAtual + delta,
           ativo: form.ativo,
         })
+        await ajustarSaldoConta(editing.id, delta)
       } else {
         await createConta({
           nome,
@@ -184,16 +190,10 @@ export default function ContasCarteiras() {
     try {
       setTransferBusy(true)
       setTransferErr(null)
-      // TODO PB: transação atômica.
-      // Mock sem transação: sequencializa débito→crédito e faz rollback do
-      // débito se o crédito falhar, evitando saldo "evaporado" da origem.
-      await updateConta(origem.id, { saldoAtual: origem.saldoAtual - valor })
-      try {
-        await updateConta(destino.id, { saldoAtual: destino.saldoAtual + valor })
-      } catch (e) {
-        await updateConta(origem.id, { saldoAtual: origem.saldoAtual }) // rollback
-        throw e
-      }
+      // Aplica DELTAS incrementais (−valor origem / +valor destino) relendo o saldo
+      // fresco em cada perna — não sobrescreve incrementos concorrentes do hook
+      // OS→Financeiro (lost-update, F-220). Rollback do débito se o crédito falhar.
+      await transferirSaldo(origem.id, destino.id, valor)
       setTransferOpen(false)
       await load()
     } catch {
