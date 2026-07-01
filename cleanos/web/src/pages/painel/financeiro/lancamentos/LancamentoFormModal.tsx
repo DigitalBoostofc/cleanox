@@ -26,6 +26,7 @@ import { Spinner } from '../../../../components/ui/Spinner'
 import { IconAlertCircle, IconLock, IconX } from '../../../../components/ui/Icon'
 import { IconPaperclip } from './icons'
 import { toDateInputValue } from '../../../../lib/collections'
+import { todayLocalInput } from './dates'
 import { recorrenciaLabel, statusLabel } from '../../../../lib/financeiro/labels'
 import type {
   Anexo,
@@ -70,7 +71,8 @@ interface FieldErrors {
 }
 
 function todayInput(): string {
-  return toDateInputValue(new Date().toISOString())
+  // Dia LOCAL (BRT) — evita que após 21h o form nasça com a data de amanhã (UTC).
+  return todayLocalInput()
 }
 
 function formatBytes(bytes?: number): string {

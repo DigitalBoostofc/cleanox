@@ -214,12 +214,13 @@
 - (navegador) Confirmado em produção na varredura do Painel (2x GET os_evidencias 400).
 - (resolvedor) Correção: listEvidencias agora usa filter: pb.filter('os = {:osId}', {osId}) — binding server-side seguro; removida a opção inexistente filterParams (único uso no arquivo). Valida com tsc -b (exit 0). Commit F-011.
 
-## F-012 | categoria: funcional | severidade: baixa | status: aberto
+## F-012 | categoria: funcional | severidade: baixa | status: corrigido
 - Tela: cleanos/web/src/pages/painel/financeiro/lancamentos/LancamentoFormModal.tsx (default do campo DATA) + lancamentos/dates.ts
 - Passos: 1) Após 21h BRT, abrir Financeiro → Lançamentos → Novo lançamento. 2) Observar o campo Data.
 - Esperado: o campo Data vem com o dia LOCAL corrente (o mesmo que o sistema exibe).
 - Observado: o default usa calendário UTC (new Date().toISOString()); após 21h BRT o campo já nasce com o dia SEGUINTE (ex.: sistema mostra 30/06 e o form pré-preenche 01/07). Mesma classe de fuso de F-222/F-203/F-204, superfície NOVA (default do form). Correlato: a aba "Contas a pagar/receber" abre em Julho enquanto abas irmãs abrem em Junho (mesma raiz UTC). Evidência ss_4790ykqgl.
 - (navegador) Confirmado em produção na varredura do Financeiro.
+- (resolvedor) Correção: novo helper `todayLocalInput()` em lancamentos/dates.ts deriva 'YYYY-MM-DD' pelos getters LOCAIS (getFullYear/getMonth/getDate) em vez de `toISOString()` (UTC); `todayInput()` em LancamentoFormModal.tsx passou a usá-lo, então o default do campo Data reflete o dia local BRT. Validado com `tsc -b` (sem erros). A nota correlata da aba "Contas a pagar/receber" (mês errado) tem raiz na inicialização do período em outro arquivo (fora do escopo destes 2 arquivos) — não alterada aqui.
 
 ## F-220 | categoria: funcional | severidade: média | status: aberto
 - Tela: cleanos/web/src/lib/financeiro/store.ts:214-219 (ajustarSaldoConta); ContasCarteiras.tsx:190-196 (handleTransfer), :124-131 (editar conta); cleanos/pb/pb_hooks/os_financeiro_lib.js:141-143
