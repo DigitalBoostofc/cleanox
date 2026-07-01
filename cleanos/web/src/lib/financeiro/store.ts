@@ -210,12 +210,35 @@ function efeitoNoSaldo(tipo: Lancamento['tipo'], valor: number, status: Lancamen
   return tipo === 'receita' ? valor : -valor
 }
 
-/** Aplica `delta` ao saldo_atual de uma conta. Best-effort: ignora silenciosamente se a conta não existir. */
-async function ajustarSaldoConta(contaId: string, delta: number): Promise<void> {
+/**
+ * Aplica `delta` ao saldo_atual de uma conta de forma INCREMENTAL: relê o saldo
+ * corrente do servidor IMEDIATAMENTE antes de somar, minimizando a janela de
+ * lost-update com incrementos concorrentes (ex.: hook OS→Financeiro). Nunca grava
+ * um saldo absoluto a partir de estado de UI stale. Best-effort: ignora se a conta
+ * não existir. Exportada para o painel (transferência/editar conta) usar a MESMA
+ * estratégia incremental do hook, evitando clobber de incrementos concorrentes.
+ */
+export async function ajustarSaldoConta(contaId: string, delta: number): Promise<void> {
   if (delta === 0) return
   const conta = await getConta(contaId)
   if (!conta) return
   await updateConta(contaId, { saldoAtual: conta.saldoAtual + delta })
+}
+
+/**
+ * Transferência entre contas aplicando DELTAS incrementais (−valor na origem,
+ * +valor no destino) via ajustarSaldoConta — cada perna relê o saldo fresco antes
+ * de somar, então não sobrescreve incrementos concorrentes (lost-update). Se o
+ * crédito no destino falhar, faz rollback do débito da origem (+valor).
+ */
+export async function transferirSaldo(fromId: string, toId: string, valor: number): Promise<void> {
+  await ajustarSaldoConta(fromId, -valor)
+  try {
+    await ajustarSaldoConta(toId, valor)
+  } catch (e) {
+    await ajustarSaldoConta(fromId, valor) // rollback do débito
+    throw e
+  }
 }
 
 /* ============================================================
