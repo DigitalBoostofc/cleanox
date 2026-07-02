@@ -1,7 +1,8 @@
 # CleanOS — App Profissional (Flutter) → Google Play (Android only)
 #
-# Multi-stage release pipeline for the technician app entrypoint
-# (lib/main_profissional.dart). The web painel and iOS are OUT OF SCOPE here.
+# Multi-stage release pipeline — entrypoint unificado: lib/main_android.dart.
+# (main_profissional.dart e main_painel.dart continuam existindo p/ dev; BUILD/CI usa main_android.dart.)
+# The web painel and iOS are OUT OF SCOPE here.
 #
 # Track routing:
 #   push to main ...................... internal   (+ auto-bump of the +N build number)
@@ -19,7 +20,7 @@
 #   KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD,
 #   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
 
-name: Android Release (Profissional)
+name: Android Release (Unified)
 
 on:
   push:
@@ -42,7 +43,7 @@ env:
   # Flutter project lives in a monorepo subdirectory.
   FLUTTER_DIR: cleanos/flutter
   FLUTTER_VERSION: '3.35.5'
-  ENTRYPOINT: lib/main_profissional.dart
+  ENTRYPOINT: lib/main_android.dart
   PACKAGE_NAME: br.com.wenox.cleanos
 
 concurrency:

@@ -13,7 +13,7 @@ import 'core/design/theme.dart';
 import 'core/router/app_router.dart';
 
 /// Superfície-alvo do entrypoint (só afeta o título; o roteamento é por papel).
-enum AppSurface { painel, profissional }
+enum AppSurface { painel, profissional, android }
 
 class CleanosApp extends ConsumerWidget {
   const CleanosApp({super.key, required this.surface});

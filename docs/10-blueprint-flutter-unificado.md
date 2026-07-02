@@ -105,8 +105,9 @@ Projeto único (`cleanos/flutter/` — sugestão), com **core compartilhado** e 
 cleanos/flutter/
 ├── pubspec.yaml
 ├── lib/
-│   ├── main_painel.dart          # entrypoint Flutter Web (painel)
-│   ├── main_profissional.dart    # entrypoint Android (profissional)
+│   ├── main_painel.dart          # entrypoint Flutter Web (painel) — dev
+│   ├── main_profissional.dart    # entrypoint Android profissional — dev
+│   ├── main_android.dart         # ⭐ entrypoint unificado do APK (BUILD/CI); roteamento por papel
 │   │
 │   ├── core/                     # ⭐ CONTRATO COMPARTILHADO (congelar antes do fan-out)
 │   │   ├── env/
@@ -254,7 +255,7 @@ O `WhatsAppRepository`/`TrackingRepository` do core expõe métodos que batem na
 
 ### Fase 0 — Scaffold & decisões travadas (1 dev, curto)
 - `flutter create` do projeto unificado, `pubspec.yaml` com deps (Riverpod, go_router, pocketbase, freezed, secure_storage, intl, fl_chart, pdf, image_picker).
-- Dois entrypoints (`main_painel.dart`, `main_profissional.dart`) + flavors + `--dart-define` de `PB_URL`.
+- Três entrypoints (`main_painel.dart`, `main_profissional.dart`, `main_android.dart`) — o entrypoint de BUILD/CI é `main_android.dart` (APK unificado por papel); os demais continuam existindo p/ dev.
 - CI: build Android (Linux OK) + build Web. iOS fica pendente do gate do dono.
 
 ### Fase 1 — CORE ESTÁVEL (⭐ bloqueia o paralelismo — nenhuma feature começa antes)

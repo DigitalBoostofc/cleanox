@@ -11,6 +11,7 @@
     <!-- Câmera/galeria (evidências, Slice B2) — image_picker usa o seletor do
          sistema; a permissão de câmera é solicitada em runtime ao tirar foto. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="cleanos"

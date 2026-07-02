@@ -1,11 +1,11 @@
 # Release Android — App Profissional (Flutter) → Google Play
 
-Checklist do **dono** para colocar o app do profissional (`lib/main_profissional.dart`)
-na Google Play. Escopo: **somente Android**. iOS depende de Mac + conta Apple e está
-fora deste pipeline.
+Checklist do **dono** para colocar o APK unificado por papel na Google Play.
+Entrypoint de BUILD/CI: `lib/main_android.dart` (main_profissional.dart e main_painel.dart continuam existindo p/ dev).
+Escopo: **somente Android**. iOS depende de Mac + conta Apple e está fora deste pipeline.
 
 - **applicationId / package:** `br.com.wenox.cleanos`
-- **Entrypoint:** `lib/main_profissional.dart`
+- **Entrypoint (build/CI):** `lib/main_android.dart`
 - **Workflow:** `.github/workflows/android-release-profissional.yml`
 - **Signing config:** `cleanos/flutter/android/app/build.gradle.kts` (lê de `android/key.properties`)
 
@@ -81,7 +81,7 @@ gh secret set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON < service-account.json
 5. **Primeiro upload manual obrigatório:** a API do Play só publica depois que **pelo
    menos um `.aab` foi enviado manualmente**. Baixe o artifact `app-profissional-*` de
    uma execução do workflow (ou builde local com `flutter build appbundle --release -t
-   lib/main_profissional.dart`) e suba na faixa **Internal testing** pela UI uma vez.
+   lib/main_android.dart`) e suba na faixa **Internal testing** pela UI uma vez.
 
 ---
 
