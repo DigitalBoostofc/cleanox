@@ -13,12 +13,28 @@ String pbStringLiteral(String value) => "'${value.replaceAll("'", "\\'")}'";
 
 /// Filtro de busca de clientes por nome/sobrenome/telefone/bairro/cidade
 /// (operador `~` = contém). Retorna `null` quando a busca está vazia (lista tudo).
+///
+/// F-601: cada PALAVRA do termo precisa casar em ALGUM campo (AND por token, OR
+/// entre campos). Sem isso, um termo que atravessa a fronteira nome↔sobrenome —
+/// ex.: "QA Teste" onde `nome`="QA" e `sobrenome`="Teste Silva" — nunca casava,
+/// pois nenhum campo isolado contém a string inteira "QA Teste". Equivalente
+/// funcional do React para o caso F-601, com binding seguro via [pbStringLiteral]
+/// e server-side. Difere do React (`Clientes.tsx`), que concatena nome+sobrenome
+/// num único `fullName.includes(termo)` (substring na frase), enquanto aqui é
+/// AND por token / OR entre campos — mas produz resultados equivalentes para
+/// buscas típicas.
 String? clienteSearchFilter(String query) {
-  final q = query.trim();
-  if (q.isEmpty) return null;
-  final lit = pbStringLiteral(q);
-  return 'nome ~ $lit || sobrenome ~ $lit || telefone ~ $lit '
-      '|| endereco_bairro ~ $lit || endereco_cidade ~ $lit';
+  final tokens = query
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (tokens.isEmpty) return null;
+  return tokens.map((token) {
+    final lit = pbStringLiteral(token);
+    return '(nome ~ $lit || sobrenome ~ $lit || telefone ~ $lit '
+        '|| endereco_bairro ~ $lit || endereco_cidade ~ $lit)';
+  }).join(' && ');
 }
 
 /// Filtro fixo de profissionais (papel = profissional). Sem entrada do usuário.
