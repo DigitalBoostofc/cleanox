@@ -1,8 +1,9 @@
 /// categoria_form.dart — Modal de criar/editar Categoria ou Subcategoria.
 ///
 /// Espelha `CategoriaModal.tsx`. Uma SUBcategoria é uma categoria com `parentId`
-/// apontando para a mãe. Ao criar subcategoria, o [parent] é fixo e o `tipo` é
-/// herdado (não editável). Ícone/cor são escolhidos de conjuntos do tema.
+/// apontando para a mãe. O seletor de mãe é sempre visível (criar E editar),
+/// permitindo reparent e promoção a raiz. Ícone é texto livre com picker de
+/// atalho; cor é hex + 12 presets do React.
 library;
 
 import 'package:flutter/material.dart';
@@ -14,21 +15,47 @@ import '../fin_form_kit.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 
+/// 12 cores preset (espelha PRESET_CORES do React).
+const List<String> kPresetCores = [
+  '#0E9F9C',
+  '#14B8A6',
+  '#10B981',
+  '#22C55E',
+  '#3B82F6',
+  '#6366F1',
+  '#8B5CF6',
+  '#EC4899',
+  '#F59E0B',
+  '#F97316',
+  '#EF4444',
+  '#64748B',
+];
+
 /// Abre o form. [editing] = editar; [parent] = criar subcategoria de [parent].
+/// [parents] = lista completa de categorias (para o seletor de mãe).
 Future<bool?> showCategoriaForm(
   BuildContext context, {
   FinCategoria? editing,
   FinCategoria? parent,
+  List<FinCategoria> parents = const [],
 }) => showFinModal<bool>(
   context,
-  CategoriaForm(editing: editing, parent: parent),
+  CategoriaForm(editing: editing, parent: parent, parents: parents),
 );
 
 class CategoriaForm extends ConsumerStatefulWidget {
-  const CategoriaForm({super.key, this.editing, this.parent});
+  const CategoriaForm({
+    super.key,
+    this.editing,
+    this.parent,
+    this.parents = const [],
+  });
 
   final FinCategoria? editing;
   final FinCategoria? parent;
+
+  /// Lista completa de categorias disponíveis como possíveis mães.
+  final List<FinCategoria> parents;
 
   @override
   ConsumerState<CategoriaForm> createState() => _CategoriaFormState();
@@ -36,32 +63,87 @@ class CategoriaForm extends ConsumerStatefulWidget {
 
 class _CategoriaFormState extends ConsumerState<CategoriaForm> {
   late final TextEditingController _nome;
+  late final TextEditingController _iconeCtrl;
+  late final TextEditingController _corCtrl;
   late TipoLancamento _tipo;
   late String _icone;
   String? _cor;
+  String? _parentId;
 
   bool _saving = false;
   String? _saveError;
   String? _nomeErr;
 
   bool get _isEdit => widget.editing != null;
-  bool get _isSub =>
-      widget.parent != null || (widget.editing?.parentId != null);
+  bool get _isSub => _parentId != null;
+
+  /// Categorias raiz não arquivadas do mesmo tipo, excluindo a própria.
+  List<FinCategoria> get _maesElegiveis =>
+      widget.parents
+          .where(
+            (p) =>
+                p.parentId == null &&
+                !p.arquivada &&
+                p.tipo == _tipo &&
+                p.id != widget.editing?.id,
+          )
+          .toList()
+        ..sort((a, b) => a.nome.compareTo(b.nome));
 
   @override
   void initState() {
     super.initState();
     final c = widget.editing;
-    _nome = TextEditingController(text: c?.nome ?? '');
+    _parentId = c?.parentId ?? widget.parent?.id;
     _tipo = c?.tipo ?? widget.parent?.tipo ?? TipoLancamento.despesa;
     _icone = c?.icone ?? widget.parent?.icone ?? 'tag';
-    _cor = c?.cor ?? widget.parent?.cor;
+    _cor = c?.cor ?? widget.parent?.cor ?? kPresetCores[0];
+    _nome = TextEditingController(text: c?.nome ?? '');
+    _iconeCtrl = TextEditingController(text: _icone);
+    _corCtrl = TextEditingController(text: _cor ?? kPresetCores[0]);
   }
 
   @override
   void dispose() {
     _nome.dispose();
+    _iconeCtrl.dispose();
+    _corCtrl.dispose();
     super.dispose();
+  }
+
+  void _handleParent(String? id) {
+    if (id == null || id.isEmpty) {
+      setState(() => _parentId = null);
+      return;
+    }
+    final mae = widget.parents.firstWhere(
+      (c) => c.id == id,
+      orElse: () => FinCategoria(id: id, nome: id),
+    );
+    setState(() {
+      _parentId = id;
+      _tipo = mae.tipo;
+    });
+  }
+
+  void _onCorHexChanged(String v) {
+    final m = RegExp(r'^#?([0-9A-Fa-f]{6})$').firstMatch(v.trim());
+    if (m != null) {
+      setState(() => _cor = '#${m.group(1)!.toUpperCase()}');
+    }
+  }
+
+  void _selecionarCor(String hex) {
+    setState(() => _cor = hex);
+    _corCtrl.text = hex;
+  }
+
+  Color? _hexToColor(String? hex) {
+    if (hex == null) return null;
+    final h = hex.replaceAll('#', '');
+    if (h.length != 6) return null;
+    final v = int.tryParse(h, radix: 16);
+    return v == null ? null : Color(0xFF000000 | v);
   }
 
   Future<void> _save() async {
@@ -75,19 +157,17 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
       _nomeErr = null;
     });
     final repo = ref.read(financeiroRepositoryProvider);
-    // tipo herdado da mãe quando é subcategoria.
-    final tipo = _isSub
-        ? (widget.parent?.tipo ?? widget.editing?.tipo ?? _tipo)
-        : _tipo;
+    final icone =
+        _iconeCtrl.text.trim().isEmpty ? 'tag' : _iconeCtrl.text.trim();
+    final cor =
+        (_cor == null || _cor!.isEmpty) ? kPresetCores[0] : _cor;
     final data = <String, dynamic>{
       'nome': _nome.text.trim(),
-      'tipo': tipo.wire,
-      'icone': _icone,
-      'cor': _cor,
+      'tipo': _tipo.wire,
+      'icone': icone,
+      'cor': cor,
       'arquivada': widget.editing?.arquivada ?? false,
-      if (widget.parent != null) 'parent_id': widget.parent!.id,
-      if (widget.editing?.parentId != null)
-        'parent_id': widget.editing!.parentId,
+      'parent_id': _parentId,
     };
     try {
       if (_isEdit) {
@@ -120,24 +200,6 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.parent != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: ClxSpace.x4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.subdirectory_arrow_right_rounded,
-                    size: 16,
-                    color: clx.ink3,
-                  ),
-                  const SizedBox(width: ClxSpace.x2),
-                  Text(
-                    'Subcategoria de "${widget.parent!.nome}"',
-                    style: TextStyle(color: clx.ink3, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
           FinField(
             label: 'Nome',
             controller: _nome,
@@ -150,14 +212,37 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
               if (_nomeErr != null) setState(() => _nomeErr = null);
             },
           ),
-          if (!_isSub)
-            FinDropdown<TipoLancamento>(
-              label: 'Natureza',
-              value: _tipo,
-              enabled: !_saving,
-              items: TipoLancamento.values,
-              itemLabel: tipoLancamentoLabel,
-              onChanged: (v) => setState(() => _tipo = v ?? _tipo),
+          // Seletor de categoria-mãe — sempre visível (criar E editar).
+          FinDropdown<String>(
+            label: 'Categoria-mãe (opcional)',
+            value: _parentId ?? '',
+            enabled: !_saving,
+            items: ['', ..._maesElegiveis.map((c) => c.id)],
+            itemLabel: (id) => id.isEmpty
+                ? 'Nenhuma (categoria principal)'
+                : _maesElegiveis
+                    .firstWhere(
+                      (c) => c.id == id,
+                      orElse: () => FinCategoria(id: id, nome: id),
+                    )
+                    .nome,
+            onChanged: _handleParent,
+          ),
+          FinDropdown<TipoLancamento>(
+            label: 'Natureza',
+            value: _tipo,
+            enabled: !_saving && !_isSub,
+            items: TipoLancamento.values,
+            itemLabel: tipoLancamentoLabel,
+            onChanged: (v) => setState(() => _tipo = v ?? _tipo),
+          ),
+          if (_isSub)
+            Padding(
+              padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+              child: Text(
+                'A subcategoria herda o tipo da categoria-mãe.',
+                style: TextStyle(fontSize: 12, color: clx.ink3),
+              ),
             ),
           _iconePicker(clx),
           const SizedBox(height: ClxSpace.x4),
@@ -171,15 +256,13 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Ícone',
-          style: TextStyle(
-            color: clx.ink2,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+        FinField(
+          label: 'Ícone',
+          controller: _iconeCtrl,
+          enabled: !_saving,
+          hint: 'Ex.: spray-can, truck, home',
+          onChanged: (v) => setState(() => _icone = v),
         ),
-        const SizedBox(height: ClxSpace.x2),
         Wrap(
           spacing: ClxSpace.x2,
           runSpacing: ClxSpace.x2,
@@ -188,7 +271,10 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
               InkWell(
                 onTap: _saving
                     ? null
-                    : () => setState(() => _icone = entry.key),
+                    : () {
+                        setState(() => _icone = entry.key);
+                        _iconeCtrl.text = entry.key;
+                      },
                 borderRadius: ClxRadii.rMd,
                 child: Container(
                   width: 40,
@@ -217,40 +303,60 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
   }
 
   Widget _corPicker(CleanoxColors clx) {
-    String hex(Color c) =>
-        '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+    final corAtual = _hexToColor(_cor);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Cor',
-          style: TextStyle(
-            color: clx.ink2,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(
+              width: 40,
+              height: 36,
+              margin: const EdgeInsets.only(right: ClxSpace.x2, bottom: ClxSpace.x4),
+              decoration: BoxDecoration(
+                color: corAtual ?? clx.bg3,
+                borderRadius: ClxRadii.rMd,
+                border: Border.all(color: clx.line),
+              ),
+            ),
+            Expanded(
+              child: FinField(
+                label: 'Cor',
+                controller: _corCtrl,
+                enabled: !_saving,
+                hint: '#0E9F9C',
+                onChanged: _onCorHexChanged,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: ClxSpace.x2),
         Wrap(
           spacing: ClxSpace.x2,
           runSpacing: ClxSpace.x2,
           children: [
-            for (final c in clx.finSeries)
+            for (final hex in kPresetCores)
               InkWell(
-                onTap: _saving ? null : () => setState(() => _cor = hex(c)),
+                onTap: _saving ? null : () => _selecionarCor(hex),
                 borderRadius: ClxRadii.rPill,
                 child: Container(
-                  width: 30,
-                  height: 30,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
-                    color: c,
+                    color: _hexToColor(hex),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _cor == hex(c) ? clx.ink : clx.line2,
-                      width: _cor == hex(c) ? 2.5 : 1,
+                      color:
+                          (_cor?.toUpperCase() == hex.toUpperCase())
+                              ? clx.ink
+                              : clx.line2,
+                      width:
+                          (_cor?.toUpperCase() == hex.toUpperCase())
+                              ? 2.5
+                              : 1,
                     ),
                   ),
-                  child: _cor == hex(c)
+                  child: (_cor?.toUpperCase() == hex.toUpperCase())
                       ? const Icon(
                           Icons.check_rounded,
                           size: 16,

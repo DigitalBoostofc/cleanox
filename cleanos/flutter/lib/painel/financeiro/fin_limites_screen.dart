@@ -239,16 +239,21 @@ class _LimiteCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: ClxSpace.x2),
-          // Barra de progresso.
-          ClipRRect(
-            borderRadius: ClxRadii.rPill,
-            child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 10,
-              backgroundColor: clx.bg3,
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          if (progresso.limite > 0)
+            ClipRRect(
+              borderRadius: ClxRadii.rPill,
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 10,
+                backgroundColor: clx.bg3,
+                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+              ),
+            )
+          else
+            Text(
+              'Limite zerado',
+              style: TextStyle(fontSize: 12, color: clx.warning),
             ),
-          ),
           const SizedBox(height: ClxSpace.x2),
           Row(
             children: [
@@ -335,7 +340,7 @@ class _LimiteFormState extends ConsumerState<_LimiteForm> {
     final valor = parseMoedaBr(_valor.text);
     setState(() {
       _catErr = _categoriaId == null ? 'Escolha uma categoria' : null;
-      _valorErr = (valor == null || valor <= 0)
+      _valorErr = (valor == null || valor < 0)
           ? 'Informe um teto válido'
           : null;
     });

@@ -104,6 +104,9 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
 
   Map<String, dynamic>? lastCreateLanc;
   Map<String, dynamic>? lastUpdateLanc;
+  Map<String, dynamic>? lastCreateCategoria;
+  Map<String, dynamic>? lastUpdateCategoria;
+  Map<String, dynamic>? lastUpsertLimiteData;
   String? lastAjusteContaId;
   double? lastAjusteDelta;
   String? lastDefinirContaId;
@@ -150,6 +153,7 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   @override
   Future<FinCategoria> createCategoria(Map<String, dynamic> data) async {
     createCategoriaCount++;
+    lastCreateCategoria = data;
     return fakeCategoria(id: 'nova', nome: (data['nome'] as String?) ?? 'Nova');
   }
 
@@ -157,7 +161,10 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   Future<FinCategoria> updateCategoria(
     String id,
     Map<String, dynamic> data,
-  ) async => fakeCategoria(id: id, nome: (data['nome'] as String?) ?? 'Cat');
+  ) async {
+    lastUpdateCategoria = data;
+    return fakeCategoria(id: id, nome: (data['nome'] as String?) ?? 'Cat');
+  }
 
   @override
   Future<void> deleteCategoria(String id) async {}
@@ -228,6 +235,7 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   @override
   Future<FinLimite> upsertLimite(Map<String, dynamic> data) async {
     upsertLimiteCount++;
+    lastUpsertLimiteData = data;
     return fakeLimite(
       id: (data['id'] as String?) ?? 'novo',
       categoriaId: (data['categoria_id'] as String?) ?? 'cat',

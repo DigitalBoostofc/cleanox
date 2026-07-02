@@ -30,10 +30,13 @@ class FinCategoriasScreen extends ConsumerWidget {
     FinCategoria? editing,
     FinCategoria? parent,
   }) async {
+    final todas =
+        ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
     final saved = await showCategoriaForm(
       context,
       editing: editing,
       parent: parent,
+      parents: todas,
     );
     if (saved == true) {
       ref.invalidate(finCategoriasProvider);
