@@ -205,6 +205,10 @@ routerAdd("GET", "/api/cleanos/whatsapp/config", (e) => {
     avaliacao_poll_texto:    cfg.getString("avaliacao_poll_texto"),
     avaliacao_motivo_texto:  cfg.getString("avaliacao_motivo_texto"),
     avaliacao_agradecimento: cfg.getString("avaliacao_agradecimento"),
+    // doc 09 §3 — templates dos avisos de rastreamento "estou a caminho".
+    aviso_5min_texto:        cfg.getString("aviso_5min_texto"),
+    aviso_1min_texto:        cfg.getString("aviso_1min_texto"),
+    aviso_cheguei_texto:     cfg.getString("aviso_cheguei_texto"),
   });
 }, $apis.requireAuth());
 
@@ -225,6 +229,10 @@ routerAdd("POST", "/api/cleanos/whatsapp/config", (e) => {
     "avaliacao_poll_texto",
     "avaliacao_motivo_texto",
     "avaliacao_agradecimento",
+    // doc 09 §3 — templates dos avisos de rastreamento "estou a caminho".
+    "aviso_5min_texto",
+    "aviso_1min_texto",
+    "aviso_cheguei_texto",
   ];
   for (let i = 0; i < editableFields.length; i++) {
     const field = editableFields[i];
@@ -240,5 +248,8 @@ routerAdd("POST", "/api/cleanos/whatsapp/config", (e) => {
     avaliacao_poll_texto:    cfg.getString("avaliacao_poll_texto"),
     avaliacao_motivo_texto:  cfg.getString("avaliacao_motivo_texto"),
     avaliacao_agradecimento: cfg.getString("avaliacao_agradecimento"),
+    aviso_5min_texto:        cfg.getString("aviso_5min_texto"),
+    aviso_1min_texto:        cfg.getString("aviso_1min_texto"),
+    aviso_cheguei_texto:     cfg.getString("aviso_cheguei_texto"),
   });
 }, $apis.requireAuth());

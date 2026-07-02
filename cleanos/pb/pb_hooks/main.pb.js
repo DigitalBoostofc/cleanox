@@ -24,17 +24,48 @@ onRecordCreate((e) => {
   lib.manageEndereco(e.app, e.record); // limpa/define endereço conforme status
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: cobre create-as-concluida (OS nascendo concluida)
+
+  // doc 09 §3: OS nascendo já atribuída a um profissional → push "Nova OS".
+  const novoProf = lib.relId(e.record.get("profissional"));
+
   e.next();
+
+  // Push só APÓS a persistência ter sucesso (best-effort, nunca bloqueia o create).
+  if (novoProf) {
+    try {
+      require(`${__hooks}/push.js`).notifyUserNovaOS(e.app, novoProf, e.record.id);
+    } catch (err) {
+      console.error("[push] Falha ao notificar nova OS (create, ignorado): " + err);
+    }
+  }
 }, "ordens_servico");
 
 onRecordUpdate((e) => {
   const lib = require(`${__hooks}/os_logic.js`);
+
+  // Detecta ATRIBUIÇÃO (mudança de profissional) ANTES do save, comparando com o
+  // estado original — para disparar o push "Nova OS" só quando de fato muda.
+  const orig     = e.record.original ? e.record.original() : null;
+  const antesProf = orig ? lib.relId(orig.get("profissional")) : "";
+  const novoProf  = lib.relId(e.record.get("profissional"));
+  const atribuiu  = !!novoProf && novoProf !== antesProf;
+
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);
+
   e.next();
+
+  // Push só APÓS a persistência (best-effort, nunca bloqueia o update).
+  if (atribuiu) {
+    try {
+      require(`${__hooks}/push.js`).notifyUserNovaOS(e.app, novoProf, e.record.id);
+    } catch (err) {
+      console.error("[push] Falha ao notificar nova OS (update, ignorado): " + err);
+    }
+  }
 }, "ordens_servico");
 
 // ----------------------------------------------------------------------------
@@ -187,5 +218,166 @@ cronAdd("cleanStaleEndereco", "5 * * * *", () => {
     }
   } catch (err) {
     console.error(`[cleanStaleEndereco] Erro ao limpar OS expiradas: ${err}`);
+  }
+});
+
+// ----------------------------------------------------------------------------
+// doc 09 §3 — CRON: avisos de proximidade "estou a caminho" (GPS ao vivo).
+//
+// A cada minuto varre as OS em_andamento que:
+//   - têm `aviso_a_caminho_em` setado (Msg1 já enviada — a viagem começou);
+//   - NÃO têm `cheguei_em` (rastreamento ainda ativo);
+//   - têm `prof_pos_em` RECENTE (o app está enviando GPS de verdade);
+//   - têm `dest_lat/dest_lng` (destino geocodificado);
+//   - a viagem começou há menos de MAX_TRIP_MIN (janela máx — evita OS zumbis).
+// Calcula o ETA com trânsito e dispara, de forma IDEMPOTENTE (carimbos
+// aviso_5min_em / aviso_1min_em), a Msg2 (≤5min) e a Msg3 (≤1min).
+//
+// Degradação graciosa: sem GOOGLE_MAPS_API_KEY o ETA vem null e nada é enviado
+// (o botão "Cheguei ao local" manual continua funcionando). Sem WhatsApp
+// conectado, apenas loga e pula. NUNCA lança — best-effort como cleanStaleEndereco.
+// ----------------------------------------------------------------------------
+cronAdd("trackingAvisos", "* * * * *", () => {
+  // Thresholds e janelas (constantes — doc 09 §3).
+  const ETA_5MIN_MIN  = 5;                 // Msg2: ETA ≤ 5 min
+  const ETA_1MIN_MIN  = 1;                 // Msg3: ETA ≤ 1 min
+  const POS_FRESH_MS  = 3 * 60 * 1000;     // posição do prof considerada "recente" (3 min)
+  const MAX_TRIP_MS   = 2 * 60 * 60 * 1000;// janela máx da viagem (2 h) após a-caminho
+
+  try {
+    const uazapi = require(`${__hooks}/uazapi.js`);
+    const maps   = require(`${__hooks}/maps.js`);
+    const lib    = require(`${__hooks}/os_logic.js`);
+    const h      = require(`${__hooks}/whatsapp_helpers.js`);
+
+    // OS candidatas: em_andamento.
+    const records = $app.findAllRecords(
+      "ordens_servico",
+      $dbx.hashExp({ status: "em_andamento" })
+    );
+    if (!records.length) return;
+
+    // Config WhatsApp — resolve UMA vez por rodada. Sem instância/conexão, pula tudo.
+    const cfg           = h.getAppConfig($app);
+    const instanceToken = cfg.getString("whatsapp_instance_token");
+    if (!instanceToken) {
+      // Sem instância configurada — nada a fazer (silencioso: é estado normal em dev).
+      return;
+    }
+    const msg5Template      = cfg.getString("aviso_5min_texto")    || "+5 minutos para o profissional chegar.";
+    const msg1Template      = cfg.getString("aviso_1min_texto")    || "Está quase chegando, falta menos de 1 min. Por favor fique atento.";
+
+    // QUOTA GUARD (Google Maps): resolve o status da instância UMA vez por rodada.
+    // Se o WhatsApp não estiver `connected`, os avisos jamais seriam enviados —
+    // então PULA o loop inteiro ANTES de chamar maps.etaMinutes por OS (cada
+    // etaMinutes é uma chamada HTTP paga ao Google). Sem esta trava, o cron
+    // queimaria quota do Maps a cada minuto com o WhatsApp fora. Degradação
+    // graciosa: se a checagem de status falhar, cai no whatsapp_status salvo.
+    let wStatus = "disconnected";
+    try {
+      const inst = h.extractInstance(uazapi.instanceStatus(instanceToken));
+      wStatus = inst.status || "disconnected";
+      cfg.set("whatsapp_status", wStatus);
+      $app.save(cfg);
+    } catch (errSt) {
+      wStatus = cfg.getString("whatsapp_status") || "disconnected";
+      console.error(`[trackingAvisos] Erro ao verificar status UAZAPI (ignorado): ${errSt}`);
+    }
+    if (wStatus !== "connected") return; // WhatsApp fora → não queima quota do Maps
+
+    const now = Date.now();
+
+    for (const os of records) {
+      try {
+        // Gates de elegibilidade (baratos primeiro).
+        if (!os.getString("aviso_a_caminho_em")) continue; // viagem não começou
+        if (os.getString("cheguei_em")) continue;          // já chegou
+
+        // Janela máx: a-caminho recente o suficiente.
+        const aCaminho = new Date(os.getString("aviso_a_caminho_em")).getTime();
+        if (isNaN(aCaminho) || (now - aCaminho) > MAX_TRIP_MS) continue;
+
+        // Posição do profissional recente.
+        const posEmStr = os.getString("prof_pos_em");
+        if (!posEmStr) continue;
+        const posEm = new Date(posEmStr).getTime();
+        if (isNaN(posEm) || (now - posEm) > POS_FRESH_MS) continue;
+
+        // Coordenadas presentes.
+        const oLat = Number(os.get("prof_lat"));
+        const oLng = Number(os.get("prof_lng"));
+        const dLat = Number(os.get("dest_lat"));
+        const dLng = Number(os.get("dest_lng"));
+        if ([oLat, oLng, dLat, dLng].some((n) => isNaN(n) || n === 0)) continue;
+
+        // Se ambos os avisos já foram enviados, nada a fazer (evita chamar a API à toa).
+        const has5 = !!os.getString("aviso_5min_em");
+        const has1 = !!os.getString("aviso_1min_em");
+        if (has5 && has1) continue;
+
+        // ETA com trânsito (degrada p/ null se a chave faltar ou a API falhar).
+        const eta = maps.etaMinutes(oLat, oLng, dLat, dLng);
+        if (eta === null) continue;
+
+        // Decide qual mensagem enviar. Idempotente por carimbo. Se o ETA já caiu
+        // direto para ≤1 sem termos mandado a de 5, mandamos só a de 1 (a mais
+        // relevante) e marcamos ambas para não reenviar depois.
+        let sentAny = false;
+
+        if (eta <= ETA_1MIN_MIN && !has1) {
+          if (sendAviso(os, uazapi, lib, instanceToken, msg1Template)) {
+            const stamp = nowStamp();
+            os.set("aviso_1min_em", stamp);
+            if (!has5) os.set("aviso_5min_em", stamp); // pulou a de 5 → marca p/ não reenviar
+            sentAny = true;
+          }
+        } else if (eta <= ETA_5MIN_MIN && !has5) {
+          if (sendAviso(os, uazapi, lib, instanceToken, msg5Template)) {
+            os.set("aviso_5min_em", nowStamp());
+            sentAny = true;
+          }
+        }
+
+        if (sentAny) $app.save(os);
+      } catch (errOne) {
+        console.error(`[trackingAvisos] Erro na OS ${os.id} (ignorado): ${errOne}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[trackingAvisos] Erro geral (ignorado): ${err}`);
+  }
+
+  // ── helpers locais do cron ──
+  function nowStamp() {
+    return new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  }
+
+  // Envia um aviso ao cliente da OS (telefone lido do cofre server-side, NUNCA
+  // exposto). Substitui {nome}/{servico}. Retorna true se enviou, false se pulou.
+  function sendAviso(os, uazapi, lib, instanceToken, template) {
+    const cid = lib.relId(os.get("cliente"));
+    if (!cid) return false;
+    let numero = "";
+    try {
+      const cliente = $app.findRecordById("clientes", cid);
+      numero = uazapi.normalizePhone(cliente.getString("telefone"));
+    } catch (_) {
+      return false;
+    }
+    if (!numero) return false;
+
+    const texto = String(template || "")
+      .replace(/{nome}/g, os.getString("nome_curto") || "Cliente")
+      .replace(/{servico}/g, os.getString("tipo_servico_nome") || "serviço");
+
+    try {
+      uazapi.sendText(instanceToken, numero, texto);
+      return true;
+    } catch (errSend) {
+      // WhatsApp desconectado / erro de envio — loga e não marca o carimbo
+      // (tentará de novo na próxima rodada). NUNCA vaza o número.
+      console.error(`[trackingAvisos] Falha ao enviar aviso da OS ${os.id} (ignorado): ${errSend}`);
+      return false;
+    }
   }
 });
