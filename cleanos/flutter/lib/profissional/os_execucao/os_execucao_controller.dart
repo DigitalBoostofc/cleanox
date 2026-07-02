@@ -23,6 +23,7 @@ import '../../core/models/servico.dart';
 import '../../core/repositories/evidencias_repository.dart';
 import '../../core/repositories/ordens_repository.dart';
 import '../../core/repositories/repo_types.dart';
+import '../../core/storage/local_store_keys.dart';
 import '../../shared_widgets_os/shared_widgets_os.dart';
 import '../data/prof_providers.dart';
 import '../data/upload_queue.dart';
@@ -124,7 +125,8 @@ class OSExecucaoController
   FlutterSecureStorage get _storage => ref.read(secureStorageProvider);
 
   /// Chave do buffer offline do checklist (secure storage) por OS.
-  String get _checklistBufKey => 'cleanos_checklist_exec_$_osId';
+  /// Prefixo canônico: entra na purga LGPD do logout (A-05).
+  String get _checklistBufKey => '$kChecklistBufKeyPrefix$_osId';
 
   @override
   OSExecucaoState build(String osId) {

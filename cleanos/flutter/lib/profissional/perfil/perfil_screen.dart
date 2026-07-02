@@ -14,6 +14,7 @@ import '../../core/design/design.dart';
 import '../../core/env/env.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../data/prof_filters.dart';
 import '../data/prof_providers.dart';
 import '../location/tracking_providers.dart';
 
@@ -40,16 +41,21 @@ final perfilStatsProvider = FutureProvider.autoDispose<PerfilStats>((
   final repo = ref.watch(ordensRepositoryProvider);
   final bounds = getBrtDayBounds();
 
+  // A-04: filtros via prof_filters (escaping pbStringLiteral, sem interpolação).
   final hoje = await repo.list(
     perPage: 100,
-    filter:
-        "profissional = '$id' && data_hora >= '${bounds.todayStart}' "
-        "&& data_hora < '${bounds.tomorrowStart}'",
+    filter: profOrdensHojeFilter(id, bounds),
   );
+  // ⚠️ A-08: teto de 200 — acima disso a média passa a considerar só as 200 OS
+  // avaliadas MAIS RECENTES (sort explícito abaixo, para o corte ser
+  // determinístico e enviesado pro presente, não arbitrário). Paginar tudo ou
+  // agregar server-side é over-engineering pro volume real (< ~50 OS/dia →
+  // anos até um profissional passar de 200 avaliadas); se estourar, agregação
+  // server-side é o caminho.
   final avaliadas = await repo.list(
     perPage: 200,
-    filter:
-        "profissional = '$id' && status = 'concluida' && avaliacao_nota >= 1",
+    sort: '-data_hora',
+    filter: profAvaliadasFilter(id),
   );
 
   final concluidas = hoje.items

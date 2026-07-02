@@ -14,6 +14,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/models/os_execucao.dart';
 import '../../core/repositories/evidencias_repository.dart';
+import '../../core/storage/local_store_keys.dart';
 import 'pb_evidencias_repository.dart' show IdempotentEvidenciasRepository;
 
 /// Item enfileirado (serializável). Guarda o CAMINHO do arquivo — os bytes são
@@ -106,7 +107,7 @@ class UploadQueue {
   /// notificado para tirar o preview fantasma.
   void Function(String localId)? onDiscarded;
 
-  String get _key => 'cleanos_upload_queue_$osId';
+  String get _key => '$kUploadQueueKeyPrefix$osId';
 
   List<QueuedUpload> get pending => List.unmodifiable(_items);
 
@@ -149,10 +150,25 @@ class UploadQueue {
   /// Reprocessa a fila (ex.: botão "Reenviar" ou reconexão).
   Future<void> retry() => process();
 
-  /// Remove um item local (ex.: usuário descartou antes de subir).
+  /// Remove um item local (ex.: usuário descartou antes de subir). Apaga também
+  /// a cópia local da foto — descartada, ela é só resíduo LGPD (A-01).
   Future<void> removeLocal(String localId) async {
+    final removed = _items.where((q) => q.localId == localId).toList();
     _items.removeWhere((q) => q.localId == localId);
     await _persist();
+    for (final q in removed) {
+      await _deleteLocalFile(q.filePath);
+    }
+  }
+
+  /// Apaga a cópia local best-effort (nunca falha o fluxo por erro de disco).
+  Future<void> _deleteLocalFile(String path) async {
+    try {
+      final f = File(path);
+      if (await f.exists()) await f.delete();
+    } catch (_) {
+      /* best-effort — a purga do logout varre o diretório como rede de segurança */
+    }
   }
 
   /// Dispara [process] sem aguardar (fire-and-forget seguro).
@@ -201,6 +217,11 @@ class UploadQueue {
           _items.removeWhere((x) => x.localId == q.localId);
           await _persist();
           onUploaded?.call(q.localId, real);
+          // Upload CONFIRMADO pelo servidor → o registro do PB é a fonte; a
+          // cópia local (foto da casa do cliente) vira resíduo LGPD (A-01).
+          // Só deletamos aqui, nunca antes da confirmação — e DEPOIS do
+          // onUploaded, para o preview já ter trocado para a URL do PB.
+          await _deleteLocalFile(q.filePath);
         } catch (e) {
           onFailed?.call(q.localId, e);
           break; // não martela o servidor; aguarda retry

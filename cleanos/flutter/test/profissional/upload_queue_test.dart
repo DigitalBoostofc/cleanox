@@ -116,6 +116,91 @@ void main() {
     expect(q.pending, isEmpty);
   });
 
+  test('A-01: upload CONFIRMADO → cópia local da foto é apagada', () async {
+    final dir = Directory.systemTemp.createTempSync('cleanos_uq_del_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/foto.jpg')
+      ..writeAsBytesSync(Uint8List.fromList([1, 2, 3]));
+
+    final repo = CapturingEvidenciasRepository();
+    final q = UploadQueue(repo: repo, storage: FakeSecureStorage(), osId: 'os1');
+    final uploaded = <String>[];
+    q.onUploaded = (localId, _) => uploaded.add(localId);
+
+    await q.enqueue(
+      QueuedUpload(
+        localId: 'l1',
+        osId: 'os1',
+        filePath: file.path,
+        fase: FaseFoto.antes,
+        idempotencyKey: 'k1',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(uploaded, ['l1']);
+    expect(q.pending, isEmpty);
+    expect(
+      file.existsSync(),
+      isFalse,
+      reason: 'após o servidor confirmar, a cópia local é resíduo LGPD',
+    );
+  });
+
+  test('A-01: falha de upload NÃO apaga a cópia local (retry precisa dela)',
+      () async {
+    final dir = Directory.systemTemp.createTempSync('cleanos_uq_keep_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/foto.jpg')
+      ..writeAsBytesSync(Uint8List.fromList([1, 2, 3]));
+
+    final repo = CapturingEvidenciasRepository()..failFirst = 1;
+    final q = UploadQueue(repo: repo, storage: FakeSecureStorage(), osId: 'os1');
+
+    await q.enqueue(
+      QueuedUpload(
+        localId: 'l1',
+        osId: 'os1',
+        filePath: file.path,
+        fase: FaseFoto.antes,
+        idempotencyKey: 'k1',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(q.pending, hasLength(1));
+    expect(file.existsSync(), isTrue, reason: 'sem confirmação, não deleta');
+
+    await q.retry(); // agora sucede → aí sim apaga.
+    expect(file.existsSync(), isFalse);
+  });
+
+  test('A-01: removeLocal descarta o item e apaga a cópia local', () async {
+    final dir = Directory.systemTemp.createTempSync('cleanos_uq_rm_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/foto.jpg')
+      ..writeAsBytesSync(Uint8List.fromList([1, 2, 3]));
+
+    final repo = CapturingEvidenciasRepository()..failFirst = 1; // segura na fila
+    final q = UploadQueue(repo: repo, storage: FakeSecureStorage(), osId: 'os1');
+
+    await q.enqueue(
+      QueuedUpload(
+        localId: 'l1',
+        osId: 'os1',
+        filePath: file.path,
+        fase: FaseFoto.antes,
+        idempotencyKey: 'k1',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(q.pending, hasLength(1));
+
+    await q.removeLocal('l1');
+    expect(q.pending, isEmpty);
+    expect(file.existsSync(), isFalse);
+  });
+
   test('QueuedUpload persiste e recupera o idempotency key', () {
     final item = QueuedUpload(
       localId: 'l1',

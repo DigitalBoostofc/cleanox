@@ -13,10 +13,16 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- A-02 (LGPD): sem backup do app data (nuvem e device-to-device). O
+         diretório de documentos guarda fotos de evidência (interior da casa do
+         cliente) até o upload — nada disso pode subir pro backup do Google da
+         conta pessoal do profissional. Em API 31+, allowBackup=false também
+         desativa a transferência d2d. -->
     <application
         android:label="cleanos"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -15,6 +15,7 @@ import '../../core/design/design.dart';
 import '../../core/env/env.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/ordem_servico.dart';
+import '../data/prof_filters.dart';
 import '../data/prof_providers.dart';
 import '../location/tracking_controls.dart';
 
@@ -25,10 +26,11 @@ final activeOSProvider = FutureProvider.autoDispose<OrdemServico?>((ref) async {
   // Re-busca quando um evento realtime chega (mantém o mapa fresco).
   ref.watch(ordensRealtimeProvider);
   final repo = ref.watch(ordensRepositoryProvider);
+  // A-04: filtro via prof_filters (escaping pbStringLiteral, sem interpolação).
   final res = await repo.list(
     perPage: 5,
     sort: '-updated',
-    filter: "profissional = '$id' && status = 'em_andamento'",
+    filter: profOsEmAndamentoFilter(id),
   );
   return res.items.isEmpty ? null : res.items.first;
 });

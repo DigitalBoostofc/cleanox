@@ -8,6 +8,7 @@
 /// o servidor é a linha de defesa do anti-desvio).
 library;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:pocketbase/pocketbase.dart';
 
 class OSError {
@@ -59,7 +60,11 @@ OSError describeOSError(Object? err) {
     return OSError(message: 'Erro ${err.statusCode}: tente novamente.');
   }
   if (err is Exception || err is Error) {
-    return OSError(message: err.toString());
+    // A-06: em RELEASE, erro não-PB vira mensagem genérica — o toString cru
+    // pode vazar detalhe interno (tipo da exceção, path, URL) na UI. Em debug
+    // mantém o toString para diagnóstico (aparece no toast e no console).
+    if (kDebugMode) return OSError(message: err.toString());
+    return const OSError(message: 'Erro inesperado. Tente novamente.');
   }
   return const OSError(message: 'Erro inesperado.');
 }

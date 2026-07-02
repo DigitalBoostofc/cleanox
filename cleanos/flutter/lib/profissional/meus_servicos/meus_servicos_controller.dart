@@ -16,6 +16,7 @@ import '../../core/models/ordem_servico.dart';
 import '../../core/repositories/ordens_repository.dart';
 import '../../core/repositories/repo_types.dart';
 import '../../core/repositories/whatsapp_repository.dart';
+import '../data/prof_filters.dart';
 import '../data/prof_providers.dart';
 import '../../core/auth/auth_providers.dart';
 
@@ -114,26 +115,23 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
 
     final bounds = getBrtDayBounds();
     try {
+      // A-04: filtros via prof_filters (escaping pbStringLiteral, nunca
+      // interpolação crua — mesma convenção do painel_filters).
       final results = await Future.wait([
         _repo.list(
           perPage: 50,
           sort: 'data_hora',
-          filter:
-              "profissional = '$id' && data_hora >= '${bounds.todayStart}' "
-              "&& data_hora < '${bounds.tomorrowStart}'",
+          filter: profOrdensHojeFilter(id, bounds),
         ),
         _repo.list(
           perPage: 20,
           sort: 'data_hora',
-          filter:
-              "profissional = '$id' && data_hora >= '${bounds.tomorrowStart}'",
+          filter: profOrdensProximasFilter(id, bounds),
         ),
         _repo.list(
           perPage: 20,
           sort: 'data_hora',
-          filter:
-              "profissional = '$id' && (status = 'atribuida' "
-              "|| status = 'em_andamento') && data_hora < '${bounds.todayStart}'",
+          filter: profOrdensAtrasadasAbertasFilter(id, bounds),
         ),
       ]);
       if (gen != _gen) return;
@@ -279,14 +277,17 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
   /// item obrigatório pendente, devolve [ConcluirResultado.checklistPendente]
   /// (a tela abre a execução com banner). O pagamento é pré-requisito e é
   /// checado pela UI + servidor.
+  ///
+  /// A-03: se o getExec falhar (offline/403), NÃO conclui às cegas — o erro
+  /// propaga e a tela mostra o toast (o usuário tenta de novo). O servidor
+  /// também impõe checklist obrigatório e pagamento na conclusão
+  /// (`guardOrdemUpdateRequest`/`assertPaymentIfConcluida` em
+  /// cleanos/pb/pb_hooks/os_logic.js); esta checagem client-side só antecipa
+  /// o feedback (banner na tela de execução em vez de 400 do servidor).
   Future<ConcluirResultado> concluir(OrdemServico os) async {
-    try {
-      final exec = await _repo.getExec(os.id);
-      if (exec.checklistExec.isNotEmpty && exec.temItensObrigatoriosPendentes) {
-        return ConcluirResultado.checklistPendente;
-      }
-    } catch (_) {
-      // Se falhar ao carregar a execução, não trava: segue para concluir.
+    final exec = await _repo.getExec(os.id);
+    if (exec.checklistExec.isNotEmpty && exec.temItensObrigatoriosPendentes) {
+      return ConcluirResultado.checklistPendente;
     }
     final updated = await _repo.updateStatus(os.id, OSStatus.concluida);
     _upsert(updated);

@@ -80,4 +80,22 @@ void main() {
     expect(res, ConcluirResultado.concluida);
     expect(repo.statusCalls, [OSStatus.concluida]);
   });
+
+  test('A-03: falha do getExec NÃO conclui às cegas — erro propaga', () async {
+    final repo = FakeOrdensRepository(
+      execOS: _execComChecklist(obrigatorioPendente: true),
+    )..getExecError = Exception('offline');
+    final c = _container(repo);
+    final ctrl = c.read(meusServicosProvider.notifier);
+
+    await expectLater(
+      ctrl.concluir(repo.execOS!),
+      throwsA(isA<Exception>()),
+    );
+    expect(
+      repo.statusCalls,
+      isEmpty,
+      reason: 'sem validar o checklist, a OS não pode ser concluída',
+    );
+  });
 }

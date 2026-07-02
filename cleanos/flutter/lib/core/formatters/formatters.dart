@@ -62,11 +62,18 @@ DateRange getBrtMonthBounds(int year, int month) {
   );
 }
 
-/// Parseia um datetime do PB (UTC, separador espaço ou 'T', com/sem 'Z') → DateTime UTC.
+/// Offset explícito no fim do datetime: `+03:00`, `-0300`, `+0300`… (A-07:
+/// `.contains('+')` não reconhecia offset NEGATIVO e concatenava um 'Z' num
+/// string que já tinha `-03:00`, quebrando o parse). Não casa a data em si
+/// (`…-07-02`): exige [+-] seguido de exatamente 2+2 dígitos no FIM.
+final RegExp _explicitOffsetRe = RegExp(r'[+-]\d{2}:?\d{2}$');
+
+/// Parseia um datetime do PB (UTC, separador espaço ou 'T', com/sem 'Z' ou
+/// offset explícito ±HH:MM) → DateTime UTC.
 DateTime? parsePbUtc(String iso) {
   if (iso.isEmpty) return null;
   var s = iso.trim().replaceFirst(' ', 'T');
-  if (!s.endsWith('Z') && !s.contains('+')) s = '${s}Z';
+  if (!s.endsWith('Z') && !_explicitOffsetRe.hasMatch(s)) s = '${s}Z';
   return DateTime.tryParse(s)?.toUtc();
 }
 

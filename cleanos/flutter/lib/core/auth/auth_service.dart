@@ -6,10 +6,13 @@ library;
 import 'package:flutter/painting.dart' show PaintingBinding;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show DefaultCacheManager;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/collections.dart';
 import '../models/user.dart';
+import '../storage/evidence_purge.dart' as evidence_purge;
+import '../storage/local_store_keys.dart';
 
 /// Erro de login já traduzido para PT-BR (espelha as mensagens do AuthContext).
 class AuthException implements Exception {
@@ -29,10 +32,31 @@ class AuthSnapshot {
   static const AuthSnapshot signedOut = AuthSnapshot();
 }
 
+/// Purga default do cache em disco do cached_network_image. O construtor do
+/// `DefaultCacheManager` já dispara IO assíncrono (path_provider/sqflite) —
+/// numa VM de teste isso vira erro assíncrono fora de try/catch, por isso a
+/// função inteira é injetável e o default só roda no app real.
+Future<void> _defaultImageDiskCachePurge() =>
+    DefaultCacheManager().emptyCache();
+
 class AuthService {
-  AuthService(this._pb);
+  /// [storage], [purgeEvidenceFiles] e [purgeImageDiskCache] são injetáveis
+  /// para teste; os defaults são o secure storage real, a purga de plataforma
+  /// (`evidence_purge.dart`) e o `DefaultCacheManager().emptyCache()`.
+  AuthService(
+    this._pb, {
+    FlutterSecureStorage? storage,
+    Future<void> Function()? purgeEvidenceFiles,
+    Future<void> Function()? purgeImageDiskCache,
+  }) : _storage = storage ?? const FlutterSecureStorage(),
+       _purgeEvidenceFiles =
+           purgeEvidenceFiles ?? evidence_purge.purgeEvidenceDir,
+       _purgeImageDiskCache = purgeImageDiskCache ?? _defaultImageDiskCachePurge;
 
   final PocketBase _pb;
+  final FlutterSecureStorage _storage;
+  final Future<void> Function() _purgeEvidenceFiles;
+  final Future<void> Function() _purgeImageDiskCache;
 
   User? get currentUser {
     final rec = _pb.authStore.record;
@@ -95,7 +119,32 @@ class AuthService {
     } catch (_) {
       /* binding indisponível (ex.: teste) — ignora */
     }
+    // Fotos de evidência copiadas para o app-private dir (A-01): o registro no
+    // PocketBase é a fonte — a cópia local é resíduo LGPD após o logout.
+    try {
+      _purgeEvidenceFiles().catchError((_) {});
+    } catch (_) {
+      /* plataforma sem suporte — ignora */
+    }
+    // Buffers por-OS no secure storage (A-05): fila de upload + checklist
+    // offline não podem sobreviver à troca de usuário no mesmo aparelho.
+    _purgeSecureKeys().catchError((_) {});
     // Cache de imagens EM DISCO do cached_network_image (fotos do cliente).
-    DefaultCacheManager().emptyCache().catchError((_) {});
+    try {
+      _purgeImageDiskCache().catchError((_) {});
+    } catch (_) {
+      /* plugin indisponível (ex.: teste) — ignora */
+    }
+  }
+
+  /// Apaga as chaves de execução por OS ([kLgpdPurgeKeyPrefixes]) do secure
+  /// storage. O token de auth já foi limpo pelo `authStore.clear()`.
+  Future<void> _purgeSecureKeys() async {
+    final all = await _storage.readAll();
+    for (final key in all.keys) {
+      if (kLgpdPurgeKeyPrefixes.any(key.startsWith)) {
+        await _storage.delete(key: key);
+      }
+    }
   }
 }

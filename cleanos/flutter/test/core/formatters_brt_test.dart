@@ -49,6 +49,47 @@ void main() {
     });
   });
 
+  group('parsePbUtc (A-07: offset explícito ±HH:MM)', () {
+    test('formatos UTC do PB (com/sem Z, espaço ou T)', () {
+      expect(
+        parsePbUtc('2026-07-01 17:30:00.000Z'),
+        DateTime.utc(2026, 7, 1, 17, 30),
+      );
+      expect(parsePbUtc('2026-07-01T17:30:00'), DateTime.utc(2026, 7, 1, 17, 30));
+    });
+
+    test('offset NEGATIVO -03:00 não ganha Z e converte pra UTC', () {
+      expect(
+        parsePbUtc('2026-07-01T14:30:00-03:00'),
+        DateTime.utc(2026, 7, 1, 17, 30),
+      );
+      expect(
+        parsePbUtc('2026-07-01 14:30:00-0300'),
+        DateTime.utc(2026, 7, 1, 17, 30),
+      );
+    });
+
+    test('offset POSITIVO segue funcionando', () {
+      expect(
+        parsePbUtc('2026-07-01T20:30:00+03:00'),
+        DateTime.utc(2026, 7, 1, 17, 30),
+      );
+    });
+
+    test('data sem hora não é confundida com offset (…-07-02)', () {
+      // '-07-02' no fim NÃO pode casar o padrão de offset. Se casasse, o valor
+      // seria parseado como HORÁRIO LOCAL do device (errado e não-determinístico);
+      // sem casar, ganha 'Z' e o parse falha → null → placeholder ('—'), o
+      // mesmo comportamento de antes do A-07 (o PB nunca manda data sem hora).
+      expect(parsePbUtc('2026-07-02'), isNull);
+    });
+
+    test('vazio/inválido → null', () {
+      expect(parsePbUtc(''), isNull);
+      expect(parsePbUtc('não-é-data'), isNull);
+    });
+  });
+
   group('exibição em BRT', () {
     test('formatDate converte para o dia BRT', () {
       expect(formatDate('2026-07-01 02:00:00.000Z'), '30/06/2026');

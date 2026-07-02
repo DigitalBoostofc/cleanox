@@ -21,6 +21,10 @@ class FakeOrdensRepository implements OrdensRepository {
   /// OS devolvida por [getExec] (execução).
   OrdemServico? execOS;
 
+  /// Se setado, [getExec] lança este erro (simula offline/403 na validação de
+  /// checklist do concluir — A-03).
+  Object? getExecError;
+
   /// Itens devolvidos por [list] (qualquer janela).
   List<OrdemServico> listItems;
 
@@ -48,6 +52,8 @@ class FakeOrdensRepository implements OrdensRepository {
 
   @override
   Future<OrdemServico> getExec(String osId) async {
+    final err = getExecError;
+    if (err != null) throw err;
     final os = execOS;
     if (os == null) throw StateError('execOS não configurado');
     return os;
@@ -212,4 +218,14 @@ class FakeSecureStorage extends FlutterSecureStorage {
   }) async {
     store.remove(key);
   }
+
+  @override
+  Future<Map<String, String>> readAll({
+    IOSOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    MacOsOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async => Map<String, String>.from(store);
 }

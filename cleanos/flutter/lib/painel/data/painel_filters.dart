@@ -7,9 +7,11 @@
 library;
 
 import '../../core/models/collections.dart';
+import '../../core/pb/pb_filters.dart';
 
-/// Escapa um valor de string como literal de filtro do PB (`'…'`, com `'` → `\'`).
-String pbStringLiteral(String value) => "'${value.replaceAll("'", "\\'")}'";
+// O escaping mora no core (`pb_filters.dart`, A-04) — re-exportado aqui para
+// os consumidores/testes existentes do Painel.
+export '../../core/pb/pb_filters.dart' show pbStringLiteral;
 
 /// Filtro de busca de clientes por nome/sobrenome/telefone/bairro/cidade
 /// (operador `~` = contém). Retorna `null` quando a busca está vazia (lista tudo).

@@ -17,6 +17,7 @@ import '../../core/env/env.dart';
 import '../../core/repositories/evidencias_repository.dart';
 import '../../core/repositories/repo_types.dart';
 import '../../core/repositories/whatsapp_repository.dart';
+import '../../core/storage/local_store_keys.dart';
 import 'pb_evidencias_repository.dart';
 import 'pb_tracking_repository.dart';
 import 'pb_whatsapp_repository.dart';
@@ -31,7 +32,8 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
 /// kill, quebrando o retry). Override em teste (o plugin não existe na VM).
 final evidenceDirProvider = FutureProvider<Directory>((ref) async {
   final base = await getApplicationDocumentsDirectory();
-  final dir = Directory('${base.path}/cleanos_evidencias');
+  // Nome canônico compartilhado com a purga LGPD do logout (A-01).
+  final dir = Directory('${base.path}/$kEvidenceDirName');
   if (!await dir.exists()) await dir.create(recursive: true);
   return dir;
 });
