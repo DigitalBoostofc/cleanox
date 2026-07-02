@@ -57,6 +57,7 @@ class PbPainelWhatsAppRepository implements WhatsAppRepository {
     connected: res['status'] == 'connected',
     qr: res['qrcode'] as String?,
     paircode: res['paircode'] as String?,
+    profileName: res['profileName'] as String?,
   );
 
   Never _soDoProfissional() => throw UnimplementedError(

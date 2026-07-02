@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/os_execucao.dart';
+import '../../core/models/servico.dart';
 import '../data/painel_providers.dart';
 
 /// Expand da visão admin — inclui `cliente` (PII liberada ao Painel).
@@ -37,3 +38,10 @@ final osExecucaoAdminProvider = FutureProvider.autoDispose
           .listDaOS(osId);
       return OSExecucaoAdminData(os: os, evidencias: evidencias);
     });
+
+/// Catálogo ATIVO de serviços — usado no seletor de serviço da execução (admin),
+/// para OS que ainda não têm serviço/snapshot definido. Espelha o dropdown do
+/// `OSExecucaoPage.tsx`.
+final execServicosProvider = FutureProvider.autoDispose<List<ServicoPB>>(
+  (ref) => ref.watch(servicosRepositoryProvider).listAtivos(),
+);

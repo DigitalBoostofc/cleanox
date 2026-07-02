@@ -226,8 +226,13 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                     'Forma de pagamento',
                     _os.formaPagamento?.label ?? '—',
                   ),
-                  _row(clx, 'Repasse', _os.repasseStatus?.label ?? '—'),
+                  _row(
+                    clx,
+                    'Repasse',
+                    _repasseTexto(),
+                  ),
                 ]),
+                if (_os.status == OSStatus.concluida) _avaliacaoSection(clx),
               ],
             ),
           ),
@@ -312,6 +317,57 @@ class _OSDetailState extends ConsumerState<OSDetail> {
           ErrorBanner(message: _reatribuirError!),
         ],
       ],
+    ]);
+  }
+
+  /// "Pendente · R$ x" / "Repassado · R$ x" / "—". Espelha o React (status + valor).
+  String _repasseTexto() {
+    final status = _os.repasseStatus?.label;
+    final valor = _os.repasseValor;
+    if (status == null) return '—';
+    if (valor != null && valor > 0) {
+      return '$status · ${formatCurrency(valor)}';
+    }
+    return status;
+  }
+
+  /// Avaliação da OS concluída (estrelas + motivo + data). Espelha o bloco
+  /// "Avaliação" do detalhe no React.
+  Widget _avaliacaoSection(CleanoxColors clx) {
+    final nota = _os.avaliacaoNota;
+    if (nota == null) {
+      return _section(clx, 'Avaliação', [
+        Text(
+          'Avaliação pendente',
+          style: TextStyle(color: clx.ink3, fontSize: 13.5),
+        ),
+      ]);
+    }
+    return _section(clx, 'Avaliação', [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 130,
+              child: Text(
+                'Nota',
+                style: TextStyle(
+                  color: clx.ink3,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: StarRating(value: nota, size: 18)),
+          ],
+        ),
+      ),
+      if ((_os.avaliacaoMotivo ?? '').isNotEmpty)
+        _row(clx, 'Motivo', _os.avaliacaoMotivo!),
+      if ((_os.avaliacaoEm ?? '').isNotEmpty)
+        _row(clx, 'Data', formatDateTime(_os.avaliacaoEm!)),
     ]);
   }
 

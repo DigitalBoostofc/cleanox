@@ -130,13 +130,18 @@ class OrdemServico with _$OrdemServico {
     );
   }
 
-  /// Total do resumo financeiro da execução: serviço + adicionais − descontos.
+  /// Total do resumo financeiro da execução: serviço + adicionais COBRÁVEIS −
+  /// descontos. Espelha `calcTotalOS`/`isAdicionalCobravel` do React: só entram
+  /// os adicionais `aprovado` ou `nao_requer` (aguardando/recusado não contam).
   double get valorTotal {
     final principal = valorServico ?? 0;
-    final extras = adicionais.fold<double>(
-      0,
-      (sum, a) => sum + a.valor * a.quantidade,
-    );
+    final extras = adicionais
+        .where(
+          (a) =>
+              a.aprovacao == AprovacaoStatus.aprovado ||
+              a.aprovacao == AprovacaoStatus.naoRequer,
+        )
+        .fold<double>(0, (sum, a) => sum + a.valor * a.quantidade);
     final total = principal + extras - descontos;
     return total < 0 ? 0 : total;
   }

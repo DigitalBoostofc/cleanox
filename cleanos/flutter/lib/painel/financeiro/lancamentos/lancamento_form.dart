@@ -23,12 +23,20 @@ import '../fin_providers.dart';
 Future<bool?> showLancamentoForm(
   BuildContext context, {
   FinLancamento? editing,
-}) => showFinModal<bool>(context, LancamentoForm(editing: editing));
+  TipoLancamento? initialTipo,
+}) => showFinModal<bool>(
+  context,
+  LancamentoForm(editing: editing, initialTipo: initialTipo),
+);
 
 class LancamentoForm extends ConsumerStatefulWidget {
-  const LancamentoForm({super.key, this.editing});
+  const LancamentoForm({super.key, this.editing, this.initialTipo});
 
   final FinLancamento? editing;
+
+  /// Tipo pré-selecionado ao CRIAR (ex.: ação rápida "Nova receita"). Ignorado
+  /// na edição (usa o tipo do registro).
+  final TipoLancamento? initialTipo;
 
   @override
   ConsumerState<LancamentoForm> createState() => _LancamentoFormState();
@@ -41,6 +49,9 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   late final TextEditingController _vencimento;
   late final TextEditingController _formaPagamento;
   late final TextEditingController _observacao;
+  late final TextEditingController _tags;
+  late final TextEditingController _parcelaAtual;
+  late final TextEditingController _parcelasTotal;
 
   late TipoLancamento _tipo;
   String? _contaId;
@@ -68,7 +79,14 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _vencimento = TextEditingController(text: l?.vencimento ?? '');
     _formaPagamento = TextEditingController(text: l?.formaPagamento ?? '');
     _observacao = TextEditingController(text: l?.observacao ?? '');
-    _tipo = l?.tipo ?? TipoLancamento.despesa;
+    _tags = TextEditingController(text: (l?.tags ?? const []).join(', '));
+    _parcelaAtual = TextEditingController(
+      text: (l?.parcelaAtual ?? 1).toString(),
+    );
+    _parcelasTotal = TextEditingController(
+      text: (l?.parcelasTotal ?? 2).toString(),
+    );
+    _tipo = l?.tipo ?? widget.initialTipo ?? TipoLancamento.despesa;
     _contaId = l?.contaId.isNotEmpty == true ? l!.contaId : null;
     _categoriaId = l?.categoriaId.isNotEmpty == true ? l!.categoriaId : null;
     _subcategoriaId = l?.subcategoriaId;
@@ -85,6 +103,9 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _vencimento.dispose();
     _formaPagamento.dispose();
     _observacao.dispose();
+    _tags.dispose();
+    _parcelaAtual.dispose();
+    _parcelasTotal.dispose();
     super.dispose();
   }
 
@@ -98,6 +119,15 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     if (_data.text.trim().isEmpty) errs['data'] = 'Data é obrigatória';
     if (_contaId == null) errs['conta'] = 'Escolha uma conta';
     if (_categoriaId == null) errs['categoria'] = 'Escolha uma categoria';
+    if (_recorrencia == RecorrenciaTipo.parcelada) {
+      final total = int.tryParse(_parcelasTotal.text.trim());
+      final atual = int.tryParse(_parcelaAtual.text.trim());
+      if (total == null || total < 1) {
+        errs['parcelas'] = 'Nº de parcelas deve ser um inteiro ≥ 1';
+      } else if (atual == null || atual < 1 || atual > total) {
+        errs['parcelas'] = 'Parcela atual deve estar entre 1 e $total';
+      }
+    }
     if (errs.isNotEmpty) {
       setState(() {
         _errs
@@ -125,6 +155,19 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           : _vencimento.text.trim(),
       'status': _status.wire,
       'recorrencia': _recorrencia.wire,
+      // Parcelas só quando 'parcelada'; senão limpa (o registro deixa de ser parcela).
+      if (_recorrencia == RecorrenciaTipo.parcelada) ...{
+        'parcela_atual': int.parse(_parcelaAtual.text.trim()),
+        'parcelas_total': int.parse(_parcelasTotal.text.trim()),
+      } else ...{
+        'parcela_atual': null,
+        'parcelas_total': null,
+      },
+      'tags': _tags.text
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList(),
       'forma_pagamento': _formaPagamento.text.trim().isEmpty
           ? null
           : _formaPagamento.text.trim(),
@@ -325,11 +368,47 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                   setState(() => _recorrencia = v ?? _recorrencia),
             ),
           ),
+          // Parcelas (só quando recorrência = Parcelada). As parcelas seguintes
+          // não são geradas aqui (mesma decisão do web).
+          if (_recorrencia == RecorrenciaTipo.parcelada) ...[
+            FinTwoCol(
+              FinField(
+                label: 'Parcela atual',
+                controller: _parcelaAtual,
+                enabled: !_saving,
+                hint: '1',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => _clearErr('parcelas'),
+              ),
+              FinField(
+                label: 'Total de parcelas',
+                controller: _parcelasTotal,
+                enabled: !_saving,
+                hint: '2',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => _clearErr('parcelas'),
+              ),
+            ),
+            if (_errs['parcelas'] != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+                child: Text(
+                  _errs['parcelas']!,
+                  style: TextStyle(color: clx.error, fontSize: 12.5),
+                ),
+              ),
+          ],
           FinField(
             label: 'Forma de pagamento (opcional)',
             controller: _formaPagamento,
             enabled: !_saving,
             hint: 'Pix, Crédito, Dinheiro…',
+          ),
+          FinField(
+            label: 'Tags (opcional)',
+            controller: _tags,
+            enabled: !_saving,
+            hint: 'separe, por, vírgulas',
           ),
           FinField(
             label: 'Observação (opcional)',

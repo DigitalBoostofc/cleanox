@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -50,6 +51,23 @@ class OSCard extends StatelessWidget {
 
   bool get _pagamentoRegistrado =>
       (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
+
+  /// Abre a rota no Google Maps (endereço só liberado em `em_andamento`).
+  /// Espelha o link "Ver rota" do `OSCard` de `MeusServicos.tsx`.
+  Future<void> _abrirRota(BuildContext context, String address) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query='
+      '${Uri.encodeComponent(address)}',
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      showClxToast(
+        context,
+        'Não foi possível abrir o Google Maps.',
+        type: ToastType.error,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -274,6 +292,19 @@ class OSCard extends StatelessWidget {
             const SizedBox(height: ClxSpace.x2),
             Row(
               children: [
+                // "Ver rota" — só quando o endereço já foi liberado (em_andamento).
+                if ((os.enderecoLiberado ?? '').isNotEmpty) ...[
+                  Expanded(
+                    child: ClxButton(
+                      label: 'Ver rota',
+                      variant: ClxButtonVariant.ghost,
+                      icon: Icons.map_outlined,
+                      onPressed: () =>
+                          _abrirRota(context, os.enderecoLiberado!),
+                    ),
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                ],
                 Expanded(
                   child: ClxButton(
                     label: os.avisoACaminhoEm != null

@@ -13,13 +13,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/cliente.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/os_execucao.dart';
+import '../../core/models/servico.dart';
 import '../../shared_widgets_os/shared_widgets_os.dart';
 import '../data/painel_providers.dart';
+import '../servicos/servicos_labels.dart';
 import 'os_execucao_admin_controller.dart';
 
 class OSExecucaoAdminScreen extends ConsumerWidget {
@@ -85,8 +89,17 @@ class _Body extends ConsumerStatefulWidget {
 
 class _BodyState extends ConsumerState<_Body> {
   bool _enviando = false;
+  bool _salvandoServico = false;
+  bool _salvandoDesc = false;
 
-  OrdemServico get _os => widget.data.os;
+  /// OS local (mutável): reflete os saves de serviço/descontos sem sair da tela.
+  late OrdemServico _os;
+
+  @override
+  void initState() {
+    super.initState();
+    _os = widget.data.os;
+  }
 
   /// Monta o laudo pronto p/ pré-visualizar/PDF (admin inclui dados do cliente).
   RelatorioOS? _montarLaudo() {
@@ -173,6 +186,60 @@ class _BodyState extends ConsumerState<_Body> {
     }
   }
 
+  /// Define o serviço de uma OS que ainda não tem serviço/snapshot. Grava só o
+  /// relation `servico` (+ nome/valor denormalizados) e deixa o hook do servidor
+  /// congelar o snapshot e materializar o checklist (fillServiceSnapshot). O
+  /// snapshot é IMUTÁVEL depois disso — por isso só habilitamos a seleção quando
+  /// ainda não há snapshot (troca posterior exige reabrir a OS no funil de edição).
+  Future<void> _selecionarServico(ServicoPB svc) async {
+    if (_salvandoServico) return;
+    setState(() => _salvandoServico = true);
+    try {
+      final novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
+        'servico': svc.id,
+        'tipo_servico_nome': svc.nome,
+        'valor_servico': svc.valorBase,
+      }, expand: kAdminExecExpand);
+      if (!mounted) return;
+      setState(() {
+        _os = novo;
+        _salvandoServico = false;
+      });
+      showClxToast(
+        context,
+        'Serviço "${svc.nome}" definido na OS.',
+        type: ToastType.success,
+      );
+    } catch (err) {
+      if (mounted) {
+        setState(() => _salvandoServico = false);
+        showClxToast(context, _whatsError(err), type: ToastType.error);
+      }
+    }
+  }
+
+  /// Persiste o desconto (R$) — campo liberado ao Painel; abatido no total.
+  Future<void> _salvarDescontos(double valor) async {
+    if (_salvandoDesc || valor == _os.descontos) return;
+    setState(() => _salvandoDesc = true);
+    try {
+      final novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
+        'descontos': valor,
+      }, expand: kAdminExecExpand);
+      if (!mounted) return;
+      setState(() {
+        _os = novo;
+        _salvandoDesc = false;
+      });
+      showClxToast(context, 'Desconto atualizado.', type: ToastType.success);
+    } catch (err) {
+      if (mounted) {
+        setState(() => _salvandoDesc = false);
+        showClxToast(context, _whatsError(err), type: ToastType.error);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
@@ -185,18 +252,18 @@ class _BodyState extends ConsumerState<_Body> {
         _headerCard(clx),
         const SizedBox(height: ClxSpace.x3),
 
-        // Snapshot do serviço.
+        // Snapshot do serviço — ou seletor quando a OS ainda não tem serviço.
         if (os.serviceSnapshot != null)
           SnapshotResumo(snapshot: os.serviceSnapshot!)
         else
-          _placeholder(
-            clx,
-            'Serviço não definido',
-            'A OS ainda não tem um serviço/snapshot capturado.',
-          ),
+          _seletorServico(clx),
         const SizedBox(height: ClxSpace.x3),
 
         // Checklist (LEITURA — o Painel não edita a execução do profissional).
+        if (os.checklistExec.isNotEmpty) ...[
+          _checklistProgresso(clx),
+          const SizedBox(height: ClxSpace.x2),
+        ],
         AbsorbPointer(
           child: ChecklistExecucao(
             items: os.checklistExec,
@@ -480,8 +547,30 @@ class _BodyState extends ConsumerState<_Body> {
           ),
           const SizedBox(height: ClxSpace.x3),
           _linha(clx, 'Valor do serviço', formatCurrency(os.valorServico ?? 0)),
-          if (os.descontos > 0)
-            _linha(clx, 'Descontos', '- ${formatCurrency(os.descontos)}'),
+          // Desconto EDITÁVEL (campo liberado ao Painel) — espelha o input do React.
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '− Descontos (R\$)',
+                    style: TextStyle(color: clx.ink2, fontSize: 14),
+                  ),
+                ),
+                if (_salvandoDesc) ...[
+                  const Spinner(size: 14),
+                  const SizedBox(width: ClxSpace.x2),
+                ],
+                _DescontosField(
+                  key: ValueKey(os.id),
+                  valor: os.descontos,
+                  enabled: !_salvandoDesc,
+                  onSubmit: _salvarDescontos,
+                ),
+              ],
+            ),
+          ),
           if (os.valorPago != null)
             _linha(clx, 'Valor pago', formatCurrency(os.valorPago!)),
           Divider(height: ClxSpace.x5, color: clx.line),
@@ -524,23 +613,113 @@ class _BodyState extends ConsumerState<_Body> {
     );
   }
 
-  Widget _placeholder(CleanoxColors clx, String title, String msg) {
+  /// Progresso do checklist de execução (X de Y itens concluídos + barra).
+  Widget _checklistProgresso(CleanoxColors clx) {
+    final total = _os.checklistExec.length;
+    final feitos = _os.checklistExec
+        .where((i) => i.status == ChecklistExecStatus.concluido)
+        .length;
+    final frac = total == 0 ? 0.0 : feitos / total;
+    return Row(
+      children: [
+        Icon(Icons.checklist_rounded, size: 16, color: clx.ink3),
+        const SizedBox(width: ClxSpace.x2),
+        Text(
+          '$feitos de $total itens concluídos',
+          style: TextStyle(
+            color: clx.ink2,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(width: ClxSpace.x3),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: ClxRadii.rPill,
+            child: LinearProgressIndicator(
+              value: frac,
+              minHeight: 6,
+              backgroundColor: clx.line,
+              color: clx.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Seletor de serviço para OS SEM serviço definido. Ao escolher, grava o
+  /// relation e o servidor congela o snapshot + checklist (fillServiceSnapshot).
+  Widget _seletorServico(CleanoxColors clx) {
+    final async = ref.watch(execServicosProvider);
     return ClxCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            title,
+            'Serviço principal',
             style: TextStyle(
-              color: clx.ink2,
+              color: clx.ink,
               fontSize: 15,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: ClxSpace.x1),
           Text(
-            msg,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: clx.ink3, fontSize: 13),
+            'Esta OS ainda não tem serviço. Selecione o serviço do catálogo '
+            'para capturar o snapshot e gerar o checklist.',
+            style: TextStyle(color: clx.ink3, fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          async.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: ClxSpace.x2),
+              child: Spinner(size: 20),
+            ),
+            error: (_, __) => ErrorBanner(
+              message: 'Não foi possível carregar o catálogo de serviços.',
+              onRetry: () => ref.invalidate(execServicosProvider),
+            ),
+            data: (servicos) {
+              if (servicos.isEmpty) {
+                return Text(
+                  'Nenhum serviço ativo no catálogo.',
+                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                );
+              }
+              final ordenados = [...servicos]
+                ..sort((a, b) => a.nome.toLowerCase().compareTo(
+                      b.nome.toLowerCase(),
+                    ));
+              return Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<ServicoPB>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(isDense: true),
+                      hint: const Text('Selecione o serviço…'),
+                      items: [
+                        for (final s in ordenados)
+                          DropdownMenuItem(
+                            value: s,
+                            child: Text(
+                              '${s.nome} — ${formatValorServico(s)}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _salvandoServico
+                          ? null
+                          : (s) => s == null ? null : _selecionarServico(s),
+                    ),
+                  ),
+                  if (_salvandoServico) ...[
+                    const SizedBox(width: ClxSpace.x3),
+                    const Spinner(size: 18),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -583,4 +762,80 @@ String _whatsError(Object? err) {
     if (e is String && e.isNotEmpty) return e;
   }
   return describeOSError(err).message;
+}
+
+/// Campo compacto de desconto (R$) — persiste ao concluir a edição (submit/blur),
+/// espelhando o input de descontos do resumo financeiro do `OSExecucaoPage.tsx`.
+class _DescontosField extends StatefulWidget {
+  const _DescontosField({
+    super.key,
+    required this.valor,
+    required this.onSubmit,
+    this.enabled = true,
+  });
+
+  final double valor;
+  final ValueChanged<double> onSubmit;
+  final bool enabled;
+
+  @override
+  State<_DescontosField> createState() => _DescontosFieldState();
+}
+
+class _DescontosFieldState extends State<_DescontosField> {
+  late final TextEditingController _ctrl;
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: _fmt(widget.valor));
+    _focus = FocusNode()..addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  static String _fmt(double v) => v <= 0 ? '' : v.toStringAsFixed(2);
+
+  double _parse() {
+    final raw = _ctrl.text.trim().replaceAll('.', '').replaceAll(',', '.');
+    final v = double.tryParse(raw) ?? 0;
+    return v < 0 ? 0 : v;
+  }
+
+  void _onFocusChange() {
+    if (!_focus.hasFocus) _submit();
+  }
+
+  void _submit() {
+    widget.onSubmit(_parse());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return SizedBox(
+      width: 120,
+      child: TextField(
+        controller: _ctrl,
+        focusNode: _focus,
+        enabled: widget.enabled,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textAlign: TextAlign.right,
+        style: TextStyle(color: clx.ink, fontSize: 14),
+        decoration: const InputDecoration(
+          isDense: true,
+          prefixText: r'R$ ',
+          hintText: '0,00',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+    );
+  }
 }

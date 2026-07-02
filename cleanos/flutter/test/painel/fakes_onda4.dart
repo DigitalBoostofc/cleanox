@@ -198,6 +198,27 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
     deleteLancCount++;
   }
 
+  int duplicateLancCount = 0;
+  int repeatLancCount = 0;
+  FinLancamento? lastDuplicateBase;
+  FinLancamento? lastRepeatBase;
+
+  @override
+  Future<FinLancamento> duplicateLancamento(FinLancamento base) async {
+    duplicateLancCount++;
+    lastDuplicateBase = base;
+    createLancCount++;
+    return fakeLanc(id: 'dup', descricao: base.descricao);
+  }
+
+  @override
+  Future<FinLancamento> repeatLancamento(FinLancamento base) async {
+    repeatLancCount++;
+    lastRepeatBase = base;
+    createLancCount++;
+    return fakeLanc(id: 'rep', descricao: base.descricao);
+  }
+
   @override
   Future<List<FinLimite>> listLimites() async {
     if (fail) throw Exception('falha');

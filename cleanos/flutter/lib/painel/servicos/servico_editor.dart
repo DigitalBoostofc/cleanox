@@ -16,8 +16,10 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/design/design.dart';
+import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
 import '../data/painel_providers.dart';
 import 'checklist_editor.dart';
@@ -47,6 +49,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   int _valorBaseCents = 0;
   int _valorBaseMaxCents = 0;
   List<ChecklistTemplateItem> _checklist = const [];
+  // Preservado no round-trip (sem UI de edição, igual ao React). NÃO zerar no save.
+  List<String> _adicionaisRelacionados = const [];
 
   bool _loading = true;
   String? _loadError;
@@ -54,12 +58,45 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   String? _saveError;
   final Map<String, String> _errs = {};
 
+  /// Serviço original carregado (edição) — base para "Duplicar serviço".
+  ServicoPB? _original;
+
+  /// Demais serviços do catálogo (read-only) — card "Outros serviços cadastrados".
+  List<ServicoPB> _outros = const [];
+
+  /// Marca alterações não salvas (guarda de saída, espelha `dirty` do React).
+  bool _dirty = false;
+
+  /// Suprime o dirty enquanto hidratamos os controllers no carregamento.
+  bool _hydrating = false;
+
   bool get _isEdit => widget.servicoId != null;
 
   @override
   void initState() {
     super.initState();
+    // Listeners: atualizam a pré-visualização AO VIVO e marcam alterações pendentes.
+    for (final c in [
+      _nome,
+      _tempoMedio,
+      _observacao,
+      _orientacoesPre,
+      _orientacoesPos,
+    ]) {
+      c.addListener(_onFieldChanged);
+    }
     _load();
+  }
+
+  /// Chamado a cada digitação: rebuild (preview) + marca dirty (fora da hidratação).
+  void _onFieldChanged() {
+    if (_hydrating) return;
+    setState(() => _dirty = true);
+  }
+
+  void _markDirty() {
+    if (_hydrating) return;
+    _dirty = true;
   }
 
   @override
@@ -74,18 +111,24 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
 
   Future<void> _load() async {
     final id = widget.servicoId;
-    if (id == null) {
-      setState(() => _loading = false);
-      return;
-    }
     setState(() {
       _loading = true;
       _loadError = null;
+      _dirty = false;
     });
+    _hydrating = true;
     try {
-      final s = await ref.read(servicosRepositoryProvider).getOne(id);
-      if (!mounted) return;
-      setState(() {
+      final repo = ref.read(servicosRepositoryProvider);
+      // "Outros serviços cadastrados" (read-only): todo o catálogo menos este.
+      final page = await repo.list(page: 1, perPage: 200, sort: 'nome');
+      final outros = [
+        for (final s in page.items)
+          if (s.id != id) s,
+      ];
+      if (id != null) {
+        final s = await repo.getOne(id);
+        if (!mounted) return;
+        _original = s;
         _categoria = s.categoria ?? Categoria.veicular;
         _grupo = s.grupo ?? Grupo.outros;
         _nome.text = s.nome;
@@ -96,8 +139,13 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         _status = s.status ?? ServicoStatus.ativo;
         _observacao.text = s.observacao ?? '';
         _checklist = s.checklistPadrao;
+        _adicionaisRelacionados = List<String>.from(s.adicionaisRelacionados);
         _orientacoesPre.text = s.orientacoesPre ?? '';
         _orientacoesPos.text = s.orientacoesPos ?? '';
+      }
+      if (!mounted) return;
+      setState(() {
+        _outros = outros;
         _loading = false;
       });
     } catch (_) {
@@ -107,6 +155,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
           _loadError = 'Não foi possível carregar o serviço.';
         });
       }
+    } finally {
+      _hydrating = false;
     }
   }
 
@@ -155,7 +205,9 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       'checklist_padrao': checklist,
       'orientacoes_pre': _orientacoesPre.text.trim(),
       'orientacoes_pos': _orientacoesPos.text.trim(),
-      'adicionais_relacionados': <String>[],
+      // Round-trip: preserva os vínculos carregados (vazio ao criar). Zerar aqui
+      // apagava os adicionais relacionados em toda edição (perda de dados).
+      'adicionais_relacionados': _adicionaisRelacionados,
     };
   }
 
@@ -183,6 +235,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       } else {
         await repo.create(payload);
       }
+      _dirty = false;
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (mounted) {
@@ -194,18 +247,95 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     }
   }
 
+  /// Confirma descarte de alterações não salvas (espelha o Modal do React).
+  /// Retorna true se pode prosseguir (sem alterações OU descarte confirmado).
+  Future<bool> _confirmarSaida() async {
+    if (!_dirty) return true;
+    final clx = context.clx;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: clx.bg,
+        shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+        title: const Text('Alterações não salvas'),
+        content: Text(
+          'Você tem alterações não salvas neste serviço. Se sair agora, elas '
+          'serão perdidas.',
+          style: TextStyle(color: clx.ink2, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          ClxButton(
+            label: 'Continuar editando',
+            variant: ClxButtonVariant.ghost,
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          ClxButton(
+            label: 'Descartar alterações',
+            variant: ClxButtonVariant.danger,
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _cancelar() async {
+    if (await _confirmarSaida() && mounted) {
+      _dirty = false;
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  /// Duplica o serviço em edição (nome + "(cópia)") e abre o editor do novo.
+  /// Espelha `duplicateServico` + navegação do React. Guarda alterações pendentes.
+  Future<void> _duplicar() async {
+    final original = _original;
+    if (original == null) return;
+    if (!await _confirmarSaida()) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      final payload = servicoToPayload(original)
+        ..['nome'] = '${original.nome} (cópia)';
+      final novo = await ref.read(servicosRepositoryProvider).create(payload);
+      _dirty = false;
+      if (mounted) context.pushReplacement('/painel/servicos/${novo.id}');
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _saveError = 'Não foi possível duplicar o serviço.';
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    return Scaffold(
-      backgroundColor: clx.bg2,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(clx),
-            Divider(height: 1, color: clx.line),
-            Expanded(child: _body(clx)),
-          ],
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (await _confirmarSaida()) {
+          _dirty = false;
+          navigator.maybePop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: clx.bg2,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _header(clx),
+              Divider(height: 1, color: clx.line),
+              Expanded(child: _body(clx)),
+            ],
+          ),
         ),
       ),
     );
@@ -223,7 +353,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
           IconButton(
             tooltip: 'Voltar',
             icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: _saving ? null : () => Navigator.of(context).maybePop(),
+            onPressed: _saving ? null : _cancelar,
           ),
           const SizedBox(width: ClxSpace.x2),
           Expanded(
@@ -250,12 +380,19 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             ),
           ),
           if (!_loading && _loadError == null) ...[
+            if (_isEdit) ...[
+              ClxButton(
+                label: 'Duplicar',
+                icon: Icons.copy_rounded,
+                variant: ClxButtonVariant.ghost,
+                onPressed: _saving ? null : _duplicar,
+              ),
+              const SizedBox(width: ClxSpace.x3),
+            ],
             ClxButton(
               label: 'Cancelar',
               variant: ClxButtonVariant.ghost,
-              onPressed: _saving
-                  ? null
-                  : () => Navigator.of(context).maybePop(),
+              onPressed: _saving ? null : _cancelar,
             ),
             const SizedBox(width: ClxSpace.x3),
             ClxButton(
@@ -321,7 +458,10 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                 child: ChecklistEditor(
                   items: _checklist,
                   enabled: !_saving,
-                  onChanged: (items) => _checklist = items,
+                  onChanged: (items) => setState(() {
+                    _checklist = items;
+                    _markDirty();
+                  }),
                 ),
               ),
               const SizedBox(height: ClxSpace.x4),
@@ -346,6 +486,30 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                       'intercorrências…',
                 ),
               ),
+              const SizedBox(height: ClxSpace.x4),
+              _card(
+                clx,
+                title: 'Regras do serviço na OS',
+                subtitle:
+                    'Quando este serviço é selecionado em uma OS, o sistema '
+                    'carrega automaticamente:',
+                child: _regrasOS(clx),
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              _card(
+                clx,
+                title: 'Pré-visualização na OS',
+                subtitle:
+                    'Assim este serviço será exibido na Ordem de Serviço para '
+                    'o cliente e para a equipe.',
+                child: _PreviewOS(servico: _draft()),
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              _card(
+                clx,
+                title: 'Outros serviços cadastrados',
+                child: _OutrosServicosTable(servicos: _outros),
+              ),
               const SizedBox(height: ClxSpace.x8),
             ],
           ),
@@ -364,14 +528,20 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             value: _categoria,
             items: Categoria.values,
             labelOf: categoriaLabel,
-            onChanged: (v) => setState(() => _categoria = v),
+            onChanged: (v) => setState(() {
+              _categoria = v;
+              _markDirty();
+            }),
           ),
           _dropdownField<Grupo>(
             label: 'Grupo',
             value: _grupo,
             items: Grupo.values,
             labelOf: grupoLabel,
-            onChanged: (v) => setState(() => _grupo = v),
+            onChanged: (v) => setState(() {
+              _grupo = v;
+              _markDirty();
+            }),
           ),
         ),
         _textField(
@@ -391,6 +561,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             onChanged: (v) => setState(() {
               _tipoValor = v;
               if (v != TipoValor.faixa) _errs.remove('valorMax');
+              _markDirty();
             }),
           ),
           _textFieldRaw(
@@ -404,7 +575,10 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             _moneyField(
               label: 'Valor mínimo',
               cents: _valorBaseCents,
-              onChanged: (c) => setState(() => _valorBaseCents = c),
+              onChanged: (c) => setState(() {
+                _valorBaseCents = c;
+                _markDirty();
+              }),
             ),
             _moneyField(
               label: 'Valor máximo',
@@ -413,6 +587,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
               onChanged: (c) => setState(() {
                 _valorBaseMaxCents = c;
                 _errs.remove('valorMax');
+                _markDirty();
               }),
             ),
           )
@@ -420,11 +595,65 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
           _moneyField(
             label: 'Valor base',
             cents: _valorBaseCents,
-            onChanged: (c) => setState(() => _valorBaseCents = c),
+            onChanged: (c) => setState(() {
+              _valorBaseCents = c;
+              _markDirty();
+            }),
           ),
         const SizedBox(height: ClxSpace.x2),
         _statusRow(clx),
       ],
+    );
+  }
+
+  /// Itens que a OS carrega automaticamente ao selecionar o serviço.
+  static const List<String> _regrasOSItens = [
+    'Valor do serviço',
+    'Tempo médio',
+    'Checklist padrão',
+    'Observações técnicas',
+    'Orientações ao cliente',
+  ];
+
+  Widget _regrasOS(CleanoxColors clx) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final r in _regrasOSItens)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, size: 16, color: clx.success),
+                const SizedBox(width: ClxSpace.x2),
+                Text(r, style: TextStyle(color: clx.ink2, fontSize: 13.5)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Draft AO VIVO para a pré-visualização (espelha o `draft` do React).
+  ServicoPB _draft() {
+    return ServicoPB(
+      id: widget.servicoId ?? 'preview',
+      categoria: _categoria,
+      grupo: _grupo,
+      nome: _nome.text,
+      valorBase: _valorBaseCents / 100,
+      valorBaseMax: _tipoValor == TipoValor.faixa
+          ? _valorBaseMaxCents / 100
+          : null,
+      tipoValor: _tipoValor,
+      tempoMedioMin: (parseTempoMedio(_tempoMedio.text.trim()) ?? 0).toDouble(),
+      tempoMedioLabel: _tempoMedio.text,
+      status: _status,
+      observacao: _observacao.text,
+      checklistPadrao: _checklist,
+      orientacoesPre: _orientacoesPre.text,
+      orientacoesPos: _orientacoesPos.text,
+      adicionaisRelacionados: _adicionaisRelacionados,
     );
   }
 
@@ -437,10 +666,10 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
           activeThumbColor: clx.primary,
           onChanged: _saving
               ? null
-              : (v) => setState(
-                  () =>
-                      _status = v ? ServicoStatus.ativo : ServicoStatus.inativo,
-                ),
+              : (v) => setState(() {
+                  _status = v ? ServicoStatus.ativo : ServicoStatus.inativo;
+                  _markDirty();
+                }),
         ),
         const SizedBox(width: ClxSpace.x2),
         Expanded(
@@ -735,6 +964,279 @@ class _MoneyFieldState extends State<_MoneyField> {
       inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\n'))],
       onChanged: _onChanged,
       decoration: InputDecoration(isDense: true, errorText: widget.errorText),
+    );
+  }
+}
+
+/// Ícone redondo da categoria (carro/casa) — espelha `CategoriaIcon` do React.
+IconData _categoriaIcon(Categoria? c) => c == Categoria.residencial
+    ? Icons.home_rounded
+    : Icons.directions_car_rounded;
+
+/// Quantos itens do checklist mostrar antes de resumir em "+N itens".
+const int _kPreviewChecklistLimit = 3;
+
+/// Pré-visualização AO VIVO de como o serviço aparece dentro da OS.
+/// Espelha `PreviewOS.tsx` (nome, descrição, valor/tempo, "Inclui").
+class _PreviewOS extends StatelessWidget {
+  const _PreviewOS({required this.servico});
+  final ServicoPB servico;
+
+  /// Em 'faixa' só mostra o intervalo quando o máximo já é maior que o mínimo.
+  String _previewValor() {
+    if (servico.tipoValor == TipoValor.faixa &&
+        servico.valorBaseMax != null &&
+        servico.valorBaseMax! > servico.valorBase) {
+      return formatValorServico(servico);
+    }
+    return formatCurrency(servico.valorBase);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final nome = servico.nome.trim().isEmpty
+        ? 'Nome do serviço'
+        : servico.nome.trim();
+    final descricao = (servico.observacao ?? '').trim().isEmpty
+        ? 'A observação comercial/técnica do serviço aparece aqui para orientar '
+              'o cliente e a equipe.'
+        : servico.observacao!.trim();
+    final itens =
+        [for (final c in servico.checklistPadrao) if (c.titulo.trim().isNotEmpty) c]
+          ..sort((a, b) => a.ordem.compareTo(b.ordem));
+    final visiveis = itens.take(_kPreviewChecklistLimit).toList();
+    final restantes = itens.length - visiveis.length;
+
+    return Container(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      decoration: BoxDecoration(
+        color: clx.bg2,
+        borderRadius: ClxRadii.rLg,
+        border: Border.all(color: clx.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(ClxSpace.x2),
+                decoration: BoxDecoration(
+                  color: clx.primary.withValues(alpha: 0.12),
+                  borderRadius: ClxRadii.rMd,
+                ),
+                child: Icon(
+                  _categoriaIcon(servico.categoria),
+                  size: 22,
+                  color: clx.primary,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nome,
+                      style: TextStyle(
+                        color: clx.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      descricao,
+                      style: TextStyle(
+                        color: clx.ink3,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: ClxSpace.x3),
+                    Row(
+                      children: [
+                        _meta(clx, 'Valor', _previewValor()),
+                        const SizedBox(width: ClxSpace.x6),
+                        _meta(
+                          clx,
+                          'Tempo',
+                          formatTempoMedio(
+                            servico.tempoMedioMin,
+                            servico.tempoMedioLabel,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Divider(height: 1, color: clx.line),
+          const SizedBox(height: ClxSpace.x3),
+          Text(
+            'INCLUI',
+            style: TextStyle(
+              color: clx.ink3,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          if (visiveis.isEmpty)
+            Text(
+              'Sem itens no checklist',
+              style: TextStyle(color: clx.ink3, fontSize: 13),
+            )
+          else ...[
+            for (final it in visiveis)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_rounded,
+                      size: 15,
+                      color: clx.success,
+                    ),
+                    const SizedBox(width: ClxSpace.x2),
+                    Expanded(
+                      child: Text(
+                        it.titulo,
+                        style: TextStyle(color: clx.ink2, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (restantes > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '+$restantes ${restantes == 1 ? 'item' : 'itens'}',
+                  style: TextStyle(
+                    color: clx.ink3,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _meta(CleanoxColors clx, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: clx.ink3, fontSize: 11),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          value,
+          style: TextStyle(
+            color: clx.ink,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Outros serviços cadastrados" (read-only, com toque para editar).
+/// Espelha `OutrosServicosTable.tsx` — linhas navegam ao editor do serviço.
+class _OutrosServicosTable extends StatelessWidget {
+  const _OutrosServicosTable({required this.servicos});
+  final List<ServicoPB> servicos;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    if (servicos.isEmpty) {
+      return Text(
+        'Nenhum outro serviço cadastrado ainda.',
+        style: TextStyle(color: clx.ink3, fontSize: 13),
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < servicos.length; i++) ...[
+          if (i > 0) Divider(height: 1, color: clx.line),
+          _row(context, servicos[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _row(BuildContext context, ServicoPB s) {
+    final clx = context.clx;
+    final ativo = (s.status ?? ServicoStatus.inativo) == ServicoStatus.ativo;
+    final statusColor = ativo ? clx.success : clx.ink3;
+    return InkWell(
+      onTap: () => context.push('/painel/servicos/${s.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
+        child: Row(
+          children: [
+            Icon(_categoriaIcon(s.categoria), size: 16, color: clx.ink3),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.nome.isEmpty ? '—' : s.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: clx.ink,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${categoriaLabel(s.categoria ?? Categoria.veicular)} · '
+                    '${grupoLabel(s.grupo ?? Grupo.outros)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: clx.ink3, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              flex: 2,
+              child: Text(
+                formatValorServico(s),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: TextStyle(color: clx.ink2, fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            ClxChip(
+              label: ativo ? 'Ativo' : 'Inativo',
+              color: statusColor,
+              dense: true,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

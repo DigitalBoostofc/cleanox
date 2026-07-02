@@ -53,6 +53,10 @@ dependencies:
   # Imagens de rede com cache (evidências com file token)
   cached_network_image: ^3.4.1
 
+  # Gerenciador do cache em disco (transitivo do cached_network_image) — usado
+  # diretamente na purga LGPD do logout (AuthService). Declarado explicitamente.
+  flutter_cache_manager: ^3.4.1
+
   # Permissões (câmera, localização — Fase 2)
   permission_handler: ^11.3.1
 

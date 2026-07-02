@@ -14,10 +14,18 @@ class AvisoResult {
 
 /// Status da conexão WhatsApp (UAZAPI).
 class WhatsAppStatus {
-  const WhatsAppStatus({required this.connected, this.qr, this.paircode});
+  const WhatsAppStatus({
+    required this.connected,
+    this.qr,
+    this.paircode,
+    this.profileName,
+  });
   final bool connected;
   final String? qr;
   final String? paircode;
+
+  /// Nome do perfil do WhatsApp conectado (vem do `/status`; ausente no connect).
+  final String? profileName;
 }
 
 abstract class WhatsAppRepository {

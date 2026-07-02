@@ -126,7 +126,7 @@ void main() {
   });
 
   group('Visão geral (charts)', () {
-    testWidgets('KPIs + donut + barras renderizam', (tester) async {
+    testWidgets('KPIs + donuts (gastos + origem) renderizam', (tester) async {
       final fake = FakeFinanceiro(
         contas: [fakeConta(id: 'a', saldoAtual: 500)],
         categorias: [fakeCategoria(id: 'cat', nome: 'Material')],
@@ -147,10 +147,11 @@ void main() {
       );
       await settle(tester);
 
-      expect(find.text('Entradas'), findsWidgets);
-      expect(find.text('Maiores gastos por categoria'), findsOneWidget);
-      expect(find.byType(PieChart), findsOneWidget);
-      expect(find.byType(BarChart), findsOneWidget);
+      // KPIs do mês + os dois donuts (maiores gastos e receitas por origem).
+      expect(find.text('Entradas do mês'), findsOneWidget);
+      expect(find.text('Maiores gastos do mês'), findsOneWidget);
+      expect(find.text('Receitas por origem'), findsOneWidget);
+      expect(find.byType(PieChart), findsNWidgets(2));
     });
 
     testWidgets('vazio quando não há movimentação', (tester) async {
@@ -184,9 +185,12 @@ void main() {
         overrides: withFin(fake),
       );
       await settle(tester);
-      expect(find.text('Entradas × saídas'), findsOneWidget);
-      expect(find.byType(BarChart), findsOneWidget);
+      // Aba default (Categorias): donuts por categoria.
       expect(find.byType(PieChart), findsWidgets);
+      // Troca para a aba de fluxo (Entradas × Saídas) → barras.
+      await tester.tap(find.text('Entradas × Saídas'));
+      await settle(tester);
+      expect(find.byType(BarChart), findsOneWidget);
     });
   });
 
@@ -260,7 +264,8 @@ void main() {
         overrides: withFin(fake),
       );
       await settle(tester);
-      expect(find.text('Nada a pagar em aberto'), findsOneWidget);
+      // Aba default "A pagar" sem pendências → estado vazio.
+      expect(find.text('Nenhuma conta a pagar no período.'), findsOneWidget);
     });
   });
 

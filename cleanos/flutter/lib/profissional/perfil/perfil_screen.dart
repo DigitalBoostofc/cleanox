@@ -7,6 +7,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
@@ -438,6 +439,10 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
   bool _saving = false;
   bool _success = false;
   String? _error;
+  // Erros por-campo (espelha `pwdFieldErrs` de Perfil.tsx).
+  String? _oldErr;
+  String? _newErr;
+  String? _confirmErr;
   final _old = TextEditingController();
   final _new = TextEditingController();
   final _confirm = TextEditingController();
@@ -450,21 +455,29 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
     super.dispose();
   }
 
-  String? _validate() {
-    if (_old.text.isEmpty) return 'Informe a senha atual.';
-    if (_new.text.length < 8) {
-      return 'A nova senha deve ter ao menos 8 caracteres.';
+  /// Valida campo a campo (espelha `validatePwd` de Perfil.tsx). Devolve `true`
+  /// quando não há erros; caso contrário, preenche os erros por-campo.
+  bool _validate() {
+    String? oldErr;
+    String? newErr;
+    String? confirmErr;
+    if (_old.text.isEmpty) oldErr = 'Informe a senha atual';
+    if (_new.text.isEmpty) {
+      newErr = 'Informe a nova senha';
+    } else if (_new.text.length < 8) {
+      newErr = 'Mínimo 8 caracteres';
     }
-    if (_new.text != _confirm.text) return 'As senhas não coincidem.';
-    return null;
+    if (_new.text != _confirm.text) confirmErr = 'As senhas não coincidem';
+    setState(() {
+      _oldErr = oldErr;
+      _newErr = newErr;
+      _confirmErr = confirmErr;
+    });
+    return oldErr == null && newErr == null && confirmErr == null;
   }
 
   Future<void> _save() async {
-    final err = _validate();
-    if (err != null) {
-      setState(() => _error = err);
-      return;
-    }
+    if (!_validate()) return;
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     setState(() {
@@ -486,13 +499,8 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
       setState(() => _success = true);
       await Future<void>.delayed(const Duration(milliseconds: 1600));
       ref.read(authServiceProvider).logout();
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _error =
-              'Não foi possível alterar a senha. Confira a senha atual.',
-        );
-      }
+    } catch (err) {
+      if (mounted) setState(() => _error = _pbPasswordError(err));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -569,11 +577,39 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
                           ErrorBanner(message: _error!),
                           const SizedBox(height: ClxSpace.x3),
                         ],
-                        _pwdField('Senha atual', _old),
+                        _pwdField(
+                          'Senha atual',
+                          _old,
+                          error: _oldErr,
+                          onChanged: () {
+                            if (_oldErr != null) {
+                              setState(() => _oldErr = null);
+                            }
+                          },
+                        ),
                         const SizedBox(height: ClxSpace.x2),
-                        _pwdField('Nova senha (mín. 8)', _new),
+                        _pwdField(
+                          'Nova senha',
+                          _new,
+                          error: _newErr,
+                          hint: 'Mínimo 8 caracteres',
+                          onChanged: () {
+                            if (_newErr != null) {
+                              setState(() => _newErr = null);
+                            }
+                          },
+                        ),
                         const SizedBox(height: ClxSpace.x2),
-                        _pwdField('Confirmar nova senha', _confirm),
+                        _pwdField(
+                          'Confirmar nova senha',
+                          _confirm,
+                          error: _confirmErr,
+                          onChanged: () {
+                            if (_confirmErr != null) {
+                              setState(() => _confirmErr = null);
+                            }
+                          },
+                        ),
                         const SizedBox(height: ClxSpace.x3),
                         ClxButton(
                           label: 'Alterar senha',
@@ -590,12 +626,53 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
     );
   }
 
-  Widget _pwdField(String label, TextEditingController ctrl) {
+  Widget _pwdField(
+    String label,
+    TextEditingController ctrl, {
+    String? error,
+    String? hint,
+    VoidCallback? onChanged,
+  }) {
     return TextField(
       controller: ctrl,
       obscureText: true,
       enabled: !_saving,
-      decoration: InputDecoration(labelText: label),
+      onChanged: onChanged == null ? null : (_) => onChanged(),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        errorText: error,
+      ),
     );
+  }
+
+  /// Traduz o erro do PocketBase ao trocar a senha (espelha `pbPasswordError`
+  /// de Perfil.tsx): distingue senha atual incorreta, nova senha inválida e
+  /// confirmação divergente a partir do corpo 400.
+  String _pbPasswordError(Object? err) {
+    if (err is ClientException) {
+      if (err.statusCode == 400) {
+        final msg = (err.response['message'] as String? ?? '').toLowerCase();
+        if (msg.contains('authenticate') || msg.contains('failed')) {
+          return 'Senha atual incorreta.';
+        }
+        final data = err.response['data'];
+        if (data is Map) {
+          String? fieldMsg(String key) {
+            final f = data[key];
+            return f is Map ? f['message'] as String? : null;
+          }
+          if (fieldMsg('oldPassword') != null) return 'Senha atual incorreta.';
+          final pwdMsg = fieldMsg('password');
+          if (pwdMsg != null) return 'Nova senha inválida: $pwdMsg';
+          if (fieldMsg('passwordConfirm') != null) {
+            return 'As senhas não coincidem.';
+          }
+        }
+        return 'Dados inválidos. Verifique o formulário.';
+      }
+      if (err.statusCode == 0) return 'Sem conexão com o servidor.';
+    }
+    return 'Ocorreu um erro inesperado.';
   }
 }

@@ -56,6 +56,7 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     final saved = await showOSForm(context);
     if (saved == true) {
       await ref.read(ordensControllerProvider.notifier).refresh();
+      ref.invalidate(ordensCountsProvider);
       if (mounted) {
         showClxToast(context, 'OS criada.', type: ToastType.success);
       }
@@ -66,8 +67,51 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     final saved = await showOSForm(context, editing: os);
     if (saved == true) {
       await ref.read(ordensControllerProvider.notifier).refresh();
+      ref.invalidate(ordensCountsProvider);
       if (mounted) {
         showClxToast(context, 'OS atualizada.', type: ToastType.success);
+      }
+    }
+  }
+
+  /// Cancela uma OS inline (confirmação + toast). Espelha `handleCancel` do React.
+  Future<void> _cancelar(OrdemServico os) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.clx.bg,
+        shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+        title: const Text('Cancelar OS'),
+        content: const Text('Deseja cancelar esta ordem de serviço?'),
+        actions: [
+          ClxButton(
+            label: 'Voltar',
+            variant: ClxButtonVariant.ghost,
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          ClxButton(
+            label: 'Cancelar OS',
+            variant: ClxButtonVariant.danger,
+            icon: Icons.cancel_outlined,
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(ordensControllerProvider.notifier).cancelar(os.id);
+      ref.invalidate(ordensCountsProvider);
+      if (mounted) {
+        showClxToast(context, 'OS cancelada.', type: ToastType.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível cancelar a OS.',
+          type: ToastType.error,
+        );
       }
     }
   }
@@ -82,6 +126,7 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     if (result == null) return;
     if (result.changed) {
       await ref.read(ordensControllerProvider.notifier).refresh();
+      ref.invalidate(ordensCountsProvider);
     }
     if (!mounted) return;
     switch (result.intent) {
@@ -204,6 +249,7 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
                 onTap: () => _abrirDetalhe(os),
                 onExecucao: () => _execucao(os),
                 onEditar: () => _editar(os),
+                onCancelar: () => _cancelar(os),
               );
             },
           ),
@@ -226,6 +272,7 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
             os: os,
             onTap: () => _abrirDetalhe(os),
             onExecucao: () => _execucao(os),
+            onCancelar: () => _cancelar(os),
           ),
         );
       },
@@ -307,16 +354,20 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
-/// Abas de status (Todas + cada OSStatus) — roláveis horizontalmente.
-class _StatusTabs extends StatelessWidget {
+/// Abas de status (Todas + cada OSStatus) — roláveis horizontalmente, com badge
+/// de contagem por status (espelha `countByStatus` do React).
+class _StatusTabs extends ConsumerWidget {
   const _StatusTabs({required this.active, required this.onSelect});
 
   final OSStatus? active;
   final ValueChanged<OSStatus?> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    final data = ref
+        .watch(ordensCountsProvider)
+        .maybeWhen(data: (d) => d, orElse: () => null);
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
@@ -331,12 +382,15 @@ class _StatusTabs extends StatelessWidget {
           children: [
             _Tab(
               label: 'Todas',
+              count: data?.total,
+              alwaysShowCount: true,
               selected: active == null,
               onTap: () => onSelect(null),
             ),
             for (final s in OSStatus.all)
               _Tab(
                 label: s.label,
+                count: data?.of(s),
                 selected: active == s,
                 onTap: () => onSelect(s),
               ),
@@ -352,15 +406,24 @@ class _Tab extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.count,
+    this.alwaysShowCount = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
+  /// Contagem exibida no badge (null enquanto carrega). Só aparece quando > 0,
+  /// exceto na aba "Todas" ([alwaysShowCount]).
+  final int? count;
+  final bool alwaysShowCount;
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final showBadge =
+        count != null && (alwaysShowCount || count! > 0);
     return Padding(
       padding: const EdgeInsets.only(right: ClxSpace.x2),
       child: Material(
@@ -376,13 +439,41 @@ class _Tab extends StatelessWidget {
               horizontal: ClxSpace.x4,
               vertical: ClxSpace.x2,
             ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? clx.primary : clx.ink2,
-                fontSize: 13.5,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? clx.primary : clx.ink2,
+                    fontSize: 13.5,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                if (showBadge) ...[
+                  const SizedBox(width: ClxSpace.x2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? clx.primary.withValues(alpha: 0.18)
+                          : clx.bg3,
+                      borderRadius: ClxRadii.rPill,
+                    ),
+                    child: Text(
+                      '${count!}',
+                      style: TextStyle(
+                        color: selected ? clx.primary : clx.ink3,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -421,12 +512,14 @@ class _OrdemRow extends StatelessWidget {
     required this.onTap,
     required this.onExecucao,
     required this.onEditar,
+    required this.onCancelar,
   });
 
   final OrdemServico os;
   final VoidCallback onTap;
   final VoidCallback onExecucao;
   final VoidCallback onEditar;
+  final VoidCallback onCancelar;
 
   @override
   Widget build(BuildContext context) {
@@ -507,9 +600,16 @@ class _OrdemRow extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: StatusBadge(status: os.status, dense: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  StatusBadge(status: os.status, dense: true),
+                  if (os.avaliacaoNota != null) ...[
+                    const SizedBox(height: 3),
+                    StarRating(value: os.avaliacaoNota!, size: 12),
+                  ],
+                ],
               ),
             ),
             Expanded(
@@ -528,6 +628,16 @@ class _OrdemRow extends StatelessWidget {
                       icon: const Icon(Icons.edit_outlined, size: 18),
                       onPressed: onEditar,
                     ),
+                  if (aberta)
+                    IconButton(
+                      tooltip: 'Cancelar OS',
+                      icon: Icon(
+                        Icons.cancel_outlined,
+                        size: 18,
+                        color: context.clx.error,
+                      ),
+                      onPressed: onCancelar,
+                    ),
                 ],
               ),
             ),
@@ -543,16 +653,20 @@ class _OrdemCard extends StatelessWidget {
     required this.os,
     required this.onTap,
     required this.onExecucao,
+    required this.onCancelar,
   });
 
   final OrdemServico os;
   final VoidCallback onTap;
   final VoidCallback onExecucao;
+  final VoidCallback onCancelar;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final prof = os.expand?.profissional;
+    final aberta =
+        os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
     return ClxCard(
       onTap: onTap,
       child: Column(
@@ -623,15 +737,29 @@ class _OrdemCard extends StatelessWidget {
               ],
             ),
           ],
+          if (os.avaliacaoNota != null) ...[
+            const SizedBox(height: ClxSpace.x1),
+            StarRating(value: os.avaliacaoNota!, size: 14),
+          ],
           const SizedBox(height: ClxSpace.x2),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ClxButton(
-              label: 'Execução',
-              variant: ClxButtonVariant.ghost,
-              icon: Icons.arrow_forward_rounded,
-              onPressed: onExecucao,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (aberta)
+                ClxButton(
+                  label: 'Cancelar',
+                  variant: ClxButtonVariant.danger,
+                  icon: Icons.cancel_outlined,
+                  onPressed: onCancelar,
+                ),
+              if (aberta) const SizedBox(width: ClxSpace.x2),
+              ClxButton(
+                label: 'Execução',
+                variant: ClxButtonVariant.ghost,
+                icon: Icons.arrow_forward_rounded,
+                onPressed: onExecucao,
+              ),
+            ],
           ),
         ],
       ),

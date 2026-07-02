@@ -2,6 +2,7 @@
 library;
 
 import 'package:cleanos/core/design/design.dart';
+import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/painel/agenda/agenda_controller.dart';
 import 'package:cleanos/painel/agenda/agenda_screen.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
@@ -61,8 +62,13 @@ void main() {
     });
   });
 
-  group('AgendaScreen', () {
-    testWidgets('renderiza a grade com slot livre e OS ocupada', (
+  group('AgendaScreen (calendário)', () {
+    // OS de HOJE (BRT) para cair na janela visível (semana/dia) de forma
+    // determinística, independente da data em que o teste roda.
+    String hojeAs(String hhmm) =>
+        localInputToPBDate('${todayLocalDate()}T$hhmm');
+
+    testWidgets('semana: renderiza o evento da OS na janela visível', (
       tester,
     ) async {
       await pumpPainel(
@@ -77,25 +83,14 @@ void main() {
                   id: 'os1',
                   profissionalId: 'p1',
                   nomeCurto: 'Carlos S.',
-                  dataHoraUtc: '2026-07-01 11:00:00',
+                  dataHoraUtc: hojeAs('13:00'),
                 ),
               ],
             ),
           ),
           usuariosRepositoryProvider.overrideWithValue(
             FakeUsuariosFull(
-              seed: [
-                fakeUser(id: 'p1', name: 'Bia Prof'),
-                fakeUser(id: 'p2', name: 'Caio Prof'),
-              ],
-            ),
-          ),
-          disponibilidadeRepositoryProvider.overrideWithValue(
-            FakeDisponibilidade(
-              seed: [
-                fakeDisponibilidade(id: 'd1', profissional: 'p1'),
-                fakeDisponibilidade(id: 'd2', profissional: 'p2'),
-              ],
+              seed: [fakeUser(id: 'p1', name: 'Bia Prof')],
             ),
           ),
         ],
@@ -104,25 +99,18 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Carlos S.'), findsWidgets);
-      expect(find.text('Livre'), findsWidgets);
+      // No chip da semana o texto é 'HH:mm Nome' — casa por substring.
+      expect(find.textContaining('Carlos S.'), findsWidgets);
     });
 
-    testWidgets('vazio: profissionais sem disponibilidade nem OS', (
-      tester,
-    ) async {
+    testWidgets('semana vazia: grade renderiza sem eventos', (tester) async {
       await pumpPainel(
         tester,
         const AgendaScreen(),
         overrides: [
           ...painelOverrides(user: painelUser(), repo: FakeOrdens()),
           usuariosRepositoryProvider.overrideWithValue(
-            FakeUsuariosFull(
-              seed: [fakeUser(id: 'p1', name: 'Bia Prof')],
-            ),
-          ),
-          disponibilidadeRepositoryProvider.overrideWithValue(
-            FakeDisponibilidade(),
+            FakeUsuariosFull(seed: [fakeUser(id: 'p1', name: 'Bia Prof')]),
           ),
         ],
       );
@@ -130,20 +118,22 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Sem disponibilidade ou OS neste dia'), findsOneWidget);
+      // Cabeçalho da grade (dias da semana) presente; nenhum evento.
+      expect(find.text('Seg'), findsWidgets);
+      expect(find.textContaining('Carlos S.'), findsNothing);
     });
 
-    testWidgets('erro: falha ao carregar → banner', (tester) async {
+    testWidgets('erro: falha ao carregar OS → banner', (tester) async {
       await pumpPainel(
         tester,
         const AgendaScreen(),
         overrides: [
-          ...painelOverrides(user: painelUser(), repo: FakeOrdens()),
-          usuariosRepositoryProvider.overrideWithValue(
-            FakeUsuariosFull(failList: true),
+          ...painelOverrides(
+            user: painelUser(),
+            repo: FakeOrdens(failList: true),
           ),
-          disponibilidadeRepositoryProvider.overrideWithValue(
-            FakeDisponibilidade(),
+          usuariosRepositoryProvider.overrideWithValue(
+            FakeUsuariosFull(seed: [fakeUser(id: 'p1', name: 'Bia Prof')]),
           ),
         ],
       );

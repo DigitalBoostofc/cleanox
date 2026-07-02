@@ -15,6 +15,7 @@ import '../fin_common.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import 'conta_form.dart';
+import 'transferencia_form.dart';
 
 class FinCarteirasScreen extends ConsumerWidget {
   const FinCarteirasScreen({super.key});
@@ -80,12 +81,27 @@ class FinCarteirasScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _openTransfer(BuildContext context, WidgetRef ref) async {
+    final done = await showTransferenciaForm(context);
+    if (done == true) {
+      ref.invalidate(finContasProvider);
+      if (context.mounted) {
+        showClxToast(context, 'Transferência concluída.', type: ToastType.success);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(finContasProvider);
+    final contas = async.valueOrNull ?? const <FinConta>[];
+    final podeTransferir = contas.where((c) => c.ativo).length >= 2;
     return Column(
       children: [
-        _Toolbar(onNova: () => _openForm(context, ref)),
+        _Toolbar(
+          onNova: () => _openForm(context, ref),
+          onTransfer: podeTransferir ? () => _openTransfer(context, ref) : null,
+        ),
         Expanded(
           child: FinAsync<List<FinConta>>(
             value: async,
@@ -117,8 +133,11 @@ class FinCarteirasScreen extends ConsumerWidget {
 }
 
 class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.onNova});
+  const _Toolbar({required this.onNova, this.onTransfer});
   final VoidCallback onNova;
+
+  /// `null` desabilita o botão (menos de 2 contas ativas), como no web.
+  final VoidCallback? onTransfer;
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +164,18 @@ class _Toolbar extends StatelessWidget {
               ),
             ),
           ),
+          Tooltip(
+            message: onTransfer == null
+                ? 'É preciso ao menos 2 contas ativas'
+                : 'Transferir entre contas',
+            child: ClxButton(
+              label: 'Transferência',
+              icon: Icons.swap_horiz_rounded,
+              variant: ClxButtonVariant.ghost,
+              onPressed: onTransfer,
+            ),
+          ),
+          const SizedBox(width: ClxSpace.x2),
           ClxButton(
             label: 'Nova carteira',
             icon: Icons.add_rounded,

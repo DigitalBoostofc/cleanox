@@ -12,8 +12,11 @@ import 'package:cleanos/core/auth/auth_providers.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
+import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
+import 'package:cleanos/core/repositories/usuarios_repository.dart';
 import 'package:cleanos/painel/avaliacoes/avaliacoes_controller.dart';
+import 'package:cleanos/painel/data/painel_providers.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
 import 'package:cleanos/painel/financeiro/lancamentos/fin_lancamentos_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +50,7 @@ class PagingFinanceiro extends FakeFinanceiro {
 }
 
 /// Fake de Ordens que pagina `list`. Falha só nas PÁGINAS de UI (perPage < 100),
-/// nunca no agregado de média (perPage = _kAggCap = 500).
+/// nunca no agregado de média por profissional (perPage = _kAggCap = 1000).
 class PagingOrdens extends FakePainelOrdens {
   PagingOrdens(this.all, {this.failOnPage});
   final List<OrdemServico> all;
@@ -91,8 +94,36 @@ PageResult<T> _slice<T>(List<T> all, int page, int perPage) {
 List<FinLancamento> _lancs(int n) =>
     List.generate(n, (i) => fakeLanc(id: 'l$i', descricao: 'Lanç $i'));
 
-List<OrdemServico> _ordens(int n) =>
-    List.generate(n, (i) => painelOS(id: 'a$i', status: OSStatus.concluida));
+/// Avaliações do profissional 'p1' (todas com nota → entram no agregado).
+List<OrdemServico> _avaliacoes(int n) => List.generate(
+  n,
+  (i) => painelOS(id: 'a$i', status: OSStatus.concluida).copyWith(
+    profissional: 'p1',
+    avaliacaoNota: 5,
+    avaliacaoEm: '2026-07-0${(i % 9) + 1} 13:00:00Z',
+  ),
+);
+
+/// Fake mínimo de `UsuariosRepository`: devolve uma lista fixa de profissionais.
+class FakeUsuarios implements UsuariosRepository {
+  FakeUsuarios(this.users);
+  final List<User> users;
+
+  @override
+  Future<List<User>> list({String? filter, String sort = 'nome'}) async => users;
+
+  Never _unused() => throw UnimplementedError('não usado nos testes');
+  @override
+  Future<User> getOne(String id) => _unused();
+  @override
+  Future<User> create(Map<String, dynamic> data) => _unused();
+  @override
+  Future<User> update(String id, Map<String, dynamic> data) => _unused();
+  @override
+  Future<void> delete(String id) => _unused();
+}
+
+final _profP1 = const User(id: 'p1', name: 'Ana', role: Role.profissional);
 
 void main() {
   /* ─────────────────── Lançamentos (FinLancController) ─────────────────── */
@@ -160,30 +191,50 @@ void main() {
 
   /* ─────────────────── Avaliações (AvaliacoesController) ─────────────────── */
 
-  group('Avaliações: paginação/loadMore (mesmo padrão)', () {
-    ProviderContainer container(PagingOrdens fake) {
+  group('Avaliações: acordeão por profissional + paginação das avaliações', () {
+    ProviderContainer container(PagingOrdens fake, {List<User>? profs}) {
       final c = ProviderContainer(
-        overrides: [ordensRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          ordensRepositoryProvider.overrideWithValue(fake),
+          usuariosRepositoryProvider.overrideWithValue(
+            FakeUsuarios(profs ?? [_profP1]),
+          ),
+        ],
       );
       addTearDown(c.dispose);
       c.listen(avaliacoesControllerProvider, (_, __) {});
       return c;
     }
 
+    test('refresh agrega média/total por profissional', () async {
+      final fake = PagingOrdens(_avaliacoes(12));
+      final ctrl = container(fake).read(avaliacoesControllerProvider.notifier);
+      await ctrl.refresh();
+      expect(ctrl.state.isEmpty, isFalse);
+      final stats = ctrl.state.statsOf('p1');
+      expect(stats, isNotNull);
+      expect(stats!.total, 12);
+      expect(stats.media, 5.0);
+      expect(ctrl.state.openId, isNull, reason: 'acordeão começa fechado');
+    });
+
     test(
-      'última página PARA (hasMore=false) e não refaz fetch de página',
+      'expandir carrega a 1ª página; última página PARA e não refaz fetch',
       () async {
-        final fake = PagingOrdens(_ordens(50)); // perPage 20 → 3 páginas
+        final fake = PagingOrdens(_avaliacoes(12)); // perPage 5 → 3 páginas
         final ctrl = container(
           fake,
         ).read(avaliacoesControllerProvider.notifier);
         await ctrl.refresh();
-        expect(ctrl.state.items.length, kAvaliacoesPerPage);
+
+        await ctrl.toggle('p1'); // abre → pág 1
+        expect(ctrl.state.reviews.length, kAvaliacoesPageSize);
+        expect(ctrl.state.reviewsTotal, 12);
         expect(ctrl.state.hasMore, isTrue);
 
-        await ctrl.loadMore(); // pág 2 → 40
-        await ctrl.loadMore(); // pág 3 → 50
-        expect(ctrl.state.items.length, 50);
+        await ctrl.loadMore(); // pág 2 → 10
+        await ctrl.loadMore(); // pág 3 → 12
+        expect(ctrl.state.reviews.length, 12);
         expect(ctrl.state.hasMore, isFalse);
 
         final before = fake.pageFetches;
@@ -192,39 +243,54 @@ void main() {
       },
     );
 
-    test('erro no MEIO preserva itens anteriores e zera loadingMore', () async {
-      final fake = PagingOrdens(_ordens(50), failOnPage: 2);
+    test('erro no MEIO preserva avaliações anteriores e zera loading', () async {
+      final fake = PagingOrdens(_avaliacoes(12), failOnPage: 2);
       final ctrl = container(fake).read(avaliacoesControllerProvider.notifier);
-      await ctrl.refresh(); // pág 1 + agregado ok
-      expect(ctrl.state.items.length, kAvaliacoesPerPage);
+      await ctrl.refresh();
+      await ctrl.toggle('p1'); // pág 1 ok
+      expect(ctrl.state.reviews.length, kAvaliacoesPageSize);
 
       await ctrl.loadMore(); // pág 2 falha
       expect(
-        ctrl.state.items.length,
-        kAvaliacoesPerPage,
-        reason: 'preservados',
+        ctrl.state.reviews.length,
+        kAvaliacoesPageSize,
+        reason: 'preservadas',
       );
-      expect(ctrl.state.loadingMore, isFalse);
+      expect(ctrl.state.reviewsLoading, isFalse);
+      expect(ctrl.state.reviewsError, isNotNull);
       expect(ctrl.state.hasMore, isTrue);
     });
 
-    test('página 1 vazia → isEmpty', () async {
-      final fake = PagingOrdens(const <OrdemServico>[]);
+    test('fechar o profissional limpa as avaliações', () async {
+      final fake = PagingOrdens(_avaliacoes(12));
       final ctrl = container(fake).read(avaliacoesControllerProvider.notifier);
       await ctrl.refresh();
-      expect(ctrl.state.items, isEmpty);
+      await ctrl.toggle('p1');
+      expect(ctrl.state.reviews, isNotEmpty);
+      await ctrl.toggle('p1'); // fecha
+      expect(ctrl.state.openId, isNull);
+      expect(ctrl.state.reviews, isEmpty);
+    });
+
+    test('sem profissionais → isEmpty', () async {
+      final fake = PagingOrdens(const <OrdemServico>[]);
+      final ctrl = container(
+        fake,
+        profs: const [],
+      ).read(avaliacoesControllerProvider.notifier);
+      await ctrl.refresh();
       expect(ctrl.state.isEmpty, isTrue);
-      expect(ctrl.state.hasMore, isFalse);
     });
 
     test('sem IDs duplicados após 2 loadMore', () async {
-      final fake = PagingOrdens(_ordens(50));
+      final fake = PagingOrdens(_avaliacoes(12));
       final ctrl = container(fake).read(avaliacoesControllerProvider.notifier);
       await ctrl.refresh();
+      await ctrl.toggle('p1');
       await ctrl.loadMore();
       await ctrl.loadMore();
-      final ids = ctrl.state.items.map((o) => o.id).toList();
-      expect(ids.length, 50);
+      final ids = ctrl.state.reviews.map((o) => o.id).toList();
+      expect(ids.length, 12);
       expect(ids.toSet().length, ids.length, reason: 'sem duplicatas');
     });
   });

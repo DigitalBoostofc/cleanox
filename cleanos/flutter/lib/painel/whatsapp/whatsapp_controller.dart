@@ -44,6 +44,7 @@ class WhatsAppConnState {
     this.connected = false,
     this.qrcode,
     this.paircode,
+    this.profileName,
     this.error,
   });
 
@@ -56,6 +57,9 @@ class WhatsAppConnState {
   final bool connected;
   final String? qrcode;
   final String? paircode;
+
+  /// Nome do perfil do WhatsApp conectado (exibido ao lado do status).
+  final String? profileName;
   final String? error;
 
   /// Aguardando leitura do QR/paircode (desconectado, mas com credencial pronta).
@@ -67,6 +71,7 @@ class WhatsAppConnState {
     bool? connected,
     Object? qrcode = _s,
     Object? paircode = _s,
+    Object? profileName = _s,
     Object? error = _s,
   }) => WhatsAppConnState(
     loading: loading ?? this.loading,
@@ -74,6 +79,9 @@ class WhatsAppConnState {
     connected: connected ?? this.connected,
     qrcode: qrcode == _s ? this.qrcode : qrcode as String?,
     paircode: paircode == _s ? this.paircode : paircode as String?,
+    profileName: profileName == _s
+        ? this.profileName
+        : profileName as String?,
     error: error == _s ? this.error : error as String?,
   );
 
@@ -96,6 +104,7 @@ class WhatsAppConnController extends StateNotifier<WhatsAppConnState> {
         connected: s.connected,
         qrcode: s.qr,
         paircode: s.paircode,
+        profileName: s.profileName,
         error: null,
       );
     } catch (e) {
@@ -109,6 +118,7 @@ class WhatsAppConnController extends StateNotifier<WhatsAppConnState> {
       error: null,
       qrcode: null,
       paircode: null,
+      profileName: null,
     );
     try {
       final s = await _ref.read(painelWhatsappRepositoryProvider).connect();
@@ -117,6 +127,7 @@ class WhatsAppConnController extends StateNotifier<WhatsAppConnState> {
         connected: s.connected,
         qrcode: s.qr,
         paircode: s.paircode,
+        profileName: s.profileName,
       );
     } catch (e) {
       state = state.copyWith(actionLoading: false, error: _waError(e));
@@ -132,6 +143,7 @@ class WhatsAppConnController extends StateNotifier<WhatsAppConnState> {
         connected: false,
         qrcode: null,
         paircode: null,
+        profileName: null,
       );
     } catch (e) {
       state = state.copyWith(actionLoading: false, error: _waError(e));
@@ -149,6 +161,7 @@ class WhatsAppConnController extends StateNotifier<WhatsAppConnState> {
         // Ao conectar, some com o QR; senão preserva o que veio.
         qrcode: s.connected ? null : (s.qr ?? state.qrcode),
         paircode: s.connected ? null : (s.paircode ?? state.paircode),
+        profileName: s.profileName ?? state.profileName,
       );
     } catch (_) {
       /* polling silencioso */

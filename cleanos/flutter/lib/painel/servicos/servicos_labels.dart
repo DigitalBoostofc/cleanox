@@ -109,6 +109,6 @@ Map<String, dynamic> servicoToPayload(ServicoPB s) {
     ],
     'orientacoes_pre': s.orientacoesPre ?? '',
     'orientacoes_pos': s.orientacoesPos ?? '',
-    'adicionais_relacionados': <String>[],
+    'adicionais_relacionados': List<String>.from(s.adicionaisRelacionados),
   };
 }

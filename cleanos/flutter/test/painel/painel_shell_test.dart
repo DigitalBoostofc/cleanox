@@ -8,6 +8,7 @@ library;
 import 'package:cleanos/core/auth/auth_providers.dart';
 import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/models/collections.dart';
+import 'package:cleanos/painel/avaliacoes/avaliacoes_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_shell.dart';
 import 'package:cleanos/painel/shell/painel_nav.dart';
 import 'package:flutter/material.dart';
@@ -86,7 +87,9 @@ void main() {
         find.text('Este módulo chega numa próxima onda do Painel.'),
         findsNothing,
       );
-      expect(find.text('Nenhuma avaliação ainda'), findsOneWidget);
+      // Tela real montada (accordion por profissional) — independe do estado de
+      // carga (o repo de usuários não é injetado neste teste de navegação).
+      expect(find.byType(AvaliacoesScreen), findsOneWidget);
     });
 
     testWidgets('rodapé do usuário abre "Minha Conta" (/painel/conta)', (

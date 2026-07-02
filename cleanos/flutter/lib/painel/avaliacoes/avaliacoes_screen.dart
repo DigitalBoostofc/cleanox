@@ -1,10 +1,12 @@
 /// avaliacoes_screen.dart — Avaliações das OS no Painel (admin/gerente).
 ///
-/// Espelha `Avaliacoes.tsx` com as mitigações Flutter Web (§4): lista das OS
-/// avaliadas (StarRating do core, motivo/comentário, cliente/serviço/data em BRT),
-/// filtros NO SERVIDOR (nota/período), cartão de média, scroll infinito
-/// virtualizado (`getList`, nunca `getFullList`) e todos os estados
-/// (carregando / vazio / erro / sem-filtro).
+/// Espelha `Avaliacoes.tsx`: ACORDEÃO por profissional. Cada profissional é uma
+/// linha com nome + média em estrelas + contagem; ao expandir (só quem tem
+/// avaliação), abre a lista das avaliações DELE, paginada com "Ver mais". O motivo
+/// aparece quando o cliente comentou, ou "sem comentário" para notas baixas (1–3).
+///
+/// MD3: superfícies tonais + `outline-variant` (clx.line) nas divisórias, raios do
+/// design system, chevron que gira ao abrir, alvos de toque ≥ 48dp. PT-BR, BRT.
 library;
 
 import 'package:flutter/material.dart';
@@ -13,54 +15,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/user.dart';
 import 'avaliacoes_controller.dart';
 
-const double _kCardBreakpoint = 720;
-
-class AvaliacoesScreen extends ConsumerStatefulWidget {
+class AvaliacoesScreen extends ConsumerWidget {
   const AvaliacoesScreen({super.key});
 
   @override
-  ConsumerState<AvaliacoesScreen> createState() => _AvaliacoesScreenState();
-}
-
-class _AvaliacoesScreenState extends ConsumerState<AvaliacoesScreen> {
-  final ScrollController _scroll = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scroll
-      ..removeListener(_onScroll)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_scroll.hasClients) return;
-    final pos = _scroll.position;
-    if (pos.pixels >= pos.maxScrollExtent - 400) {
-      ref.read(avaliacoesControllerProvider.notifier).loadMore();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(avaliacoesControllerProvider);
     return Column(
       children: [
-        _Toolbar(state: state),
-        Expanded(child: _body(state)),
+        _Toolbar(onRefresh: ref.read(avaliacoesControllerProvider.notifier).refresh),
+        Expanded(child: _body(context, ref, state)),
       ],
     );
   }
 
-  Widget _body(AvaliacoesState state) {
+  Widget _body(BuildContext context, WidgetRef ref, AvaliacoesState state) {
     if (state.loading) return const Center(child: Spinner(size: 26));
     if (state.error != null && state.isEmpty) {
       return Center(
@@ -78,59 +50,52 @@ class _AvaliacoesScreenState extends ConsumerState<AvaliacoesScreen> {
       );
     }
     if (state.isEmpty) {
-      return EmptyState(
-        icon: state.hasFilters
-            ? Icons.search_off_rounded
-            : Icons.star_outline_rounded,
-        title: state.hasFilters
-            ? 'Nenhuma avaliação encontrada'
-            : 'Nenhuma avaliação ainda',
-        message: state.hasFilters
-            ? 'Tente ajustar o filtro de nota ou de período.'
-            : 'As avaliações aparecem aqui após os clientes responderem à '
-                  'pesquisa de satisfação.',
+      return const EmptyState(
+        icon: Icons.badge_outlined,
+        title: 'Nenhum profissional cadastrado',
+        message: 'Cadastre profissionais na tela de Usuários.',
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, c) {
-        final wide = c.maxWidth >= _kCardBreakpoint;
-        return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(avaliacoesControllerProvider.notifier).refresh(),
-          color: context.clx.primary,
-          child: ListView.builder(
-            controller: _scroll,
-            padding: const EdgeInsets.all(ClxSpace.x4),
-            itemCount: state.items.length + (state.hasMore ? 1 : 0),
-            itemBuilder: (context, i) {
-              if (i >= state.items.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(ClxSpace.x4),
-                  child: Center(child: Spinner(size: 20)),
-                );
-              }
-              return Padding(
-                padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-                child: _ReviewCard(os: state.items[i], wide: wide),
-              );
-            },
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.read(avaliacoesControllerProvider.notifier).refresh(),
+      color: context.clx.primary,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(ClxSpace.x4),
+        itemCount: state.profissionais.length,
+        itemBuilder: (context, i) {
+          final prof = state.profissionais[i];
+          final isOpen = state.openId == prof.id;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+            child: _AccordionItem(
+              prof: prof,
+              stats: state.statsOf(prof.id),
+              isOpen: isOpen,
+              reviews: isOpen ? state.reviews : const [],
+              reviewsLoading: isOpen && state.reviewsLoading,
+              reviewsError: isOpen ? state.reviewsError : null,
+              hasMore: isOpen && state.hasMore,
+              onToggle: () =>
+                  ref.read(avaliacoesControllerProvider.notifier).toggle(prof.id),
+              onLoadMore: () =>
+                  ref.read(avaliacoesControllerProvider.notifier).loadMore(),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-/// Barra de filtros + resumo (média). No mobile empilha; no desktop, em linha.
-class _Toolbar extends ConsumerWidget {
-  const _Toolbar({required this.state});
-  final AvaliacoesState state;
+class _Toolbar extends StatelessWidget {
+  const _Toolbar({required this.onRefresh});
+  final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final clx = context.clx;
-    final notifier = ref.read(avaliacoesControllerProvider.notifier);
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -141,53 +106,14 @@ class _Toolbar extends ConsumerWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Wrap(
-        spacing: ClxSpace.x3,
-        runSpacing: ClxSpace.x3,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Row(
         children: [
-          _MediaResumo(state: state),
-          SizedBox(
-            width: 170,
-            child: DropdownButtonFormField<int?>(
-              initialValue: state.nota,
-              isExpanded: true,
-              decoration: const InputDecoration(isDense: true),
-              hint: const Text('Todas as notas'),
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('Todas as notas'),
-                ),
-                for (final n in const [5, 4, 3, 2, 1])
-                  DropdownMenuItem(
-                    value: n,
-                    child: Text('$n estrela${n == 1 ? '' : 's'}'),
-                  ),
-              ],
-              onChanged: (v) => notifier.setNota(v),
-            ),
-          ),
-          SizedBox(
-            width: 180,
-            child: DropdownButtonFormField<AvaliacoesPeriodo>(
-              initialValue: state.periodo,
-              isExpanded: true,
-              decoration: const InputDecoration(isDense: true),
-              items: [
-                for (final p in AvaliacoesPeriodo.values)
-                  DropdownMenuItem(value: p, child: Text(p.label)),
-              ],
-              onChanged: (v) {
-                if (v != null) notifier.setPeriodo(v);
-              },
-            ),
-          ),
+          const Spacer(),
           ClxButton(
             label: 'Atualizar',
             variant: ClxButtonVariant.ghost,
             icon: Icons.refresh_rounded,
-            onPressed: notifier.refresh,
+            onPressed: onRefresh,
           ),
         ],
       ),
@@ -195,47 +121,181 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
-/// Cartão-resumo: média em estrelas + contagem do conjunto filtrado.
-class _MediaResumo extends StatelessWidget {
-  const _MediaResumo({required this.state});
-  final AvaliacoesState state;
+/// Um item do acordeão: cabeçalho (nome + média) + corpo (avaliações do prof).
+class _AccordionItem extends StatelessWidget {
+  const _AccordionItem({
+    required this.prof,
+    required this.stats,
+    required this.isOpen,
+    required this.reviews,
+    required this.reviewsLoading,
+    required this.reviewsError,
+    required this.hasMore,
+    required this.onToggle,
+    required this.onLoadMore,
+  });
+
+  final User prof;
+  final RatingStats? stats;
+  final bool isOpen;
+  final List<OrdemServico> reviews;
+  final bool reviewsLoading;
+  final String? reviewsError;
+  final bool hasMore;
+  final VoidCallback onToggle;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final media = state.media;
-    final total = state.totalItems;
+    final hasRatings = stats != null;
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x4,
-        vertical: ClxSpace.x2,
+      decoration: BoxDecoration(
+        color: clx.bg,
+        borderRadius: ClxRadii.rLg,
+        border: Border.all(color: clx.line),
       ),
-      decoration: BoxDecoration(color: clx.bg3, borderRadius: ClxRadii.rMd),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (media != null) ...[
-            StarRating(value: media.roundToDouble(), size: 18),
-            const SizedBox(width: ClxSpace.x2),
-            Text(
-              media.toStringAsFixed(1),
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+          // Cabeçalho — só clicável se houver avaliações.
+          InkWell(
+            onTap: hasRatings ? onToggle : null,
+            child: Container(
+              constraints: const BoxConstraints(
+                minHeight: ClxLayout.minTouchTarget,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: ClxSpace.x4,
+                vertical: ClxSpace.x3,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          prof.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: clx.ink,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        if (hasRatings)
+                          Row(
+                            children: [
+                              StarRating(
+                                value: stats!.media.roundToDouble(),
+                                size: 14,
+                              ),
+                              const SizedBox(width: ClxSpace.x2),
+                              Text(
+                                '${stats!.media.toStringAsFixed(1)} '
+                                '(${stats!.total} '
+                                'avalia${stats!.total != 1 ? 'ções' : 'ção'})',
+                                style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                              ),
+                            ],
+                          )
+                        else
+                          Text(
+                            'sem avaliações ainda',
+                            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (hasRatings)
+                    AnimatedRotation(
+                      turns: isOpen ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: clx.ink3,
+                      ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(width: ClxSpace.x2),
-          ] else
-            Icon(Icons.star_outline_rounded, size: 18, color: clx.ink3),
-          Text(
-            media == null
-                ? 'Sem avaliações'
-                : '$total avalia${total == 1 ? 'ção' : 'ções'}'
-                      '${state.mediaAproximada ? '+' : ''}',
-            style: TextStyle(color: clx.ink3, fontSize: 12.5),
           ),
+          if (isOpen) ...[
+            Divider(height: 1, color: clx.line),
+            _AccordionBody(
+              reviews: reviews,
+              reviewsLoading: reviewsLoading,
+              reviewsError: reviewsError,
+              hasMore: hasMore,
+              onLoadMore: onLoadMore,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AccordionBody extends StatelessWidget {
+  const _AccordionBody({
+    required this.reviews,
+    required this.reviewsLoading,
+    required this.reviewsError,
+    required this.hasMore,
+    required this.onLoadMore,
+  });
+
+  final List<OrdemServico> reviews;
+  final bool reviewsLoading;
+  final String? reviewsError;
+  final bool hasMore;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Padding(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (reviewsError != null) ...[
+            ErrorBanner(message: reviewsError!),
+            const SizedBox(height: ClxSpace.x3),
+          ],
+          if (reviews.isEmpty && !reviewsLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
+              child: Text(
+                'Nenhuma avaliação encontrada.',
+                style: TextStyle(color: clx.ink3, fontSize: 13.5),
+              ),
+            )
+          else
+            for (final os in reviews) ...[
+              _ReviewCard(os: os),
+              const SizedBox(height: ClxSpace.x2),
+            ],
+          if (reviewsLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: ClxSpace.x3),
+              child: Center(child: Spinner(size: 18)),
+            ),
+          if (!reviewsLoading && hasMore)
+            Padding(
+              padding: const EdgeInsets.only(top: ClxSpace.x2),
+              child: Center(
+                child: ClxButton(
+                  label: 'Ver mais',
+                  variant: ClxButtonVariant.ghost,
+                  onPressed: onLoadMore,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -244,22 +304,22 @@ class _MediaResumo extends StatelessWidget {
 
 /// Cartão de uma avaliação: nota + data + serviço/cliente/data + motivo.
 class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.os, required this.wide});
+  const _ReviewCard({required this.os});
   final OrdemServico os;
-  final bool wide;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final nota = os.avaliacaoNota ?? 0;
-    final prof = os.expand?.profissional?.displayName;
-    return ClxCard(
+    return Container(
+      padding: const EdgeInsets.all(ClxSpace.x3),
+      decoration: BoxDecoration(color: clx.bg2, borderRadius: ClxRadii.rMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              StarRating(value: nota, size: 16),
+              StarRating(value: nota, size: 15),
               const Spacer(),
               Text(
                 os.avaliacaoEm == null ? '—' : formatDateTime(os.avaliacaoEm!),
@@ -268,7 +328,7 @@ class _ReviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: ClxSpace.x2),
-          // Meta: serviço · cliente · data do serviço (+ profissional se largo).
+          // Meta: serviço · cliente · data do serviço.
           Wrap(
             spacing: ClxSpace.x2,
             runSpacing: ClxSpace.x1,
@@ -279,14 +339,10 @@ class _ReviewCard extends StatelessWidget {
               _meta(clx, os.nomeCurto.isEmpty ? '—' : os.nomeCurto),
               _sep(clx),
               _meta(clx, formatDateTime(os.dataHora)),
-              if (wide && prof != null && prof != '—') ...[
-                _sep(clx),
-                _meta(clx, prof),
-              ],
             ],
           ),
           if (_comentario(os) case final texto?) ...[
-            const SizedBox(height: ClxSpace.x3),
+            const SizedBox(height: ClxSpace.x2),
             Text(
               texto,
               style: TextStyle(

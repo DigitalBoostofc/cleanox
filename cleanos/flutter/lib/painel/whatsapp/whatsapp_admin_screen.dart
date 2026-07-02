@@ -154,8 +154,9 @@ class _StatusPanelState extends ConsumerState<_StatusPanel> {
           const SizedBox(height: ClxSpace.x3),
           _Nota(
             texto:
-                'Este é o número da empresa pelo qual os avisos são enviados aos '
-                'clientes. Os profissionais nunca usam o próprio telefone.',
+                'Este é o número da empresa pelo qual os avisos de chegada são '
+                'enviados aos clientes. Os profissionais nunca veem ou usam o '
+                'próprio telefone para contato.',
           ),
           const SizedBox(height: ClxSpace.x4),
           if (state.loading)
@@ -201,6 +202,7 @@ class _StatusBadge extends StatelessWidget {
         : state.aguardandoQr
         ? (clx.warning, 'Aguardando conexão…')
         : (clx.error, 'Desconectado');
+    final profileName = state.profileName?.trim();
     return Row(
       children: [
         Container(
@@ -217,6 +219,18 @@ class _StatusBadge extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
+        // Nome do perfil do WhatsApp conectado (espelha o "— {profileName}").
+        if (state.connected && profileName != null && profileName.isNotEmpty) ...[
+          const SizedBox(width: ClxSpace.x2),
+          Flexible(
+            child: Text(
+              '— $profileName',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: clx.ink2, fontSize: 13),
+            ),
+          ),
+        ],
         if (state.aguardandoQr) ...[
           const SizedBox(width: ClxSpace.x3),
           const Spinner(size: 14),

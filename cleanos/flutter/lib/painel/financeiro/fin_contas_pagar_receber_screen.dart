@@ -1,9 +1,10 @@
 /// fin_contas_pagar_receber_screen.dart — Contas a pagar / a receber.
 ///
-/// Espelha `ContasPagarReceber.tsx`: alterna A pagar (despesas em aberto) / A
-/// receber (receitas em aberto), com derivações de vencimento/atraso ([contasAPagar]
-/// /[contasAReceber]) vs. HOJE em BRT, e a ação "marcar pago" (que ajusta o saldo
-/// no repo). Total pendente no topo. Estados carregando/erro/vazio/sucesso.
+/// Espelha `ContasPagarReceber.tsx`: seletor de mês (BRT) + Filtros + abas
+/// A pagar / A receber / Todas + 4 KPIs GLOBAIS (total a pagar/receber, vencendo
+/// hoje, em atraso) derivados de [contasAPagar]/[contasAReceber] vs. HOJE. As
+/// listas respeitam o mês + filtros (tipo/origem/categoria/conta/vencimento) e
+/// têm a ação "marcar pago". Rodapé informativo sobre recebimentos via OS.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,104 +13,264 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
+import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
 import 'fin_labels.dart';
 import 'fin_providers.dart';
 
-final _cprTipoProvider = StateProvider.autoDispose<TipoLancamento>(
-  (ref) => TipoLancamento.despesa,
-);
+/// Aba ativa (a pagar / a receber / todas).
+enum _Aba { pagar, receber, todas }
 
-class FinContasPagarReceberScreen extends ConsumerWidget {
+/// Preset de vencimento do filtro.
+enum _Venc { todos, vencidas, hoje, d7, d30 }
+
+/// Filtros combinados (AND) das listas. `null` = sem filtro daquele campo.
+class _CprFilters {
+  const _CprFilters({
+    this.tipo,
+    this.origem,
+    this.categoriaId,
+    this.contaId,
+    this.venc = _Venc.todos,
+  });
+
+  final TipoLancamento? tipo;
+  final OrigemLancamento? origem;
+  final String? categoriaId;
+  final String? contaId;
+  final _Venc venc;
+
+  bool get ativos =>
+      tipo != null ||
+      origem != null ||
+      categoriaId != null ||
+      contaId != null ||
+      venc != _Venc.todos;
+
+  _CprFilters copyWith({
+    Object? tipo = _s,
+    Object? origem = _s,
+    Object? categoriaId = _s,
+    Object? contaId = _s,
+    _Venc? venc,
+  }) => _CprFilters(
+    tipo: tipo == _s ? this.tipo : tipo as TipoLancamento?,
+    origem: origem == _s ? this.origem : origem as OrigemLancamento?,
+    categoriaId: categoriaId == _s ? this.categoriaId : categoriaId as String?,
+    contaId: contaId == _s ? this.contaId : contaId as String?,
+    venc: venc ?? this.venc,
+  );
+
+  static const Object _s = Object();
+}
+
+class FinContasPagarReceberScreen extends ConsumerStatefulWidget {
   const FinContasPagarReceberScreen({super.key});
 
-  Future<void> _marcarPago(
-    BuildContext context,
-    WidgetRef ref,
-    FinLancamento l,
-  ) async {
+  @override
+  ConsumerState<FinContasPagarReceberScreen> createState() =>
+      _FinContasPagarReceberScreenState();
+}
+
+class _FinContasPagarReceberScreenState
+    extends ConsumerState<FinContasPagarReceberScreen> {
+  _Aba _aba = _Aba.pagar;
+  bool _showFilters = true;
+  _CprFilters _filters = const _CprFilters();
+  String? _savingId;
+
+  String _vencYmd(ContaPendente p) {
+    final l = p.lancamento;
+    return dateOnly((l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data);
+  }
+
+  String _ymdPlus(String ymd, int days) => DateTime.parse(
+    '${ymd}T00:00:00Z',
+  ).add(Duration(days: days)).toIso8601String().substring(0, 10);
+
+  bool _passaVenc(ContaPendente p, String hoje) {
+    switch (_filters.venc) {
+      case _Venc.todos:
+        return true;
+      case _Venc.vencidas:
+        return p.emAtraso;
+      case _Venc.hoje:
+        return p.vencendoHoje;
+      case _Venc.d7:
+        final v = _vencYmd(p);
+        return v.compareTo(hoje) >= 0 && v.compareTo(_ymdPlus(hoje, 7)) <= 0;
+      case _Venc.d30:
+        final v = _vencYmd(p);
+        return v.compareTo(hoje) >= 0 && v.compareTo(_ymdPlus(hoje, 30)) <= 0;
+    }
+  }
+
+  List<ContaPendente> _aplicar(
+    List<ContaPendente> items,
+    String mesPrefix,
+    String hoje,
+  ) {
+    return items.where((p) {
+      final l = p.lancamento;
+      if (!_vencYmd(p).startsWith(mesPrefix)) return false;
+      if (_filters.origem != null && l.origem != _filters.origem) return false;
+      if (_filters.categoriaId != null &&
+          l.categoriaId != _filters.categoriaId &&
+          l.subcategoriaId != _filters.categoriaId) {
+        return false;
+      }
+      if (_filters.contaId != null && l.contaId != _filters.contaId) {
+        return false;
+      }
+      if (!_passaVenc(p, hoje)) return false;
+      return true;
+    }).toList();
+  }
+
+  Future<void> _marcarPago(FinLancamento l) async {
+    setState(() => _savingId = l.id);
     try {
       await ref.read(financeiroRepositoryProvider).updateLancamento(l.id, {
         'status': LancamentoStatus.pago.wire,
       });
-      ref.invalidate(finPendentesProvider);
-      ref.invalidate(finContasProvider);
-      ref.invalidate(finPeriodLancamentosProvider);
-      if (context.mounted) {
+      ref
+        ..invalidate(finPendentesProvider)
+        ..invalidate(finContasProvider)
+        ..invalidate(finPeriodLancamentosProvider);
+      if (mounted) {
         showClxToast(context, 'Marcado como pago.', type: ToastType.success);
       }
     } catch (_) {
-      if (context.mounted) {
+      if (mounted) {
         showClxToast(
           context,
           'Não foi possível atualizar.',
           type: ToastType.error,
         );
       }
+    } finally {
+      if (mounted) setState(() => _savingId = null);
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tipo = ref.watch(_cprTipoProvider);
+  Widget build(BuildContext context) {
     final async = ref.watch(finPendentesProvider);
+    final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
+    final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
+    final period = ref.watch(finPeriodProvider);
     final hoje = todayLocalDate();
+    final mesPrefix =
+        '${period.year}-${period.month.toString().padLeft(2, '0')}';
+
+    final catById = {for (final c in categorias) c.id: c};
+    final contaById = {for (final c in contas) c.id: c};
 
     return Column(
       children: [
         _Toolbar(
-          tipo: tipo,
-          onTipo: (t) => ref.read(_cprTipoProvider.notifier).state = t,
+          aba: _aba,
+          showFilters: _showFilters,
+          onAba: (a) => setState(() => _aba = a),
+          onToggleFilters: () => setState(() => _showFilters = !_showFilters),
         ),
         Expanded(
           child: FinAsync<List<FinLancamento>>(
             value: async,
             onRetry: () => ref.invalidate(finPendentesProvider),
-            data: (todos) {
-              final pendentes = tipo == TipoLancamento.despesa
-                  ? contasAPagar(todos, hoje)
-                  : contasAReceber(todos, hoje);
-              if (pendentes.isEmpty) {
-                return EmptyState(
-                  icon: Icons.task_alt_rounded,
-                  title: tipo == TipoLancamento.despesa
-                      ? 'Nada a pagar em aberto'
-                      : 'Nada a receber em aberto',
-                  message: 'Tudo em dia por aqui. 🎉',
-                );
-              }
-              final total = pendentes.fold<double>(
-                0,
-                (s, p) => s + p.lancamento.valor,
-              );
-              final emAtraso = pendentes.where((p) => p.emAtraso).length;
-              return Column(
+            data: (pendentes) {
+              final aPagarAll = contasAPagar(pendentes, hoje);
+              final aReceberAll = contasAReceber(pendentes, hoje);
+              double sum(List<ContaPendente> xs) =>
+                  xs.fold<double>(0, (s, p) => s + p.lancamento.valor);
+              final todos = [...aPagarAll, ...aReceberAll];
+              final vencendoHoje = todos.where((p) => p.vencendoHoje).toList();
+              final emAtraso = todos.where((p) => p.emAtraso).toList();
+
+              final mostrarPagar = _aba != _Aba.receber;
+              final mostrarReceber = _aba != _Aba.pagar;
+              final aPagar = _filters.tipo == TipoLancamento.receita
+                  ? <ContaPendente>[]
+                  : _aplicar(aPagarAll, mesPrefix, hoje);
+              final aReceber = _filters.tipo == TipoLancamento.despesa
+                  ? <ContaPendente>[]
+                  : _aplicar(aReceberAll, mesPrefix, hoje);
+
+              return ListView(
+                padding: const EdgeInsets.all(ClxSpace.x6),
                 children: [
-                  _Summary(
-                    tipo: tipo,
-                    total: total,
-                    qtd: pendentes.length,
-                    emAtraso: emAtraso,
-                  ),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        ClxSpace.x6,
-                        0,
-                        ClxSpace.x6,
-                        ClxSpace.x6,
+                  FinKpiGrid(
+                    cards: [
+                      FinKpiCard(
+                        label: 'Total a pagar',
+                        value: formatCurrency(sum(aPagarAll)),
+                        color: context.clx.finExpense,
+                        icon: Icons.south_west_rounded,
+                        hint:
+                            '${aPagarAll.length} ${aPagarAll.length == 1 ? 'item' : 'itens'}',
                       ),
-                      itemCount: pendentes.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: ClxSpace.x2),
-                      itemBuilder: (context, i) => _PendenteRow(
-                        pendente: pendentes[i],
-                        onPagar: () =>
-                            _marcarPago(context, ref, pendentes[i].lancamento),
+                      FinKpiCard(
+                        label: 'Total a receber',
+                        value: formatCurrency(sum(aReceberAll)),
+                        color: context.clx.finIncome,
+                        icon: Icons.north_east_rounded,
+                        hint:
+                            '${aReceberAll.length} ${aReceberAll.length == 1 ? 'item' : 'itens'}',
+                      ),
+                      FinKpiCard(
+                        label: 'Vencendo hoje',
+                        value: formatCurrency(sum(vencendoHoje)),
+                        color: context.clx.info,
+                        icon: Icons.event_rounded,
+                        hint:
+                            '${vencendoHoje.length} ${vencendoHoje.length == 1 ? 'item' : 'itens'}',
+                      ),
+                      FinKpiCard(
+                        label: 'Em atraso',
+                        value: formatCurrency(sum(emAtraso)),
+                        color: context.clx.error,
+                        icon: Icons.warning_amber_rounded,
+                        hint:
+                            '${emAtraso.length} ${emAtraso.length == 1 ? 'item' : 'itens'}',
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: ClxSpace.x2),
+                    child: Text(
+                      'Os totais consideram todas as contas em aberto. As listas '
+                      'abaixo respeitam o período e os filtros selecionados.',
+                      style: TextStyle(
+                        color: context.clx.ink3,
+                        fontSize: 12,
                       ),
                     ),
                   ),
+                  if (_showFilters) ...[
+                    const SizedBox(height: ClxSpace.x4),
+                    _FiltrosBar(
+                      filters: _filters,
+                      categorias: categorias,
+                      contas: contas,
+                      onChange: (f) => setState(() => _filters = f),
+                      onClear: () =>
+                          setState(() => _filters = const _CprFilters()),
+                    ),
+                  ],
+                  const SizedBox(height: ClxSpace.x5),
+                  _Colunas(
+                    mostrarPagar: mostrarPagar,
+                    mostrarReceber: mostrarReceber,
+                    aPagar: aPagar,
+                    aReceber: aReceber,
+                    catById: catById,
+                    contaById: contaById,
+                    savingId: _savingId,
+                    onPagar: _marcarPago,
+                  ),
+                  const SizedBox(height: ClxSpace.x5),
+                  const _RodapeOs(),
                 ],
               );
             },
@@ -120,11 +281,20 @@ class FinContasPagarReceberScreen extends ConsumerWidget {
   }
 }
 
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.tipo, required this.onTipo});
+/* ─────────────────────── toolbar (período + filtros + abas) ─────────────────────── */
 
-  final TipoLancamento tipo;
-  final ValueChanged<TipoLancamento> onTipo;
+class _Toolbar extends StatelessWidget {
+  const _Toolbar({
+    required this.aba,
+    required this.showFilters,
+    required this.onAba,
+    required this.onToggleFilters,
+  });
+
+  final _Aba aba;
+  final bool showFilters;
+  final ValueChanged<_Aba> onAba;
+  final VoidCallback onToggleFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -139,100 +309,362 @@ class _Toolbar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: SegmentedButton<TipoLancamento>(
-        segments: const [
-          ButtonSegment(
-            value: TipoLancamento.despesa,
-            label: Text('A pagar'),
-            icon: Icon(Icons.south_west_rounded, size: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const FinPeriodSelector(),
+              const SizedBox(width: ClxSpace.x3),
+              ClxButton(
+                label: 'Filtros',
+                icon: Icons.filter_list_rounded,
+                variant: ClxButtonVariant.ghost,
+                onPressed: onToggleFilters,
+              ),
+            ],
           ),
-          ButtonSegment(
-            value: TipoLancamento.receita,
-            label: Text('A receber'),
-            icon: Icon(Icons.north_east_rounded, size: 16),
+          const SizedBox(height: ClxSpace.x3),
+          SegmentedButton<_Aba>(
+            segments: const [
+              ButtonSegment(
+                value: _Aba.pagar,
+                label: Text('A pagar'),
+                icon: Icon(Icons.south_west_rounded, size: 16),
+              ),
+              ButtonSegment(
+                value: _Aba.receber,
+                label: Text('A receber'),
+                icon: Icon(Icons.north_east_rounded, size: 16),
+              ),
+              ButtonSegment(value: _Aba.todas, label: Text('Todas')),
+            ],
+            selected: {aba},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => onAba(s.first),
           ),
         ],
-        selected: {tipo},
-        showSelectedIcon: false,
-        onSelectionChanged: (s) => onTipo(s.first),
       ),
     );
   }
 }
 
-class _Summary extends StatelessWidget {
-  const _Summary({
-    required this.tipo,
-    required this.total,
-    required this.qtd,
-    required this.emAtraso,
+/* ─────────────────────── barra de filtros ─────────────────────── */
+
+class _FiltrosBar extends StatelessWidget {
+  const _FiltrosBar({
+    required this.filters,
+    required this.categorias,
+    required this.contas,
+    required this.onChange,
+    required this.onClear,
   });
 
-  final TipoLancamento tipo;
-  final double total;
-  final int qtd;
-  final int emAtraso;
+  final _CprFilters filters;
+  final List<FinCategoria> categorias;
+  final List<FinConta> contas;
+  final ValueChanged<_CprFilters> onChange;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final cor = tipo == TipoLancamento.despesa ? clx.finExpense : clx.finIncome;
-    return Padding(
-      padding: const EdgeInsets.all(ClxSpace.x6),
-      child: ClxCard(
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tipo == TipoLancamento.despesa
-                        ? 'Total a pagar'
-                        : 'Total a receber',
-                    style: TextStyle(color: clx.ink3, fontSize: 12.5),
-                  ),
-                  Text(
-                    formatCurrency(total),
-                    style: TextStyle(
-                      color: cor,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                ],
-              ),
+    final roots =
+        categorias.where((c) => c.parentId == null && !c.arquivada).toList()
+          ..sort((a, b) => a.nome.compareTo(b.nome));
+
+    return ClxCard(
+      child: Wrap(
+        spacing: ClxSpace.x4,
+        runSpacing: ClxSpace.x3,
+        crossAxisAlignment: WrapCrossAlignment.end,
+        children: [
+          _Filter<TipoLancamento?>(
+            label: 'Tipo',
+            value: filters.tipo,
+            entries: [
+              (value: null, text: 'Todos os tipos'),
+              (value: TipoLancamento.despesa, text: 'Despesas (a pagar)'),
+              (value: TipoLancamento.receita, text: 'Receitas (a receber)'),
+            ],
+            onChanged: (v) => onChange(filters.copyWith(tipo: v)),
+          ),
+          _Filter<OrigemLancamento?>(
+            label: 'Origem',
+            value: filters.origem,
+            entries: [
+              (value: null, text: 'Todas as origens'),
+              (value: OrigemLancamento.manual, text: 'Manual'),
+              (value: OrigemLancamento.viaOs, text: 'Via OS'),
+            ],
+            onChanged: (v) => onChange(filters.copyWith(origem: v)),
+          ),
+          _Filter<String?>(
+            label: 'Categoria',
+            value: filters.categoriaId,
+            entries: [
+              (value: null, text: 'Todas as categorias'),
+              for (final c in roots) (value: c.id, text: c.nome),
+            ],
+            onChanged: (v) => onChange(filters.copyWith(categoriaId: v)),
+          ),
+          _Filter<String?>(
+            label: 'Conta',
+            value: filters.contaId,
+            entries: [
+              (value: null, text: 'Todas as contas'),
+              for (final c in contas) (value: c.id, text: c.nome),
+            ],
+            onChanged: (v) => onChange(filters.copyWith(contaId: v)),
+          ),
+          _Filter<_Venc>(
+            label: 'Vencimento',
+            value: filters.venc,
+            entries: const [
+              (value: _Venc.todos, text: 'Todos os vencimentos'),
+              (value: _Venc.vencidas, text: 'Vencidas'),
+              (value: _Venc.hoje, text: 'Vence hoje'),
+              (value: _Venc.d7, text: 'Próximos 7 dias'),
+              (value: _Venc.d30, text: 'Próximos 30 dias'),
+            ],
+            onChanged: (v) => onChange(filters.copyWith(venc: v)),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: TextButton.icon(
+              onPressed: filters.ativos ? onClear : null,
+              icon: const Icon(Icons.clear_rounded, size: 16),
+              label: const Text('Limpar filtros'),
+              style: TextButton.styleFrom(foregroundColor: clx.ink2),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '$qtd em aberto',
-                  style: TextStyle(color: clx.ink2, fontSize: 13),
-                ),
-                if (emAtraso > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: ClxSpace.x1),
-                    child: ClxChip(
-                      label: '$emAtraso em atraso',
-                      color: clx.error,
-                      dense: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Campo de filtro compacto (rótulo + dropdown), genérico no valor.
+class _Filter<T> extends StatelessWidget {
+  const _Filter({
+    required this.label,
+    required this.value,
+    required this.entries,
+    required this.onChanged,
+  });
+
+  final String label;
+  final T value;
+  final List<({T value, String text})> entries;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: clx.ink3,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        Container(
+          constraints: const BoxConstraints(minWidth: 150),
+          padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x3),
+          decoration: BoxDecoration(
+            color: clx.bg2,
+            borderRadius: ClxRadii.rMd,
+            border: Border.all(color: clx.line),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isDense: true,
+              isExpanded: true,
+              borderRadius: ClxRadii.rMd,
+              style: TextStyle(color: clx.ink, fontSize: 13.5),
+              dropdownColor: clx.bg,
+              items: [
+                for (final e in entries)
+                  DropdownMenuItem<T>(
+                    value: e.value,
+                    child: Text(
+                      e.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
               ],
+              onChanged: (v) {
+                if (v != null || null is T) onChanged(v as T);
+              },
             ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+/* ─────────────────────── colunas de contas ─────────────────────── */
+
+class _Colunas extends StatelessWidget {
+  const _Colunas({
+    required this.mostrarPagar,
+    required this.mostrarReceber,
+    required this.aPagar,
+    required this.aReceber,
+    required this.catById,
+    required this.contaById,
+    required this.savingId,
+    required this.onPagar,
+  });
+
+  final bool mostrarPagar;
+  final bool mostrarReceber;
+  final List<ContaPendente> aPagar;
+  final List<ContaPendente> aReceber;
+  final Map<String, FinCategoria> catById;
+  final Map<String, FinConta> contaById;
+  final String? savingId;
+  final ValueChanged<FinLancamento> onPagar;
+
+  @override
+  Widget build(BuildContext context) {
+    final pagar = _Coluna(
+      titulo: 'Contas a pagar',
+      itens: aPagar,
+      tipo: TipoLancamento.despesa,
+      catById: catById,
+      contaById: contaById,
+      savingId: savingId,
+      onPagar: onPagar,
+      vazio: 'Nenhuma conta a pagar no período.',
+    );
+    final receber = _Coluna(
+      titulo: 'Contas a receber',
+      itens: aReceber,
+      tipo: TipoLancamento.receita,
+      catById: catById,
+      contaById: contaById,
+      savingId: savingId,
+      onPagar: onPagar,
+      vazio: 'Nenhuma conta a receber no período.',
+    );
+
+    if (mostrarPagar && mostrarReceber) {
+      return LayoutBuilder(
+        builder: (context, c) {
+          if (c.maxWidth < 720) {
+            return Column(
+              children: [
+                pagar,
+                const SizedBox(height: ClxSpace.x4),
+                receber,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: pagar),
+              const SizedBox(width: ClxSpace.x4),
+              Expanded(child: receber),
+            ],
+          );
+        },
+      );
+    }
+    return mostrarPagar ? pagar : receber;
+  }
+}
+
+class _Coluna extends StatelessWidget {
+  const _Coluna({
+    required this.titulo,
+    required this.itens,
+    required this.tipo,
+    required this.catById,
+    required this.contaById,
+    required this.savingId,
+    required this.onPagar,
+    required this.vazio,
+  });
+
+  final String titulo;
+  final List<ContaPendente> itens;
+  final TipoLancamento tipo;
+  final Map<String, FinCategoria> catById;
+  final Map<String, FinConta> contaById;
+  final String? savingId;
+  final ValueChanged<FinLancamento> onPagar;
+  final String vazio;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FinSectionHeader(
+            title: titulo,
+            trailing: Text(
+              '${itens.length} ${itens.length == 1 ? 'item' : 'itens'}',
+              style: TextStyle(color: clx.ink3, fontSize: 12.5),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          if (itens.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: ClxSpace.x5),
+              child: Center(
+                child: Text(
+                  vazio,
+                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            for (final p in itens)
+              Padding(
+                padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+                child: _PendenteRow(
+                  pendente: p,
+                  tipo: tipo,
+                  categoria: catById[p.lancamento.categoriaId],
+                  conta: contaById[p.lancamento.contaId],
+                  saving: savingId == p.lancamento.id,
+                  onPagar: () => onPagar(p.lancamento),
+                ),
+              ),
+        ],
       ),
     );
   }
 }
 
 class _PendenteRow extends StatelessWidget {
-  const _PendenteRow({required this.pendente, required this.onPagar});
+  const _PendenteRow({
+    required this.pendente,
+    required this.tipo,
+    required this.categoria,
+    required this.conta,
+    required this.saving,
+    required this.onPagar,
+  });
 
   final ContaPendente pendente;
+  final TipoLancamento tipo;
+  final FinCategoria? categoria;
+  final FinConta? conta;
+  final bool saving;
   final VoidCallback onPagar;
 
   @override
@@ -240,14 +672,15 @@ class _PendenteRow extends StatelessWidget {
     final clx = context.clx;
     final l = pendente.lancamento;
     final venc = (l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data;
-
-    return ClxCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x4,
-        vertical: ClxSpace.x3,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: clx.line)),
       ),
       child: Row(
         children: [
+          FinCategoriaAvatar(categoria: categoria, size: 32),
+          const SizedBox(width: ClxSpace.x2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,7 +691,7 @@ class _PendenteRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: clx.ink,
-                    fontSize: 14.5,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -267,18 +700,22 @@ class _PendenteRow extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.event_outlined,
-                      size: 13,
+                      size: 12,
                       color: pendente.emAtraso ? clx.error : clx.ink3,
                     ),
                     const SizedBox(width: ClxSpace.x1),
-                    Text(
-                      'Vence ${formatDateOnlyBr(venc)}',
-                      style: TextStyle(
-                        color: pendente.emAtraso ? clx.error : clx.ink3,
-                        fontSize: 12.5,
-                        fontWeight: pendente.emAtraso
-                            ? FontWeight.w700
-                            : FontWeight.w400,
+                    Flexible(
+                      child: Text(
+                        'Vence ${formatDateOnlyBr(venc)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: pendente.emAtraso ? clx.error : clx.ink3,
+                          fontSize: 12,
+                          fontWeight: pendente.emAtraso
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                        ),
                       ),
                     ),
                     if (pendente.vencendoHoje) ...[
@@ -288,32 +725,95 @@ class _PendenteRow extends StatelessWidget {
                       const SizedBox(width: ClxSpace.x2),
                       ClxChip(label: 'Atrasado', color: clx.error, dense: true),
                     ],
+                    if (conta != null) ...[
+                      const SizedBox(width: ClxSpace.x2),
+                      Flexible(child: ContaBadge(conta: conta!)),
+                    ],
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: ClxSpace.x3),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          const SizedBox(width: ClxSpace.x2),
+          Text(
+            formatCurrency(l.valor),
+            style: TextStyle(
+              color: tipoColor(clx, tipo),
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          saving
+              ? const Padding(
+                  padding: EdgeInsets.all(ClxSpace.x2),
+                  child: Spinner(size: 18),
+                )
+              : IconButton(
+                  tooltip: 'Marcar como pago',
+                  icon: Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: clx.success,
+                  ),
+                  onPressed: onPagar,
+                ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ─────────────────────── rodapé informativo (recebimentos via OS) ─────────────────────── */
+
+class _RodapeOs extends StatelessWidget {
+  const _RodapeOs();
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                formatCurrency(l.valor),
-                style: TextStyle(
-                  color: tipoColor(clx, l.tipo),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: clx.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.check_rounded, size: 18, color: clx.primary),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recebimentos via Ordens de Serviço',
+                      style: TextStyle(
+                        color: clx.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Quando uma OS é marcada como paga, o sistema pode gerar '
+                      'automaticamente a conta a receber e registrar o pagamento, '
+                      'mantendo suas finanças sempre atualizadas.',
+                      style: TextStyle(
+                        color: clx.ink3,
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 2),
-              StatusLancamentoChip(status: l.status, dense: true),
             ],
-          ),
-          const SizedBox(width: ClxSpace.x3),
-          IconButton(
-            tooltip: 'Marcar como pago',
-            icon: Icon(Icons.check_circle_outline_rounded, color: clx.success),
-            onPressed: onPagar,
           ),
         ],
       ),

@@ -175,6 +175,44 @@ final ordensControllerProvider =
       OrdensController.new,
     );
 
+/// Contagem de OS por status (badges das abas). Espelha o `countByStatus` do React
+/// — que deriva da lista completa. Como o Painel Flutter pagina no servidor (§4),
+/// contamos via `getList(perPage:1)` lendo `totalItems`, respeitando o filtro de
+/// profissional ativo para casar com o que a lista mostra. Invalidado nas mutações.
+class OrdensCounts {
+  const OrdensCounts({required this.total, required this.porStatus});
+  final int total;
+  final Map<OSStatus, int> porStatus;
+
+  int of(OSStatus s) => porStatus[s] ?? 0;
+}
+
+final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
+  ref,
+) async {
+  final profId = ref.watch(
+    ordensControllerProvider.select((s) => s.filter.profissionalId),
+  );
+  final repo = ref.watch(ordensRepositoryProvider);
+
+  Future<int> count(OSStatus? status) async {
+    final res = await repo.list(
+      page: 1,
+      perPage: 1,
+      filter: ordensFilter(status: status, profissionalId: profId),
+      sort: '-data_hora',
+    );
+    return res.totalItems;
+  }
+
+  final total = await count(null);
+  final porStatus = <OSStatus, int>{};
+  for (final s in OSStatus.all) {
+    porStatus[s] = await count(s);
+  }
+  return OrdensCounts(total: total, porStatus: porStatus);
+});
+
 /// Lookups de Nova OS: catálogo ativo de serviços + profissionais.
 class OrdensLookups {
   const OrdensLookups({required this.servicos, required this.profissionais});

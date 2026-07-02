@@ -195,8 +195,9 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
           child: Row(
             children: const [
               _HeaderCell('Serviço', flex: 4),
-              _HeaderCell('Grupo', flex: 2),
+              _HeaderCell('Categoria / Grupo', flex: 3),
               _HeaderCell('Valor', flex: 3),
+              _HeaderCell('Tipo de valor', flex: 2),
               _HeaderCell('Tempo médio', flex: 2),
               _HeaderCell('Status', flex: 2),
               _HeaderCell('', flex: 2),
@@ -437,6 +438,48 @@ class _GrupoChip extends StatelessWidget {
   }
 }
 
+/// "Categoria / `chip grupo`" — espelha o componente CategoriaGrupo do React.
+class _CategoriaGrupo extends StatelessWidget {
+  const _CategoriaGrupo({required this.servico});
+  final ServicoPB servico;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            '${categoriaLabel(servico.categoria ?? Categoria.veicular)} /',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+          ),
+        ),
+        const SizedBox(width: ClxSpace.x1),
+        _GrupoChip(servico: servico),
+      ],
+    );
+  }
+}
+
+/// Chip neutro do "Tipo de valor" (Fixo/Faixa/Variável) — espelha o React.
+class _TipoValorChip extends StatelessWidget {
+  const _TipoValorChip({required this.servico});
+  final ServicoPB servico;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return ClxChip(
+      label: tipoValorLabel(servico.tipoValor ?? TipoValor.fixo),
+      color: clx.ink2,
+      dense: true,
+    );
+  }
+}
+
 class _RowMenu extends StatelessWidget {
   const _RowMenu({required this.onDuplicar, required this.onExcluir});
   final VoidCallback onDuplicar;
@@ -533,10 +576,10 @@ class _ServicoRow extends StatelessWidget {
               ),
             ),
             Expanded(
-              flex: 2,
+              flex: 3,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: _GrupoChip(servico: servico),
+                child: _CategoriaGrupo(servico: servico),
               ),
             ),
             Expanded(
@@ -550,6 +593,13 @@ class _ServicoRow extends StatelessWidget {
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _TipoValorChip(servico: servico),
               ),
             ),
             Expanded(
@@ -641,9 +691,11 @@ class _ServicoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: ClxSpace.x2),
+          _CategoriaGrupo(servico: servico),
+          const SizedBox(height: ClxSpace.x2),
           Row(
             children: [
-              _GrupoChip(servico: servico),
+              _TipoValorChip(servico: servico),
               const SizedBox(width: ClxSpace.x2),
               Expanded(
                 child: Text(

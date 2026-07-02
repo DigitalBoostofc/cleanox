@@ -239,6 +239,15 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
                   ),
                   if (os.bairro.isNotEmpty)
                     _MetaChip(icon: Icons.place_outlined, text: os.bairro),
+                  // Nome do profissional (do expand) — espelha o IconUser do
+                  // cabeçalho de `OSExecucaoApp.tsx`. É o próprio profissional,
+                  // não PII do cliente.
+                  if (os.expand?.profissional != null &&
+                      os.expand!.profissional!.displayName != '—')
+                    _MetaChip(
+                      icon: Icons.person_outline,
+                      text: os.expand!.profissional!.displayName,
+                    ),
                 ],
               ),
               if (os.status == OSStatus.emAndamento &&

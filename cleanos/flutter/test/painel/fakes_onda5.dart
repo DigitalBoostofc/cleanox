@@ -6,6 +6,7 @@ library;
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/user.dart';
+import 'package:cleanos/core/repositories/usuarios_repository.dart';
 import 'package:cleanos/core/repositories/whatsapp_repository.dart';
 import 'package:cleanos/painel/data/whatsapp_config_repository.dart';
 
@@ -30,6 +31,27 @@ OrdemServico fakeAvaliacaoOS({
   avaliacaoEm: avaliacaoEm,
   expand: profissional == null ? null : OSExpand(profissional: profissional),
 );
+
+/// Fake de `UsuariosRepository`: devolve uma lista fixa de usuários (a tela de
+/// Avaliações lê os profissionais para montar o acordeão).
+class FakeUsuariosRepo implements UsuariosRepository {
+  FakeUsuariosRepo(this.users);
+  final List<User> users;
+
+  @override
+  Future<List<User>> list({String? filter, String sort = 'nome'}) async =>
+      users;
+
+  Never _unused() => throw UnimplementedError('não usado nos testes');
+  @override
+  Future<User> getOne(String id) => _unused();
+  @override
+  Future<User> create(Map<String, dynamic> data) => _unused();
+  @override
+  Future<User> update(String id, Map<String, dynamic> data) => _unused();
+  @override
+  Future<void> delete(String id) => _unused();
+}
 
 /// Fake de `WhatsAppRepository` (status/connect/disconnect) configurável.
 /// `statusQueue` permite simular o polling (cada chamada de [status] consome o

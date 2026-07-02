@@ -81,15 +81,23 @@ class UsuariosScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(usuariosControllerProvider);
+    // 🔒 Guard de UI: só admin exclui usuário (espelha o React — o botão de
+    // excluir só aparece para admin). O servidor é a linha de defesa final.
+    final canDelete = ref.watch(currentRoleProvider) == Role.admin;
     return Column(
       children: [
         _Toolbar(onNovo: () => _novo(context, ref)),
-        Expanded(child: _body(context, ref, state)),
+        Expanded(child: _body(context, ref, state, canDelete)),
       ],
     );
   }
 
-  Widget _body(BuildContext context, WidgetRef ref, UsuariosState state) {
+  Widget _body(
+    BuildContext context,
+    WidgetRef ref,
+    UsuariosState state,
+    bool canDelete,
+  ) {
     if (state.loading) return const Center(child: Spinner(size: 26));
     if (state.error != null && state.isEmpty) {
       return Center(
@@ -126,14 +134,19 @@ class UsuariosScreen extends ConsumerWidget {
         builder: (context, c) {
           final table = c.maxWidth >= _kTableBreakpoint;
           return table
-              ? _tableView(context, ref, state)
-              : _cardsView(context, ref, state);
+              ? _tableView(context, ref, state, canDelete)
+              : _cardsView(context, ref, state, canDelete);
         },
       ),
     );
   }
 
-  Widget _tableView(BuildContext context, WidgetRef ref, UsuariosState state) {
+  Widget _tableView(
+    BuildContext context,
+    WidgetRef ref,
+    UsuariosState state,
+    bool canDelete,
+  ) {
     final clx = context.clx;
     return Column(
       children: [
@@ -165,7 +178,7 @@ class UsuariosScreen extends ConsumerWidget {
                 onDisponibilidade: u.role == Role.profissional
                     ? () => _disponibilidade(context, u)
                     : null,
-                onExcluir: () => _excluir(context, ref, u),
+                onExcluir: canDelete ? () => _excluir(context, ref, u) : null,
               );
             },
           ),
@@ -174,7 +187,12 @@ class UsuariosScreen extends ConsumerWidget {
     );
   }
 
-  Widget _cardsView(BuildContext context, WidgetRef ref, UsuariosState state) {
+  Widget _cardsView(
+    BuildContext context,
+    WidgetRef ref,
+    UsuariosState state,
+    bool canDelete,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.all(ClxSpace.x4),
       itemCount: state.items.length,
@@ -188,7 +206,7 @@ class UsuariosScreen extends ConsumerWidget {
             onDisponibilidade: u.role == Role.profissional
                 ? () => _disponibilidade(context, u)
                 : null,
-            onExcluir: () => _excluir(context, ref, u),
+            onExcluir: canDelete ? () => _excluir(context, ref, u) : null,
           ),
         );
       },
@@ -300,7 +318,9 @@ class _UsuarioRow extends StatelessWidget {
   final User user;
   final VoidCallback onTap;
   final VoidCallback? onDisponibilidade;
-  final VoidCallback onExcluir;
+
+  /// `null` esconde a ação de excluir (só admin exclui — espelha o React).
+  final VoidCallback? onExcluir;
 
   @override
   Widget build(BuildContext context) {
@@ -346,9 +366,18 @@ class _UsuarioRow extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _RoleChip(role: user.role),
+              child: Row(
+                children: [
+                  Flexible(child: _RoleChip(role: user.role)),
+                  // "(app)" — o profissional acessa pelo app (espelha o React).
+                  if (user.role == Role.profissional) ...[
+                    const SizedBox(width: ClxSpace.x2),
+                    Text(
+                      '(app)',
+                      style: TextStyle(color: clx.ink3, fontSize: 11.5),
+                    ),
+                  ],
+                ],
               ),
             ),
             Expanded(
@@ -370,15 +399,16 @@ class _UsuarioRow extends StatelessWidget {
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     onPressed: onTap,
                   ),
-                  IconButton(
-                    tooltip: 'Excluir',
-                    icon: Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: clx.error,
+                  if (onExcluir != null)
+                    IconButton(
+                      tooltip: 'Excluir',
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: clx.error,
+                      ),
+                      onPressed: onExcluir,
                     ),
-                    onPressed: onExcluir,
-                  ),
                 ],
               ),
             ),
@@ -400,7 +430,9 @@ class _UsuarioCard extends StatelessWidget {
   final User user;
   final VoidCallback onTap;
   final VoidCallback? onDisponibilidade;
-  final VoidCallback onExcluir;
+
+  /// `null` esconde a ação de excluir (só admin exclui — espelha o React).
+  final VoidCallback? onExcluir;
 
   @override
   Widget build(BuildContext context) {
@@ -451,15 +483,16 @@ class _UsuarioCard extends StatelessWidget {
                   icon: Icons.event_available_outlined,
                   onPressed: onDisponibilidade,
                 ),
-              IconButton(
-                tooltip: 'Excluir',
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: clx.error,
+              if (onExcluir != null)
+                IconButton(
+                  tooltip: 'Excluir',
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 18,
+                    color: clx.error,
+                  ),
+                  onPressed: onExcluir,
                 ),
-                onPressed: onExcluir,
-              ),
             ],
           ),
         ],

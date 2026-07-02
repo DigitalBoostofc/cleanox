@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
@@ -62,13 +63,18 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       }
     } catch (err) {
       final info = describeOSError(err);
-      // 409 do backend traz `{error}` explicando (ex.: WhatsApp desconectado).
-      _toast(
-        info.isPermission
-            ? 'Ação não autorizada para este serviço.'
-            : serverErrorMessage(err),
-        ToastType.error,
-      );
+      // Espelha o handleAvisar de MeusServicos.tsx: 409 (WhatsApp da empresa não
+      // conectado) e 403 (não autorizado) têm mensagens fixas; demais caem no
+      // `{error}` do corpo do backend.
+      final String msg;
+      if (err is ClientException && err.statusCode == 409) {
+        msg = 'WhatsApp da empresa não está conectado. Avise o administrador.';
+      } else if (info.isPermission) {
+        msg = 'Ação não autorizada para este serviço.';
+      } else {
+        msg = serverErrorMessage(err);
+      }
+      _toast(msg, ToastType.error);
     } finally {
       if (mounted) setState(() => _avisoLoading[os.id] = false);
     }

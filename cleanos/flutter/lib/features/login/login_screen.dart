@@ -24,6 +24,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscure = true;
   String? _error;
 
+  /// Limpa a mensagem de erro assim que o usuário volta a digitar (espelha o
+  /// `onChange` do `Login.tsx`, que zera o erro a cada tecla).
+  void _clearError() {
+    if (_error != null) setState(() => _error = null);
+  }
+
   @override
   void dispose() {
     _emailCtrl.dispose();
@@ -97,7 +103,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
                       textInputAction: TextInputAction.next,
+                      autofocus: true,
                       enabled: !_loading,
+                      onChanged: (_) => _clearError(),
                       decoration: const InputDecoration(
                         labelText: 'E-mail',
                         hintText: 'seuemail@cleanox.com',
@@ -114,6 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       autofillHints: const [AutofillHints.password],
                       textInputAction: TextInputAction.done,
                       enabled: !_loading,
+                      onChanged: (_) => _clearError(),
                       onFieldSubmitted: (_) => _submit(),
                       decoration: InputDecoration(
                         labelText: 'Senha',

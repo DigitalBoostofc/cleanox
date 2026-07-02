@@ -1,122 +1,71 @@
-/// agenda_screen.dart — Agenda do Painel: grade densa de slots por profissional/dia.
+/// agenda_screen.dart — Agenda do Painel: CALENDÁRIO de ordens de serviço.
 ///
-/// Espelha o conceito de `Agenda.tsx` (grade por profissional/horário), derivando os
-/// slots da DISPONIBILIDADE semanal e cruzando com as ORDENS do dia (ver
-/// `agenda_controller.dart`). É a tela mais pesada do Painel Web — por isso a grade é
-/// VIRTUALIZADA e com header/coluna de horário FIXOS:
-///   • eixo vertical (horários) por `ListView.builder` com `itemExtent` (não renderiza
-///     a grade inteira);
-///   • header (nomes) e coluna de horário são pinados e SINCRONIZADOS por bridges de
-///     `ScrollController` (sem pacote externo);
-///   • responsivo: grade 2D no desktop, lista por profissional em telas menores.
+/// Espelha `Agenda.tsx`: três visões — **dia**, **semana** e **mês** — com
+/// navegação de período, filtro de profissional (em memória) e modal de
+/// disponibilidade (admin/gerente). As OS aparecem como eventos posicionados por
+/// dia/horário; tocar num evento abre o detalhe. Responsivo: grade densa no
+/// desktop, listas/compacto no mobile (espelha as `Mobile*View` do React).
 ///
-/// MD3: superfícies tonais + `outline-variant` (clx.line) nas divisórias, raios/tokens
-/// do design system, toque ≥ 48dp, mantendo a marca petrol+cyan.
+/// MD3: superfícies tonais + `outline-variant` (clx.line) nas divisórias, raios/
+/// tokens do design system, `SegmentedButton` para as visões, cores de status nos
+/// eventos, alvos de toque ≥ 48dp. PT-BR, BRT (UTC-3).
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
+import '../usuarios/disponibilidade_editor.dart';
 import 'agenda_controller.dart';
 
-const double _kGridBreakpoint = 760;
-const double _kRowH = 52;
-const double _kColW = 168;
-const double _kTimeW = 68;
-const double _kHeaderH = 56;
+/// Abaixo disto, usa as variantes mobile (listas/compacto).
+const double _kMobileBreakpoint = 760;
+const double _kTimeColW = 56;
+const double _kHourRowH = 60;
 
-class AgendaScreen extends ConsumerStatefulWidget {
+class AgendaScreen extends ConsumerWidget {
   const AgendaScreen({super.key});
 
   @override
-  ConsumerState<AgendaScreen> createState() => _AgendaScreenState();
-}
-
-class _AgendaScreenState extends ConsumerState<AgendaScreen> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(agendaControllerProvider);
     return Column(
       children: [
-        _Toolbar(state: state),
-        Expanded(child: _body(state)),
+        const _Toolbar(),
+        Expanded(child: _Body(state: state)),
       ],
-    );
-  }
-
-  Widget _body(AgendaState state) {
-    if (state.loading) return const Center(child: Spinner(size: 26));
-    if (state.error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(ClxSpace.x6),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: ErrorBanner(
-              message: state.error!,
-              onRetry: () => ref.read(agendaControllerProvider.notifier).load(),
-            ),
-          ),
-        ),
-      );
-    }
-    final grid = state.grid;
-    if (grid.profissionais.isEmpty) {
-      return const EmptyState(
-        icon: Icons.badge_outlined,
-        title: 'Nenhum profissional',
-        message: 'Cadastre profissionais em Usuários para montar a agenda.',
-      );
-    }
-    if (grid.isEmpty) {
-      return EmptyState(
-        icon: Icons.event_busy_outlined,
-        title: 'Sem disponibilidade ou OS neste dia',
-        message:
-            'Configure a disponibilidade dos profissionais (em Usuários) '
-            'ou agende OS para ver a grade preenchida.',
-        action: ClxButton(
-          label: 'Hoje',
-          variant: ClxButtonVariant.ghost,
-          icon: Icons.today_rounded,
-          onPressed: () =>
-              ref.read(agendaControllerProvider.notifier).goToday(),
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        final canGrid =
-            c.maxWidth >= _kGridBreakpoint && grid.profissionais.length > 1;
-        return canGrid
-            ? _AgendaGridView(grid: grid, onTapOS: _openOS)
-            : _AgendaListView(grid: grid, onTapOS: _openOS);
-      },
-    );
-  }
-
-  void _openOS(OrdemServico os) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => _OSDetailDialog(os: os),
     );
   }
 }
 
+/* ─────────────────────────── Toolbar ─────────────────────────── */
+
 class _Toolbar extends ConsumerWidget {
-  const _Toolbar({required this.state});
-  final AgendaState state;
+  const _Toolbar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    final state = ref.watch(agendaControllerProvider);
     final notifier = ref.read(agendaControllerProvider.notifier);
-    final grid = state.grid;
+    final role = ref.watch(currentRoleProvider);
+    final canManageDisp = role == Role.admin || role == Role.gerente;
+    final profId = state.filterProfId;
+    User? selectedProf;
+    if (profId != null) {
+      for (final p in state.profissionais) {
+        if (p.id == profId) {
+          selectedProf = p;
+          break;
+        }
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -132,7 +81,7 @@ class _Toolbar extends ConsumerWidget {
         runSpacing: ClxSpace.x2,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          // Navegação de dia.
+          // Navegação de período.
           Container(
             decoration: BoxDecoration(
               color: clx.bg2,
@@ -143,32 +92,26 @@ class _Toolbar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Dia anterior',
+                  tooltip: 'Anterior',
                   icon: const Icon(Icons.chevron_left_rounded),
-                  onPressed: () => notifier.shiftDays(-1),
+                  onPressed: notifier.goPrev,
                 ),
-                InkWell(
-                  onTap: () => _pickDate(context, ref),
-                  borderRadius: ClxRadii.rSm,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ClxSpace.x2,
-                      vertical: ClxSpace.x2,
-                    ),
-                    child: Text(
-                      _labelDate(state.date),
-                      style: TextStyle(
-                        color: clx.ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 140),
+                  child: Text(
+                    agendaPeriodLabel(state.view, state.anchor),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: clx.ink,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Próximo dia',
+                  tooltip: 'Próximo',
                   icon: const Icon(Icons.chevron_right_rounded),
-                  onPressed: () => notifier.shiftDays(1),
+                  onPressed: notifier.goNext,
                 ),
               ],
             ),
@@ -179,332 +122,74 @@ class _Toolbar extends ConsumerWidget {
             icon: Icons.today_rounded,
             onPressed: notifier.goToday,
           ),
-          // Filtro de profissional.
-          SizedBox(
-            width: 220,
-            child: DropdownButtonFormField<String?>(
-              initialValue: state.filterProfId,
-              isExpanded: true,
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: clx.bg2,
-                prefixIcon: const Icon(Icons.badge_outlined, size: 18),
-                border: const OutlineInputBorder(
-                  borderRadius: ClxRadii.rMd,
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              hint: const Text('Todos os profissionais'),
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('Todos os profissionais'),
-                ),
-                for (final p in state.profissionais)
-                  DropdownMenuItem(
-                    value: p.id,
-                    child: Text(p.displayName, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onChanged: notifier.setFilterProf,
-            ),
-          ),
           IconButton(
             tooltip: 'Atualizar',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: notifier.load,
           ),
-          if (!grid.isEmpty)
-            _SummaryChip(
-              livres: _countLivres(grid),
-              ocupados: grid.totalOcupados,
-            ),
-        ],
-      ),
-    );
-  }
-
-  int _countLivres(AgendaGrid grid) {
-    var n = 0;
-    for (final byTime in grid.cells.values) {
-      for (final c in byTime.values) {
-        if (c.kind == AgendaCellKind.livre) n++;
-      }
-    }
-    return n;
-  }
-
-  Future<void> _pickDate(BuildContext context, WidgetRef ref) async {
-    final current = DateTime.tryParse(state.date) ?? DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current,
-      firstDate: DateTime(current.year - 1),
-      lastDate: DateTime(current.year + 2),
-    );
-    if (picked != null) {
-      ref
-          .read(agendaControllerProvider.notifier)
-          .setDate(
-            '${picked.year.toString().padLeft(4, '0')}-'
-            '${picked.month.toString().padLeft(2, '0')}-'
-            '${picked.day.toString().padLeft(2, '0')}',
-          );
-    }
-  }
-
-  static const List<String> _dow = [
-    'Domingo',
-    'Segunda',
-    'Terça',
-    'Quarta',
-    'Quinta',
-    'Sexta',
-    'Sábado',
-  ];
-
-  String _labelDate(String date) {
-    final d = DateTime.tryParse(date);
-    if (d == null) return date;
-    final dow = _dow[d.weekday % 7];
-    return '$dow, ${d.day.toString().padLeft(2, '0')}/'
-        '${d.month.toString().padLeft(2, '0')}';
-  }
-}
-
-class _SummaryChip extends StatelessWidget {
-  const _SummaryChip({required this.livres, required this.ocupados});
-  final int livres;
-  final int ocupados;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ClxChip(
-          label: '$ocupados agendado${ocupados == 1 ? '' : 's'}',
-          color: clx.accent,
-          icon: Icons.event_available_rounded,
-          dense: true,
-        ),
-        const SizedBox(width: ClxSpace.x2),
-        ClxChip(
-          label: '$livres livre${livres == 1 ? '' : 's'}',
-          color: clx.success,
-          icon: Icons.schedule_rounded,
-          dense: true,
-        ),
-      ],
-    );
-  }
-}
-
-/* ─────────────────────────── GRADE 2D (desktop) ─────────────────────────── */
-
-/// Grade densa virtualizada: header (nomes) + coluna de horário FIXOS; corpo com
-/// `ListView.builder` (`itemExtent`) e scroll 2D sincronizado por bridges.
-class _AgendaGridView extends StatefulWidget {
-  const _AgendaGridView({required this.grid, required this.onTapOS});
-  final AgendaGrid grid;
-  final ValueChanged<OrdemServico> onTapOS;
-
-  @override
-  State<_AgendaGridView> createState() => _AgendaGridViewState();
-}
-
-class _AgendaGridViewState extends State<_AgendaGridView> {
-  final ScrollController _bodyV = ScrollController();
-  final ScrollController _timeV = ScrollController();
-  final ScrollController _bodyH = ScrollController();
-  final ScrollController _headerH = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _bodyV.addListener(() => _sync(_bodyV, _timeV));
-    _bodyH.addListener(() => _sync(_bodyH, _headerH));
-  }
-
-  /// Espelha o offset de [src] em [dst] (guarda reentrância e clients).
-  void _sync(ScrollController src, ScrollController dst) {
-    if (!dst.hasClients || !src.hasClients) return;
-    if ((dst.offset - src.offset).abs() < 0.5) return;
-    dst.jumpTo(
-      src.offset.clamp(
-        dst.position.minScrollExtent,
-        dst.position.maxScrollExtent,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _bodyV.dispose();
-    _timeV.dispose();
-    _bodyH.dispose();
-    _headerH.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final grid = widget.grid;
-    final profs = grid.profissionais;
-    final times = grid.times;
-    final bodyWidth = profs.length * _kColW;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // ── Header fixo: canto + nomes dos profissionais (scroll H sincronizado).
-        SizedBox(
-          height: _kHeaderH,
-          child: Row(
+          // Filtro de profissional + engrenagem de disponibilidade.
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _CornerCell(clx: clx),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _headerH,
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: SizedBox(
-                    width: bodyWidth,
-                    child: Row(
-                      children: [
-                        for (final p in profs) _ProfHeaderCell(prof: p),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: clx.line),
-        // ── Corpo: coluna de horário fixa + grade 2D virtualizada.
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Coluna de horários pinada (scroll V sincronizado, sem gesto próprio).
               SizedBox(
-                width: _kTimeW,
-                child: ListView.builder(
-                  controller: _timeV,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemExtent: _kRowH,
-                  itemCount: times.length,
-                  itemBuilder: (context, i) =>
-                      _TimeCell(time: times[i], clx: clx),
-                ),
-              ),
-              VerticalDivider(width: 1, color: clx.line),
-              // Grade: H drive + V drive (virtualizado por linha).
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _bodyH,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: bodyWidth,
-                    child: ListView.builder(
-                      controller: _bodyV,
-                      itemExtent: _kRowH,
-                      itemCount: times.length,
-                      itemBuilder: (context, i) {
-                        final time = times[i];
-                        return Row(
-                          children: [
-                            for (final p in profs)
-                              _GridCell(
-                                cell: grid.cell(p.id, time),
-                                onTap: widget.onTapOS,
-                              ),
-                          ],
-                        );
-                      },
+                width: 220,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: state.filterProfId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: clx.bg2,
+                    prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+                    border: const OutlineInputBorder(
+                      borderRadius: ClxRadii.rMd,
+                      borderSide: BorderSide.none,
                     ),
                   ),
+                  hint: const Text('Todos os profissionais'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Todos os profissionais'),
+                    ),
+                    for (final p in state.profissionais)
+                      DropdownMenuItem(
+                        value: p.id,
+                        child: Text(
+                          p.displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: notifier.setFilterProf,
                 ),
               ),
+              if (selectedProf != null && canManageDisp)
+                Builder(
+                  builder: (context) {
+                    final prof = selectedProf!;
+                    return IconButton(
+                      tooltip: 'Configurar disponibilidade',
+                      icon: const Icon(Icons.settings_outlined, size: 18),
+                      onPressed: () => showDisponibilidadeEditor(
+                        context,
+                        profissional: prof,
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CornerCell extends StatelessWidget {
-  const _CornerCell({required this.clx});
-  final CleanoxColors clx;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: _kTimeW,
-      height: _kHeaderH,
-      alignment: Alignment.center,
-      color: clx.bg3,
-      child: Text(
-        'Hora',
-        style: TextStyle(
-          color: clx.ink3,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfHeaderCell extends StatelessWidget {
-  const _ProfHeaderCell({required this.prof});
-  final User prof;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      width: _kColW,
-      height: _kHeaderH,
-      padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x2),
-      decoration: BoxDecoration(
-        color: clx.bg3,
-        border: Border(left: BorderSide(color: clx.line)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: clx.accent,
-            child: Text(
-              prof.displayName.isNotEmpty
-                  ? prof.displayName[0].toUpperCase()
-                  : 'U',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          Expanded(
-            child: Text(
-              prof.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          // Abas de visão.
+          SegmentedButton<AgendaView>(
+            segments: const [
+              ButtonSegment(value: AgendaView.dia, label: Text('Dia')),
+              ButtonSegment(value: AgendaView.semana, label: Text('Semana')),
+              ButtonSegment(value: AgendaView.mes, label: Text('Mês')),
+            ],
+            selected: {state.view},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => notifier.setView(s.first),
           ),
         ],
       ),
@@ -512,311 +197,869 @@ class _ProfHeaderCell extends StatelessWidget {
   }
 }
 
-class _TimeCell extends StatelessWidget {
-  const _TimeCell({required this.time, required this.clx});
-  final String time;
-  final CleanoxColors clx;
+/* ─────────────────────────── Corpo ─────────────────────────── */
+
+class _Body extends ConsumerWidget {
+  const _Body({required this.state});
+  final AgendaState state;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: _kRowH,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: clx.bg2,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Text(
-        time,
-        style: TextStyle(
-          color: clx.ink2,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w600,
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.loading) return const Center(child: Spinner(size: 26));
+    if (state.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(ClxSpace.x6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: ErrorBanner(
+              message: state.error!,
+              onRetry: () => ref.read(agendaControllerProvider.notifier).load(),
+            ),
+          ),
         ),
-      ),
+      );
+    }
+
+    void openOS(OrdemServico os) => showDialog<void>(
+      context: context,
+      builder: (_) => _OSDetailDialog(os: os),
+    );
+
+    final notifier = ref.read(agendaControllerProvider.notifier);
+    final today = _todayDate();
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final mobile = c.maxWidth < _kMobileBreakpoint;
+        switch (state.view) {
+          case AgendaView.semana:
+            return mobile
+                ? _MobileWeekView(state: state, today: today, onTap: openOS)
+                : _WeekView(state: state, today: today, onTap: openOS);
+          case AgendaView.mes:
+            return mobile
+                ? _MobileMonthView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    onSelectDay: notifier.setSelectedDay,
+                  )
+                : _MonthView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    onDayClick: notifier.openDay,
+                  );
+          case AgendaView.dia:
+            return mobile
+                ? _MobileDayView(state: state, today: today, onTap: openOS)
+                : _DayView(state: state, today: today, onTap: openOS);
+        }
+      },
     );
   }
 }
 
-class _GridCell extends StatelessWidget {
-  const _GridCell({required this.cell, required this.onTap});
-  final AgendaCell cell;
+DateTime _todayDate() {
+  final d = DateTime.tryParse(todayLocalDate()) ?? DateTime.now();
+  return DateTime(d.year, d.month, d.day);
+}
+
+/* ─────────────────────────── Semana (desktop) ─────────────────────────── */
+
+class _WeekView extends StatelessWidget {
+  const _WeekView({required this.state, required this.today, required this.onTap});
+  final AgendaState state;
+  final DateTime today;
   final ValueChanged<OrdemServico> onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final base = Container(
-      width: _kColW,
-      height: _kRowH,
+    final ws = startOfWeek(state.anchor);
+    final days = [for (var i = 0; i < 7; i++) addDays(ws, i)];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Cabeçalho: canto + 7 dias.
+        Container(
+          decoration: BoxDecoration(
+            color: clx.bg3,
+            border: Border(bottom: BorderSide(color: clx.line)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: _kTimeColW),
+              for (final d in days)
+                Expanded(child: _WeekDayHeader(day: d, isToday: sameDay(d, today))),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (final h in kAgendaHours)
+                  // IntrinsicHeight dá uma altura LIMITADA ao `stretch` da Row:
+                  // dentro do scroll vertical a altura entrante é infinita e o
+                  // stretch sozinho forçaria altura infinita nas células (crash).
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _HourLabel(hour: h),
+                        for (final d in days)
+                          Expanded(
+                            child: _WeekCell(
+                              events: state.eventsForHour(d, h),
+                              onTap: onTap,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeekDayHeader extends StatelessWidget {
+  const _WeekDayHeader({required this.day, required this.isToday});
+  final DateTime day;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: clx.line)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            kDowShort[day.weekday % 7],
+            style: TextStyle(
+              color: isToday ? clx.primary : clx.ink3,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${day.day}',
+            style: TextStyle(
+              color: isToday ? clx.primary : clx.ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HourLabel extends StatelessWidget {
+  const _HourLabel({required this.hour});
+  final int hour;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      width: _kTimeColW,
+      constraints: const BoxConstraints(minHeight: _kHourRowH),
+      alignment: Alignment.topRight,
+      padding: const EdgeInsets.only(right: ClxSpace.x2, top: ClxSpace.x1),
+      decoration: BoxDecoration(
+        color: clx.bg2,
+        border: Border(bottom: BorderSide(color: clx.line)),
+      ),
+      child: Text(
+        '${hour}h',
+        style: TextStyle(color: clx.ink3, fontSize: 11.5, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _WeekCell extends StatelessWidget {
+  const _WeekCell({required this.events, required this.onTap});
+  final List<OrdemServico> events;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      constraints: const BoxConstraints(minHeight: _kHourRowH),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(color: clx.line),
           bottom: BorderSide(color: clx.line),
         ),
       ),
-      child: _content(clx),
-    );
-    if (cell.kind == AgendaCellKind.ocupado && cell.os != null) {
-      return InkWell(onTap: () => onTap(cell.os!), child: base);
-    }
-    return base;
-  }
-
-  Widget _content(CleanoxColors clx) {
-    switch (cell.kind) {
-      case AgendaCellKind.vazio:
-        return const SizedBox.shrink();
-      case AgendaCellKind.livre:
-        return Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: ClxSpace.x2,
-              vertical: 2,
-            ),
-            decoration: BoxDecoration(
-              color: clx.successBg,
-              borderRadius: ClxRadii.rSm,
-            ),
-            child: Text(
-              'Livre',
-              style: TextStyle(
-                color: clx.success,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        );
-      case AgendaCellKind.ocupado:
-        final os = cell.os!;
-        return Container(
-          margin: const EdgeInsets.all(3),
-          padding: const EdgeInsets.symmetric(
-            horizontal: ClxSpace.x2,
-            vertical: 4,
-          ),
-          decoration: BoxDecoration(
-            color: clx.statusBg(os.status),
-            borderRadius: ClxRadii.rSm,
-            border: Border(
-              left: BorderSide(color: clx.statusColor(os.status), width: 3),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: clx.ink,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                os.tipoServicoNome ?? '—',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink3, fontSize: 10.5),
-              ),
-            ],
-          ),
-        );
-    }
-  }
-}
-
-/* ─────────────────────────── LISTA (mobile) ─────────────────────────── */
-
-/// Lista por profissional (telas menores): cada profissional vira um bloco com os
-/// horários do dia (livre/ocupado). Virtualizada por `ListView.builder`.
-class _AgendaListView extends StatelessWidget {
-  const _AgendaListView({required this.grid, required this.onTapOS});
-  final AgendaGrid grid;
-  final ValueChanged<OrdemServico> onTapOS;
-
-  @override
-  Widget build(BuildContext context) {
-    final profs = grid.profissionais;
-    return ListView.builder(
-      padding: const EdgeInsets.all(ClxSpace.x4),
-      itemCount: profs.length,
-      itemBuilder: (context, i) {
-        final prof = profs[i];
-        final byTime = grid.cells[prof.id] ?? const {};
-        final entries = grid.times
-            .where((t) => byTime.containsKey(t))
-            .map((t) => MapEntry(t, byTime[t]!))
-            .toList();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-          child: _ProfDayCard(prof: prof, entries: entries, onTapOS: onTapOS),
-        );
-      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final os in events) _EventChip(os: os, onTap: onTap),
+        ],
+      ),
     );
   }
 }
 
-class _ProfDayCard extends StatelessWidget {
-  const _ProfDayCard({
-    required this.prof,
-    required this.entries,
-    required this.onTapOS,
-  });
-
-  final User prof;
-  final List<MapEntry<String, AgendaCell>> entries;
-  final ValueChanged<OrdemServico> onTapOS;
+/// Evento compacto (semana/mês): hora + nome curto, cor do status.
+class _EventChip extends StatelessWidget {
+  const _EventChip({required this.os, required this.onTap});
+  final OrdemServico os;
+  final ValueChanged<OrdemServico> onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    return ClxCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return GestureDetector(
+      onTap: () => onTap(os),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 2),
+        padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x2, vertical: 2),
+        decoration: BoxDecoration(
+          color: clx.statusBg(os.status),
+          borderRadius: ClxRadii.rSm,
+          border: Border(
+            left: BorderSide(color: clx.statusColor(os.status), width: 3),
+          ),
+        ),
+        child: Text(
+          '${formatTime(os.dataHora)} ${os.nomeCurto.isEmpty ? '—' : os.nomeCurto}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: clx.ink, fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
+/* ─────────────────────────── Mês (desktop) ─────────────────────────── */
+
+class _MonthView extends StatelessWidget {
+  const _MonthView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.onDayClick,
+  });
+  final AgendaState state;
+  final DateTime today;
+  final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<DateTime> onDayClick;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final weeks = monthCalendar(state.anchor.year, state.anchor.month);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: clx.bg3,
+            border: Border(bottom: BorderSide(color: clx.line)),
+          ),
+          child: Row(
             children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: clx.accent,
+              for (final d in kDowShort)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
+                    child: Text(
+                      d,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: clx.ink3,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              for (final week in weeks)
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final day in week)
+                        Expanded(
+                          child: _MonthDayCell(
+                            day: day,
+                            isToday: sameDay(day, today),
+                            isOtherMonth: day.month != state.anchor.month,
+                            events: state.eventsForDay(day),
+                            onTap: onTap,
+                            onDayClick: () => onDayClick(day),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MonthDayCell extends StatelessWidget {
+  const _MonthDayCell({
+    required this.day,
+    required this.isToday,
+    required this.isOtherMonth,
+    required this.events,
+    required this.onTap,
+    required this.onDayClick,
+  });
+  final DateTime day;
+  final bool isToday;
+  final bool isOtherMonth;
+  final List<OrdemServico> events;
+  final ValueChanged<OrdemServico> onTap;
+  final VoidCallback onDayClick;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return InkWell(
+      onTap: onDayClick,
+      child: Container(
+        padding: const EdgeInsets.all(ClxSpace.x1),
+        decoration: BoxDecoration(
+          color: isOtherMonth ? clx.bg2 : clx.bg,
+          border: Border(
+            left: BorderSide(color: clx.line),
+            bottom: BorderSide(color: clx.line),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: isToday
+                    ? BoxDecoration(color: clx.primary, shape: BoxShape.circle)
+                    : null,
                 child: Text(
-                  prof.displayName.isNotEmpty
-                      ? prof.displayName[0].toUpperCase()
-                      : 'U',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  '${day.day}',
+                  style: TextStyle(
+                    color: isToday
+                        ? Colors.white
+                        : (isOtherMonth ? clx.ink3 : clx.ink),
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              const SizedBox(width: ClxSpace.x2),
-              Expanded(
-                child: Text(
-                  prof.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+            ),
+            const SizedBox(height: 2),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final os in events.take(3))
+                      _EventChip(os: os, onTap: onTap),
+                    if (events.length > 3)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2, top: 1),
+                        child: Text(
+                          '+${events.length - 3} mais',
+                          style: TextStyle(color: clx.ink3, fontSize: 10.5),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ─────────────────────────── Dia (desktop) ─────────────────────────── */
+
+class _DayView extends StatelessWidget {
+  const _DayView({required this.state, required this.today, required this.onTap});
+  final AgendaState state;
+  final DateTime today;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final day = state.anchor;
+    final isToday = sameDay(day, today);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: ClxSpace.x6,
+            vertical: ClxSpace.x3,
           ),
-          const SizedBox(height: ClxSpace.x3),
-          if (entries.isEmpty)
-            Text(
-              'Sem disponibilidade ou OS neste dia.',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
-            )
-          else
-            for (final e in entries) ...[
-              _SlotTile(time: e.key, cell: e.value, onTapOS: onTapOS),
-              const SizedBox(height: ClxSpace.x2),
-            ],
+          decoration: BoxDecoration(
+            color: clx.bg3,
+            border: Border(bottom: BorderSide(color: clx.line)),
+          ),
+          child: Text(
+            '${agendaDayLabelLong(day)}${isToday ? ' — Hoje' : ''}',
+            style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (final h in kAgendaHours)
+                  _DaySlot(hour: h, events: state.eventsForHour(day, h), onTap: onTap),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DaySlot extends StatelessWidget {
+  const _DaySlot({required this.hour, required this.events, required this.onTap});
+  final int hour;
+  final List<OrdemServico> events;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      constraints: const BoxConstraints(minHeight: _kHourRowH),
+      padding: const EdgeInsets.symmetric(
+        horizontal: ClxSpace.x4,
+        vertical: ClxSpace.x2,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: clx.line)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 48,
+            child: Text(
+              '${hour}h',
+              style: TextStyle(
+                color: clx.ink3,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final os in events) _DayEventTile(os: os, onTap: onTap),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SlotTile extends StatelessWidget {
-  const _SlotTile({
-    required this.time,
-    required this.cell,
-    required this.onTapOS,
-  });
-
-  final String time;
-  final AgendaCell cell;
-  final ValueChanged<OrdemServico> onTapOS;
+class _DayEventTile extends StatelessWidget {
+  const _DayEventTile({required this.os, required this.onTap});
+  final OrdemServico os;
+  final ValueChanged<OrdemServico> onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final ocupado = cell.kind == AgendaCellKind.ocupado && cell.os != null;
-    final os = cell.os;
-    final tile = Container(
-      constraints: const BoxConstraints(minHeight: ClxLayout.minTouchTarget),
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x3,
-        vertical: ClxSpace.x2,
-      ),
-      decoration: BoxDecoration(
-        color: ocupado ? clx.statusBg(os!.status) : clx.successBg,
-        borderRadius: ClxRadii.rMd,
-        border: Border(
-          left: BorderSide(
-            color: ocupado ? clx.statusColor(os!.status) : clx.success,
-            width: 3,
+    final prof = os.expand?.profissional?.displayName;
+    return InkWell(
+      onTap: () => onTap(os),
+      borderRadius: ClxRadii.rMd,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: ClxSpace.x2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x3,
+          vertical: ClxSpace.x2,
+        ),
+        decoration: BoxDecoration(
+          color: clx.statusBg(os.status),
+          borderRadius: ClxRadii.rMd,
+          border: Border(
+            left: BorderSide(color: clx.statusColor(os.status), width: 3),
           ),
         ),
+        child: Row(
+          children: [
+            Text(
+              formatTime(os.dataHora),
+              style: TextStyle(color: clx.ink, fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              child: Text(
+                '${os.nomeCurto.isEmpty ? '—' : os.nomeCurto} — '
+                '${os.tipoServicoNome ?? '—'}'
+                '${prof != null && prof != '—' ? ' · $prof' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: clx.ink2, fontSize: 12.5),
+              ),
+            ),
+            StatusBadge(status: os.status, dense: true),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 48,
-            child: Text(
-              time,
+    );
+  }
+}
+
+/* ─────────────────────────── Mobile ─────────────────────────── */
+
+/// Mini-card usado nas visões mobile (dia/semana/mês).
+class _AgendaMiniCard extends StatelessWidget {
+  const _AgendaMiniCard({required this.os, required this.onTap});
+  final OrdemServico os;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final prof = os.expand?.profissional?.displayName;
+    return InkWell(
+      onTap: () => onTap(os),
+      borderRadius: ClxRadii.rMd,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: ClxLayout.minTouchTarget),
+        margin: const EdgeInsets.only(bottom: ClxSpace.x2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x3,
+          vertical: ClxSpace.x2,
+        ),
+        decoration: BoxDecoration(
+          color: clx.statusBg(os.status),
+          borderRadius: ClxRadii.rMd,
+          border: Border(
+            left: BorderSide(color: clx.statusColor(os.status), width: 3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(
+              formatTime(os.dataHora),
+              style: TextStyle(color: clx.ink, fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(width: ClxSpace.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: clx.ink,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${os.tipoServicoNome ?? '—'}'
+                    '${prof != null && prof != '—' ? ' · $prof' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: clx.ink3, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            StatusBadge(status: os.status, dense: true),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDayView extends StatelessWidget {
+  const _MobileDayView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+  });
+  final AgendaState state;
+  final DateTime today;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final day = state.anchor;
+    final events = state.eventsForDay(day)
+      ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
+    return ListView(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      children: [
+        Text(
+          '${agendaDayLabelLong(day)}${sameDay(day, today) ? ' — Hoje' : ''}',
+          style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: ClxSpace.x3),
+        if (events.isEmpty)
+          const _EmptyDay()
+        else
+          for (final os in events) _AgendaMiniCard(os: os, onTap: onTap),
+      ],
+    );
+  }
+}
+
+class _MobileWeekView extends StatelessWidget {
+  const _MobileWeekView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+  });
+  final AgendaState state;
+  final DateTime today;
+  final ValueChanged<OrdemServico> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final ws = startOfWeek(state.anchor);
+    final days = [for (var i = 0; i < 7; i++) addDays(ws, i)];
+    final anyEvents = days.any((d) => state.eventsForDay(d).isNotEmpty);
+    if (!anyEvents) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(ClxSpace.x6),
+          child: EmptyState(
+            icon: Icons.event_busy_outlined,
+            title: 'Semana sem atendimentos',
+            message: 'Nenhum atendimento agendado nesta semana.',
+          ),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      children: [
+        for (final d in days)
+          if (state.eventsForDay(d).isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: ClxSpace.x2, top: ClxSpace.x1),
+              child: Row(
+                children: [
+                  Text(
+                    agendaDayLabelShort(d),
+                    style: TextStyle(
+                      color: sameDay(d, today) ? clx.primary : clx.ink3,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  if (sameDay(d, today)) ...[
+                    const SizedBox(width: ClxSpace.x2),
+                    ClxChip(label: 'Hoje', color: clx.primary, dense: true),
+                  ],
+                ],
+              ),
+            ),
+            for (final os in state.eventsForDay(d)
+              ..sort((a, b) => a.dataHora.compareTo(b.dataHora)))
+              _AgendaMiniCard(os: os, onTap: onTap),
+            const SizedBox(height: ClxSpace.x3),
+          ],
+      ],
+    );
+  }
+}
+
+class _MobileMonthView extends StatelessWidget {
+  const _MobileMonthView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.onSelectDay,
+  });
+  final AgendaState state;
+  final DateTime today;
+  final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<DateTime> onSelectDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final weeks = monthCalendar(state.anchor.year, state.anchor.month);
+    final selected = state.selectedDay;
+    final selectedEvents = state.eventsForDay(selected)
+      ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
+    return ListView(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      children: [
+        Row(
+          children: [
+            for (final d in kDowShort)
+              Expanded(
+                child: Text(
+                  d,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: clx.ink3, fontSize: 10.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        for (final week in weeks)
+          Row(
+            children: [
+              for (final day in week)
+                Expanded(
+                  child: _MobileMonthDay(
+                    day: day,
+                    isToday: sameDay(day, today),
+                    isSelected: sameDay(day, selected),
+                    isOtherMonth: day.month != state.anchor.month,
+                    events: state.eventsForDay(day),
+                    onTap: () => onSelectDay(day),
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: ClxSpace.x4),
+        Text(
+          agendaDayLabelLong(selected),
+          style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        if (selectedEvents.isEmpty)
+          const _EmptyDay()
+        else
+          for (final os in selectedEvents) _AgendaMiniCard(os: os, onTap: onTap),
+      ],
+    );
+  }
+}
+
+class _MobileMonthDay extends StatelessWidget {
+  const _MobileMonthDay({
+    required this.day,
+    required this.isToday,
+    required this.isSelected,
+    required this.isOtherMonth,
+    required this.events,
+    required this.onTap,
+  });
+  final DateTime day;
+  final bool isToday;
+  final bool isSelected;
+  final bool isOtherMonth;
+  final List<OrdemServico> events;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: ClxRadii.rSm,
+      child: Container(
+        height: 44,
+        margin: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: isSelected ? clx.primary.withValues(alpha: 0.14) : null,
+          borderRadius: ClxRadii.rSm,
+          border: isToday ? Border.all(color: clx.primary, width: 1.5) : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${day.day}',
               style: TextStyle(
-                color: clx.ink,
-                fontSize: 13,
+                color: isOtherMonth ? clx.ink3 : clx.ink,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          Expanded(
-            child: ocupado
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        os!.nomeCurto.isEmpty ? '—' : os.nomeCurto,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: clx.ink,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+            const SizedBox(height: 2),
+            if (events.isNotEmpty)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final os in events.take(3))
+                    Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        color: clx.statusColor(os.status),
+                        shape: BoxShape.circle,
                       ),
-                      Text(
-                        os.tipoServicoNome ?? '—',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: clx.ink3, fontSize: 11.5),
-                      ),
-                    ],
-                  )
-                : Text(
-                    'Horário livre',
-                    style: TextStyle(
-                      color: clx.success,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-          ),
-          if (ocupado) StatusBadge(status: os!.status, dense: true),
-        ],
+                ],
+              )
+            else
+              const SizedBox(height: 5),
+          ],
+        ),
       ),
     );
-    if (ocupado) {
-      return InkWell(
-        borderRadius: ClxRadii.rMd,
-        onTap: () => onTapOS(os!),
-        child: tile,
-      );
-    }
-    return tile;
+  }
+}
+
+class _EmptyDay extends StatelessWidget {
+  const _EmptyDay();
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ClxSpace.x4),
+      child: Text(
+        'Sem atendimentos neste dia',
+        style: TextStyle(color: clx.ink3, fontSize: 13),
+      ),
+    );
   }
 }
 
@@ -829,7 +1072,7 @@ class _OSDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final prof = os.expand?.profissional;
+    final prof = os.expand?.profissional?.displayName;
     return AlertDialog(
       backgroundColor: clx.bg,
       shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
@@ -838,11 +1081,7 @@ class _OSDetailDialog extends StatelessWidget {
           Expanded(
             child: Text(
               os.nomeCurto.isEmpty ? 'Ordem de serviço' : os.nomeCurto,
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: clx.ink, fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ),
           StatusBadge(status: os.status, dense: true),
@@ -852,11 +1091,25 @@ class _OSDetailDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _row(clx, 'Bairro', os.bairro.isEmpty ? '—' : os.bairro),
           _row(clx, 'Serviço', os.tipoServicoNome ?? '—'),
-          _row(clx, 'Bairro', os.bairro),
           _row(clx, 'Data / Hora', formatDateTime(os.dataHora)),
-          _row(clx, 'Profissional', prof?.displayName ?? '—'),
-          _row(clx, 'Valor', formatCurrency(os.valorServico ?? 0)),
+          _row(clx, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
+          if (os.status == OSStatus.concluida) ...[
+            const SizedBox(height: ClxSpace.x2),
+            Text(
+              'Financeiro',
+              style: TextStyle(color: clx.ink3, fontSize: 11.5, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: ClxSpace.x1),
+            _row(
+              clx,
+              'Valor pago',
+              os.valorPago != null ? formatCurrency(os.valorPago!) : '—',
+            ),
+            if (os.formaPagamento != null)
+              _row(clx, 'Forma', os.formaPagamento!.label),
+          ],
         ],
       ),
       actions: [
@@ -869,31 +1122,22 @@ class _OSDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _row(CleanoxColors clx, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: ClxSpace.x2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 108,
-            child: Text(
-              label,
-              style: TextStyle(color: clx.ink3, fontSize: 12.5),
-            ),
+  Widget _row(CleanoxColors clx, String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 108,
+          child: Text(label, style: TextStyle(color: clx.ink3, fontSize: 12.5)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: clx.ink, fontSize: 13.5, fontWeight: FontWeight.w500),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }

@@ -60,6 +60,17 @@ abstract class FinanceiroPanelRepository implements FinanceiroRepository {
   /// Transferência entre contas via rota transacional (débito+crédito na MESMA
   /// transação server-side — sem rollback client-side).
   Future<void> transferir(String fromId, String toId, double valor);
+
+  /// Copia um lançamento como NOVO (" (cópia)" na descrição, mesmo status).
+  /// Espelha `duplicateLancamento` do store: um `via_os` vira MANUAL e SEM
+  /// vínculo com a OS (anti-desvio — não fabrica um 2º recebimento fantasma da
+  /// mesma OS, que inflaria receita/saldo em dobro).
+  Future<FinLancamento> duplicateLancamento(FinLancamento base);
+
+  /// Cria a PRÓXIMA ocorrência de um lançamento: status volta a 'previsto' e, se
+  /// parcelada, `parcelaAtual` avança 1. Também desvincula da OS (mesma regra do
+  /// [duplicateLancamento]). Espelha `repeatLancamento` do store.
+  Future<FinLancamento> repeatLancamento(FinLancamento base);
 }
 
 class PbFinanceiroRepository implements FinanceiroPanelRepository {
@@ -232,6 +243,56 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   /// server-side estorna o efeito. Quem chama deve REFETCHAR as contas depois.
   @override
   Future<void> deleteLancamento(String id) => _lancamentos.delete(id);
+
+  /// Body PB (snake_case) de um lançamento de domínio, JÁ desvinculado da OS
+  /// quando origem `via_os` (anti-desvio — espelha `desvincularOsSeViaOs`): a
+  /// cópia nasce 'manual' e sem `os_*`. Sem `id`/`created`/`updated` (novo registro).
+  Map<String, dynamic> _bodyDesvinculado(FinLancamento l) {
+    final viaOs = l.origem == OrigemLancamento.viaOs;
+    return <String, dynamic>{
+      'tipo': l.tipo.wire,
+      'descricao': l.descricao,
+      'categoria_id': l.categoriaId,
+      'subcategoria_id': l.subcategoriaId,
+      'valor': l.valor,
+      'conta_id': l.contaId,
+      'data': l.data,
+      'vencimento': l.vencimento,
+      'status': l.status.wire,
+      'recorrencia': l.recorrencia.wire,
+      'parcela_atual': l.parcelaAtual,
+      'parcelas_total': l.parcelasTotal,
+      'origem': OrigemLancamento.manual.wire,
+      'os_id': viaOs ? null : l.osId,
+      'os_numero': viaOs ? null : l.osNumero,
+      'cliente_nome': viaOs ? null : l.clienteNome,
+      'servico_nome': viaOs ? null : l.servicoNome,
+      'forma_pagamento': l.formaPagamento,
+      'observacao': l.observacao,
+      'tags': l.tags,
+      'anexos': l.anexos.map((a) => a.toJson()).toList(),
+    };
+  }
+
+  @override
+  Future<FinLancamento> duplicateLancamento(FinLancamento base) {
+    final body = _bodyDesvinculado(base)
+      ..['descricao'] = '${base.descricao} (cópia)';
+    return createLancamento(body);
+  }
+
+  @override
+  Future<FinLancamento> repeatLancamento(FinLancamento base) {
+    final proximaParcela =
+        base.recorrencia == RecorrenciaTipo.parcelada &&
+            base.parcelaAtual != null
+        ? base.parcelaAtual! + 1
+        : base.parcelaAtual;
+    final body = _bodyDesvinculado(base)
+      ..['status'] = LancamentoStatus.previsto.wire
+      ..['parcela_atual'] = proximaParcela;
+    return createLancamento(body);
+  }
 
   /* ─────────────────────── Limites de gasto ─────────────────────── */
 

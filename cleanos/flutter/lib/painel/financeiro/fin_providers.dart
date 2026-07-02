@@ -136,6 +136,33 @@ final finPeriodLancamentosProvider =
       return _fetchLancamentosDoPeriodo(repo, period.periodo);
     });
 
+/// Resumo REALIZADO (status 'pago') do mês ANTERIOR ao selecionado — base do
+/// `trend` (variação vs. mês anterior) dos KPIs de Lançamentos/Relatórios.
+/// Carrega o período anterior PAGINADO (bounded pelo mês).
+final finPrevPeriodResumoProvider = FutureProvider.autoDispose<ResumoPeriodo>((
+  ref,
+) async {
+  final repo = ref.watch(financeiroRepositoryProvider);
+  final prev = ref.watch(finPeriodProvider).shift(-1);
+  final lancs = await _fetchLancamentosDoPeriodo(repo, prev.periodo);
+  return resumoPeriodo(lancs);
+});
+
+/// Lançamentos dos ÚLTIMOS 6 MESES até o mês selecionado — base dos Relatórios
+/// (fluxo de caixa 6m + período atual + comparativo com o mês anterior). Fetch
+/// PAGINADO limitado à janela de 6 meses (nunca `getFullList`).
+final finRelatorioLancamentosProvider =
+    FutureProvider.autoDispose<List<FinLancamento>>((ref) {
+      final repo = ref.watch(financeiroRepositoryProvider);
+      final period = ref.watch(finPeriodProvider);
+      final inicio = period.shift(-5).periodo;
+      final fim = period.periodo;
+      return _fetchLancamentosDoPeriodo(
+        repo,
+        Periodo(inicio.start, fim.end),
+      );
+    });
+
 /// TODOS os lançamentos EM ABERTO (status != pago), paginando. Base de "Contas a
 /// pagar/receber" — bounded pelos itens não quitados (não é lista infinita de
 /// UI). Ordenados por vencimento asc no servidor.

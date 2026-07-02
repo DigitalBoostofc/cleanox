@@ -10,6 +10,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design.dart';
@@ -65,6 +66,9 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
         const DisponibilidadeDiaPB(ativo: false, inicio: '08:00', fim: '18:00'),
   );
   int _duracaoMin = 60;
+  // Campo de duração em texto livre (espelha o `<input type=number>` do React —
+  // qualquer valor ≥ 15, não uma lista fechada de opções).
+  final TextEditingController _duracaoCtrl = TextEditingController(text: '60');
   String? _existingId;
 
   bool _loading = true;
@@ -77,6 +81,12 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _duracaoCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -102,7 +112,9 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
           _dias = _normalizeDias(existing.dias);
         } else {
           _existingId = null;
+          _duracaoMin = 60;
         }
+        _duracaoCtrl.text = '$_duracaoMin';
         _loading = false;
       });
     } catch (_) {
@@ -314,22 +326,21 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
               ),
               SizedBox(
                 width: 130,
-                child: DropdownButtonFormField<int>(
-                  initialValue: _kDuracaoOptions.contains(_duracaoMin)
-                      ? _duracaoMin
-                      : 60,
-                  isExpanded: true,
-                  decoration: const InputDecoration(isDense: true),
-                  items: [
-                    for (final d in _kDuracaoOptions)
-                      DropdownMenuItem(value: d, child: Text('$d min')),
-                  ],
-                  onChanged: _saving
-                      ? null
-                      : (v) => setState(() {
-                          _duracaoMin = v ?? 60;
-                          _saveOk = false;
-                        }),
+                child: TextField(
+                  controller: _duracaoCtrl,
+                  enabled: !_saving,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    suffixText: 'min',
+                  ),
+                  onChanged: (v) => setState(() {
+                    final parsed = int.tryParse(v);
+                    // Mínimo 15 (espelha `min=15` do React); vazio mantém default.
+                    _duracaoMin = parsed == null ? 60 : (parsed < 15 ? 15 : parsed);
+                    _saveOk = false;
+                  }),
                 ),
               ),
             ],
@@ -349,8 +360,6 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
     );
   }
 }
-
-const List<int> _kDuracaoOptions = [15, 30, 45, 60, 90, 120, 180, 240];
 
 class _DiaRow extends StatelessWidget {
   const _DiaRow({

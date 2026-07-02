@@ -6,6 +6,8 @@
 /// hardcoded. Estados vazios são responsabilidade da tela que os usa.
 library;
 
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -166,6 +168,171 @@ class FinDonutChart extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/* ─────────────────────── barras agrupadas (fluxo de caixa) ─────────────────────── */
+
+/// Grupo (mês) do fluxo de caixa: receitas × despesas × lucro. Espelha `BarGroup`
+/// de `components/BarChart.tsx`.
+class FinBarGroup {
+  const FinBarGroup({
+    required this.label,
+    required this.receitas,
+    required this.despesas,
+    this.lucro,
+  });
+  final String label;
+  final double receitas;
+  final double despesas;
+
+  /// Lucro/prejuízo (pode ser negativo). Quando nulo, a série não é desenhada.
+  final double? lucro;
+}
+
+/// Barras AGRUPADAS por período (receitas/despesas/lucro por mês), com baseline
+/// no zero (suporta lucro negativo) e legenda embutida. Espelha o `BarChart` do
+/// web. Cores da paleta de feedback do tema — nada hardcoded.
+class FinGroupedBarChart extends StatelessWidget {
+  const FinGroupedBarChart({super.key, required this.groups, this.height = 240});
+
+  final List<FinBarGroup> groups;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final hasLucro = groups.any((g) => g.lucro != null);
+
+    // Faixa de valores (inclui zero e negativos de lucro).
+    var maxV = 0.0;
+    var minV = 0.0;
+    for (final g in groups) {
+      maxV = [maxV, g.receitas, g.despesas, g.lucro ?? 0].reduce(math.max);
+      minV = [minV, g.lucro ?? 0].reduce(math.min);
+    }
+    final maxY = maxV <= 0 ? 1.0 : maxV * 1.2;
+    final minY = minV < 0 ? minV * 1.2 : 0.0;
+
+    BarChartRodData rod(double v, Color c) => BarChartRodData(
+      toY: v,
+      color: c,
+      width: hasLucro ? 7 : 10,
+      borderRadius: const BorderRadius.all(Radius.circular(2)),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: height,
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: maxY,
+              minY: minY,
+              groupsSpace: 14,
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) => clx.accent,
+                  getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                    formatCurrency(rod.toY),
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              titlesData: FlTitlesData(
+                leftTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    getTitlesWidget: (value, meta) {
+                      final i = value.toInt();
+                      if (i < 0 || i >= groups.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: ClxSpace.x1),
+                        child: Text(
+                          groups[i].label,
+                          style: TextStyle(color: clx.ink3, fontSize: 11),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: (maxY - minY) / 4,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: clx.line, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              barGroups: [
+                for (var i = 0; i < groups.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barsSpace: 3,
+                    barRods: [
+                      rod(groups[i].receitas, clx.finIncome),
+                      rod(groups[i].despesas, clx.finExpense),
+                      if (hasLucro) rod(groups[i].lucro ?? 0, clx.info),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: ClxSpace.x3),
+        Wrap(
+          spacing: ClxSpace.x4,
+          runSpacing: ClxSpace.x2,
+          children: [
+            _LegendDot(color: clx.finIncome, label: 'Receitas'),
+            _LegendDot(color: clx.finExpense, label: 'Despesas'),
+            if (hasLucro) _LegendDot(color: clx.info, label: 'Lucro / Prejuízo'),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, borderRadius: ClxRadii.rSm),
+        ),
+        const SizedBox(width: ClxSpace.x2),
+        Text(label, style: TextStyle(color: clx.ink2, fontSize: 12)),
+      ],
     );
   }
 }

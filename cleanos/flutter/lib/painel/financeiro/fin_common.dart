@@ -135,12 +135,22 @@ class FinKpiCard extends StatelessWidget {
     required this.value,
     required this.color,
     this.icon,
+    this.trend,
+    this.hint,
   });
 
   final String label;
   final String value;
   final Color color;
   final IconData? icon;
+
+  /// Variação vs. período anterior: seta ↑/↓ (verde/vermelho) + texto. Espelha o
+  /// `trend` do `FinKpiCard.tsx`.
+  final ({bool up, String text})? trend;
+
+  /// Legenda neutra abaixo do valor (ex.: "Disponível em contas"). Mostrada só
+  /// quando não há [trend], igual ao web.
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +191,41 @@ class FinKpiCard extends StatelessWidget {
               letterSpacing: -0.6,
             ),
           ),
+          if (trend != null) ...[
+            const SizedBox(height: ClxSpace.x1),
+            Row(
+              children: [
+                Icon(
+                  trend!.up
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 13,
+                  color: trend!.up ? clx.finIncome : clx.finExpense,
+                ),
+                const SizedBox(width: 2),
+                Flexible(
+                  child: Text(
+                    trend!.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: trend!.up ? clx.finIncome : clx.finExpense,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (hint != null) ...[
+            const SizedBox(height: ClxSpace.x1),
+            Text(
+              hint!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: clx.ink3, fontSize: 11.5),
+            ),
+          ],
         ],
       ),
     );
