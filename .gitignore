@@ -7,3 +7,9 @@ node_modules/
 
 # estado local de sessão do overclock — nunca versionar
 .overclock-app/
+
+# tooling local (skills de terceiros instaladas + config MCP com paths da máquina)
+.agents/
+.claude/skills/material-3
+skills-lock.json
+.mcp.json
