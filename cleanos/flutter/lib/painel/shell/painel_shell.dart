@@ -94,7 +94,11 @@ class PainelShell extends ConsumerWidget {
               showClose: true,
             ),
           ),
-          appBar: _TopBar(section: section, showMenu: true).asAppBar(),
+          appBar: _TopBar(
+            section: section,
+            showMenu: true,
+            statusBarHeight: MediaQuery.paddingOf(context).top,
+          ).asAppBar(),
           body: _Content(child: navigationShell),
         );
       },
@@ -123,13 +127,22 @@ class _Content extends StatelessWidget {
 
 /// Topbar reutilizada em desktop (linha própria) e mobile (como `AppBar`).
 class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
-  const _TopBar({required this.section, required this.showMenu});
+  const _TopBar({
+    required this.section,
+    required this.showMenu,
+    this.statusBarHeight = 0,
+  });
 
   final PainelSection section;
   final bool showMenu;
 
+  /// Altura da status bar do SO (MediaQuery.paddingOf.top).
+  /// Zero no Web e no desktop (body já abaixo da status bar).
+  final double statusBarHeight;
+
   @override
-  Size get preferredSize => const Size.fromHeight(ClxLayout.topbarH);
+  Size get preferredSize =>
+      Size.fromHeight(ClxLayout.topbarH + statusBarHeight);
 
   /// Adapta a topbar para o slot `appBar:` do Scaffold (mobile).
   PreferredSizeWidget asAppBar() => this;
@@ -141,12 +154,16 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
     final mode = ref.watch(themeModeControllerProvider);
 
     return Container(
-      height: ClxLayout.topbarH,
+      height: ClxLayout.topbarH + statusBarHeight,
       decoration: BoxDecoration(
         color: clx.bg,
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x4),
+      padding: EdgeInsets.only(
+        top: statusBarHeight,
+        left: ClxSpace.x4,
+        right: ClxSpace.x4,
+      ),
       child: Row(
         children: [
           if (showMenu)

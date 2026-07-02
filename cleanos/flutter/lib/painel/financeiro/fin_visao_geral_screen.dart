@@ -391,14 +391,18 @@ class _QuickAction extends StatelessWidget {
               child: Icon(icon, color: fg, size: 22),
             ),
             const SizedBox(height: ClxSpace.x2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: TextStyle(
-                color: clx.ink2,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  color: clx.ink2,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
