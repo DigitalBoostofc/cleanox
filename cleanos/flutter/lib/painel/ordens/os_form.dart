@@ -45,6 +45,22 @@ Future<bool?> showOSForm(BuildContext context, {OrdemServico? editing}) {
 
 const List<String> _kMinutes = ['00', '15', '30', '45'];
 
+/// Abaixo desta largura de viewport os campos Data + Hora deixam de dividir a
+/// linha e passam a empilhar (cada um ocupa a largura toda). Espelha o
+/// `@media (max-width: 640px) { .form-grid-2 { grid-template-columns: 1fr } }`
+/// do React — o `.form-grid-2` que envolve o `OSFormSection` vem de
+/// `Clientes.tsx` (linha ~665, `form-grid form-grid-2`); note que
+/// `OrdensServico.tsx` renderiza o mesmo form em `.form-grid` (1-col sempre),
+/// então a referência do side-by-side @640 é o `Clientes.tsx`. Sem isso, em
+/// telas estreitas a Hora ficava com ~metade da linha e
+/// os dois dropdowns (hora + minuto) não cabiam — o "10" era cortado p/ "1"
+/// pela seta + padding do dropdown. (F-602)
+const double _kStackFieldsBelow = 640;
+
+/// Largura do dropdown de minutos. A "chrome" do DropdownButton (seta + padding)
+/// come ~60px; com 80px o "00" (~32px) ainda era cortado. 96px dá folga. (F-602)
+const double _kMinuteFieldWidth = 96;
+
 /// Estágio da busca de disponibilidade do profissional selecionado.
 enum _DispState { idle, loading, loaded, error }
 
@@ -703,15 +719,23 @@ class _OSFormState extends ConsumerState<OSForm> {
           ),
           const SizedBox(height: ClxSpace.x4),
 
-          // Data + horário.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _dateField(clx)),
-              const SizedBox(width: ClxSpace.x3),
-              Expanded(child: _horaField(clx)),
-            ],
-          ),
+          // Data + horário: lado a lado em telas largas; empilhados no mobile
+          // (espelha o colapso do `.form-grid-2` do React em ≤640px). Sem o
+          // empilhamento, a Hora ficava espremida em metade da linha e o "10"
+          // era cortado. (F-602)
+          if (MediaQuery.sizeOf(context).width < _kStackFieldsBelow) ...[
+            _dateField(clx),
+            const SizedBox(height: ClxSpace.x4),
+            _horaField(clx),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _dateField(clx)),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(child: _horaField(clx)),
+              ],
+            ),
           const SizedBox(height: ClxSpace.x4),
 
           // Valor.
@@ -920,7 +944,7 @@ class _OSFormState extends ConsumerState<OSForm> {
         ),
         const SizedBox(width: ClxSpace.x2),
         SizedBox(
-          width: 80,
+          width: _kMinuteFieldWidth,
           child: DropdownButtonFormField<String>(
             key: const ValueKey('os-hora-m'),
             initialValue: selectedMin,
@@ -948,6 +972,7 @@ class _OSFormState extends ConsumerState<OSForm> {
       children: [
         Expanded(
           child: DropdownButtonFormField<String>(
+            key: const ValueKey('os-hora-livre-h'),
             initialValue: _horaH,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true),
@@ -965,7 +990,7 @@ class _OSFormState extends ConsumerState<OSForm> {
         ),
         const SizedBox(width: ClxSpace.x2),
         SizedBox(
-          width: 80,
+          width: _kMinuteFieldWidth,
           child: DropdownButtonFormField<String>(
             initialValue: _kMinutes.contains(_horaM) ? _horaM : '00',
             isExpanded: true,
