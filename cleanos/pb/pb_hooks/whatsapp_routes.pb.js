@@ -207,6 +207,31 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
   // 10) Grava aviso_a_caminho_em server-side (bypass do guard de request).
   const sentAt = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
   os.set("aviso_a_caminho_em", sentAt);
+
+  // 10b) doc 09 §3 — rastreamento: RESETA os carimbos de aviso desta viagem para
+  //      que o cron possa reenviar Msg2/Msg3 (idempotência por viagem), e
+  //      geocodifica o destino se ainda não tiver dest_lat/lng. A degradação é
+  //      graciosa: sem GOOGLE_MAPS_API_KEY o destino fica nulo e o cron
+  //      simplesmente não avança (Cheguei manual continua funcionando).
+  os.set("aviso_5min_em", null);
+  os.set("aviso_1min_em", null);
+  os.set("cheguei_em", null);
+
+  const temDestino = !isNaN(Number(os.get("dest_lat"))) && Number(os.get("dest_lat")) !== 0 &&
+                     !isNaN(Number(os.get("dest_lng"))) && Number(os.get("dest_lng")) !== 0;
+  if (!temDestino) {
+    try {
+      const maps = require(`${__hooks}/maps.js`);
+      const coord = maps.geocode(lib.buildEndereco(cliente));
+      if (coord) {
+        os.set("dest_lat", coord.lat);
+        os.set("dest_lng", coord.lng);
+      }
+    } catch (errGeo) {
+      console.error("[a-caminho] geocode do destino falhou (ignorado): " + errGeo);
+    }
+  }
+
   $app.save(os);
 
   // NUNCA retorna número, texto com número, nem telefone.
@@ -464,4 +489,204 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
 
   // NUNCA retorna número, texto com número, nem telefone.
   return e.json(200, { ok: true, sentAt });
+}, $apis.requireAuth());
+
+// ── POST /api/cleanos/os/{id}/posicao ────────────────────────────────────────
+// doc 09 §3 — grava a posição GPS atual do profissional (enviada pelo app, mesmo
+// em background). Na 1ª posição, geocodifica o endereço do cofre → dest_lat/lng.
+// Espelha /a-caminho: auth profissional dono + OS em_andamento; escrita server-side
+// (bypass do guard de campo). NUNCA expõe telefone/endereço do cliente na resposta.
+routerAdd("POST", "/api/cleanos/os/{id}/posicao", (e) => {
+  const lib  = require(`${__hooks}/os_logic.js`);
+  const maps = require(`${__hooks}/maps.js`);
+
+  // 1) Auth: profissional autenticado.
+  if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+  if (String(e.auth.get("role")) !== "profissional") {
+    throw new ForbiddenError("Rota exclusiva para o papel profissional.");
+  }
+
+  // 2) Carrega a OS (404 automático se não existir).
+  const osId = e.request.pathValue("id");
+  const os   = $app.findRecordById("ordens_servico", osId);
+
+  // 3) Dono.
+  if (lib.relId(os.get("profissional")) !== String(e.auth.id)) {
+    throw new ForbiddenError("Você não está atribuído a esta OS.");
+  }
+
+  // 4) Status.
+  if (os.getString("status") !== "em_andamento") {
+    throw new BadRequestError("A OS precisa estar em_andamento para enviar posição.");
+  }
+
+  // 5) Body {lat, lng} — valida números plausíveis.
+  const data = e.requestInfo().body || {};
+  const lat  = Number(data.lat);
+  const lng  = Number(data.lng);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    throw new BadRequestError("Coordenadas inválidas (lat/lng).");
+  }
+
+  // 6) Grava posição server-side.
+  const nowStr = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  os.set("prof_lat", lat);
+  os.set("prof_lng", lng);
+  os.set("prof_pos_em", nowStr);
+
+  // 7) 1ª posição: geocodifica o destino a partir do cofre (server-side).
+  //    Degradação graciosa: sem chave/erro → dest fica nulo, cron não avança.
+  const temDestino = !isNaN(Number(os.get("dest_lat"))) && Number(os.get("dest_lat")) !== 0 &&
+                     !isNaN(Number(os.get("dest_lng"))) && Number(os.get("dest_lng")) !== 0;
+  if (!temDestino) {
+    try {
+      const cid = lib.relId(os.get("cliente"));
+      if (cid) {
+        const cliente = $app.findRecordById("clientes", cid);
+        const coord   = maps.geocode(lib.buildEndereco(cliente));
+        if (coord) {
+          os.set("dest_lat", coord.lat);
+          os.set("dest_lng", coord.lng);
+        }
+      }
+    } catch (errGeo) {
+      console.error("[posicao] geocode do destino falhou (ignorado): " + errGeo);
+    }
+  }
+
+  $app.save(os);
+
+  // NUNCA retorna endereço/telefone. Só confirma o recebimento.
+  return e.json(200, { ok: true });
+}, $apis.requireAuth());
+
+// ── POST /api/cleanos/os/{id}/cheguei ────────────────────────────────────────
+// doc 09 §3 — o profissional chegou ao local: envia aviso_cheguei_texto ao cliente
+// (best-effort), grava cheguei_em e ENCERRA o rastreamento (o cron para de mandar
+// avisos). Espelha /a-caminho na auth; a gravação de cheguei_em acontece SEMPRE
+// (mesmo com WhatsApp fora), para o rastreamento sempre encerrar de forma confiável.
+routerAdd("POST", "/api/cleanos/os/{id}/cheguei", (e) => {
+  const h      = require(`${__hooks}/whatsapp_helpers.js`);
+  const uazapi = require(`${__hooks}/uazapi.js`);
+  const lib    = require(`${__hooks}/os_logic.js`);
+
+  // 1) Auth: profissional dono.
+  if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+  if (String(e.auth.get("role")) !== "profissional") {
+    throw new ForbiddenError("Rota exclusiva para o papel profissional.");
+  }
+  const osId = e.request.pathValue("id");
+  const os   = $app.findRecordById("ordens_servico", osId);
+  if (lib.relId(os.get("profissional")) !== String(e.auth.id)) {
+    throw new ForbiddenError("Você não está atribuído a esta OS.");
+  }
+  if (os.getString("status") !== "em_andamento") {
+    throw new BadRequestError("A OS precisa estar em_andamento para registrar a chegada.");
+  }
+
+  // 2) Tenta avisar o cliente (best-effort). Telefone lido do cofre server-side.
+  let avisoEnviado = false;
+  try {
+    const cfg           = h.getAppConfig($app);
+    const instanceToken = cfg.getString("whatsapp_instance_token");
+    if (instanceToken) {
+      let wStatus = "disconnected";
+      try {
+        const inst = h.extractInstance(uazapi.instanceStatus(instanceToken));
+        wStatus = inst.status || "disconnected";
+        cfg.set("whatsapp_status", wStatus);
+        $app.save(cfg);
+      } catch (errSt) {
+        wStatus = cfg.getString("whatsapp_status") || "disconnected";
+        console.error("[cheguei] Erro ao verificar status UAZAPI: " + errSt);
+      }
+
+      if (wStatus === "connected") {
+        const cid = lib.relId(os.get("cliente"));
+        if (cid) {
+          const cliente = $app.findRecordById("clientes", cid);
+          const numero  = uazapi.normalizePhone(cliente.getString("telefone"));
+          if (numero) {
+            const template = cfg.getString("aviso_cheguei_texto") ||
+              "Nosso profissional da Cleanox chegou ao local para o serviço de {servico}. 🚪";
+            const texto = template
+              .replace(/{nome}/g, os.getString("nome_curto") || "Cliente")
+              .replace(/{servico}/g, os.getString("tipo_servico_nome") || "serviço");
+            uazapi.sendText(instanceToken, numero, texto);
+            avisoEnviado = true;
+          }
+        }
+      }
+    }
+  } catch (errMsg) {
+    // Falha no aviso NUNCA impede o encerramento do rastreamento.
+    console.error("[cheguei] Falha ao enviar aviso de chegada (ignorado): " + errMsg);
+  }
+
+  // 3) Grava cheguei_em SEMPRE (server-side) → encerra o rastreamento (cron para).
+  const sentAt = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  os.set("cheguei_em", sentAt);
+  $app.save(os);
+
+  // NUNCA retorna número/telefone. avisoEnviado indica se o WhatsApp saiu.
+  return e.json(200, { ok: true, sentAt, avisoEnviado });
+}, $apis.requireAuth());
+
+// ── POST /api/cleanos/push/register ──────────────────────────────────────────
+// doc 09 §3 — o app registra/atualiza o token FCM do dispositivo do profissional.
+// Upsert por (usuario, plataforma): 1 token por plataforma por profissional.
+// Escrita server-side ($app.save, bypass de regra) mas SEMPRE escopada ao próprio
+// usuário autenticado — nunca grava token em nome de outro.
+routerAdd("POST", "/api/cleanos/push/register", (e) => {
+  if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+
+  const data       = e.requestInfo().body || {};
+  const token      = String(data.token || "").trim();
+  let   plataforma = String(data.plataforma || "").trim().toLowerCase();
+  if (!token) {
+    throw new BadRequestError("token é obrigatório.");
+  }
+  const PLATS = ["android", "ios", "web"];
+  if (PLATS.indexOf(plataforma) === -1) plataforma = "android"; // default seguro
+
+  const userId = String(e.auth.id);
+
+  // Upsert por (usuario, plataforma).
+  let rec = null;
+  try {
+    rec = $app.findFirstRecordByFilter(
+      "push_tokens",
+      "usuario = {:u} && plataforma = {:p}",
+      { u: userId, p: plataforma }
+    );
+  } catch (_) {
+    rec = null; // não existe ainda
+  }
+
+  if (rec) {
+    rec.set("token", token);
+    $app.save(rec);
+  } else {
+    try {
+      const col = $app.findCollectionByNameOrId("push_tokens");
+      rec = new Record(col);
+      rec.set("usuario", userId);
+      rec.set("token", token);
+      rec.set("plataforma", plataforma);
+      $app.save(rec);
+    } catch (errCreate) {
+      // Corrida: outro POST concorrente criou o registro entre o find e o create,
+      // violando o índice único (usuario, plataforma). Refaz find+update em vez de
+      // devolver 500. NUNCA vaza dado sensível — só (re)grava o token do próprio user.
+      const again = $app.findFirstRecordByFilter(
+        "push_tokens",
+        "usuario = {:u} && plataforma = {:p}",
+        { u: userId, p: plataforma }
+      );
+      again.set("token", token);
+      $app.save(again);
+    }
+  }
+
+  return e.json(200, { ok: true, plataforma });
 }, $apis.requireAuth());

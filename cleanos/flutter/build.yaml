@@ -1,0 +1,13 @@
+# Configuração de code generation (freezed / json_serializable).
+#
+# explicit_to_json: os modelos têm objetos aninhados (service_snapshot,
+# checklist_exec, adicionais…). Sem isto, `toJson()` deixa os aninhados como
+# objetos (só resolvidos no jsonEncode); com isto, `toJson()` produz Maps planos
+# — round-trip correto e bodies limpos ao enviar ao PocketBase.
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          explicit_to_json: true
+          field_rename: none

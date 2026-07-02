@@ -3,6 +3,15 @@
 pb_data/
 .trash_pb_data_*/
 
+# Backups automáticos de dados (snapshots do pb_data) — nunca versionar.
+pb_data.bak.*/
+
+# Lixo gerado dentro de pb_migrations: os .db (auxiliary/data) e o types.d.ts
+# fazem `pocketbase serve` panicar ao tentar interpretá-los como migrations.
+# As migrations REAIS são só os *.js versionados.
+pb_migrations/*.db
+pb_migrations/types.d.ts
+
 # binário do PocketBase (baixado por release; ver README "Como rodar")
 pocketbase
 CHANGELOG.md

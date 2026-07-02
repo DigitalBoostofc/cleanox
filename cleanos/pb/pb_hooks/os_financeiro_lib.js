@@ -18,15 +18,30 @@
  *
  * Best-effort: NUNCA lança — todos os erros são logados e engolidos.
  * Anti-duplicata: verifica fin_lancamentos com os_id+origem antes de criar.
+ *
+ * ORDEM (janela de receita órfã fechada): os handlers em os_financeiro.pb.js
+ * chamam esta função DEPOIS de e.next() (após a OS estar persistida). Como
+ * `record.original()` já reflete o novo estado nesse ponto, o status ORIGINAL é
+ * passado em `origStatus` (capturado no handler ANTES do e.next()):
+ *   - UPDATE: string do status anterior à transição (pode ser "").
+ *   - CREATE: null → OS nascendo concluida (sem estado anterior) → prossegue.
+ * Fallback (chamada legada sem o 3º arg): lê record.original().
  */
-function criarLancamentoFinanceiro(app, record) {
+function criarLancamentoFinanceiro(app, record, origStatus) {
   const newStatus = String(record.get("status") || "");
   if (newStatus !== "concluida") return;
 
-  const orig = record.original ? record.original() : null;
-  // UPDATE: só age na TRANSIÇÃO; saves subsequentes numa OS concluida não reagem.
-  // CREATE: orig === null → OS nascendo concluida (ex.: admin import) → prossegue.
-  if (orig && String(orig.get("status") || "") === "concluida") return;
+  // Detecta a TRANSIÇÃO real para 'concluida' (saves subsequentes não reagem).
+  // Usa origStatus quando informado (3º arg); senão cai no record.original()
+  // — que só é confiável se a função for chamada ANTES de e.next().
+  let prevStatus;
+  if (arguments.length >= 3) {
+    prevStatus = String(origStatus || ""); // CREATE passa null → "" → prossegue
+  } else {
+    const orig = record.original ? record.original() : null;
+    prevStatus = orig ? String(orig.get("status") || "") : "";
+  }
+  if (prevStatus === "concluida") return;
 
   const valorPago = Number(record.get("valor_pago") || 0);
   if (!(valorPago > 0)) {
@@ -148,23 +163,19 @@ function criarLancamentoFinanceiro(app, record) {
   lanc.set("servico_nome",     servicoNome);
   lanc.set("forma_pagamento",  formaPagamento);
 
-  // ATOMICIDADE (F-221): grava o lançamento E ajusta o saldo_atual da conta na MESMA
-  // transação. Sem isso, o lançamento podia persistir com o ajuste de saldo engolido
-  // (falha parcial) → saldo defasado, e o anti-duplicata (acima) impediria o retry de
-  // reaplicar o ajuste. Com runInTransaction, ou os DOIS saves persistem, ou NENHUM:
-  // numa falha o lançamento é revertido junto, então o anti-dup não bloqueia um retry
-  // legítimo e o saldo nunca fica defasado. O caller (os_financeiro.pb.js) envolve tudo
-  // em try/catch e sempre chama e.next(), então uma exceção aqui NÃO bloqueia a
-  // conclusão da OS (best-effort preservado no nível do handler).
+  // RECONCILIAÇÃO / FONTE ÚNICA DE SALDO (integridade server-side): este hook
+  // agora SÓ CRIA o lançamento `via_os` — ele NÃO ajusta mais o saldo. Ao salvar
+  // o lançamento, o hook de modelo `onRecordCreate` de fin_lancamentos
+  // (fin_saldo.pb.js → fin_saldo_lib.applyCreate) credita `fin_contas.saldo_atual`
+  // EXATAMENTE UMA VEZ, por incremento atômico em SQL. Se ajustássemos o saldo
+  // AQUI também, contaria em DOBRO — por isso o ajuste foi movido para o hook
+  // genérico (fonte única). A conclusão da OS segue best-effort: o caller
+  // (os_financeiro.pb.js) envolve em try/catch e sempre chama e.next().
   //
-  // Espelha o modelo incremental do frontend (A-001): receita paga soma no saldo.
-  app.runInTransaction((txApp) => {
-    txApp.save(lanc);
-    const conta = txApp.findRecordById("fin_contas", contaId);
-    conta.set("saldo_atual", Number(conta.get("saldo_atual") || 0) + valorPago);
-    txApp.save(conta);
-  });
-  console.log("[fin] Lançamento receita criado + saldo ajustado atômico (OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ").");
+  // Espelha o modelo do frontend: receita paga soma no saldo — só que agora o
+  // servidor é quem soma, atomicamente, sem lost-update.
+  app.save(lanc);
+  console.log("[fin] Lançamento receita criado (saldo creditado pelo hook de fin_lancamentos) — OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ".");
 }
 
 module.exports = { criarLancamentoFinanceiro };
