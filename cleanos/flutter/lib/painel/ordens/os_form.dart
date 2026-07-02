@@ -24,6 +24,7 @@ import '../../core/models/servico.dart';
 import '../agenda/agenda_controller.dart' show weekdayIndexOf;
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
+import '../servicos/servicos_labels.dart';
 import 'ordens_controller.dart';
 
 Future<bool?> showOSForm(BuildContext context, {OrdemServico? editing}) {
@@ -105,6 +106,12 @@ class _OSFormState extends ConsumerState<OSForm> {
   String _horaH = '08';
   String _horaM = '00';
 
+  // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx): os
+  // serviços do catálogo são filtrados pela categoria/grupo configurados neles.
+  Categoria? _catFiltro;
+  Grupo? _grupoFiltro;
+  bool _cascadeInit = false;
+
   bool _saving = false;
   String? _saveError;
   final Map<String, String> _errs = {};
@@ -179,6 +186,54 @@ class _OSFormState extends ConsumerState<OSForm> {
           }
         }
       }
+    });
+  }
+
+  ServicoPB? _servicoAtual(List<ServicoPB> servicos) {
+    for (final s in servicos) {
+      if (s.id == _servicoId) return s;
+    }
+    return null;
+  }
+
+  /// Categoria do filtro mudou: reseta o grupo e limpa o serviço se ele já não
+  /// pertencer à nova categoria (espelha `handleCategoriaChange`).
+  void _onCategoria(Categoria? c, List<ServicoPB> servicos) {
+    setState(() {
+      _catFiltro = c;
+      _grupoFiltro = null;
+      if (c != null && _servicoId.isNotEmpty) {
+        final cur = _servicoAtual(servicos);
+        if (cur?.categoria != null && cur!.categoria != c) _servicoId = '';
+      }
+    });
+  }
+
+  /// Grupo do filtro mudou: limpa o serviço se ele já não pertencer ao novo
+  /// grupo (espelha `handleGrupoChange`).
+  void _onGrupo(Grupo? g, List<ServicoPB> servicos) {
+    setState(() {
+      _grupoFiltro = g;
+      if (g != null && _servicoId.isNotEmpty) {
+        final cur = _servicoAtual(servicos);
+        if (cur?.grupo != null && cur!.grupo != g) _servicoId = '';
+      }
+    });
+  }
+
+  /// Modo edição: inicializa o filtro a partir do serviço já selecionado (uma
+  /// única vez, quando o catálogo carrega). Espelha o useEffect de init do React.
+  void _maybeInitCascade(List<ServicoPB> servicos) {
+    if (_cascadeInit || _servicoId.isEmpty || servicos.isEmpty) return;
+    _cascadeInit = true;
+    final cur = _servicoAtual(servicos);
+    if (cur == null || (cur.categoria == null && cur.grupo == null)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _catFiltro = cur.categoria;
+        _grupoFiltro = cur.grupo;
+      });
     });
   }
 
@@ -488,6 +543,35 @@ class _OSFormState extends ConsumerState<OSForm> {
   }
 
   Widget _form(CleanoxColors clx, OrdensLookups lk) {
+    _maybeInitCascade(lk.servicos);
+    // Cascata Categoria → Grupo → Serviço (mesmo cálculo do OSFormSection.tsx).
+    final categorias = <Categoria>[
+      for (final c in <Categoria>{
+        for (final s in lk.servicos)
+          if (s.categoria != null) s.categoria!,
+      })
+        c,
+    ];
+    final grupos = <Grupo>[
+      for (final g in <Grupo>{
+        for (final s in lk.servicos)
+          if (s.grupo != null &&
+              (_catFiltro == null || s.categoria == _catFiltro))
+            s.grupo!,
+      })
+        g,
+    ];
+    final servicosFiltrados = [
+      for (final s in lk.servicos)
+        if ((_catFiltro == null || s.categoria == _catFiltro) &&
+            (_grupoFiltro == null || s.grupo == _grupoFiltro))
+          s,
+    ];
+    // Valor seguro para o dropdown (evita value fora dos items quando o filtro
+    // exclui o serviço atual — mantém o serviço só quando visível na lista).
+    final servicoValue = servicosFiltrados.any((s) => s.id == _servicoId)
+        ? _servicoId
+        : '';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(ClxSpace.x5),
       child: Column(
@@ -512,17 +596,67 @@ class _OSFormState extends ConsumerState<OSForm> {
           ),
           const SizedBox(height: ClxSpace.x4),
 
-          // Serviço.
+          // Categoria (filtro cascata) — só aparece se o catálogo tem categorias.
+          if (categorias.isNotEmpty) ...[
+            _label('Categoria'),
+            DropdownButtonFormField<String>(
+              key: ValueKey('os-cat-${_catFiltro?.wire ?? ''}'),
+              initialValue: _catFiltro?.wire,
+              isExpanded: true,
+              decoration: const InputDecoration(isDense: true),
+              hint: const Text('— Todas —'),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('— Todas —')),
+                for (final c in categorias)
+                  DropdownMenuItem(value: c.wire, child: Text(categoriaLabel(c))),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (v) => _onCategoria(
+                      (v == null || v.isEmpty)
+                          ? null
+                          : Categoria.values.byName(v),
+                      lk.servicos,
+                    ),
+            ),
+            const SizedBox(height: ClxSpace.x4),
+          ],
+
+          // Grupo (filtro cascata) — só aparece se há grupos elegíveis.
+          if (grupos.isNotEmpty) ...[
+            _label('Grupo'),
+            DropdownButtonFormField<String>(
+              key: ValueKey('os-grupo-${_grupoFiltro?.wire ?? ''}'),
+              initialValue: _grupoFiltro?.wire,
+              isExpanded: true,
+              decoration: const InputDecoration(isDense: true),
+              hint: const Text('— Todos —'),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('— Todos —')),
+                for (final g in grupos)
+                  DropdownMenuItem(value: g.wire, child: Text(grupoLabel(g))),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (v) => _onGrupo(
+                      (v == null || v.isEmpty) ? null : Grupo.values.byName(v),
+                      lk.servicos,
+                    ),
+            ),
+            const SizedBox(height: ClxSpace.x4),
+          ],
+
+          // Serviço (filtrado pela categoria/grupo acima).
           _label('Serviço'),
           DropdownButtonFormField<String>(
-            key: const ValueKey('os-servico'),
-            initialValue: _servicoId.isEmpty ? null : _servicoId,
+            key: ValueKey('os-servico-$servicoValue'),
+            initialValue: servicoValue.isEmpty ? null : servicoValue,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true),
             hint: const Text('— Selecionar —'),
             items: [
               const DropdownMenuItem(value: '', child: Text('— Selecionar —')),
-              for (final s in lk.servicos)
+              for (final s in servicosFiltrados)
                 DropdownMenuItem(
                   value: s.id,
                   child: Text(s.nome, overflow: TextOverflow.ellipsis),

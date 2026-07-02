@@ -21,6 +21,7 @@ import '../../core/models/disponibilidade.dart';
 import '../../core/models/servico.dart';
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
+import '../servicos/servicos_labels.dart';
 import '../ordens/ordens_controller.dart' show ordensLookupsProvider;
 import '../ordens/os_form.dart' show computeOSDaySlots;
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
@@ -50,6 +51,10 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   String _dataDate = ''; // yyyy-MM-dd (BRT)
   String _horaH = '08';
   String _horaM = '00';
+
+  // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx).
+  Categoria? _catFiltro;
+  Grupo? _grupoFiltro;
 
   final Map<String, String> _errs = {};
 
@@ -102,6 +107,37 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
 
   static String _numText(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  ServicoPB? _servicoAtual(List<ServicoPB> servicos) {
+    for (final s in servicos) {
+      if (s.id == _servicoId) return s;
+    }
+    return null;
+  }
+
+  /// Categoria do filtro mudou: reseta o grupo e limpa o serviço se ele já não
+  /// pertencer à nova categoria (espelha `handleCategoriaChange`).
+  void _onCategoria(Categoria? c, List<ServicoPB> servicos) {
+    setState(() {
+      _catFiltro = c;
+      _grupoFiltro = null;
+      if (c != null && _servicoId.isNotEmpty) {
+        final cur = _servicoAtual(servicos);
+        if (cur?.categoria != null && cur!.categoria != c) _servicoId = '';
+      }
+    });
+  }
+
+  /// Grupo do filtro mudou: limpa o serviço se ele já não pertencer ao novo grupo.
+  void _onGrupo(Grupo? g, List<ServicoPB> servicos) {
+    setState(() {
+      _grupoFiltro = g;
+      if (g != null && _servicoId.isNotEmpty) {
+        final cur = _servicoAtual(servicos);
+        if (cur?.grupo != null && cur!.grupo != g) _servicoId = '';
+      }
+    });
+  }
 
   /// Serviço mudou: sempre prefila nome + valor (espelha `onOSServicoChange`).
   void _onServico(String? id, List<ServicoPB> servicos) {
@@ -277,33 +313,111 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           onRetry: () => ref.invalidate(ordensLookupsProvider),
         ),
       ),
-      data: (lk) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Serviço.
-          _label('Serviço', required: true),
+      data: (lk) => _dataForm(clx, lk),
+    );
+  }
+
+  Widget _dataForm(CleanoxColors clx, dynamic lk) {
+    // Cascata Categoria → Grupo → Serviço (mesmo cálculo do OSFormSection.tsx).
+    final servicos = lk.servicos as List<ServicoPB>;
+    final categorias = <Categoria>[
+      for (final c in <Categoria>{
+        for (final s in servicos)
+          if (s.categoria != null) s.categoria!,
+      })
+        c,
+    ];
+    final grupos = <Grupo>[
+      for (final g in <Grupo>{
+        for (final s in servicos)
+          if (s.grupo != null &&
+              (_catFiltro == null || s.categoria == _catFiltro))
+            s.grupo!,
+      })
+        g,
+    ];
+    final servicosFiltrados = [
+      for (final s in servicos)
+        if ((_catFiltro == null || s.categoria == _catFiltro) &&
+            (_grupoFiltro == null || s.grupo == _grupoFiltro))
+          s,
+    ];
+    final servicoValue = servicosFiltrados.any((s) => s.id == _servicoId)
+        ? _servicoId
+        : '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Categoria (filtro cascata).
+        if (categorias.isNotEmpty) ...[
+          _label('Categoria'),
           DropdownButtonFormField<String>(
-            key: const ValueKey('os-inline-servico'),
-            initialValue: _servicoId.isEmpty ? null : _servicoId,
+            key: ValueKey('os-inline-cat-${_catFiltro?.wire ?? ''}'),
+            initialValue: _catFiltro?.wire,
             isExpanded: true,
-            decoration: InputDecoration(
-              isDense: true,
-              errorText: _errs['servico'],
-            ),
-            hint: const Text('— Selecionar —'),
+            decoration: const InputDecoration(isDense: true),
+            hint: const Text('— Todas —'),
             items: [
-              const DropdownMenuItem(value: '', child: Text('— Selecionar —')),
-              for (final s in lk.servicos)
-                DropdownMenuItem(
-                  value: s.id,
-                  child: Text(s.nome, overflow: TextOverflow.ellipsis),
-                ),
+              const DropdownMenuItem(value: '', child: Text('— Todas —')),
+              for (final c in categorias)
+                DropdownMenuItem(value: c.wire, child: Text(categoriaLabel(c))),
             ],
             onChanged: !widget.enabled
                 ? null
-                : (v) => _onServico(v, lk.servicos),
+                : (v) => _onCategoria(
+                    (v == null || v.isEmpty) ? null : Categoria.values.byName(v),
+                    servicos,
+                  ),
           ),
           const SizedBox(height: ClxSpace.x4),
+        ],
+
+        // Grupo (filtro cascata).
+        if (grupos.isNotEmpty) ...[
+          _label('Grupo'),
+          DropdownButtonFormField<String>(
+            key: ValueKey('os-inline-grupo-${_grupoFiltro?.wire ?? ''}'),
+            initialValue: _grupoFiltro?.wire,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            hint: const Text('— Todos —'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('— Todos —')),
+              for (final g in grupos)
+                DropdownMenuItem(value: g.wire, child: Text(grupoLabel(g))),
+            ],
+            onChanged: !widget.enabled
+                ? null
+                : (v) => _onGrupo(
+                    (v == null || v.isEmpty) ? null : Grupo.values.byName(v),
+                    servicos,
+                  ),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+        ],
+
+        // Serviço (filtrado pela categoria/grupo acima).
+        _label('Serviço', required: true),
+        DropdownButtonFormField<String>(
+          key: ValueKey('os-inline-servico-$servicoValue'),
+          initialValue: servicoValue.isEmpty ? null : servicoValue,
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            errorText: _errs['servico'],
+          ),
+          hint: const Text('— Selecionar —'),
+          items: [
+            const DropdownMenuItem(value: '', child: Text('— Selecionar —')),
+            for (final s in servicosFiltrados)
+              DropdownMenuItem(
+                value: s.id,
+                child: Text(s.nome, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: !widget.enabled ? null : (v) => _onServico(v, servicos),
+        ),
+        const SizedBox(height: ClxSpace.x4),
 
           // Nome do serviço (snapshot editável).
           _textField(
@@ -373,7 +487,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             maxLines: 3,
           ),
         ],
-      ),
     );
   }
 
