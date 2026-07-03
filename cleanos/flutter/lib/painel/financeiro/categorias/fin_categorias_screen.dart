@@ -187,33 +187,57 @@ class _Toolbar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    final segmented = SegmentedButton<TipoLancamento>(
+      segments: const [
+        ButtonSegment(
+          value: TipoLancamento.despesa,
+          label: Text('Despesas'),
+          icon: Icon(Icons.south_west_rounded, size: 16),
+        ),
+        ButtonSegment(
+          value: TipoLancamento.receita,
+          label: Text('Receitas'),
+          icon: Icon(Icons.north_east_rounded, size: 16),
+        ),
+      ],
+      selected: {tipo},
+      showSelectedIcon: false,
+      onSelectionChanged: (s) => onTipo(s.first),
+    );
+
+    // Mobile: toggle acima do botão (Row original cortava
+    // "+ Nova categoria" na borda direita da tela).
+    if (finIsMobile(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SegmentedButton<TipoLancamento>(
-            segments: const [
-              ButtonSegment(
-                value: TipoLancamento.despesa,
-                label: Text('Despesas'),
-                icon: Icon(Icons.south_west_rounded, size: 16),
-              ),
-              ButtonSegment(
-                value: TipoLancamento.receita,
-                label: Text('Receitas'),
-                icon: Icon(Icons.north_east_rounded, size: 16),
-              ),
-            ],
-            selected: {tipo},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => onTipo(s.first),
-          ),
-          const Spacer(),
+          segmented,
+          const SizedBox(height: ClxSpace.x3),
           ClxButton(
             label: 'Nova categoria',
             icon: Icons.add_rounded,
             onPressed: onNova,
+            expand: true,
           ),
         ],
-      ),
+      );
+    }
+
+    return Row(
+      children: [
+        segmented,
+        const Spacer(),
+        ClxButton(
+          label: 'Nova categoria',
+          icon: Icons.add_rounded,
+          onPressed: onNova,
+        ),
+      ],
     );
   }
 }
