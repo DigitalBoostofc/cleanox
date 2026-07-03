@@ -122,6 +122,12 @@ class _FinRelatoriosScreenState extends ConsumerState<FinRelatoriosScreen> {
   String? _contaFilter;
   LancamentoStatus? _statusFilter;
 
+  /// Mobile: filtros colapsados por padrão (F-741). Ignorado no desktop.
+  bool _showFilters = false;
+
+  bool get _hasFilters =>
+      _catFilter != null || _contaFilter != null || _statusFilter != null;
+
   ({bool up, String text}) _trend(double atual, double anterior) {
     final pct = anterior == 0
         ? (atual == 0 ? 0.0 : 100.0)
@@ -129,11 +135,61 @@ class _FinRelatoriosScreenState extends ConsumerState<FinRelatoriosScreen> {
     return (up: pct >= 0, text: '${_pctLabel(pct)} vs. mês anterior');
   }
 
+  void _export() => showClxToast(
+    context,
+    'Use a impressão do navegador/sistema para exportar em PDF.',
+    type: ToastType.info,
+  );
+
   @override
   Widget build(BuildContext context) {
     final lancAsync = ref.watch(finRelatorioLancamentosProvider);
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
+    final mobile = finIsMobile(context);
+
+    // Mobile (F-741): sem cabeçalho fixo — período + filtro colapsável rolam
+    // como primeiro item do relatório, junto com KPIs e gráficos.
+    final leadingChildren = mobile
+        ? <Widget>[
+            _MobileHeader(
+              categorias: categorias,
+              contas: contas,
+              catFilter: _catFilter,
+              contaFilter: _contaFilter,
+              statusFilter: _statusFilter,
+              showFilters: _showFilters,
+              hasFilters: _hasFilters,
+              onToggleFilters: () =>
+                  setState(() => _showFilters = !_showFilters),
+              onCat: (v) => setState(() => _catFilter = v),
+              onConta: (v) => setState(() => _contaFilter = v),
+              onStatus: (v) => setState(() => _statusFilter = v),
+              onExport: _export,
+            ),
+            const SizedBox(height: ClxSpace.x4),
+          ]
+        : const <Widget>[];
+
+    final body = FinAsync<List<FinLancamento>>(
+      value: lancAsync,
+      onRetry: () => ref.invalidate(finRelatorioLancamentosProvider),
+      data: (todos) => _Body(
+        todos: todos,
+        contas: contas,
+        categorias: categorias,
+        tab: _tab,
+        onTab: (t) => setState(() => _tab = t),
+        catFilter: _catFilter,
+        contaFilter: _contaFilter,
+        statusFilter: _statusFilter,
+        trend: _trend,
+        mobile: mobile,
+        leadingChildren: leadingChildren,
+      ),
+    );
+
+    if (mobile) return body;
 
     return Column(
       children: [
@@ -146,29 +202,9 @@ class _FinRelatoriosScreenState extends ConsumerState<FinRelatoriosScreen> {
           onCat: (v) => setState(() => _catFilter = v),
           onConta: (v) => setState(() => _contaFilter = v),
           onStatus: (v) => setState(() => _statusFilter = v),
-          onExport: () => showClxToast(
-            context,
-            'Use a impressão do navegador/sistema para exportar em PDF.',
-            type: ToastType.info,
-          ),
+          onExport: _export,
         ),
-        Expanded(
-          child: FinAsync<List<FinLancamento>>(
-            value: lancAsync,
-            onRetry: () => ref.invalidate(finRelatorioLancamentosProvider),
-            data: (todos) => _Body(
-              todos: todos,
-              contas: contas,
-              categorias: categorias,
-              tab: _tab,
-              onTab: (t) => setState(() => _tab = t),
-              catFilter: _catFilter,
-              contaFilter: _contaFilter,
-              statusFilter: _statusFilter,
-              trend: _trend,
-            ),
-          ),
-        ),
+        Expanded(child: body),
       ],
     );
   }
@@ -200,9 +236,6 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final roots =
-        categorias.where((c) => c.parentId == null && !c.arquivada).toList()
-          ..sort((a, b) => a.nome.compareTo(b.nome));
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -237,43 +270,161 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: ClxSpace.x3),
-          Wrap(
-            spacing: ClxSpace.x4,
-            runSpacing: ClxSpace.x3,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            children: [
-              _RepFilter<String?>(
-                label: 'Categorias',
-                value: catFilter,
-                entries: [
-                  (value: null, text: 'Todas as categorias'),
-                  for (final c in roots) (value: c.id, text: c.nome),
-                ],
-                onChanged: onCat,
-              ),
-              _RepFilter<String?>(
-                label: 'Contas',
-                value: contaFilter,
-                entries: [
-                  (value: null, text: 'Todas as contas'),
-                  for (final c in contas) (value: c.id, text: c.nome),
-                ],
-                onChanged: onConta,
-              ),
-              _RepFilter<LancamentoStatus?>(
-                label: 'Status',
-                value: statusFilter,
-                entries: [
-                  (value: null, text: 'Todos'),
-                  for (final s in LancamentoStatus.values)
-                    (value: s, text: statusLancamentoLabel(s)),
-                ],
-                onChanged: onStatus,
-              ),
-            ],
+          _RelFiltersWrap(
+            categorias: categorias,
+            contas: contas,
+            catFilter: catFilter,
+            contaFilter: contaFilter,
+            statusFilter: statusFilter,
+            onCat: onCat,
+            onConta: onConta,
+            onStatus: onStatus,
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Wrap de filtros (categoria/conta/status) compartilhado entre o cabeçalho de
+/// desktop e o cabeçalho colapsável de mobile.
+class _RelFiltersWrap extends StatelessWidget {
+  const _RelFiltersWrap({
+    required this.categorias,
+    required this.contas,
+    required this.catFilter,
+    required this.contaFilter,
+    required this.statusFilter,
+    required this.onCat,
+    required this.onConta,
+    required this.onStatus,
+  });
+
+  final List<FinCategoria> categorias;
+  final List<FinConta> contas;
+  final String? catFilter;
+  final String? contaFilter;
+  final LancamentoStatus? statusFilter;
+  final ValueChanged<String?> onCat;
+  final ValueChanged<String?> onConta;
+  final ValueChanged<LancamentoStatus?> onStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final roots =
+        categorias.where((c) => c.parentId == null && !c.arquivada).toList()
+          ..sort((a, b) => a.nome.compareTo(b.nome));
+    return Wrap(
+      spacing: ClxSpace.x4,
+      runSpacing: ClxSpace.x3,
+      crossAxisAlignment: WrapCrossAlignment.end,
+      children: [
+        _RepFilter<String?>(
+          label: 'Categorias',
+          value: catFilter,
+          entries: [
+            (value: null, text: 'Todas as categorias'),
+            for (final c in roots) (value: c.id, text: c.nome),
+          ],
+          onChanged: onCat,
+        ),
+        _RepFilter<String?>(
+          label: 'Contas',
+          value: contaFilter,
+          entries: [
+            (value: null, text: 'Todas as contas'),
+            for (final c in contas) (value: c.id, text: c.nome),
+          ],
+          onChanged: onConta,
+        ),
+        _RepFilter<LancamentoStatus?>(
+          label: 'Status',
+          value: statusFilter,
+          entries: [
+            (value: null, text: 'Todos'),
+            for (final s in LancamentoStatus.values)
+              (value: s, text: statusLancamentoLabel(s)),
+          ],
+          onChanged: onStatus,
+        ),
+      ],
+    );
+  }
+}
+
+/// Cabeçalho ROLÁVEL do mobile: período + botão "Filtros" (colapsa os filtros e
+/// o "Exportar"). Entra como primeiro item do relatório em vez de faixa fixa.
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader({
+    required this.categorias,
+    required this.contas,
+    required this.catFilter,
+    required this.contaFilter,
+    required this.statusFilter,
+    required this.showFilters,
+    required this.hasFilters,
+    required this.onToggleFilters,
+    required this.onCat,
+    required this.onConta,
+    required this.onStatus,
+    required this.onExport,
+  });
+
+  final List<FinCategoria> categorias;
+  final List<FinConta> contas;
+  final String? catFilter;
+  final String? contaFilter;
+  final LancamentoStatus? statusFilter;
+  final bool showFilters;
+  final bool hasFilters;
+  final VoidCallback onToggleFilters;
+  final ValueChanged<String?> onCat;
+  final ValueChanged<String?> onConta;
+  final ValueChanged<LancamentoStatus?> onStatus;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          width: double.infinity,
+          child: FinPeriodSelector(expand: true),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FinFiltrosToggle(
+            active: showFilters,
+            hasActiveFilters: hasFilters,
+            onTap: onToggleFilters,
+          ),
+        ),
+        if (showFilters) ...[
+          const SizedBox(height: ClxSpace.x3),
+          _RelFiltersWrap(
+            categorias: categorias,
+            contas: contas,
+            catFilter: catFilter,
+            contaFilter: contaFilter,
+            statusFilter: statusFilter,
+            onCat: onCat,
+            onConta: onConta,
+            onStatus: onStatus,
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ClxButton(
+              label: 'Exportar PDF',
+              icon: Icons.picture_as_pdf_outlined,
+              variant: ClxButtonVariant.ghost,
+              onPressed: onExport,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -356,6 +507,8 @@ class _Body extends StatelessWidget {
     required this.contaFilter,
     required this.statusFilter,
     required this.trend,
+    this.mobile = false,
+    this.leadingChildren = const [],
   });
 
   final List<FinLancamento> todos;
@@ -367,6 +520,12 @@ class _Body extends StatelessWidget {
   final String? contaFilter;
   final LancamentoStatus? statusFilter;
   final ({bool up, String text}) Function(double, double) trend;
+
+  /// Layout de celular: reduz o padding e recebe o cabeçalho rolável.
+  final bool mobile;
+
+  /// Widgets inseridos ANTES das abas/KPIs (cabeçalho mobile). Vazio no desktop.
+  final List<Widget> leadingChildren;
 
   FinCategoria? _cat(String id) {
     for (final c in categorias) {
@@ -463,8 +622,9 @@ class _Body extends StatelessWidget {
         final periodoVazio = viewLancs.isEmpty;
 
         return ListView(
-          padding: const EdgeInsets.all(ClxSpace.x6),
+          padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x6),
           children: [
+            ...leadingChildren,
             // Abas.
             _Tabs(active: tab, onTab: onTab),
             const SizedBox(height: ClxSpace.x4),

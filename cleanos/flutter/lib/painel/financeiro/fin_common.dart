@@ -46,11 +46,33 @@ String finErrorMessage(
   return fallback;
 }
 
+/* ─────────────────────── breakpoint mobile ─────────────────────── */
+
+/// Largura-limite (px) abaixo da qual as telas do Financeiro usam o layout
+/// COMPACTO de celular: toolbar/período/KPIs rolam junto com o conteúdo e o
+/// filtro fica colapsável (F-741). Acima disso, o layout de desktop/tablet é
+/// preservado 100%.
+const double kFinMobileBreakpoint = 600;
+
+/// `true` quando a viewport é estreita (celular/APK). Usa a largura da tela
+/// (não do widget), suficiente para o painel do Financeiro que ocupa a área útil.
+bool finIsMobile(BuildContext context) =>
+    MediaQuery.sizeOf(context).width < kFinMobileBreakpoint;
+
 /* ─────────────────────── seletor de período ─────────────────────── */
 
 /// Navega mês a mês (BRT). Lê/escreve [finPeriodProvider].
+///
+/// Com [expand] o seletor OCUPA toda a largura disponível e o rótulo vira
+/// `Expanded` (encolhe com elipse quando necessário) — use apenas dentro de um
+/// pai de largura LIMITADA (ex.: `SizedBox(width: double.infinity)` ou
+/// `Expanded`), como no layout de celular. Sem [expand] mantém o comportamento
+/// original de largura mínima (desktop).
 class FinPeriodSelector extends ConsumerWidget {
-  const FinPeriodSelector({super.key});
+  const FinPeriodSelector({super.key, this.expand = false});
+
+  /// Preenche a largura do pai (limitado) e deixa o rótulo encolher.
+  final bool expand;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,6 +81,14 @@ class FinPeriodSelector extends ConsumerWidget {
     void go(int delta) =>
         ref.read(finPeriodProvider.notifier).state = period.shift(delta);
 
+    final label = Text(
+      period.label,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(color: clx.ink),
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: clx.bg2,
@@ -66,29 +96,97 @@ class FinPeriodSelector extends ConsumerWidget {
         border: Border.all(color: clx.line),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         children: [
           IconButton(
             tooltip: 'Mês anterior',
             icon: const Icon(Icons.chevron_left_rounded),
             onPressed: () => go(-1),
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 132),
-            child: Text(
-              period.label,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(color: clx.ink),
+          // expand: rótulo flexível (pai bounded garante que não estoura).
+          // Caso contrário, minWidth fixo do desktop.
+          if (expand)
+            Expanded(child: label)
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 132),
+              child: label,
             ),
-          ),
           IconButton(
             tooltip: 'Próximo mês',
             icon: const Icon(Icons.chevron_right_rounded),
             onPressed: () => go(1),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/* ─────────────────────── botão "Filtros" (mobile) ─────────────────────── */
+
+/// Botão que colapsa/expande a seção de filtros no layout de celular (F-741).
+/// Sinaliza com um ponto quando há filtro ativo. Toque ≥ 48dp. Usado por
+/// Lançamentos, Relatórios e Visão geral para um comportamento consistente.
+class FinFiltrosToggle extends StatelessWidget {
+  const FinFiltrosToggle({
+    super.key,
+    required this.active,
+    required this.hasActiveFilters,
+    required this.onTap,
+  });
+
+  /// Seção de filtros atualmente aberta.
+  final bool active;
+
+  /// Há ao menos um filtro aplicado (mostra o ponto indicador).
+  final bool hasActiveFilters;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final on = active || hasActiveFilters;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: ClxRadii.rMd,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x3),
+        decoration: BoxDecoration(
+          color: on ? clx.primary.withValues(alpha: 0.14) : clx.bg2,
+          borderRadius: ClxRadii.rMd,
+          border: Border.all(color: on ? clx.primary : clx.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.filter_list_rounded,
+              size: 18,
+              color: on ? clx.primary : clx.ink2,
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            Text(
+              'Filtros',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: on ? clx.primary : clx.ink2,
+                fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            if (hasActiveFilters) ...[
+              const SizedBox(width: ClxSpace.x2),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: clx.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
