@@ -27,6 +27,10 @@ class User with _$User {
 
     /// Nome de exibição do colaborador (campo extra do CleanOS).
     String? nome,
+
+    /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
+    /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
+    String? whatsapp,
     @Default(false) bool verified,
     @JsonKey(name: 'emailVisibility') @Default(false) bool emailVisibility,
     String? created,

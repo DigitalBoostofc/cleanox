@@ -20,6 +20,19 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="CleanOS — Painel Web + App Profissional (unificado Flutter)">
 
+  <!-- OpenGraph: card de preview do link "Nova OS" no WhatsApp do profissional.
+       GENÉRICO/de marca de PROPÓSITO — o crawler do WhatsApp lê só o HTML estático
+       (não roda o SPA) e o card pode ser cacheado/encaminhado pela Meta, então
+       NUNCA colocar dado de OS/cliente aqui (anti-desvio). O app abre a OS certa
+       depois, pelo path do App Link. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CleanOS">
+  <meta property="og:title" content="CleanOS — Ordem de Serviço">
+  <meta property="og:description" content="Toque para abrir a OS no aplicativo CleanOS.">
+  <meta property="og:image" content="https://cleanox.wenox.com.br/icons/Icon-512.png">
+  <meta property="og:url" content="https://cleanox.wenox.com.br/app">
+  <meta name="twitter:card" content="summary">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">

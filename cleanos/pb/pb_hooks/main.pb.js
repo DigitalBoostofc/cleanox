@@ -30,12 +30,13 @@ onRecordCreate((e) => {
 
   e.next();
 
-  // Push só APÓS a persistência ter sucesso (best-effort, nunca bloqueia o create).
+  // Aviso "Nova OS" pelo WhatsApp do profissional (best-effort, nunca bloqueia o
+  // create). Traz um deep-link que abre o app direto na OS. Ver notifyProfNovaOS.
   if (novoProf) {
     try {
-      require(`${__hooks}/push.js`).notifyUserNovaOS(e.app, novoProf, e.record.id);
+      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(e.app, novoProf, e.record);
     } catch (err) {
-      console.error("[push] Falha ao notificar nova OS (create, ignorado): " + err);
+      console.error("[notifyProf] Falha ao notificar nova OS (create, ignorado): " + err);
     }
   }
 }, "ordens_servico");
@@ -58,12 +59,13 @@ onRecordUpdate((e) => {
 
   e.next();
 
-  // Push só APÓS a persistência (best-effort, nunca bloqueia o update).
+  // Aviso "Nova OS" pelo WhatsApp do profissional (best-effort, nunca bloqueia o
+  // update). Só na transição de atribuição real. Deep-link abre o app na OS.
   if (atribuiu) {
     try {
-      require(`${__hooks}/push.js`).notifyUserNovaOS(e.app, novoProf, e.record.id);
+      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(e.app, novoProf, e.record);
     } catch (err) {
-      console.error("[push] Falha ao notificar nova OS (update, ignorado): " + err);
+      console.error("[notifyProf] Falha ao notificar nova OS (update, ignorado): " + err);
     }
   }
 }, "ordens_servico");

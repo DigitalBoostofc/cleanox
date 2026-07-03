@@ -59,6 +59,7 @@ class UsuarioForm extends ConsumerStatefulWidget {
 class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   final TextEditingController _nome = TextEditingController();
   final TextEditingController _email = TextEditingController();
+  final TextEditingController _whatsapp = TextEditingController();
   final TextEditingController _senha = TextEditingController();
   final TextEditingController _senhaConfirm = TextEditingController();
 
@@ -76,6 +77,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     if (u != null) {
       _nome.text = u.name.isNotEmpty ? u.name : (u.nome ?? '');
       _email.text = u.email;
+      _whatsapp.text = u.whatsapp ?? '';
       _role = u.role;
     }
   }
@@ -84,6 +86,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   void dispose() {
     _nome.dispose();
     _email.dispose();
+    _whatsapp.dispose();
     _senha.dispose();
     _senhaConfirm.dispose();
     super.dispose();
@@ -144,12 +147,14 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
         await repo.update(widget.editing!.id, {
           'name': _nome.text.trim(),
           'role': _role.wire,
+          'whatsapp': _whatsapp.text.trim(),
         });
       } else {
         await repo.create({
           'name': _nome.text.trim(),
           'email': _email.text.trim(),
           'role': _role.wire,
+          'whatsapp': _whatsapp.text.trim(),
           'password': _senha.text,
           'passwordConfirm': _senhaConfirm.text,
           'emailVisibility': true,
@@ -235,6 +240,15 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                 _roleField(clx, self),
+                _field(
+                  label: 'WhatsApp',
+                  controller: _whatsapp,
+                  hint: '(11) 99999-9999',
+                  keyboardType: TextInputType.phone,
+                  helper:
+                      'Recebe o aviso de "Nova OS" com link para abrir o app. '
+                      'Só é usado para o profissional.',
+                ),
                 if (!_isEdit) ...[
                   _field(
                     label: 'Senha',
@@ -368,6 +382,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     bool required = false,
     String? errorKey,
     String? hint,
+    String? helper,
     TextInputType? keyboardType,
     TextCapitalization textCapitalization = TextCapitalization.none,
     bool obscure = false,
@@ -392,6 +407,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
               isDense: true,
               hintText: hint,
               errorText: err,
+              helperText: helper,
+              helperMaxLines: 3,
             ),
           ),
         ],

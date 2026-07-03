@@ -29,6 +29,10 @@ mixin _$User {
 
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   String? get nome => throw _privateConstructorUsedError;
+
+  /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
+  /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
+  String? get whatsapp => throw _privateConstructorUsedError;
   bool get verified => throw _privateConstructorUsedError;
   @JsonKey(name: 'emailVisibility')
   bool get emailVisibility => throw _privateConstructorUsedError;
@@ -55,6 +59,7 @@ abstract class $UserCopyWith<$Res> {
     String email,
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
     String? nome,
+    String? whatsapp,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -82,6 +87,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? email = null,
     Object? role = null,
     Object? nome = freezed,
+    Object? whatsapp = freezed,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -108,6 +114,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
             nome: freezed == nome
                 ? _value.nome
                 : nome // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            whatsapp: freezed == whatsapp
+                ? _value.whatsapp
+                : whatsapp // ignore: cast_nullable_to_non_nullable
                       as String?,
             verified: null == verified
                 ? _value.verified
@@ -145,6 +155,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     String email,
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
     String? nome,
+    String? whatsapp,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -169,6 +180,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? email = null,
     Object? role = null,
     Object? nome = freezed,
+    Object? whatsapp = freezed,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -195,6 +207,10 @@ class __$$UserImplCopyWithImpl<$Res>
         nome: freezed == nome
             ? _value.nome
             : nome // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        whatsapp: freezed == whatsapp
+            ? _value.whatsapp
+            : whatsapp // ignore: cast_nullable_to_non_nullable
                   as String?,
         verified: null == verified
             ? _value.verified
@@ -226,6 +242,7 @@ class _$UserImpl extends _User {
     this.email = '',
     @JsonKey(unknownEnumValue: Role.profissional) this.role = Role.profissional,
     this.nome,
+    this.whatsapp,
     this.verified = false,
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
@@ -250,6 +267,11 @@ class _$UserImpl extends _User {
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   @override
   final String? nome;
+
+  /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
+  /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
+  @override
+  final String? whatsapp;
   @override
   @JsonKey()
   final bool verified;
@@ -263,7 +285,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -276,6 +298,8 @@ class _$UserImpl extends _User {
             (identical(other.email, email) || other.email == email) &&
             (identical(other.role, role) || other.role == role) &&
             (identical(other.nome, nome) || other.nome == nome) &&
+            (identical(other.whatsapp, whatsapp) ||
+                other.whatsapp == whatsapp) &&
             (identical(other.verified, verified) ||
                 other.verified == verified) &&
             (identical(other.emailVisibility, emailVisibility) ||
@@ -293,6 +317,7 @@ class _$UserImpl extends _User {
     email,
     role,
     nome,
+    whatsapp,
     verified,
     emailVisibility,
     created,
@@ -320,6 +345,7 @@ abstract class _User extends User {
     final String email,
     @JsonKey(unknownEnumValue: Role.profissional) final Role role,
     final String? nome,
+    final String? whatsapp,
     final bool verified,
     @JsonKey(name: 'emailVisibility') final bool emailVisibility,
     final String? created,
@@ -342,6 +368,11 @@ abstract class _User extends User {
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   @override
   String? get nome;
+
+  /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
+  /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
+  @override
+  String? get whatsapp;
   @override
   bool get verified;
   @override

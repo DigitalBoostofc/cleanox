@@ -18,6 +18,7 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
       ) ??
       Role.profissional,
   nome: json['nome'] as String?,
+  whatsapp: json['whatsapp'] as String?,
   verified: json['verified'] as bool? ?? false,
   emailVisibility: json['emailVisibility'] as bool? ?? false,
   created: json['created'] as String?,
@@ -31,6 +32,7 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'email': instance.email,
       'role': _$RoleEnumMap[instance.role]!,
       'nome': instance.nome,
+      'whatsapp': instance.whatsapp,
       'verified': instance.verified,
       'emailVisibility': instance.emailVisibility,
       'created': instance.created,
