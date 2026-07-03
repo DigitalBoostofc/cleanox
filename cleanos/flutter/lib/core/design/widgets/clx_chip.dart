@@ -36,13 +36,18 @@ class ClxChip extends StatelessWidget {
             Icon(icon, size: dense ? 12 : 14, color: color),
             const SizedBox(width: ClxSpace.x1),
           ],
-          Text(
-            label,
-            style:
-                (dense
-                        ? Theme.of(context).textTheme.labelSmall
-                        : Theme.of(context).textTheme.labelMedium)
-                    ?.copyWith(color: color, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  (dense
+                          ? Theme.of(context).textTheme.labelSmall
+                          : Theme.of(context).textTheme.labelMedium)
+                      ?.copyWith(color: color, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
