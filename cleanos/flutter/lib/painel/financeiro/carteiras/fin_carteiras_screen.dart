@@ -258,10 +258,15 @@ class _Body extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                '${contas.length} carteira${contas.length == 1 ? '' : 's'} · '
-                '$ativas ativa${ativas == 1 ? '' : 's'}',
-                style: tt.bodyMedium?.copyWith(color: clx.ink3),
+              Flexible(
+                child: Text(
+                  '${contas.length} carteira${contas.length == 1 ? '' : 's'} · '
+                  '$ativas ativa${ativas == 1 ? '' : 's'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                ),
               ),
             ],
           ),
@@ -384,9 +389,14 @@ class _ContaCard extends StatelessWidget {
                 dense: true,
               ),
               const Spacer(),
-              Text(
-                'Inicial ${formatCurrency(conta.saldoInicial)}',
-                style: tt.bodySmall?.copyWith(color: clx.ink3),
+              Flexible(
+                child: Text(
+                  'Inicial ${formatCurrency(conta.saldoInicial)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: tt.bodySmall?.copyWith(color: clx.ink3),
+                ),
               ),
             ],
           ),

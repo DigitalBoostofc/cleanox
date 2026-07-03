@@ -16,6 +16,7 @@ library;
 
 import 'package:cleanos/painel/financeiro/carteiras/fin_carteiras_screen.dart';
 import 'package:cleanos/painel/financeiro/categorias/fin_categorias_screen.dart';
+import 'package:cleanos/painel/financeiro/fin_common.dart';
 import 'package:cleanos/painel/financeiro/fin_contas_pagar_receber_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_limites_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
@@ -29,6 +30,7 @@ import 'painel_test_helpers.dart';
 
 void main() {
   const narrow = Size(360, 800);
+  const desktop = Size(1400, 900);
 
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 6; i++) {
@@ -37,20 +39,42 @@ void main() {
   }
 
   /// Mesma técnica de `fin_mobile_layout_test.dart`: força um relayout limpo
-  /// exatamente em [narrow], onde overflow real re-emitiria a exceção.
-  Future<void> expectStableNoOverflow(WidgetTester tester) async {
+  /// exatamente em [target] (partindo de [away], na MESMA faixa de breakpoint),
+  /// onde overflow real re-emitiria a exceção.
+  Future<void> expectStableNoOverflowAt(
+    WidgetTester tester,
+    Size target, {
+    required Size away,
+  }) async {
     while (tester.takeException() != null) {}
-    tester.view.physicalSize = const Size(400, 800);
+    tester.view.physicalSize = away;
     await tester.pump();
     while (tester.takeException() != null) {}
-    tester.view.physicalSize = narrow;
+    tester.view.physicalSize = target;
     await tester.pump();
     await tester.pump();
     expect(
       tester.takeException(),
       isNull,
-      reason: 'Overflow no layout estável a 360 px de largura',
+      reason: 'Overflow no layout estável a ${target.width.toInt()} px de largura',
     );
+  }
+
+  Future<void> expectStableNoOverflow(WidgetTester tester) =>
+      expectStableNoOverflowAt(tester, narrow, away: const Size(400, 800));
+
+  /// `getTopLeft` exige um match único, mas alguns rótulos (ex.: "Novo
+  /// limite", "Nova categoria") aparecem tanto no header quanto num estado
+  /// vazio/empty-state do corpo. Devolve o topLeft do match mais ACIMA na
+  /// tela (o do header, sempre o primeiro visualmente).
+  Offset topmostTopLeft(WidgetTester tester, Finder finder) {
+    Offset? best;
+    for (final element in tester.elementList(finder)) {
+      final box = element.renderObject! as RenderBox;
+      final topLeft = box.localToGlobal(Offset.zero);
+      if (best == null || topLeft.dy < best.dy) best = topLeft;
+    }
+    return best!;
   }
 
   List<Override> withFin(FakeFinanceiro fake) => [
@@ -70,29 +94,42 @@ void main() {
       );
       await settle(tester);
 
-      final receitaY = tester.getTopLeft(find.text('Nova receita')).dy;
-      final despesaY = tester.getTopLeft(find.text('Nova despesa')).dy;
-      final transferenciaY = tester.getTopLeft(find.text('Transferência')).dy;
-      final importarY = tester.getTopLeft(find.text('Importar')).dy;
+      final receitaTL = tester.getTopLeft(find.text('Nova receita'));
+      final despesaTL = tester.getTopLeft(find.text('Nova despesa'));
+      final transferenciaTL = tester.getTopLeft(find.text('Transferência'));
+      final importarTL = tester.getTopLeft(find.text('Importar'));
 
       // Tolerância de poucos pixels: o Row centraliza (crossAxisAlignment
       // padrão), então rótulos que quebram em 2 linhas (ex.: "Transferência")
       // deslocam o topo do texto em relação a um rótulo de 1 linha na MESMA
       // linha visual.
       expect(
-        (despesaY - receitaY).abs(),
+        (despesaTL.dy - receitaTL.dy).abs(),
         lessThan(5),
         reason: 'Receita e despesa na mesma linha',
       );
       expect(
-        (importarY - transferenciaY).abs(),
+        (importarTL.dy - transferenciaTL.dy).abs(),
         lessThan(5),
         reason: 'Transferência e importar na mesma linha',
       );
       expect(
-        transferenciaY,
-        greaterThan(receitaY + 5),
+        transferenciaTL.dy,
+        greaterThan(receitaTL.dy + 5),
         reason: 'Segunda linha abaixo da primeira',
+      );
+
+      // Ordem X: receita à esquerda de despesa (linha 1), transferência à
+      // esquerda de importar (linha 2) — não apenas a mesma linha.
+      expect(
+        receitaTL.dx,
+        lessThan(despesaTL.dx),
+        reason: 'Nova receita à esquerda de Nova despesa',
+      );
+      expect(
+        transferenciaTL.dx,
+        lessThan(importarTL.dx),
+        reason: 'Transferência à esquerda de Importar',
       );
 
       await expectStableNoOverflow(tester);
@@ -178,6 +215,329 @@ void main() {
 
       expect(find.text('Nova categoria'), findsWidgets);
       await expectStableNoOverflow(tester);
+    },
+  );
+
+  testWidgets(
+    'Contas a pagar/receber no mobile: botão "Filtros" fica preenchido '
+    '(scheme.secondaryContainer) sempre que há filtro ativo, mesmo com o '
+    'painel fechado — e some sem preenchimento sem filtro ativo',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinContasPagarReceberScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: narrow,
+      );
+      await settle(tester);
+
+      final scheme = Theme.of(
+        tester.element(find.byType(FinContasPagarReceberScreen)),
+      ).colorScheme;
+
+      Color? filtrosButtonFill() {
+        final material = tester
+            .widgetList<Material>(
+              find.ancestor(
+                of: find.byIcon(Icons.filter_list_rounded),
+                matching: find.byType(Material),
+              ),
+            )
+            .first;
+        return material.color;
+      }
+
+      // Painel fechado (default mobile) e sem filtro ativo: botão NÃO
+      // preenchido.
+      expect(find.text('Limpar filtros'), findsNothing);
+      expect(filtrosButtonFill(), isNot(scheme.secondaryContainer));
+
+      // Abre o painel e aplica um filtro (Tipo: Despesas).
+      await tester.tap(find.text('Filtros'));
+      await settle(tester);
+      expect(find.text('Limpar filtros'), findsOneWidget);
+
+      await tester.tap(find.text('Todos os tipos'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Despesas (a pagar)'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Painel aberto + filtro ativo: botão preenchido.
+      expect(filtrosButtonFill(), scheme.secondaryContainer);
+
+      // Fecha o painel via toggle, mantendo o filtro aplicado.
+      await tester.tap(find.text('Filtros'));
+      await settle(tester);
+      expect(find.text('Limpar filtros'), findsNothing);
+
+      // Painel fechado mas filtro ainda ativo: botão CONTINUA preenchido.
+      expect(filtrosButtonFill(), scheme.secondaryContainer);
+
+      await expectStableNoOverflow(tester);
+    },
+  );
+
+  testWidgets(
+    'Visão geral no desktop (1400x900): ações rápidas seguem em Wrap numa '
+    'única linha (layout original preservado), sem overflow',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinVisaoGeralScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: desktop,
+      );
+      await settle(tester);
+
+      final receitaY = tester.getTopLeft(find.text('Nova receita')).dy;
+      final despesaY = tester.getTopLeft(find.text('Nova despesa')).dy;
+      final transferenciaY = tester.getTopLeft(find.text('Transferência')).dy;
+      final importarY = tester.getTopLeft(find.text('Importar')).dy;
+
+      expect(
+        (despesaY - receitaY).abs(),
+        lessThan(5),
+        reason: 'Receita e despesa na mesma linha (desktop)',
+      );
+      expect(
+        (transferenciaY - receitaY).abs(),
+        lessThan(5),
+        reason: 'Transferência na mesma linha (desktop)',
+      );
+      expect(
+        (importarY - receitaY).abs(),
+        lessThan(5),
+        reason: 'Importar na mesma linha (desktop)',
+      );
+
+      await expectStableNoOverflowAt(
+        tester,
+        desktop,
+        away: const Size(1200, 900),
+      );
+    },
+  );
+
+  testWidgets(
+    'Contas a pagar/receber no desktop (1400x900): filtros permanecem '
+    'ABERTOS por padrão, sem overflow',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinContasPagarReceberScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: desktop,
+      );
+      await settle(tester);
+
+      expect(find.text('Limpar filtros'), findsOneWidget);
+
+      await expectStableNoOverflowAt(
+        tester,
+        desktop,
+        away: const Size(1200, 900),
+      );
+    },
+  );
+
+  testWidgets(
+    'Carteiras no desktop (1400x900): header permanece em Row (título + '
+    'botões lado a lado), sem overflow',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinCarteirasScreen(),
+        overrides: withFin(
+          FakeFinanceiro(contas: [fakeConta(id: 'a', nome: 'Caixa')]),
+        ),
+        size: desktop,
+      );
+      await settle(tester);
+
+      final titleTL = tester.getTopLeft(find.text('Carteiras e contas'));
+      final novaTL = tester.getTopLeft(find.text('Nova carteira'));
+
+      expect(
+        (novaTL.dy - titleTL.dy).abs(),
+        lessThan(30),
+        reason: 'Título e botão na mesma linha (Row, não Column)',
+      );
+      expect(
+        novaTL.dx,
+        greaterThan(titleTL.dx),
+        reason: 'Botão à direita do título (Row)',
+      );
+
+      await expectStableNoOverflowAt(
+        tester,
+        desktop,
+        away: const Size(1200, 900),
+      );
+    },
+  );
+
+  testWidgets(
+    'Limites no desktop (1400x900): header permanece em Row (período + '
+    '"Novo limite" lado a lado), sem overflow',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinLimitesScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: desktop,
+      );
+      await settle(tester);
+
+      final periodTL = tester.getTopLeft(
+        find.byIcon(Icons.chevron_left_rounded),
+      );
+      final novoTL = topmostTopLeft(tester, find.text('Novo limite'));
+
+      expect(
+        (novoTL.dy - periodTL.dy).abs(),
+        lessThan(30),
+        reason: 'Período e botão na mesma linha (Row, não Column)',
+      );
+      expect(
+        novoTL.dx,
+        greaterThan(periodTL.dx),
+        reason: 'Botão à direita do seletor de período (Row)',
+      );
+
+      await expectStableNoOverflowAt(
+        tester,
+        desktop,
+        away: const Size(1200, 900),
+      );
+    },
+  );
+
+  testWidgets(
+    'Categorias no desktop (1400x900): header permanece em Row (toggle '
+    'Despesas/Receitas + "Nova categoria" lado a lado), sem overflow',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinCategoriasScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: desktop,
+      );
+      await settle(tester);
+
+      final toggleTL = tester.getTopLeft(find.text('Despesas'));
+      final novaTL = topmostTopLeft(tester, find.text('Nova categoria'));
+
+      expect(
+        (novaTL.dy - toggleTL.dy).abs(),
+        lessThan(30),
+        reason: 'Toggle e botão na mesma linha (Row, não Column)',
+      );
+      expect(
+        novaTL.dx,
+        greaterThan(toggleTL.dx),
+        reason: 'Botão à direita do toggle (Row)',
+      );
+
+      await expectStableNoOverflowAt(
+        tester,
+        desktop,
+        away: const Size(1200, 900),
+      );
+    },
+  );
+
+  testWidgets(
+    'Fronteira de viewport a 320px: as 5 telas do módulo Financeiro '
+    'continuam sem overflow',
+    (tester) async {
+      const w320 = Size(320, 800);
+      const away = Size(360, 800);
+
+      await pumpPainel(
+        tester,
+        const FinVisaoGeralScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: w320,
+      );
+      await settle(tester);
+      await expectStableNoOverflowAt(tester, w320, away: away);
+
+      await pumpPainel(
+        tester,
+        const FinContasPagarReceberScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: w320,
+      );
+      await settle(tester);
+      await expectStableNoOverflowAt(tester, w320, away: away);
+
+      await pumpPainel(
+        tester,
+        const FinCarteirasScreen(),
+        overrides: withFin(
+          FakeFinanceiro(contas: [fakeConta(id: 'a', nome: 'Caixa')]),
+        ),
+        size: w320,
+      );
+      await settle(tester);
+      await expectStableNoOverflowAt(tester, w320, away: away);
+
+      await pumpPainel(
+        tester,
+        const FinLimitesScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: w320,
+      );
+      await settle(tester);
+      await expectStableNoOverflowAt(tester, w320, away: away);
+
+      await pumpPainel(
+        tester,
+        const FinCategoriasScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: w320,
+      );
+      await settle(tester);
+      await expectStableNoOverflowAt(tester, w320, away: away);
+    },
+  );
+
+  testWidgets(
+    'finIsMobile: fronteira exata do breakpoint (kFinMobileBreakpoint = '
+    '${kFinMobileBreakpoint.toInt()}px) — 599px é mobile, 600px é desktop',
+    (tester) async {
+      bool? result;
+
+      Future<bool> isMobileAt(Size size) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) {
+                result = finIsMobile(context);
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+        return result!;
+      }
+
+      expect(
+        await isMobileAt(Size(kFinMobileBreakpoint - 1, 800)),
+        isTrue,
+        reason: '${kFinMobileBreakpoint - 1}px deve ser mobile',
+      );
+      expect(
+        await isMobileAt(const Size(600, 800)),
+        isFalse,
+        reason: '600px deve ser desktop',
+      );
     },
   );
 }
