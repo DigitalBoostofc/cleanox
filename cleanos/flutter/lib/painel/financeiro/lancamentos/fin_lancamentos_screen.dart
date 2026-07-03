@@ -94,7 +94,13 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   }
 
   Future<void> _openForm({FinLancamento? editing}) async {
-    final saved = await showLancamentoForm(context, editing: editing);
+    final saved = await showLancamentoForm(
+      context,
+      editing: editing,
+      // Criação herda o tipo do filtro ativo (Receitas/Despesas); com filtro
+      // em "Todos" ou na edição, mantém o default do form.
+      initialTipo: editing == null ? _filters.tipo : null,
+    );
     if (saved == true) {
       await _refreshAfterMutation();
       if (mounted) {
