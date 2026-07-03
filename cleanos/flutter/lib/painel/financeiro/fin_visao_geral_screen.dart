@@ -359,40 +359,57 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final novaReceita = _QuickAction(
+      icon: Icons.add_rounded,
+      label: 'Nova receita',
+      fg: clx.success,
+      bg: clx.successBg,
+      onTap: onNovaReceita,
+    );
+    final novaDespesa = _QuickAction(
+      icon: Icons.remove_rounded,
+      label: 'Nova despesa',
+      fg: clx.error,
+      bg: clx.errorBg,
+      onTap: onNovaDespesa,
+    );
+    final transferencia = _QuickAction(
+      icon: Icons.swap_horiz_rounded,
+      label: 'Transferência',
+      fg: clx.info,
+      bg: clx.infoBg,
+      onTap: onTransferencia,
+    );
+    final importar = _QuickAction(
+      icon: Icons.file_download_outlined,
+      label: 'Importar',
+      fg: clx.primary,
+      bg: clx.primary.withValues(alpha: 0.14),
+      onTap: onImportar,
+    );
+
+    // Mobile: grade fixa 2x2 (em vez do Wrap 3+1 que sobra "Importar" sozinho).
+    if (finIsMobile(context)) {
+      return Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [novaReceita, novaDespesa],
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [transferencia, importar],
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: ClxSpace.x3,
       runSpacing: ClxSpace.x3,
       alignment: WrapAlignment.spaceAround,
-      children: [
-        _QuickAction(
-          icon: Icons.add_rounded,
-          label: 'Nova receita',
-          fg: clx.success,
-          bg: clx.successBg,
-          onTap: onNovaReceita,
-        ),
-        _QuickAction(
-          icon: Icons.remove_rounded,
-          label: 'Nova despesa',
-          fg: clx.error,
-          bg: clx.errorBg,
-          onTap: onNovaDespesa,
-        ),
-        _QuickAction(
-          icon: Icons.swap_horiz_rounded,
-          label: 'Transferência',
-          fg: clx.info,
-          bg: clx.infoBg,
-          onTap: onTransferencia,
-        ),
-        _QuickAction(
-          icon: Icons.file_download_outlined,
-          label: 'Importar',
-          fg: clx.primary,
-          bg: clx.primary.withValues(alpha: 0.14),
-          onTap: onImportar,
-        ),
-      ],
+      children: [novaReceita, novaDespesa, transferencia, importar],
     );
   }
 }
