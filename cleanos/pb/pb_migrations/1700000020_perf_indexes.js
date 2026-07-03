@@ -42,9 +42,9 @@
  * 3) `idx_os_prof_avaliacao_em` (profissional, avaliacao_em) WHERE
  *    avaliacao_nota >= 1 — mesma ideia, mas para a busca por profissional
  *    específico: `profissional = ? && avaliacao_nota >= 1 ORDER BY
- *    avaliacao_em DESC` (accordion da tela Avaliações, `_loadReviews`) e o
- *    filtro do Perfil do profissional (`profAvaliadasFilter`, perfil_screen).
- *    ANTES: mesmo `SCAN` + sort completo da tabela.
+ *    avaliacao_em DESC` (accordion por profissional em
+ *    `avaliacoes_controller.dart`, carregado a cada expansão de profissional
+ *    na tela admin Avaliações). ANTES: mesmo `SCAN` + sort completo da tabela.
  *
  * `fin_lancamentos` NÃO recebeu índice novo: `EXPLAIN QUERY PLAN` confirmou
  * que `idx_finlanc_data` já é usado corretamente pelo filtro de período (o
