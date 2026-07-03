@@ -105,11 +105,13 @@ void main() {
       expect(find.text('Nome é obrigatório'), findsOneWidget);
       expect(repo.createCount, 0);
 
-      // Preenche e salva.
+      // Preenche e salva. Ordem dos TextField: nome(0), email(1),
+      // whatsapp(2, opcional), senha(3), confirma(4).
       await tester.enterText(formFieldAt(0), 'Pedro Santos'); // nome
       await tester.enterText(formFieldAt(1), 'pedro@empresa.com'); // email
-      await tester.enterText(formFieldAt(2), 'senha1234'); // senha
-      await tester.enterText(formFieldAt(3), 'senha1234'); // confirma
+      await tester.enterText(formFieldAt(2), '11999990000'); // whatsapp
+      await tester.enterText(formFieldAt(3), 'senha1234'); // senha
+      await tester.enterText(formFieldAt(4), 'senha1234'); // confirma
       await tester.pump();
 
       await tester.tap(find.widgetWithText(ClxButton, 'Salvar'));
@@ -120,6 +122,7 @@ void main() {
       expect(repo.lastCreate?['name'], 'Pedro Santos');
       expect(repo.lastCreate?['email'], 'pedro@empresa.com');
       expect(repo.lastCreate?['role'], 'profissional');
+      expect(repo.lastCreate?['whatsapp'], '11999990000');
     });
   });
 

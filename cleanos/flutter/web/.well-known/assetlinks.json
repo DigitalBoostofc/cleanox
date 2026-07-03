@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.wenox.cleanos",
+      "sha256_cert_fingerprints": [
+        "8C:EE:31:BE:43:F0:00:10:B7:9A:55:BF:8F:55:CE:2E:1B:B7:1A:C6:AC:2C:13:74:11:80:5C:D2:DD:A4:30:DA"
+      ]
+    }
+  }
+]

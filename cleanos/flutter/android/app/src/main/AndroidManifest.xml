@@ -40,9 +40,30 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Deep-link nativo: entrega o path do App Link ao go_router (em vez
+                 de só relançar o app). Necessário p/ o link "Nova OS" (WhatsApp)
+                 abrir a rota /app/os/:id. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- App Link (doc 09 §6.3): https://cleanox.wenox.com.br/app/os/<id>
+                 abre o app direto na OS. autoVerify exige o assetlinks.json
+                 publicado em /.well-known/ com o SHA-256 da chave de release.
+                 Escopo restrito a /app/os/ — o restante do domínio (web app, /api)
+                 continua abrindo no navegador. Sem o app instalado, o mesmo link
+                 abre a rota no app web (fallback gracioso). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="cleanox.wenox.com.br"
+                    android:pathPrefix="/app/os/" />
             </intent-filter>
         </activity>
         <!-- Slice B4 — foreground service do flutter_foreground_task (tracking GPS).
