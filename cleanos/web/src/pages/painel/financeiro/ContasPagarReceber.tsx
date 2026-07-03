@@ -46,6 +46,7 @@ import {
   type ContaFilters,
   type VencimentoPreset,
 } from './contas/ContasFiltros'
+import { todayLocalInput } from './lancamentos/dates'
 
 type Aba = 'pagar' | 'receber' | 'todas'
 
@@ -62,9 +63,8 @@ function vencYmd(item: ContaPendente): string {
 }
 
 export default function ContasPagarReceber() {
-  // REF única do "hoje" (único uso de new Date() para a data de referência).
-  const refIso = useMemo(() => new Date().toISOString(), [])
-  const todayYmd = refIso.slice(0, 10)
+  // REF única do "hoje" em horário LOCAL (BRT) — evita virada de dia após 21h UTC.
+  const todayYmd = useMemo(() => todayLocalInput(), [])
 
   const [year, setYear] = useState(() => Number(todayYmd.slice(0, 4)))
   const [month, setMonth] = useState(() => Number(todayYmd.slice(5, 7)) - 1) // 0-based
@@ -111,8 +111,8 @@ export default function ContasPagarReceber() {
   const contaById = useMemo(() => new Map(contas.map((c) => [c.id, c])), [contas])
 
   // Derivações puras (REF = hoje). KPIs usam o conjunto GLOBAL em aberto.
-  const aPagarAll = useMemo(() => contasAPagar(lancs, refIso), [lancs, refIso])
-  const aReceberAll = useMemo(() => contasAReceber(lancs, refIso), [lancs, refIso])
+  const aPagarAll = useMemo(() => contasAPagar(lancs, todayYmd), [lancs, todayYmd])
+  const aReceberAll = useMemo(() => contasAReceber(lancs, todayYmd), [lancs, todayYmd])
 
   const sum = (items: ContaPendente[]) => items.reduce((s, i) => s + i.lancamento.valor, 0)
   const totalPagar = sum(aPagarAll)

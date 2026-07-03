@@ -139,6 +139,9 @@ export interface Servico extends PBRecord {
   /** PLACEHOLDER — gate G-03 em aberto */
   preco_base: number
   ativo: boolean
+  /** Taxonomia — presente na coleção PB desde migration 1700000008 */
+  categoria?: Categoria | ''
+  grupo?: Grupo | ''
 }
 
 /* ---- servicos (catálogo RICO) — contrato PB snake_case (Migrations 8 e 9) ----

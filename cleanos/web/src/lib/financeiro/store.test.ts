@@ -356,6 +356,68 @@ describe('repeatLancamento', () => {
 })
 
 /* ============================================================
+ * F-224 — duplicar/repetir via_os não gera double-count
+ * ============================================================
+ *
+ * lanc_seed_01: receita, origem='via_os', osId='os_000245', valor=300.
+ * Copiar ou repetir deve gerar um lançamento MANUAL sem vínculo com a OS,
+ * evitando que receitaViaOs seja inflada em dobro.
+ */
+
+describe('F-224 — duplicateLancamento: via_os → manual sem vínculo OS', () => {
+  it('cópia de via_os tem origem manual e sem osId/osNumero', async () => {
+    const copia = await duplicateLancamento('lanc_seed_01')
+    expect(copia.origem).toBe('manual')
+    expect(copia.osId).toBeUndefined()
+    expect(copia.osNumero).toBeUndefined()
+  })
+
+  it('cópia preserva valor, tipo e categoriaId (é lançamento legítimo)', async () => {
+    const copia = await duplicateLancamento('lanc_seed_01')
+    expect(copia.tipo).toBe('receita')
+    expect(copia.valor).toBe(300)
+    expect(copia.categoriaId).toBe('cat_servico_automotivo')
+  })
+
+  it('receitaViaOs NÃO dobra após duplicar um via_os', async () => {
+    const antes = (await listLancamentos())
+      .filter((l) => l.origem === 'via_os')
+      .reduce((s, l) => s + l.valor, 0)
+
+    await duplicateLancamento('lanc_seed_01') // cópia nasce como manual
+
+    const depois = (await listLancamentos())
+      .filter((l) => l.origem === 'via_os')
+      .reduce((s, l) => s + l.valor, 0)
+
+    expect(depois).toBeCloseTo(antes, 2) // via_os sum permanece igual
+  })
+})
+
+describe('F-224 — repeatLancamento: via_os → manual sem vínculo OS', () => {
+  it('repetição de via_os tem origem manual e sem osId/osNumero', async () => {
+    const prox = await repeatLancamento('lanc_seed_01')
+    expect(prox.origem).toBe('manual')
+    expect(prox.osId).toBeUndefined()
+    expect(prox.osNumero).toBeUndefined()
+  })
+
+  it('repetição de via_os NÃO inflaciona receitaViaOs', async () => {
+    const antes = (await listLancamentos())
+      .filter((l) => l.origem === 'via_os')
+      .reduce((s, l) => s + l.valor, 0)
+
+    await repeatLancamento('lanc_seed_01')
+
+    const depois = (await listLancamentos())
+      .filter((l) => l.origem === 'via_os')
+      .reduce((s, l) => s + l.valor, 0)
+
+    expect(depois).toBeCloseTo(antes, 2)
+  })
+})
+
+/* ============================================================
  * CRUD — Contas
  * ============================================================ */
 
