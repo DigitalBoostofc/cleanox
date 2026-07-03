@@ -209,6 +209,19 @@ function fillServiceSnapshot(app, record) {
   }
 }
 
+// Zera as coordenadas efêmeras de rastreamento (doc 09 §3: anti-desvio/limpeza).
+// Espelha o tratamento do endereço: coords só existem durante em_andamento.
+// Limpa a posição do profissional E o destino geocodificado (dados de localização
+// que não devem sobreviver ao serviço). Os carimbos de aviso (aviso_*_em/cheguei_em)
+// são resetados pela rota /a-caminho a cada nova viagem, não aqui.
+function clearTrackingCoords(record) {
+  record.set("prof_lat", null);
+  record.set("prof_lng", null);
+  record.set("prof_pos_em", null);
+  record.set("dest_lat", null);
+  record.set("dest_lng", null);
+}
+
 // libera/limpa o endereço efêmero conforme o status.
 // SOMENTE `em_andamento` tem endereço. Telefone NUNCA é tocado aqui.
 //
@@ -239,6 +252,8 @@ function manageEndereco(app, record) {
     }
   } else {
     record.set("endereco_liberado", "");
+    // doc 09 §3: coords são efêmeras — somem ao sair de em_andamento (concluir/cancelar).
+    clearTrackingCoords(record);
   }
 }
 
@@ -356,6 +371,18 @@ function guardOrdemUpdateRequest(e) {
     "service_snapshot",
     // marcado pelo fluxo server-side de envio do relatório ao cliente.
     "relatorio_enviado_em",
+    // Rastreamento GPS "estou a caminho" (doc 09 §3): coords efêmeras e carimbos
+    // de aviso. SÓ as rotas dedicadas (/posicao, /cheguei, /a-caminho) e o cron
+    // trackingAvisos escrevem, sempre server-side. O profissional NUNCA os grava
+    // via PATCH direto — sua posição vai pela rota /posicao, não pela OS.
+    "prof_lat",
+    "prof_lng",
+    "prof_pos_em",
+    "dest_lat",
+    "dest_lng",
+    "aviso_5min_em",
+    "aviso_1min_em",
+    "cheguei_em",
     // NB: checklist_exec, adicionais e observacoes_prof ficam de FORA da denylist
     //     de propósito — são o TRABALHO do profissional na OS (campos editáveis).
   ];

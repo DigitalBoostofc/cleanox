@@ -782,8 +782,47 @@ Auth: token de usuário com papel `admin` (gerente não pode alterar).
 |-------------------------|----------------------------------------------------------------------|
 | `N8N_RATING_WEBHOOK_URL`| URL do webhook n8n que recebe a notificação de OS concluída. Se vazia, o gatilho é pulado. |
 | `CLEANOS_SERVICE_SECRET`| Segredo compartilhado para auth dos endpoints de serviço. Se vazio, todos retornam 401. |
+| `GOOGLE_MAPS_API_KEY`   | (doc 09) Chave Google Maps (Geocoding + Distance Matrix), só server-side. Se vazia, geocode/ETA retornam nulo e o rastreamento fica inerte (Cheguei manual segue). |
+| `FCM_SERVER_KEY`        | (doc 09) Server key do FCM para push "Nova OS", só server-side. Se vazia, o push é pulado (sem erro). |
 
 Configure no mesmo arquivo `cleanos.env` das variáveis UAZAPI (ver §8.1).
+
+### 9.8 Rastreamento "estou a caminho" (GPS ao vivo) — doc 09 §3
+
+Adições **aditivas** que servem ao app Flutter do profissional. Ficam **inertes**
+até o app começar a chamar as rotas e as chaves acima serem providas.
+
+**Schema (migration 17):**
+- `ordens_servico`: `prof_lat`, `prof_lng`, `prof_pos_em`, `dest_lat`, `dest_lng`,
+  `aviso_5min_em`, `aviso_1min_em`, `cheguei_em` — todos gravados **só server-side**
+  (rotas dedicadas / cron) e na denylist do profissional (`os_logic.js`).
+- `app_config`: `aviso_5min_texto`, `aviso_1min_texto`, `aviso_cheguei_texto`
+  (editáveis em `POST /whatsapp/config`).
+- Coleção `push_tokens` (`usuario`, `token`, `plataforma`, `updated`): 1 token por
+  `(profissional, plataforma)`. Profissional cria/atualiza o próprio; admin lê.
+
+**Rotas (auth: profissional dono + OS `em_andamento`; telefone só server-side):**
+- `POST /api/cleanos/os/{id}/posicao` `{lat,lng}` → grava posição; na 1ª vez
+  geocodifica o destino → `dest_lat/lng`. Resposta `{ ok }`.
+- `POST /api/cleanos/os/{id}/cheguei` → envia `aviso_cheguei_texto` (best-effort),
+  grava `cheguei_em` (sempre) e **encerra** o rastreamento. Resposta `{ ok, sentAt, avisoEnviado }`.
+- `/a-caminho` (estendida) → geocodifica o destino se faltar + reseta
+  `aviso_5min_em/aviso_1min_em/cheguei_em` (idempotência por viagem).
+- `POST /api/cleanos/push/register` `{token,plataforma}` (qualquer usuário
+  autenticado, escopado a si mesmo) → upsert em `push_tokens`.
+
+**Cron `trackingAvisos` (`* * * * *`):** varre OS `em_andamento` com
+`aviso_a_caminho_em` setado, sem `cheguei_em`, `prof_pos_em` recente (≤3 min),
+`dest_lat/lng` presentes e a-caminho ≤2 h; calcula ETA (Distance Matrix c/
+trânsito) e dispara **Msg2** (ETA ≤5 min) e **Msg3** (ETA ≤1 min), idempotentes
+via `aviso_5min_em`/`aviso_1min_em`.
+
+**Push:** ao atribuir uma OS a um profissional (create ou update), o hook envia
+FCM "Nova OS" aos `push_tokens` dele (`FCM_SERVER_KEY`), best-effort.
+
+**Degradação:** sem `GOOGLE_MAPS_API_KEY` o ETA/geocode retornam nulo e o cron não
+avança; sem `FCM_SERVER_KEY` o push é pulado; sem WhatsApp conectado os avisos são
+pulados. Nada disso lança nem bloqueia os fluxos existentes.
 
 ---
 

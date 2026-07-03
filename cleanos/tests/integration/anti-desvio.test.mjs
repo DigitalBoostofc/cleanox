@@ -1408,4 +1408,554 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       )
     })
   })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('V · Rastreamento GPS "estou a caminho" + push (doc 09 §3)', () => {
+    // Campos de tracking gravados SÓ server-side (rotas dedicadas/cron). O
+    // profissional nunca os grava via PATCH; coords são efêmeras e somem ao
+    // concluir; push_tokens é isolado por profissional; /posicao e /cheguei
+    // exigem dono + em_andamento.
+
+    // ---- V1–V3: profissional não grava campos de tracking via PATCH ----
+    describe('V.a · travas de campo (denylist)', () => {
+      let osId
+      before(async () => {
+        osId = (await createOS(s.adminTok, {
+          cliente:       s.clienteId,
+          servico:       s.servicoId,
+          profissional:  s.profId,
+          data_hora:     `${todayUTC()} 10:00:00.000Z`,
+          status:        'em_andamento',
+          valor_servico: 100,
+        })).id
+      })
+      after(async () => { await deleteOS(s.adminTok, osId) })
+
+      const campos = [
+        ['prof_lat', -23.55],
+        ['prof_lng', -46.63],
+        ['prof_pos_em', '2026-01-01 10:00:00.000Z'],
+        ['dest_lat', -23.5],
+        ['dest_lng', -46.6],
+        ['aviso_5min_em', '2026-01-01 10:00:00.000Z'],
+        ['aviso_1min_em', '2026-01-01 10:00:00.000Z'],
+        ['cheguei_em', '2026-01-01 10:00:00.000Z'],
+      ]
+      for (const [campo, valor] of campos) {
+        it(`V.a · profissional NÃO grava ${campo} via PATCH → bloqueado`, async () => {
+          const { status } = await PATCH(
+            `/api/collections/ordens_servico/records/${osId}`,
+            s.profTok,
+            { [campo]: valor }
+          )
+          assert.notStrictEqual(status, 200, `${campo} deveria ser campo bloqueado para profissional`)
+        })
+      }
+    })
+
+    // ---- V4–V6: rota /posicao (dono + em_andamento) ----
+    describe('V.b · rota /posicao', () => {
+      let emAndId, atribId
+      before(async () => {
+        emAndId = (await createOS(s.adminTok, {
+          cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+          data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+        })).id
+        atribId = (await createOS(s.adminTok, {
+          cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+          data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'atribuida', valor_servico: 100,
+        })).id
+      })
+      after(async () => {
+        await deleteOS(s.adminTok, emAndId)
+        await deleteOS(s.adminTok, atribId)
+      })
+
+      it('V.b1 · outro profissional (lucas) não envia posição de OS de pedro → 403', async () => {
+        const { status } = await POST(`/api/cleanos/os/${emAndId}/posicao`, s.prof2Tok, { lat: -23.55, lng: -46.63 })
+        assert.strictEqual(status, 403, `Lucas deveria receber 403, got ${status}`)
+      })
+
+      it('V.b2 · posição em OS não em_andamento (atribuida) → bloqueado', async () => {
+        const { status } = await POST(`/api/cleanos/os/${atribId}/posicao`, s.profTok, { lat: -23.55, lng: -46.63 })
+        assert.notStrictEqual(status, 200, 'posição só deveria ser aceita em em_andamento')
+      })
+
+      it('V.b3 · coordenadas inválidas → 400', async () => {
+        const { status } = await POST(`/api/cleanos/os/${emAndId}/posicao`, s.profTok, { lat: 999, lng: 'x' })
+        assert.strictEqual(status, 400, `lat/lng inválidos deveriam retornar 400, got ${status}`)
+      })
+
+      it('V.b4 · dono envia posição em em_andamento → 200 {ok} sem vazar telefone; grava prof_lat', async () => {
+        const { status, body } = await POST(`/api/cleanos/os/${emAndId}/posicao`, s.profTok, { lat: -23.55, lng: -46.63 })
+        assert.strictEqual(status, 200, `posição do dono deveria retornar 200, got ${status}: ${JSON.stringify(body)}`)
+        assert.strictEqual(body?.ok, true)
+        const bodyStr = JSON.stringify(body || {})
+        assert.ok(!bodyStr.includes('telefone') && !bodyStr.includes('phone'), 'Resposta de /posicao vazou dado sensível')
+        // Confirma gravação server-side (admin lê a OS)
+        const after = await GET(`/api/collections/ordens_servico/records/${emAndId}`, s.adminTok)
+        assert.strictEqual(Number(after.body?.prof_lat), -23.55, 'prof_lat não foi gravado server-side')
+        assert.ok(after.body?.prof_pos_em, 'prof_pos_em deveria estar preenchido')
+      })
+    })
+
+    // ---- V7: coords somem ao concluir ----
+    describe('V.c · coords efêmeras somem ao concluir', () => {
+      let osId
+      before(async () => {
+        osId = (await createOS(s.adminTok, {
+          cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+          data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+        })).id
+        // grava posição (server-side seta prof_lat/lng/pos_em)
+        await POST(`/api/cleanos/os/${osId}/posicao`, s.profTok, { lat: -23.55, lng: -46.63 })
+      })
+      after(async () => { await deleteOS(s.adminTok, osId) })
+
+      it('V.c1 · após concluir, prof_lat/prof_lng/dest_lat/dest_lng ficam vazios', async () => {
+        // sanity: antes de concluir a posição está lá
+        const before = await GET(`/api/collections/ordens_servico/records/${osId}`, s.adminTok)
+        assert.strictEqual(Number(before.body?.prof_lat), -23.55, 'pré-condição: prof_lat gravado')
+
+        const { status } = await PATCH(
+          `/api/collections/ordens_servico/records/${osId}`,
+          s.profTok,
+          { valor_pago: 100, forma_pagamento: 'pix_maquininha', status: 'concluida' }
+        )
+        assert.strictEqual(status, 200, 'concluir com pagamento deveria funcionar')
+
+        const after = await GET(`/api/collections/ordens_servico/records/${osId}`, s.adminTok)
+        const empty = v => v == null || v === '' || Number(v) === 0
+        assert.ok(empty(after.body?.prof_lat), `prof_lat deveria sumir, got ${after.body?.prof_lat}`)
+        assert.ok(empty(after.body?.prof_lng), `prof_lng deveria sumir, got ${after.body?.prof_lng}`)
+        assert.ok(empty(after.body?.dest_lat), `dest_lat deveria sumir, got ${after.body?.dest_lat}`)
+        assert.ok(empty(after.body?.dest_lng), `dest_lng deveria sumir, got ${after.body?.dest_lng}`)
+      })
+    })
+
+    // ---- V8–V9: rota /cheguei (dono + em_andamento) ----
+    describe('V.d · rota /cheguei', () => {
+      let osId
+      before(async () => {
+        osId = (await createOS(s.adminTok, {
+          cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+          data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+        })).id
+      })
+      after(async () => { await deleteOS(s.adminTok, osId) })
+
+      it('V.d1 · outro profissional (lucas) não registra chegada de OS de pedro → 403', async () => {
+        const { status } = await POST(`/api/cleanos/os/${osId}/cheguei`, s.prof2Tok)
+        assert.strictEqual(status, 403, `Lucas deveria receber 403, got ${status}`)
+      })
+
+      it('V.d2 · dono registra chegada → 200 sem vazar telefone; grava cheguei_em', async () => {
+        const { status, body } = await POST(`/api/cleanos/os/${osId}/cheguei`, s.profTok)
+        assert.strictEqual(status, 200, `chegada do dono deveria retornar 200, got ${status}: ${JSON.stringify(body)}`)
+        assert.strictEqual(body?.ok, true)
+        const bodyStr = JSON.stringify(body || {})
+        assert.ok(!bodyStr.includes('telefone') && !bodyStr.includes('phone'), 'Resposta de /cheguei vazou dado sensível')
+        const after = await GET(`/api/collections/ordens_servico/records/${osId}`, s.adminTok)
+        assert.ok(after.body?.cheguei_em, 'cheguei_em deveria estar preenchido após a rota')
+      })
+    })
+
+    // ---- V10–V12: push_tokens isolado + register/upsert ----
+    describe('V.e · push/register e isolamento de push_tokens', () => {
+      after(async () => {
+        // Limpa quaisquer tokens criados pelos testes (admin)
+        for (const uid of [s.profId, s.prof2Id]) {
+          const r = await GET(`/api/collections/push_tokens/records?perPage=200&filter=(usuario='${uid}')`, s.adminTok)
+          for (const rec of (r.body?.items ?? [])) {
+            await DELETE(`/api/collections/push_tokens/records/${rec.id}`, s.adminTok)
+          }
+        }
+      })
+
+      it('V.e1 · profissional registra token → 200 {ok}', async () => {
+        const { status, body } = await POST('/api/cleanos/push/register', s.profTok, {
+          token: 'tok-pedro-abc123', plataforma: 'android',
+        })
+        assert.strictEqual(status, 200, `register deveria retornar 200, got ${status}: ${JSON.stringify(body)}`)
+        assert.strictEqual(body?.ok, true)
+      })
+
+      it('V.e2 · pedro vê só o próprio token; lucas NÃO vê o de pedro (isolado)', async () => {
+        // pedro registra o dele (idempotente com V.e1) e lucas registra o dele
+        await POST('/api/cleanos/push/register', s.profTok,  { token: 'tok-pedro-abc123', plataforma: 'android' })
+        await POST('/api/cleanos/push/register', s.prof2Tok, { token: 'tok-lucas-zzz999', plataforma: 'android' })
+
+        const pedro = await GET('/api/collections/push_tokens/records?perPage=200', s.profTok)
+        const alheios = (pedro.body?.items ?? []).filter(t => t.usuario !== s.profId)
+        assert.strictEqual(alheios.length, 0, 'Pedro não deveria enxergar tokens de outro profissional')
+
+        const lucas = await GET('/api/collections/push_tokens/records?perPage=200', s.prof2Tok)
+        const dePedro = (lucas.body?.items ?? []).filter(t => t.usuario === s.profId || t.token === 'tok-pedro-abc123')
+        assert.strictEqual(dePedro.length, 0, 'Lucas não deveria enxergar o token de Pedro')
+      })
+
+      it('V.e3 · register é upsert por (usuario, plataforma) — não duplica', async () => {
+        await POST('/api/cleanos/push/register', s.profTok, { token: 'tok-pedro-v1', plataforma: 'android' })
+        await POST('/api/cleanos/push/register', s.profTok, { token: 'tok-pedro-v2', plataforma: 'android' })
+        const r = await GET(
+          `/api/collections/push_tokens/records?filter=(usuario='${s.profId}' %26%26 plataforma='android')`,
+          s.adminTok
+        )
+        assert.strictEqual((r.body?.items ?? []).length, 1, 'Deveria haver exatamente 1 token android para pedro (upsert)')
+        assert.strictEqual(r.body.items[0].token, 'tok-pedro-v2', 'O token deveria ter sido atualizado para o mais recente')
+      })
+
+      it('V.e4 · register sem auth → 401', async () => {
+        const { status } = await POST('/api/cleanos/push/register', null, { token: 'x', plataforma: 'android' })
+        assert.strictEqual(status, 401, `register sem auth deveria retornar 401, got ${status}`)
+      })
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('W · Dedupe idempotente de evidências (os_evidencias)', () => {
+    // Contrato com o app: o multipart de criação de os_evidencias inclui
+    // `idempotency_key` (uuid, string). 2 creates com a MESMA (os, idempotency_key)
+    // → 1 registro (retry sequencial devolve o existente com o MESMO id); chaves
+    // diferentes → 2 registros; SEM chave → comportamento atual inalterado.
+    let osId
+    const keyA = 'idem-key-aaa-111'
+    const keyB = 'idem-key-bbb-222'
+
+    before(async () => {
+      osId = (await createOS(s.adminTok, {
+        cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+        data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+      })).id
+    })
+    after(async () => {
+      const r = await GET(`/api/collections/os_evidencias/records?perPage=200&filter=(os='${osId}')`, s.adminTok)
+      for (const rec of (r.body?.items ?? [])) {
+        await DELETE(`/api/collections/os_evidencias/records/${rec.id}`, s.adminTok)
+      }
+      await deleteOS(s.adminTok, osId)
+    })
+
+    const createEvid = (tok, fields) => POST('/api/collections/os_evidencias/records', tok, fields)
+
+    it('W1 · 2 creates com a MESMA (os, idempotency_key) → 1 registro (mesmo id)', async () => {
+      const r1 = await createEvid(s.profTok, { os: osId, fase: 'antes', legenda: 'a', idempotency_key: keyA })
+      assert.strictEqual(r1.status, 200, `1º create falhou: ${JSON.stringify(r1.body)}`)
+      const id1 = r1.body?.id
+      assert.ok(id1, 'primeiro create deveria retornar id')
+
+      const r2 = await createEvid(s.profTok, { os: osId, fase: 'antes', legenda: 'a', idempotency_key: keyA })
+      assert.strictEqual(r2.status, 200, `retry idempotente deveria dar 200: ${JSON.stringify(r2.body)}`)
+      assert.strictEqual(r2.body?.id, id1, 'retry com a mesma chave deveria devolver o MESMO registro')
+
+      const q = await GET(
+        `/api/collections/os_evidencias/records?perPage=200&filter=(os='${osId}' %26%26 idempotency_key='${keyA}')`,
+        s.adminTok
+      )
+      assert.strictEqual((q.body?.items ?? []).length, 1, 'deveria existir exatamente 1 evidência para (os, keyA)')
+    })
+
+    it('W2 · chave DIFERENTE → novo registro (2 no total)', async () => {
+      const rB = await createEvid(s.profTok, { os: osId, fase: 'depois', legenda: 'b', idempotency_key: keyB })
+      assert.strictEqual(rB.status, 200, `create com chave nova falhou: ${JSON.stringify(rB.body)}`)
+
+      const q = await GET(`/api/collections/os_evidencias/records?perPage=200&filter=(os='${osId}')`, s.adminTok)
+      const keys = new Set((q.body?.items ?? []).map(x => x.idempotency_key))
+      assert.ok(keys.has(keyA) && keys.has(keyB), 'deveria haver evidências com keyA e keyB')
+      assert.strictEqual((q.body?.items ?? []).length, 2, 'chaves diferentes deveriam gerar 2 registros')
+    })
+
+    it('W3 · SEM idempotency_key → comportamento inalterado (não deduz)', async () => {
+      const n1 = await createEvid(s.profTok, { os: osId, fase: 'durante', legenda: 'sem-chave' })
+      const n2 = await createEvid(s.profTok, { os: osId, fase: 'durante', legenda: 'sem-chave' })
+      assert.strictEqual(n1.status, 200, `create sem chave #1 falhou: ${JSON.stringify(n1.body)}`)
+      assert.strictEqual(n2.status, 200, `create sem chave #2 falhou: ${JSON.stringify(n2.body)}`)
+      assert.notStrictEqual(n1.body?.id, n2.body?.id, 'sem chave, cada create deve ser um registro distinto')
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('X · Gate de checklist obrigatório no servidor (P1)', () => {
+    // os_logic.js:411-420 — OS em_andamento com item obrigatório PENDENTE +
+    // pagamento OK: PATCH status=concluida deve FALHAR; marcar o item done → 200.
+    let osId
+    before(async () => {
+      osId = (await createOS(s.adminTok, {
+        cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+        data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+        checklist_exec: [
+          { id: 'ckx1', titulo: 'Obrigatório', status: 'pendente', obrigatorio: true },
+          { id: 'ckx2', titulo: 'Opcional',    status: 'pendente', obrigatorio: false },
+        ],
+      })).id
+    })
+    after(async () => { await deleteOS(s.adminTok, osId) })
+
+    it('X1 · concluir com obrigatório PENDENTE (pagamento OK) → bloqueado (!=200)', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${osId}`,
+        s.profTok,
+        { valor_pago: 100, forma_pagamento: 'pix_maquininha', status: 'concluida' }
+      )
+      assert.notStrictEqual(status, 200, `Deveria bloquear conclusão com obrigatório pendente: ${JSON.stringify(body)}`)
+    })
+
+    it('X2 · marcar o obrigatório como concluido → conclui (200)', async () => {
+      const { status, body } = await PATCH(
+        `/api/collections/ordens_servico/records/${osId}`,
+        s.profTok,
+        {
+          checklist_exec: [
+            { id: 'ckx1', titulo: 'Obrigatório', status: 'concluido', obrigatorio: true },
+            { id: 'ckx2', titulo: 'Opcional',    status: 'pendente',  obrigatorio: false },
+          ],
+          valor_pago: 100, forma_pagamento: 'pix_maquininha', status: 'concluida',
+        }
+      )
+      assert.strictEqual(status, 200, `Deveria concluir com obrigatório done: ${JSON.stringify(body)}`)
+      assert.strictEqual(body?.status, 'concluida')
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('Y · /posicao — geocode do destino na 1ª posição (P2)', () => {
+    // Sem GOOGLE_MAPS_API_KEY (padrão do harness): dest fica vazio (degradação
+    // graciosa). Com a chave: dest é uma coordenada válida. A asserção é robusta
+    // aos dois cenários — nunca aceita lixo. Também confirma que a rota não vaza.
+    let osId
+    before(async () => {
+      osId = (await createOS(s.adminTok, {
+        cliente: s.clienteId, servico: s.servicoId, profissional: s.profId,
+        data_hora: `${todayBRT()} 10:00:00.000Z`, status: 'em_andamento', valor_servico: 100,
+      })).id
+    })
+    after(async () => { await deleteOS(s.adminTok, osId) })
+
+    it('Y1 · 1ª posição → 200 sem vazar; dest vazio (sem chave) OU coordenada válida (com chave)', async () => {
+      const { status, body } = await POST(`/api/cleanos/os/${osId}/posicao`, s.profTok, { lat: -23.55, lng: -46.63 })
+      assert.strictEqual(status, 200, `posição deveria 200: ${JSON.stringify(body)}`)
+      const bodyStr = JSON.stringify(body || {})
+      assert.ok(!bodyStr.includes('telefone') && !bodyStr.includes('phone'), 'Resposta de /posicao vazou dado sensível')
+
+      const after = await GET(`/api/collections/ordens_servico/records/${osId}`, s.adminTok)
+      const okCoord = (v, lo, hi) => {
+        if (v == null || v === '' || Number(v) === 0) return true // sem chave → vazio
+        const n = Number(v)
+        return Number.isFinite(n) && n >= lo && n <= hi                // com chave → válido
+      }
+      assert.ok(okCoord(after.body?.dest_lat, -90, 90),  `dest_lat inválido: ${after.body?.dest_lat}`)
+      assert.ok(okCoord(after.body?.dest_lng, -180, 180), `dest_lng inválido: ${after.body?.dest_lng}`)
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  // AA · Integridade de saldo server-side (fin_contas.saldo_atual)
+  //
+  // O saldo passa a ser mutado SÓ pelo servidor, por incremento atômico em SQL:
+  //   - hook de modelo em fin_lancamentos (create/update/delete) — fonte única;
+  //   - hook OS→Financeiro apenas CRIA o lançamento `via_os` (o saldo é creditado
+  //     pelo hook de fin_lancamentos — reconciliação, sem contar em dobro);
+  //   - guard de request em fin_contas ignora escrita direta de saldo_atual;
+  //   - endpoints /fin/conta/{id}/ajuste e /fin/transferencia (admin/gerente),
+  //     transacionais e atômicos.
+  // ────────────────────────────────────────────────────────────────────────
+  describe('AA · Integridade de saldo server-side (financeiro)', () => {
+    const CX = 'fincaixa0000001'   // Caixa físico
+    const NU = 'finnubank000001'   // Nubank
+    const near = (a, b, eps = 0.005) => Math.abs(Number(a) - Number(b)) < eps
+
+    let receitaCat, despesaCat
+    const created = [] // ids de lançamentos a limpar
+
+    before(async () => {
+      const rc = await GET(`/api/collections/fin_categorias/records?filter=${encodeURIComponent("tipo='receita'")}&perPage=1`, s.adminTok)
+      receitaCat = rc.body.items[0].id
+      const dc = await GET(`/api/collections/fin_categorias/records?filter=${encodeURIComponent("tipo='despesa'")}&perPage=1`, s.adminTok)
+      despesaCat = dc.body.items[0].id
+    })
+
+    after(async () => {
+      for (const id of created) {
+        await DELETE(`/api/collections/fin_lancamentos/records/${id}`, s.adminTok)
+      }
+    })
+
+    const saldo = async (id) => Number(
+      (await GET(`/api/collections/fin_contas/records/${id}`, s.adminTok)).body.saldo_atual
+    )
+    const mkLanc = async (over = {}) => {
+      const r = await POST('/api/collections/fin_lancamentos/records', s.adminTok, {
+        tipo: 'receita', descricao: 'AA teste', categoria_id: receitaCat, valor: 100,
+        conta_id: CX, data: '2026-07-01 10:00:00.000Z', status: 'pago',
+        recorrencia: 'unica', origem: 'manual', ...over,
+      })
+      if (r.status === 200 && r.body?.id) created.push(r.body.id)
+      return r
+    }
+
+    it('AA1 · CREATE de lançamento PAGO credita/debita o saldo pelo servidor', async () => {
+      const s0 = await saldo(CX)
+      const r = await mkLanc({ valor: 123.45 })
+      assert.strictEqual(r.status, 200, `create falhou: ${JSON.stringify(r.body)}`)
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0 + 123.45), `esperado ${s0 + 123.45}, veio ${s1}`)
+    })
+
+    it('AA2 · lançamento PENDENTE não mexe no saldo', async () => {
+      const s0 = await saldo(CX)
+      const r = await mkLanc({ tipo: 'despesa', categoria_id: despesaCat, valor: 50, status: 'pendente' })
+      assert.strictEqual(r.status, 200)
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0), `pendente mexeu no saldo: ${s0} → ${s1}`)
+    })
+
+    it('AA3 · UPDATE pendente→pago aplica o efeito (despesa)', async () => {
+      const r = await mkLanc({ tipo: 'despesa', categoria_id: despesaCat, valor: 30, status: 'pendente' })
+      const s0 = await saldo(CX)
+      await PATCH(`/api/collections/fin_lancamentos/records/${r.body.id}`, s.adminTok, { status: 'pago' })
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0 - 30), `esperado ${s0 - 30}, veio ${s1}`)
+    })
+
+    it('AA4 · UPDATE com troca de conta estorna na antiga e aplica na nova', async () => {
+      const r = await mkLanc({ valor: 80, conta_id: CX })
+      const cx0 = await saldo(CX), nu0 = await saldo(NU)
+      await PATCH(`/api/collections/fin_lancamentos/records/${r.body.id}`, s.adminTok, { conta_id: NU })
+      const cx1 = await saldo(CX), nu1 = await saldo(NU)
+      assert.ok(near(cx1, cx0 - 80), `CX esperado ${cx0 - 80}, veio ${cx1}`)
+      assert.ok(near(nu1, nu0 + 80), `NU esperado ${nu0 + 80}, veio ${nu1}`)
+    })
+
+    it('AA5 · DELETE de lançamento pago estorna o efeito', async () => {
+      const r = await mkLanc({ valor: 44 })
+      const s0 = await saldo(CX)
+      const del = await DELETE(`/api/collections/fin_lancamentos/records/${r.body.id}`, s.adminTok)
+      assert.strictEqual(del.status, 204)
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0 - 44), `esperado ${s0 - 44}, veio ${s1}`)
+    })
+
+    it('AA6 · OS concluída credita o saldo EXATAMENTE uma vez (reconciliação, sem dobro)', async () => {
+      const padrao = (await GET(`/api/collections/fin_contas/records?filter=${encodeURIComponent('padrao=true')}`, s.adminTok)).body.items[0]
+      const s0 = await saldo(padrao.id)
+      const os = await createOS(s.adminTok, {
+        cliente: s.clienteId, servico: s.servicoId, data_hora: '2026-07-01 10:00:00.000Z',
+        status: 'concluida', valor_servico: 250, valor_pago: 250, forma_pagamento: 'pix_maquininha',
+      })
+      const s1 = await saldo(padrao.id)
+      assert.ok(near(s1, s0 + 250), `crédito != 250 (dobro?): ${s0} → ${s1}`)
+
+      const lancs = await GET(`/api/collections/fin_lancamentos/records?filter=${encodeURIComponent(`os_id='${os.id}' && origem='via_os'`)}`, s.adminTok)
+      assert.strictEqual(lancs.body.totalItems, 1, `esperado 1 lançamento via_os, veio ${lancs.body.totalItems}`)
+
+      // re-save da OS concluída (sem transição) NÃO credita de novo
+      await PATCH(`/api/collections/ordens_servico/records/${os.id}`, s.adminTok, { observacoes_prof: 'toque' })
+      const s2 = await saldo(padrao.id)
+      assert.ok(near(s2, s1), `re-save duplicou o crédito: ${s1} → ${s2}`)
+
+      // limpa o lançamento e a OS
+      await DELETE(`/api/collections/fin_lancamentos/records/${lancs.body.items[0].id}`, s.adminTok)
+      await deleteOS(s.adminTok, os.id)
+    })
+
+    it('AA7 · cliente NÃO consegue setar saldo_atual direto (ignorado); demais campos ok', async () => {
+      const s0 = await saldo(CX)
+      const r = await PATCH(`/api/collections/fin_contas/records/${CX}`, s.adminTok, { saldo_atual: 999999, cor: '#AA7AA7' })
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0), `saldo_atual foi setado pelo cliente: ${s0} → ${s1}`)
+      assert.strictEqual(r.body?.cor, '#AA7AA7', 'CRUD de outros campos da conta quebrou')
+      // restaura a cor original (não polui o seed visualmente)
+      await PATCH(`/api/collections/fin_contas/records/${CX}`, s.adminTok, { cor: '#64748B' })
+    })
+
+    it('AA8 · POST /fin/conta/{id}/ajuste {delta} é transacional e atômico', async () => {
+      const s0 = await saldo(CX)
+      const r = await POST(`/api/cleanos/fin/conta/${CX}/ajuste`, s.adminTok, { delta: 55.5 })
+      assert.strictEqual(r.status, 200, `ajuste falhou: ${JSON.stringify(r.body)}`)
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0 + 55.5), `esperado ${s0 + 55.5}, veio ${s1}`)
+      assert.ok(near(r.body.saldo_atual, s1), 'resposta do ajuste != saldo persistido')
+      // volta ao estado anterior
+      await POST(`/api/cleanos/fin/conta/${CX}/ajuste`, s.adminTok, { delta: -55.5 })
+    })
+
+    it('AA9 · POST /fin/conta/{id}/ajuste {novoSaldo} converte para delta na transação', async () => {
+      const s0 = await saldo(CX)
+      const r = await POST(`/api/cleanos/fin/conta/${CX}/ajuste`, s.adminTok, { novoSaldo: s0 + 10 })
+      assert.strictEqual(r.status, 200)
+      const s1 = await saldo(CX)
+      assert.ok(near(s1, s0 + 10), `esperado ${s0 + 10}, veio ${s1}`)
+      await POST(`/api/cleanos/fin/conta/${CX}/ajuste`, s.adminTok, { novoSaldo: s0 })
+    })
+
+    it('AA10 · POST /fin/transferencia debita origem e credita destino na mesma transação', async () => {
+      const cx0 = await saldo(CX), nu0 = await saldo(NU)
+      const r = await POST('/api/cleanos/fin/transferencia', s.adminTok, { from: CX, to: NU, valor: 200 })
+      assert.strictEqual(r.status, 200, `transferência falhou: ${JSON.stringify(r.body)}`)
+      const cx1 = await saldo(CX), nu1 = await saldo(NU)
+      assert.ok(near(cx1, cx0 - 200), `origem esperada ${cx0 - 200}, veio ${cx1}`)
+      assert.ok(near(nu1, nu0 + 200), `destino esperado ${nu0 + 200}, veio ${nu1}`)
+      // estorna a transferência
+      await POST('/api/cleanos/fin/transferencia', s.adminTok, { from: NU, to: CX, valor: 200 })
+    })
+
+    it('AA11 · transferência que falha (destino inexistente) NÃO debita a origem', async () => {
+      const cx0 = await saldo(CX)
+      const r = await POST('/api/cleanos/fin/transferencia', s.adminTok, { from: CX, to: 'naoexiste00000', valor: 77 })
+      assert.ok(r.status >= 400, `esperado erro, veio ${r.status}`)
+      const cx1 = await saldo(CX)
+      assert.ok(near(cx1, cx0), `origem foi debitada numa transferência falha: ${cx0} → ${cx1}`)
+    })
+
+    it('AA12 · profissional é BLOQUEADO nos endpoints de saldo (403)', async () => {
+      const a = await POST(`/api/cleanos/fin/conta/${CX}/ajuste`, s.profTok, { delta: 1 })
+      assert.ok(a.status === 403 || a.status === 401, `ajuste: esperado 403/401, veio ${a.status}`)
+      const t = await POST('/api/cleanos/fin/transferencia', s.profTok, { from: CX, to: NU, valor: 1 })
+      assert.ok(t.status === 403 || t.status === 401, `transferência: esperado 403/401, veio ${t.status}`)
+    })
+
+    it('AA13 · concorrência: N ajustes atômicos concorrentes somam certo (sem lost-update)', async () => {
+      const base = await saldo(NU)
+      const N = 25
+      await Promise.all(Array.from({ length: N }, () =>
+        POST(`/api/cleanos/fin/conta/${NU}/ajuste`, s.adminTok, { delta: 1 })
+      ))
+      const after = await saldo(NU)
+      assert.ok(near(after, base + N), `lost-update! esperado ${base + N}, veio ${after}`)
+      await POST(`/api/cleanos/fin/conta/${NU}/ajuste`, s.adminTok, { delta: -N })
+    })
+  })
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('Z · Casos que exigem mock de UAZAPI+Google Maps (documentados/pendentes)', () => {
+    // O harness de integração bate num PocketBase real SEM instância UAZAPI
+    // conectada e SEM GOOGLE_MAPS_API_KEY. Os casos abaixo dependem de simular
+    // ambos (WhatsApp `connected` + geocode/ETA determinísticos). Ficam como
+    // `skip` com o caso pretendido registrado — o risco é conhecido e rastreado.
+    // Para exercê-los: subir uma instância isolada com uazapi.js/maps.js stub.
+
+    it('Z1 · /a-caminho reseta aviso_5min_em/1min_em/cheguei_em da nova viagem',
+      { skip: 'requer UAZAPI connected (rota retorna 409 sem instância)' }, () => {})
+
+    it('Z2 · /a-caminho geocodifica o destino quando dest_lat/lng ainda vazios',
+      { skip: 'requer GOOGLE_MAPS_API_KEY + UAZAPI connected' }, () => {})
+
+    it('Z3 · cron trackingAvisos: ETA cai direto para ≤1min sem ter mandado a de 5 → manda só a de 1 e carimba ambas',
+      { skip: 'requer mock de maps.etaMinutes + uazapi; cron é time-triggered' }, () => {})
+
+    it('Z4 · cron trackingAvisos: pula quando has5 && has1 (ambos já enviados)',
+      { skip: 'requer mock de maps.etaMinutes + uazapi; cron é time-triggered' }, () => {})
+
+    it('Z5 · cron trackingAvisos: posição stale (> POS_FRESH_MS) → não envia',
+      { skip: 'requer mock de maps.etaMinutes + uazapi; cron é time-triggered' }, () => {})
+
+    it('Z6 · cron trackingAvisos: viagem > MAX_TRIP_MS → não envia',
+      { skip: 'requer mock de maps.etaMinutes + uazapi; cron é time-triggered' }, () => {})
+
+    it('Z7 · cron trackingAvisos: coord 0/NaN → pula a OS',
+      { skip: 'requer mock de maps.etaMinutes + uazapi; cron é time-triggered' }, () => {})
+
+    it('Z8 · cron trackingAvisos: WhatsApp != connected → pula o loop de ETA (não queima quota Maps)',
+      { skip: 'requer mock de uazapi.instanceStatus + contador de chamadas maps.etaMinutes' }, () => {})
+  })
 })

@@ -1,0 +1,101 @@
+name: cleanos
+description: "CleanOS — Painel Web + App Profissional (unificado Flutter)"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management (compile-time safe, testável sem BuildContext)
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Roteamento + deep-linking
+  go_router: ^14.6.2
+
+  # Backend PocketBase (SDK Dart oficial)
+  pocketbase: ^0.22.0
+
+  # HTTP multipart (upload de evidências) — o SDK PocketBase expõe MultipartFile
+  # via package:http; declarado aqui para o upload de fotos (os_evidencias).
+  http: ^1.0.0
+
+  # Modelos imutáveis + serialização
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Auth token seguro (Keychain / EncryptedSharedPreferences) — NUNCA SharedPreferences
+  flutter_secure_storage: ^9.2.4
+
+  # Diretório app-private (cópia estável das evidências enfileiradas — o cache do
+  # image_picker pode ser limpo pelo SO após um kill).
+  path_provider: ^2.1.5
+
+  # i18n / moeda / datas BRT
+  intl: ^0.20.2
+
+  # Charts (VisaoGeral / Relatorios do painel)
+  fl_chart: ^0.69.2
+
+  # Laudo PDF (substitui pdfOS.ts / relatorioOS.ts)
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
+  # Evidências (câmera/galeria)
+  image_picker: ^1.1.2
+
+  # Imagens de rede com cache (evidências com file token)
+  cached_network_image: ^3.4.1
+
+  # Gerenciador do cache em disco (transitivo do cached_network_image) — usado
+  # diretamente na purga LGPD do logout (AuthService). Declarado explicitamente.
+  flutter_cache_manager: ^3.4.1
+
+  # Permissões (câmera, localização — Fase 2)
+  permission_handler: ^11.3.1
+
+  # Abrir Google Maps / links externos
+  url_launcher: ^6.3.1
+
+  cupertino_icons: ^1.0.8
+
+  # --- Fase 2 (time B) — GPS/tracking (doc 09). TUDO atrás de Env.trackingEnabled. ---
+  # O app compila e roda com a flag OFF; estes plugins só são exercitados quando
+  # `TRACKING_ENABLED=true` (gate G-5). Push FCM (firebase_*) segue STUB (gate G-2).
+  geolocator: ^14.0.0            # GPS ao vivo (doc 09)
+  flutter_foreground_task: ^9.0.0  # foreground service Android + notificação persistente
+  # firebase_core / firebase_messaging  # push FCM (doc 09) — STUB até gate do dono (G-2)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Code generation (freezed / json_serializable / riverpod)
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
+  # Sora (marca petrol+cyan) — instâncias estáticas geradas do variable font
+  # oficial (OFL) via fontTools.varLib.instancer.
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-400.ttf
+        - asset: assets/fonts/Sora-500.ttf
+          weight: 500
+        - asset: assets/fonts/Sora-600.ttf
+          weight: 600
+        - asset: assets/fonts/Sora-700.ttf
+          weight: 700
+        - asset: assets/fonts/Sora-800.ttf
+          weight: 800

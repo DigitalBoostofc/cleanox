@@ -1,0 +1,237 @@
+# CleanOS — App Profissional (Flutter) → Google Play (Android only)
+#
+# Multi-stage release pipeline — entrypoint unificado: lib/main_android.dart.
+# (main_profissional.dart e main_painel.dart continuam existindo p/ dev; BUILD/CI usa main_android.dart.)
+# The web painel and iOS are OUT OF SCOPE here.
+#
+# Track routing:
+#   push to main ...................... internal   (+ auto-bump of the +N build number)
+#   tag  v*-alpha (e.g. v1.2.0-alpha) .. alpha
+#   tag  v*-beta  (e.g. v1.2.0-beta) ... beta
+#   tag  v*       (e.g. v1.2.0) ........ production (staged 20% rollout by default)
+#   workflow_dispatch ................. operator-selected track
+#
+# The build ALWAYS runs and uploads an .aab/.apk artifact. Signing with the real
+# upload key and publishing to Play only happen when the corresponding secrets are
+# configured — until then the job still produces a debug-signed artifact you can
+# download, so the pipeline is usable before the owner finishes Play Console setup.
+#
+# Required GitHub Secrets (see docs/11-release-android-checklist.md):
+#   KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD,
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+
+name: Android Release (Unified)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Google Play track to publish to'
+        required: true
+        default: 'internal'
+        type: choice
+        options: [internal, alpha, beta, production]
+
+# Needed so the auto-bump step can push the version commit back to main.
+permissions:
+  contents: write
+
+env:
+  # Flutter project lives in a monorepo subdirectory.
+  FLUTTER_DIR: cleanos/flutter
+  FLUTTER_VERSION: '3.35.5'
+  ENTRYPOINT: lib/main_android.dart
+  PACKAGE_NAME: br.com.wenox.cleanos
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide which Play track applies and whether the App Profissional actually
+  # changed (monorepo: skip main-push builds that only touched the backend).
+  # ---------------------------------------------------------------------------
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      track: ${{ steps.decide.outputs.track }}
+      should_build: ${{ steps.decide.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Flutter changes (main pushes only)
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            flutter:
+              - 'cleanos/flutter/**'
+              - '.github/workflows/android-release-profissional.yml'
+
+      - name: Decide track + whether to build
+        id: decide
+        run: |
+          set -euo pipefail
+          REF="${GITHUB_REF}"
+          EVENT="${GITHUB_EVENT_NAME}"
+          TRACK=""
+          BUILD="false"
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            TRACK="${{ github.event.inputs.track }}"
+            BUILD="true"
+          elif [[ "$REF" == refs/tags/* ]]; then
+            TAG="${REF#refs/tags/}"
+            if   [[ "$TAG" == *-alpha* ]]; then TRACK="alpha"
+            elif [[ "$TAG" == *-beta*  ]]; then TRACK="beta"
+            else TRACK="production"; fi
+            BUILD="true"
+          elif [ "$REF" = "refs/heads/main" ]; then
+            TRACK="internal"
+            BUILD="${{ steps.changes.outputs.flutter }}"
+          fi
+
+          echo "track=$TRACK"        >> "$GITHUB_OUTPUT"
+          echo "should_build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Resolved track='$TRACK' should_build='$BUILD' (event=$EVENT ref=$REF)"
+
+  build-and-release:
+    needs: setup
+    if: needs.setup.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    # Job-level env so `env.PLAY_JSON` is usable in step `if:` guards (secrets
+    # can't be referenced directly in `if:`, and step-level env isn't available
+    # in that same step's own condition).
+    env:
+      PLAY_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a token that can push the version-bump commit back to main.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----- Auto-bump the +N build number (internal / main pushes only) -----
+      - name: Auto-bump build number (pubspec version +N)
+        id: bump
+        if: needs.setup.outputs.track == 'internal' && github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          CURRENT=$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/version:[[:space:]]*//')
+          NAME="${CURRENT%%+*}"
+          CODE="${CURRENT##*+}"
+          if [ "$NAME" = "$CODE" ]; then CODE=0; fi   # no +N present
+          NEXT=$((CODE + 1))
+          sed -i -E "s/^version:.*/version: ${NAME}+${NEXT}/" pubspec.yaml
+          echo "Bumped version: ${CURRENT} -> ${NAME}+${NEXT}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore(release): bump App Profissional build to ${NAME}+${NEXT} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # ----- Release signing: only when the keystore secrets are present -----
+      # Writes android/key.properties (git-ignored) consumed by app/build.gradle.kts.
+      # If KEYSTORE_FILE is empty the step is skipped and the build falls back to
+      # debug signing (artifact builds, but is not publishable).
+      - name: Configure release signing
+        id: signing
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_FILE}" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No KEYSTORE_FILE secret set — building with debug signing (not publishable)."
+            exit 0
+          fi
+          echo "${KEYSTORE_FILE}" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "Release signing configured."
+
+      - name: Build App Bundle (.aab)
+        run: flutter build appbundle --release -t ${{ env.ENTRYPOINT }}
+
+      - name: Build APK (.apk, for direct install / testing)
+        run: flutter build apk --release -t ${{ env.ENTRYPOINT }}
+
+      # Never leave signing material on the runner workspace.
+      - name: Clean up signing material
+        if: always()
+        run: rm -f android/key.properties android/upload-keystore.jks
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-profissional-${{ needs.setup.outputs.track }}
+          path: |
+            ${{ env.FLUTTER_DIR }}/build/app/outputs/bundle/release/*.aab
+            ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # ----- Publish to Google Play (only when fully configured) -----
+      - name: Resolve rollout status
+        id: rollout
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.setup.outputs.track }}" = "production" ]; then
+            echo "status=inProgress" >> "$GITHUB_OUTPUT"
+            echo "fraction=0.2"       >> "$GITHUB_OUTPUT"
+          else
+            echo "status=completed" >> "$GITHUB_OUTPUT"
+            echo "fraction="        >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to Google Play
+        # Requires BOTH a real signed bundle AND the service-account secret.
+        if: steps.signing.outputs.signed == 'true' && env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: ${{ env.FLUTTER_DIR }}/build/app/outputs/bundle/release/app-release.aab
+          track: ${{ needs.setup.outputs.track }}
+          status: ${{ steps.rollout.outputs.status }}
+          userFraction: ${{ steps.rollout.outputs.fraction }}
+
+      - name: Publish skipped notice
+        if: steps.signing.outputs.signed != 'true' || env.PLAY_JSON == ''
+        run: |
+          echo "::notice::Play publish skipped — set KEYSTORE_* and GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secrets to enable. Artifact was still uploaded."
