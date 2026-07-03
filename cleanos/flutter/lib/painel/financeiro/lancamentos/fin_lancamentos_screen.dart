@@ -951,16 +951,31 @@ class _DayHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x2),
-          Text(
-            '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
-            style: tt.bodySmall?.copyWith(color: clx.ink3),
+          // Expanded (no lugar de Text + Spacer): ocupa o vão empurrando o total
+          // pra direita como antes, mas a contagem elipsa/encolhe primeiro em
+          // vez de estourar a Row em telas estreitas.
+          Expanded(
+            child: Text(
+              '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: tt.bodySmall?.copyWith(color: clx.ink3),
+            ),
           ),
-          const Spacer(),
-          Text(
-            formatSignedValue(grupo.totalDia),
-            style: tt.labelMedium?.copyWith(
-              color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: ClxSpace.x2),
+          // Flexible p/ totais longos (ex.: R$ 1.234.567,89) não estourarem.
+          Flexible(
+            child: Text(
+              formatSignedValue(grupo.totalDia),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: tt.labelMedium?.copyWith(
+                color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1068,11 +1083,19 @@ class _LancamentoRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x3),
-            Text(
-              formatSigned(l),
-              style: tt.bodyLarge?.copyWith(
-                color: tipoColor(clx, l.tipo),
-                fontWeight: FontWeight.w800,
+            // Flexible + ellipsis: valores muito longos elipsam em vez de
+            // estourar a Row (a descrição no Expanded já cede espaço primeiro).
+            Flexible(
+              child: Text(
+                formatSigned(l),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: tt.bodyLarge?.copyWith(
+                  color: tipoColor(clx, l.tipo),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             PopupMenuButton<String>(
@@ -1106,3 +1129,23 @@ class _LancamentoRow extends StatelessWidget {
     );
   }
 }
+
+/// Builders expostos só para teste de layout (F-742): exercitam o `_DayHeader`
+/// e o valor do `_LancamentoRow` isoladamente, sem a toolbar do Financeiro
+/// (cujo layout mobile é escopo de F-741, fora desta correção).
+@visibleForTesting
+Widget debugDayHeader(GrupoPorData grupo) => _DayHeader(grupo: grupo);
+
+@visibleForTesting
+Widget debugLancamentoRow(FinLancamento lancamento) => _LancamentoRow(
+  lancamento: lancamento,
+  categoria: null,
+  subcategoria: null,
+  conta: null,
+  onTap: () {},
+  onDetail: () {},
+  onEdit: () {},
+  onRepeat: () {},
+  onDuplicate: () {},
+  onDelete: () {},
+);

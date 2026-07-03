@@ -14,18 +14,21 @@ void showClxToast(
   Duration duration = const Duration(milliseconds: 3800),
 }) {
   final clx = context.clx;
+  // O toast de warning muda de tom por tema (claro #B45309 escuro / escuro
+  // #FBBF24 âmbar-claro). Fixar branco quebrava o WCAG no escuro (~1,6:1), então
+  // a cor do texto/ícone segue o BRILHO do fundo real: fundo escuro → branco,
+  // fundo claro → preto — legível (AA) nos dois temas sem tocar no fundo.
+  final warningFg =
+      ThemeData.estimateBrightnessForColor(clx.warning) == Brightness.dark
+      ? Colors.white
+      : Colors.black87;
   final (bg, fg, icon) = switch (type) {
     ToastType.success => (
       clx.success,
       Colors.white,
       Icons.check_circle_rounded,
     ),
-    // warning claro é #B45309 (escuro, WCAG) → texto/ícone brancos.
-    ToastType.warning => (
-      clx.warning,
-      Colors.white,
-      Icons.warning_amber_rounded,
-    ),
+    ToastType.warning => (clx.warning, warningFg, Icons.warning_amber_rounded),
     ToastType.error => (clx.error, Colors.white, Icons.error_rounded),
     ToastType.info => (clx.accent, Colors.white, Icons.info_rounded),
   };

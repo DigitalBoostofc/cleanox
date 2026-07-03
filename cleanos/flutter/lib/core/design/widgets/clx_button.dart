@@ -73,10 +73,10 @@ class ClxButton extends StatelessWidget {
         label: label,
         child: Material(
           color: bg,
-          borderRadius: ClxRadii.rMd,
+          borderRadius: ClxRadii.rPill,
           child: InkWell(
             onTap: _disabled ? null : onPressed,
-            borderRadius: ClxRadii.rMd,
+            borderRadius: ClxRadii.rPill,
             child: Container(
               constraints: const BoxConstraints(
                 minHeight: ClxLayout.minTouchTarget,
@@ -84,7 +84,7 @@ class ClxButton extends StatelessWidget {
               width: expand ? double.infinity : null,
               padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x5),
               decoration: BoxDecoration(
-                borderRadius: ClxRadii.rMd,
+                borderRadius: ClxRadii.rPill,
                 border: border == null ? null : Border.all(color: border),
               ),
               alignment: Alignment.center,
