@@ -46,6 +46,10 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
 
+  /// Mobile: filtro (busca + chips) colapsado por padrão para priorizar a lista.
+  /// No desktop os filtros ficam sempre visíveis (este flag é ignorado).
+  bool _showFilters = false;
+
   @override
   void initState() {
     super.initState();
@@ -215,32 +219,142 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     final state = ref.watch(finLancControllerProvider);
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
+    final mobile = finIsMobile(context);
+
+    final toolbar = _Toolbar(
+      search: _searchCtrl,
+      onSearch: _onSearch,
+      filters: state.filters,
+      categorias: categorias,
+      contas: contas,
+      mobile: mobile,
+      showFilters: _showFilters,
+      onToggleFilters: () => setState(() => _showFilters = !_showFilters),
+      onTipo: (t) => ref
+          .read(finLancControllerProvider.notifier)
+          .setFilters(state.filters.copyWith(tipo: t)),
+      onStatus: (s) => ref
+          .read(finLancControllerProvider.notifier)
+          .setFilters(state.filters.copyWith(status: s)),
+      onCategoria: (id) => ref
+          .read(finLancControllerProvider.notifier)
+          .setFilters(state.filters.copyWith(categoriaId: id)),
+      onConta: (id) => ref
+          .read(finLancControllerProvider.notifier)
+          .setFilters(state.filters.copyWith(contaId: id)),
+      onNovo: () => _openForm(),
+    );
+
+    // Mobile (F-741): toolbar + KPIs rolam JUNTO com a lista (não são irmãos
+    // fixos acima de um Expanded), liberando viewport para os lançamentos.
+    if (mobile) return _mobileBody(state, categorias, contas, toolbar);
+
+    // Desktop/tablet: layout original preservado (faixa fixa + lista).
     return Column(
       children: [
-        _Toolbar(
-          search: _searchCtrl,
-          onSearch: _onSearch,
-          filters: state.filters,
-          categorias: categorias,
-          contas: contas,
-          onTipo: (t) => ref
-              .read(finLancControllerProvider.notifier)
-              .setFilters(state.filters.copyWith(tipo: t)),
-          onStatus: (s) => ref
-              .read(finLancControllerProvider.notifier)
-              .setFilters(state.filters.copyWith(status: s)),
-          onCategoria: (id) => ref
-              .read(finLancControllerProvider.notifier)
-              .setFilters(state.filters.copyWith(categoriaId: id)),
-          onConta: (id) => ref
-              .read(finLancControllerProvider.notifier)
-              .setFilters(state.filters.copyWith(contaId: id)),
-          onNovo: () => _openForm(),
-        ),
+        toolbar,
         const _Kpis(),
         Expanded(child: _body(state, categorias, contas)),
       ],
     );
+  }
+
+  /// Layout de celular: um único `CustomScrollView` onde o cabeçalho (toolbar +
+  /// KPIs) é o primeiro sliver rolável e a lista/estados vêm logo abaixo.
+  Widget _mobileBody(
+    FinLancState state,
+    List<FinCategoria> categorias,
+    List<FinConta> contas,
+    Widget toolbar,
+  ) {
+    return RefreshIndicator(
+      color: context.clx.primary,
+      onRefresh: () => ref.read(finLancControllerProvider.notifier).refresh(),
+      child: CustomScrollView(
+        controller: _scroll,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                ClxSpace.x4,
+                ClxSpace.x4,
+                ClxSpace.x4,
+                ClxSpace.x2,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  toolbar,
+                  const SizedBox(height: ClxSpace.x4),
+                  const _Kpis(mobile: true),
+                ],
+              ),
+            ),
+          ),
+          ..._bodySlivers(state, categorias, contas),
+        ],
+      ),
+    );
+  }
+
+  /// Slivers do corpo (lista/estado) usados no layout mobile.
+  List<Widget> _bodySlivers(
+    FinLancState state,
+    List<FinCategoria> categorias,
+    List<FinConta> contas,
+  ) {
+    if (state.loading) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: EdgeInsets.only(top: ClxSpace.x10),
+            child: Center(child: Spinner(size: 26)),
+          ),
+        ),
+      ];
+    }
+    if (state.error != null && state.isEmpty) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.all(ClxSpace.x6),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: ErrorBanner(
+                  message: state.error!,
+                  onRetry: () =>
+                      ref.read(finLancControllerProvider.notifier).refresh(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    if (state.isEmpty) {
+      return [
+        SliverFillRemaining(hasScrollBody: false, child: _emptyState()),
+      ];
+    }
+
+    final catById = {for (final c in categorias) c.id: c};
+    final contaById = {for (final c in contas) c.id: c};
+    final rows = _flatten(state);
+    final extra = state.hasMore ? 1 : 0;
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+        sliver: SliverList.builder(
+          itemCount: rows.length + extra,
+          itemBuilder: (context, i) =>
+              _rowItem(context, rows, catById, contaById, i),
+        ),
+      ),
+    ];
   }
 
   Widget _body(
@@ -264,38 +378,12 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
         ),
       );
     }
-    if (state.isEmpty) {
-      final filtered = state.filters.hasAny;
-      return EmptyState(
-        icon: filtered ? Icons.search_off_rounded : Icons.receipt_long_outlined,
-        title: filtered
-            ? 'Nenhum lançamento encontrado'
-            : 'Nenhum lançamento neste mês',
-        message: filtered
-            ? 'Ajuste os filtros ou o mês.'
-            : 'Clique em "Novo lançamento" para começar.',
-        action: filtered
-            ? null
-            : ClxButton(
-                label: 'Novo lançamento',
-                icon: Icons.add_rounded,
-                onPressed: () => _openForm(),
-              ),
-      );
-    }
+    if (state.isEmpty) return _emptyState();
 
     final catById = {for (final c in categorias) c.id: c};
     final contaById = {for (final c in contas) c.id: c};
 
-    // Achata grupos (cabeçalho por dia) + itens num só ListView virtualizado.
-    final grupos = agruparPorData(state.items);
-    final rows = <_Row>[];
-    for (final g in grupos) {
-      rows.add(_Row.header(g));
-      for (final l in g.itens) {
-        rows.add(_Row.item(l));
-      }
-    }
+    final rows = _flatten(state);
     final extra = state.hasMore ? 1 : 0;
 
     return RefreshIndicator(
@@ -305,33 +393,79 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
         controller: _scroll,
         padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
         itemCount: rows.length + extra,
-        itemBuilder: (context, i) {
-          if (i >= rows.length) {
-            return const Padding(
-              padding: EdgeInsets.all(ClxSpace.x4),
-              child: Center(child: Spinner(size: 20)),
-            );
-          }
-          final row = rows[i];
-          return row.header != null
-              ? _DayHeader(grupo: row.header!)
-              : _LancamentoRow(
-                  lancamento: row.item!,
-                  categoria: catById[row.item!.categoriaId],
-                  subcategoria: row.item!.subcategoriaId == null
-                      ? null
-                      : catById[row.item!.subcategoriaId],
-                  conta: contaById[row.item!.contaId],
-                  onTap: () => _openDetail(row.item!),
-                  onDetail: () => _openDetail(row.item!),
-                  onEdit: () => _openForm(editing: row.item!),
-                  onRepeat: () => _repeat(row.item!),
-                  onDuplicate: () => _duplicate(row.item!),
-                  onDelete: () => _delete(row.item!),
-                );
-        },
+        itemBuilder: (context, i) =>
+            _rowItem(context, rows, catById, contaById, i),
       ),
     );
+  }
+
+  /// Estado vazio (com/sem filtros) — compartilhado entre mobile e desktop.
+  Widget _emptyState() {
+    final filtered = _filters.hasAny;
+    return EmptyState(
+      icon: filtered ? Icons.search_off_rounded : Icons.receipt_long_outlined,
+      title: filtered
+          ? 'Nenhum lançamento encontrado'
+          : 'Nenhum lançamento neste mês',
+      message: filtered
+          ? 'Ajuste os filtros ou o mês.'
+          : 'Clique em "Novo lançamento" para começar.',
+      action: filtered
+          ? null
+          : ClxButton(
+              label: 'Novo lançamento',
+              icon: Icons.add_rounded,
+              onPressed: () => _openForm(),
+            ),
+    );
+  }
+
+  /// Achata os grupos por DIA (cabeçalho + itens) numa lista virtualizável.
+  List<_Row> _flatten(FinLancState state) {
+    final grupos = agruparPorData(state.items);
+    final rows = <_Row>[];
+    for (final g in grupos) {
+      rows.add(_Row.header(g));
+      for (final l in g.itens) {
+        rows.add(_Row.item(l));
+      }
+    }
+    return rows;
+  }
+
+  /// Constrói a i-ésima linha (cabeçalho de dia, lançamento ou spinner de
+  /// "carregar mais"). Compartilhado pelo `ListView.builder` (desktop) e pelo
+  /// `SliverList.builder` (mobile).
+  Widget _rowItem(
+    BuildContext context,
+    List<_Row> rows,
+    Map<String, FinCategoria> catById,
+    Map<String, FinConta> contaById,
+    int i,
+  ) {
+    if (i >= rows.length) {
+      return const Padding(
+        padding: EdgeInsets.all(ClxSpace.x4),
+        child: Center(child: Spinner(size: 20)),
+      );
+    }
+    final row = rows[i];
+    return row.header != null
+        ? _DayHeader(grupo: row.header!)
+        : _LancamentoRow(
+            lancamento: row.item!,
+            categoria: catById[row.item!.categoriaId],
+            subcategoria: row.item!.subcategoriaId == null
+                ? null
+                : catById[row.item!.subcategoriaId],
+            conta: contaById[row.item!.contaId],
+            onTap: () => _openDetail(row.item!),
+            onDetail: () => _openDetail(row.item!),
+            onEdit: () => _openForm(editing: row.item!),
+            onRepeat: () => _repeat(row.item!),
+            onDuplicate: () => _duplicate(row.item!),
+            onDelete: () => _delete(row.item!),
+          );
   }
 }
 
@@ -349,7 +483,11 @@ class _Row {
 /// previstas e saldo). Base = [finPeriodLancamentosProvider] +
 /// [finPrevPeriodResumoProvider]. Espelha os KPIs de `Lancamentos.tsx`.
 class _Kpis extends ConsumerWidget {
-  const _Kpis();
+  const _Kpis({this.mobile = false});
+
+  /// No mobile a grade entra DENTRO do scroll (o padding externo já vem do
+  /// cabeçalho rolável), então dispensa o padding horizontal próprio.
+  final bool mobile;
 
   static ({bool up, String text})? _trend(
     double cur,
@@ -387,12 +525,9 @@ class _Kpis extends ConsumerWidget {
     final saldoNeg = resumo.saldoMes < 0;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x6,
-        ClxSpace.x4,
-        ClxSpace.x6,
-        0,
-      ),
+      padding: mobile
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(ClxSpace.x6, ClxSpace.x4, ClxSpace.x6, 0),
       child: FinKpiGrid(
         cards: [
           FinKpiCard(
@@ -445,6 +580,9 @@ class _Toolbar extends StatelessWidget {
     required this.filters,
     required this.categorias,
     required this.contas,
+    required this.mobile,
+    required this.showFilters,
+    required this.onToggleFilters,
     required this.onTipo,
     required this.onStatus,
     required this.onCategoria,
@@ -457,6 +595,12 @@ class _Toolbar extends StatelessWidget {
   final FinLancFilters filters;
   final List<FinCategoria> categorias;
   final List<FinConta> contas;
+
+  /// Layout de celular: filtro colapsável atrás de um botão "Filtros".
+  final bool mobile;
+  final bool showFilters;
+  final VoidCallback onToggleFilters;
+
   final ValueChanged<TipoLancamento?> onTipo;
   final ValueChanged<LancamentoStatus?> onStatus;
   final ValueChanged<String?> onCategoria;
@@ -465,11 +609,18 @@ class _Toolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final clx = context.clx;
     // Categorias-mãe (todas as naturezas) para o filtro.
     final roots =
         categorias.where((c) => c.parentId == null).toList()
           ..sort((a, b) => a.nome.compareTo(b.nome));
+
+    if (mobile) return _mobile(context, roots);
+    return _desktop(context, roots);
+  }
+
+  /// Desktop/tablet: layout original (faixa fixa com filtro sempre visível).
+  Widget _desktop(BuildContext context, List<FinCategoria> roots) {
+    final clx = context.clx;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -500,71 +651,122 @@ class _Toolbar extends StatelessWidget {
               Expanded(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 360),
-                  child: TextField(
-                    controller: search,
-                    onChanged: onSearch,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'Buscar descrição, cliente ou nº da OS…',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      filled: true,
-                      fillColor: clx.bg2,
-                      border: const OutlineInputBorder(
-                        borderRadius: ClxRadii.rMd,
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
+                  child: _searchField(context),
                 ),
               ),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),
-          Wrap(
-            spacing: ClxSpace.x2,
-            runSpacing: ClxSpace.x2,
-            children: [
-              _FilterChip(
-                label: 'Todos',
-                selected: filters.tipo == null,
-                onTap: () => onTipo(null),
-              ),
-              _FilterChip(
-                label: 'Receitas',
-                selected: filters.tipo == TipoLancamento.receita,
-                color: clx.finIncome,
-                onTap: () => onTipo(TipoLancamento.receita),
-              ),
-              _FilterChip(
-                label: 'Despesas',
-                selected: filters.tipo == TipoLancamento.despesa,
-                color: clx.finExpense,
-                onTap: () => onTipo(TipoLancamento.despesa),
-              ),
-              const SizedBox(width: ClxSpace.x2),
-              _StatusMenu(value: filters.status, onChanged: onStatus),
-              _IdFilterMenu(
-                icon: Icons.category_outlined,
-                allLabel: 'Categoria',
-                value: filters.categoriaId,
-                items: [for (final c in roots) (id: c.id, nome: c.nome)],
-                onChanged: onCategoria,
-              ),
-              _IdFilterMenu(
-                icon: Icons.account_balance_wallet_outlined,
-                allLabel: 'Conta',
-                value: filters.contaId,
-                items: [for (final c in contas) (id: c.id, nome: c.nome)],
-                onChanged: onConta,
-              ),
-            ],
-          ),
+          _filterChips(context, roots),
         ],
       ),
     );
   }
+
+  /// Mobile: período em largura total (sem truncar o mês) + linha com "Novo
+  /// lançamento" e o botão "Filtros" (colapsa busca/chips). Tudo rola com o
+  /// conteúdo (sem faixa fixa).
+  Widget _mobile(BuildContext context, List<FinCategoria> roots) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          width: double.infinity,
+          child: FinPeriodSelector(expand: true),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        Row(
+          children: [
+            Expanded(
+              child: ClxButton(
+                label: 'Novo lançamento',
+                icon: Icons.add_rounded,
+                onPressed: onNovo,
+                expand: true,
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            FinFiltrosToggle(
+              active: showFilters,
+              hasActiveFilters: filters.hasAny,
+              onTap: onToggleFilters,
+            ),
+          ],
+        ),
+        if (showFilters) ...[
+          const SizedBox(height: ClxSpace.x3),
+          _searchField(context),
+          const SizedBox(height: ClxSpace.x3),
+          _filterChips(context, roots),
+        ],
+      ],
+    );
+  }
+
+  Widget _searchField(BuildContext context) {
+    final clx = context.clx;
+    return TextField(
+      controller: search,
+      onChanged: onSearch,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: 'Buscar descrição, cliente ou nº da OS…',
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        filled: true,
+        fillColor: clx.bg2,
+        border: const OutlineInputBorder(
+          borderRadius: ClxRadii.rMd,
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChips(BuildContext context, List<FinCategoria> roots) {
+    final clx = context.clx;
+    return Wrap(
+      spacing: ClxSpace.x2,
+      runSpacing: ClxSpace.x2,
+      children: [
+        _FilterChip(
+          label: 'Todos',
+          selected: filters.tipo == null,
+          onTap: () => onTipo(null),
+        ),
+        _FilterChip(
+          label: 'Receitas',
+          selected: filters.tipo == TipoLancamento.receita,
+          color: clx.finIncome,
+          onTap: () => onTipo(TipoLancamento.receita),
+        ),
+        _FilterChip(
+          label: 'Despesas',
+          selected: filters.tipo == TipoLancamento.despesa,
+          color: clx.finExpense,
+          onTap: () => onTipo(TipoLancamento.despesa),
+        ),
+        const SizedBox(width: ClxSpace.x2),
+        _StatusMenu(value: filters.status, onChanged: onStatus),
+        _IdFilterMenu(
+          icon: Icons.category_outlined,
+          allLabel: 'Categoria',
+          value: filters.categoriaId,
+          items: [for (final c in roots) (id: c.id, nome: c.nome)],
+          onChanged: onCategoria,
+        ),
+        _IdFilterMenu(
+          icon: Icons.account_balance_wallet_outlined,
+          allLabel: 'Conta',
+          value: filters.contaId,
+          items: [for (final c in contas) (id: c.id, nome: c.nome)],
+          onChanged: onConta,
+        ),
+      ],
+    );
+  }
 }
+
 
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
@@ -749,16 +951,31 @@ class _DayHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x2),
-          Text(
-            '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
-            style: tt.bodySmall?.copyWith(color: clx.ink3),
+          // Expanded (no lugar de Text + Spacer): ocupa o vão empurrando o total
+          // pra direita como antes, mas a contagem elipsa/encolhe primeiro em
+          // vez de estourar a Row em telas estreitas.
+          Expanded(
+            child: Text(
+              '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: tt.bodySmall?.copyWith(color: clx.ink3),
+            ),
           ),
-          const Spacer(),
-          Text(
-            formatSignedValue(grupo.totalDia),
-            style: tt.labelMedium?.copyWith(
-              color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: ClxSpace.x2),
+          // Flexible p/ totais longos (ex.: R$ 1.234.567,89) não estourarem.
+          Flexible(
+            child: Text(
+              formatSignedValue(grupo.totalDia),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: tt.labelMedium?.copyWith(
+                color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -866,11 +1083,19 @@ class _LancamentoRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x3),
-            Text(
-              formatSigned(l),
-              style: tt.bodyLarge?.copyWith(
-                color: tipoColor(clx, l.tipo),
-                fontWeight: FontWeight.w800,
+            // Flexible + ellipsis: valores muito longos elipsam em vez de
+            // estourar a Row (a descrição no Expanded já cede espaço primeiro).
+            Flexible(
+              child: Text(
+                formatSigned(l),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: tt.bodyLarge?.copyWith(
+                  color: tipoColor(clx, l.tipo),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             PopupMenuButton<String>(
@@ -904,3 +1129,23 @@ class _LancamentoRow extends StatelessWidget {
     );
   }
 }
+
+/// Builders expostos só para teste de layout (F-742): exercitam o `_DayHeader`
+/// e o valor do `_LancamentoRow` isoladamente, sem a toolbar do Financeiro
+/// (cujo layout mobile é escopo de F-741, fora desta correção).
+@visibleForTesting
+Widget debugDayHeader(GrupoPorData grupo) => _DayHeader(grupo: grupo);
+
+@visibleForTesting
+Widget debugLancamentoRow(FinLancamento lancamento) => _LancamentoRow(
+  lancamento: lancamento,
+  categoria: null,
+  subcategoria: null,
+  conta: null,
+  onTap: () {},
+  onDetail: () {},
+  onEdit: () {},
+  onRepeat: () {},
+  onDuplicate: () {},
+  onDelete: () {},
+);

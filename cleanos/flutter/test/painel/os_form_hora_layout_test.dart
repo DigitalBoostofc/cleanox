@@ -96,11 +96,12 @@ void main() {
       await pumpPainel(
         tester,
         const OSForm(),
-        // Viewport de celular (< 640): Data e Hora devem empilhar. Uso 400px
-        // (não 360) só para não esbarrar num overflow PRÉ-EXISTENTE do rodapé
-        // de botões em telas muito estreitas — alheio ao F-602, que é o seletor
-        // de hora. O empilhamento (o que conserta o F-602) vale para todo <640.
-        size: const Size(400, 820),
+        // Viewport de celular MUITO estreita (< 640): Data e Hora empilham e o
+        // seletor de hora ocupa a linha inteira. Uso 360px (o cenário real do
+        // finding); o overflow PRÉ-EXISTENTE do rodapé de botões que antes
+        // obrigava a subir p/ 400px foi corrigido no F-603 (rodapé vira Wrap),
+        // então o form inteiro fica limpo a 360px.
+        size: const Size(360, 820),
         overrides: [
           ...painelOverrides(user: painelUser()),
           ordensRepositoryProvider.overrideWithValue(FakeOrdens()),

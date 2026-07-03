@@ -64,28 +64,39 @@ class FinVisaoGeralScreen extends ConsumerWidget {
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
     final limites = ref.watch(finLimitesProvider).valueOrNull ?? const [];
     final pendentes = ref.watch(finPendentesProvider).valueOrNull ?? const [];
+    final mobile = finIsMobile(context);
+
+    // Mobile (F-741): o cabeçalho (título + seletor de mês) rola junto com o
+    // conteúdo, em vez de ser uma faixa fixa acima do Expanded.
+    final leadingChildren = mobile
+        ? const <Widget>[_MobileHeader(), SizedBox(height: ClxSpace.x4)]
+        : const <Widget>[];
+
+    final body = FinAsync<List<FinLancamento>>(
+      value: lancAsync,
+      onRetry: () => ref.invalidate(finPeriodLancamentosProvider),
+      data: (lancs) => _Body(
+        lancs: lancs,
+        contas: contas,
+        categorias: categorias,
+        limites: limites,
+        pendentes: pendentes,
+        mobile: mobile,
+        leadingChildren: leadingChildren,
+        onNovaReceita: () =>
+            _novoLancamento(context, ref, TipoLancamento.receita),
+        onNovaDespesa: () =>
+            _novoLancamento(context, ref, TipoLancamento.despesa),
+        onTransferencia: () => _transferir(context, ref),
+      ),
+    );
+
+    if (mobile) return body;
 
     return Column(
       children: [
         _Header(),
-        Expanded(
-          child: FinAsync<List<FinLancamento>>(
-            value: lancAsync,
-            onRetry: () => ref.invalidate(finPeriodLancamentosProvider),
-            data: (lancs) => _Body(
-              lancs: lancs,
-              contas: contas,
-              categorias: categorias,
-              limites: limites,
-              pendentes: pendentes,
-              onNovaReceita: () =>
-                  _novoLancamento(context, ref, TipoLancamento.receita),
-              onNovaDespesa: () =>
-                  _novoLancamento(context, ref, TipoLancamento.despesa),
-              onTransferencia: () => _transferir(context, ref),
-            ),
-          ),
-        ),
+        Expanded(child: body),
       ],
     );
   }
@@ -122,6 +133,31 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Cabeçalho ROLÁVEL do mobile (título + seletor de mês). No mobile o
+/// [FinPeriodSelector] usa `Expanded` para dividir a linha sem estourar.
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Visão geral',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(color: clx.ink),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        const SizedBox(
+          width: double.infinity,
+          child: FinPeriodSelector(expand: true),
+        ),
+      ],
+    );
+  }
+}
+
 class _Body extends StatelessWidget {
   const _Body({
     required this.lancs,
@@ -132,6 +168,8 @@ class _Body extends StatelessWidget {
     required this.onNovaReceita,
     required this.onNovaDespesa,
     required this.onTransferencia,
+    this.mobile = false,
+    this.leadingChildren = const [],
   });
 
   final List<FinLancamento> lancs;
@@ -142,6 +180,12 @@ class _Body extends StatelessWidget {
   final VoidCallback onNovaReceita;
   final VoidCallback onNovaDespesa;
   final VoidCallback onTransferencia;
+
+  /// Layout de celular: reduz o padding e recebe o cabeçalho rolável.
+  final bool mobile;
+
+  /// Widgets inseridos ANTES dos KPIs (cabeçalho mobile). Vazio no desktop.
+  final List<Widget> leadingChildren;
 
   FinCategoria? _cat(String id) {
     for (final c in categorias) {
@@ -160,8 +204,9 @@ class _Body extends StatelessWidget {
     final pagar = contasAPagar(pendentes, hoje).take(5).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(ClxSpace.x6),
+      padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x6),
       children: [
+        ...leadingChildren,
         FinKpiGrid(
           cards: [
             FinKpiCard(
