@@ -29,6 +29,7 @@ class FinCategoriasScreen extends ConsumerWidget {
     WidgetRef ref, {
     FinCategoria? editing,
     FinCategoria? parent,
+    TipoLancamento? defaultTipo,
   }) async {
     final todas =
         ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
@@ -37,6 +38,7 @@ class FinCategoriasScreen extends ConsumerWidget {
       editing: editing,
       parent: parent,
       parents: todas,
+      defaultTipo: defaultTipo,
     );
     if (saved == true) {
       ref.invalidate(finCategoriasProvider);
@@ -105,7 +107,7 @@ class FinCategoriasScreen extends ConsumerWidget {
         _Toolbar(
           tipo: tipo,
           onTipo: (t) => ref.read(_tipoFilterProvider.notifier).state = t,
-          onNova: () => _form(context, ref),
+          onNova: () => _form(context, ref, defaultTipo: tipo),
         ),
         Expanded(
           child: FinAsync<List<FinCategoria>>(
@@ -127,7 +129,7 @@ class FinCategoriasScreen extends ConsumerWidget {
                   action: ClxButton(
                     label: 'Nova categoria',
                     icon: Icons.add_rounded,
-                    onPressed: () => _form(context, ref),
+                    onPressed: () => _form(context, ref, defaultTipo: tipo),
                   ),
                 );
               }

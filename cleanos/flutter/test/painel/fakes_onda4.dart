@@ -154,7 +154,18 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   Future<FinCategoria> createCategoria(Map<String, dynamic> data) async {
     createCategoriaCount++;
     lastCreateCategoria = data;
-    return fakeCategoria(id: 'nova', nome: (data['nome'] as String?) ?? 'Nova');
+    // Espelha o PocketBase real: o novo registro passa a existir e deve
+    // aparecer num listCategorias() subsequente (prova reload/invalidate).
+    final nova = fakeCategoria(
+      id: 'nova_$createCategoriaCount',
+      nome: (data['nome'] as String?) ?? 'Nova',
+      tipo: TipoLancamento.values.byName(
+        (data['tipo'] as String?) ?? TipoLancamento.despesa.wire,
+      ),
+      parentId: data['parent_id'] as String?,
+    );
+    categorias = [...categorias, nova];
+    return nova;
   }
 
   @override

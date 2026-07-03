@@ -123,6 +123,49 @@ void main() {
       await settle(tester);
       expect(find.text('Nenhuma categoria de despesa'), findsOneWidget);
     });
+
+    // Regressão: dono reportou (QA 03/07, APK 1.2.0+6) que uma categoria nova
+    // "não aparecia" na lista. Causa raiz: o form de Nova categoria sempre
+    // criava com tipo=despesa (default fixo no initState), ignorando o toggle
+    // Despesas|Receitas da tela — então criar na aba Receitas gerava uma
+    // categoria de despesa, invisível na aba corrente.
+    testWidgets(
+      'nova categoria criada na aba Receitas aparece com tipo receita '
+      '(sem trocar de aba manualmente)',
+      (tester) async {
+        final fake = FakeFinanceiro(
+          categorias: [
+            fakeCategoria(id: 'd', nome: 'Salários', tipo: TipoLancamento.despesa),
+            fakeCategoria(id: 'r', nome: 'Vendas', tipo: TipoLancamento.receita),
+          ],
+        );
+        await pumpPainel(
+          tester,
+          const FinCategoriasScreen(),
+          overrides: withFin(fake),
+        );
+        await settle(tester);
+
+        // Troca para a aba Receitas.
+        await tester.tap(find.text('Receitas'));
+        await tester.pumpAndSettle();
+        expect(find.text('Vendas'), findsOneWidget);
+
+        // Abre o form pelo botão da toolbar (único nesta aba — lista não vazia).
+        await tester.tap(find.widgetWithText(ClxButton, 'Nova categoria'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField).first, 'Comissões');
+        await tester.tap(find.text('Salvar'));
+        await tester.pumpAndSettle();
+        await settle(tester);
+
+        // A categoria deve ter nascido como RECEITA (aba corrente), não despesa.
+        expect(fake.lastCreateCategoria?['tipo'], TipoLancamento.receita.wire);
+        // E deve aparecer na lista imediatamente, sem trocar de aba.
+        expect(find.text('Comissões'), findsOneWidget);
+      },
+    );
   });
 
   group('Visão geral (charts)', () {
