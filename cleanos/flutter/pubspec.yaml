@@ -85,16 +85,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # A fonte Sora (petrol+cyan brand) é registrada quando os arquivos .ttf forem
-  # adicionados em assets/fonts/. Enquanto não há binários no repo, o tema usa
-  # fontFamily 'Sora' com fallback do sistema (ver core/design/tokens.dart).
-  # fonts:
-  #   - family: Sora
-  #     fonts:
-  #       - asset: assets/fonts/Sora-Regular.ttf
-  #       - asset: assets/fonts/Sora-Medium.ttf
-  #         weight: 500
-  #       - asset: assets/fonts/Sora-SemiBold.ttf
-  #         weight: 600
-  #       - asset: assets/fonts/Sora-Bold.ttf
-  #         weight: 700
+  # Sora (marca petrol+cyan) — instâncias estáticas geradas do variable font
+  # oficial (OFL) via fontTools.varLib.instancer.
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-400.ttf
+        - asset: assets/fonts/Sora-500.ttf
+          weight: 500
+        - asset: assets/fonts/Sora-600.ttf
+          weight: 600
+        - asset: assets/fonts/Sora-700.ttf
+          weight: 700
+        - asset: assets/fonts/Sora-800.ttf
+          weight: 800

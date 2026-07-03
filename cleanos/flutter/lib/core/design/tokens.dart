@@ -61,6 +61,9 @@ class ClxBrand {
   static const Color primary2 = Color(0xFF00A39B); // teal hover
   static const Color accent = Color(0xFF0F4C5C); // petrol blue
   static const Color accent2 = Color(0xFF1B6B7A); // petrol hover
+
+  /// Texto/ícone sobre [primary]/[primary2] (petrol quase-preto, ≥ 4.5:1).
+  static const Color onPrimary = Color(0xFF04201E);
 }
 
 /// Sombras (--clx-shadow-*), variante clara.
@@ -94,4 +97,27 @@ class ClxEase {
   const ClxEase._();
   static const Cubic out = Cubic(0.22, 1, 0.36, 1);
   static const Cubic soft = Cubic(0.65, 0, 0.35, 1);
+}
+
+/// Motion tokens MD3 (easing + duração por tipo de transição).
+///
+/// Espelha a spec m3.material.io/styles/motion: `emphasized*` para transições
+/// que definem o caráter da UI (painéis, accordions, trocas de tela) e
+/// `standard*` para utilitárias (hover, fades pequenos). As curvas vêm do
+/// próprio Flutter ([Easing]) — já são os cubic-beziers oficiais do MD3.
+class ClxMotion {
+  const ClxMotion._();
+
+  // Enter/exit "emphasized" — elementos que entram/saem de cena.
+  static const Curve emphasized = Easing.emphasizedDecelerate;
+  static const Curve emphasizedAccelerate = Easing.emphasizedAccelerate;
+  static const Duration emphasizedDuration = Durations.medium4; // 400ms
+  static const Duration emphasizedExitDuration = Durations.short4; // 200ms
+
+  // Utilitárias "standard" — mudanças pequenas dentro da tela.
+  static const Curve standard = Easing.standard;
+  static const Curve standardDecelerate = Easing.standardDecelerate;
+  static const Curve standardAccelerate = Easing.standardAccelerate;
+  static const Duration standardDuration = Durations.medium2; // 300ms
+  static const Duration shortDuration = Durations.short3; // 150ms
 }

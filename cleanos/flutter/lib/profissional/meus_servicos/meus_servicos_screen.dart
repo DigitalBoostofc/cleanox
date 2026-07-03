@@ -180,7 +180,9 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
                 const SizedBox(height: ClxSpace.x3),
                 Text(
                   'Carregando seus serviços…',
-                  style: TextStyle(color: clx.ink3, fontSize: 14),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -206,7 +208,9 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
                 const SizedBox(width: ClxSpace.x1),
                 Text(
                   'Sem conexão — dados de ${formatHour(state.lastLoadedAt!.toUtc().toIso8601String())}',
-                  style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -322,10 +326,8 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               'Meus serviços',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: clx.ink,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
                 letterSpacing: -0.4,
               ),
             ),
@@ -359,6 +361,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -368,17 +371,15 @@ class _SectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: tt.titleSmall?.copyWith(
                   color: titleColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
                   letterSpacing: -0.2,
                 ),
               ),
               if (subtitle != null)
                 Text(
                   subtitle!,
-                  style: TextStyle(color: clx.ink3, fontSize: 12),
+                  style: tt.bodySmall?.copyWith(color: clx.ink3),
                 ),
             ],
           ),

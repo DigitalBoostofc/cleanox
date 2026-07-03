@@ -243,6 +243,7 @@ class _BodyState extends ConsumerState<_Body> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final os = _os;
     final semSnapshot = os.serviceSnapshot == null;
 
@@ -307,9 +308,8 @@ class _BodyState extends ConsumerState<_Body> {
             children: [
               Text(
                 'Laudo do serviço',
-                style: TextStyle(
+                style: tt.titleSmall?.copyWith(
                   color: clx.ink,
-                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -318,7 +318,7 @@ class _BodyState extends ConsumerState<_Body> {
                 semSnapshot
                     ? 'Defina o serviço da OS para habilitar o laudo.'
                     : 'Pré-visualize/gere o PDF ou envie o relatório ao cliente.',
-                style: TextStyle(color: clx.ink3, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink3),
               ),
               const SizedBox(height: ClxSpace.x3),
               Wrap(
@@ -363,9 +363,8 @@ class _BodyState extends ConsumerState<_Body> {
                     cliente.nome,
                     cliente.sobrenome,
                   ].where((s) => (s ?? '').isNotEmpty).join(' '),
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: clx.ink,
-              fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -426,6 +425,7 @@ class _BodyState extends ConsumerState<_Body> {
   }
 
   Widget _adicionaisCard(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final adicionais = _os.adicionais;
     return ClxCard(
       child: Column(
@@ -433,9 +433,8 @@ class _BodyState extends ConsumerState<_Body> {
         children: [
           Text(
             'Serviços adicionais',
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -443,7 +442,7 @@ class _BodyState extends ConsumerState<_Body> {
           if (adicionais.isEmpty)
             Text(
               'Nenhum adicional registrado.',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             )
           else
             for (final a in adicionais)
@@ -457,20 +456,19 @@ class _BodyState extends ConsumerState<_Body> {
                         children: [
                           Text(
                             '${a.nome}${a.quantidade > 1 ? ' ×${a.quantidade}' : ''}',
-                            style: TextStyle(color: clx.ink, fontSize: 14),
+                            style: tt.bodyLarge?.copyWith(color: clx.ink),
                           ),
                           Text(
                             aprovacaoLabel(a.aprovacao),
-                            style: TextStyle(color: clx.ink3, fontSize: 12),
+                            style: tt.bodySmall?.copyWith(color: clx.ink3),
                           ),
                         ],
                       ),
                     ),
                     Text(
                       formatCurrency(a.valor * a.quantidade),
-                      style: TextStyle(
+                      style: tt.bodyLarge?.copyWith(
                         color: clx.ink,
-                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -483,6 +481,7 @@ class _BodyState extends ConsumerState<_Body> {
   }
 
   Widget _observacoesCard(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final obs = _os.observacoesProf;
     return ClxCard(
       child: Column(
@@ -490,9 +489,8 @@ class _BodyState extends ConsumerState<_Body> {
         children: [
           Text(
             'Observações do profissional',
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -500,7 +498,7 @@ class _BodyState extends ConsumerState<_Body> {
           if (obs.isEmpty)
             Text(
               'Nenhuma observação registrada.',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             )
           else
             for (final o in obs)
@@ -520,7 +518,7 @@ class _BodyState extends ConsumerState<_Body> {
                     Expanded(
                       child: Text(
                         o.texto,
-                        style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                        style: tt.bodyLarge?.copyWith(color: clx.ink2),
                       ),
                     ),
                   ],
@@ -532,6 +530,7 @@ class _BodyState extends ConsumerState<_Body> {
   }
 
   Widget _financeiroCard(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final os = _os;
     return ClxCard(
       child: Column(
@@ -539,9 +538,8 @@ class _BodyState extends ConsumerState<_Body> {
         children: [
           Text(
             'Resumo financeiro',
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -555,7 +553,7 @@ class _BodyState extends ConsumerState<_Body> {
                 Expanded(
                   child: Text(
                     '− Descontos (R\$)',
-                    style: TextStyle(color: clx.ink2, fontSize: 14),
+                    style: tt.bodyLarge?.copyWith(color: clx.ink2),
                   ),
                 ),
                 if (_salvandoDesc) ...[
@@ -586,6 +584,7 @@ class _BodyState extends ConsumerState<_Body> {
     String value, {
     bool strong = false,
   }) {
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -593,18 +592,16 @@ class _BodyState extends ConsumerState<_Body> {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
+              style: (strong ? tt.titleSmall : tt.bodyLarge)?.copyWith(
                 color: strong ? clx.ink : clx.ink2,
-                fontSize: strong ? 15 : 14,
                 fontWeight: strong ? FontWeight.w700 : FontWeight.w400,
               ),
             ),
           ),
           Text(
             value,
-            style: TextStyle(
+            style: (strong ? tt.titleMedium : tt.bodyLarge)?.copyWith(
               color: clx.ink,
-              fontSize: strong ? 16 : 14,
               fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
@@ -626,9 +623,8 @@ class _BodyState extends ConsumerState<_Body> {
         const SizedBox(width: ClxSpace.x2),
         Text(
           '$feitos de $total itens concluídos',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -651,6 +647,7 @@ class _BodyState extends ConsumerState<_Body> {
   /// Seletor de serviço para OS SEM serviço definido. Ao escolher, grava o
   /// relation e o servidor congela o snapshot + checklist (fillServiceSnapshot).
   Widget _seletorServico(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final async = ref.watch(execServicosProvider);
     return ClxCard(
       child: Column(
@@ -658,9 +655,8 @@ class _BodyState extends ConsumerState<_Body> {
         children: [
           Text(
             'Serviço principal',
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -668,7 +664,7 @@ class _BodyState extends ConsumerState<_Body> {
           Text(
             'Esta OS ainda não tem serviço. Selecione o serviço do catálogo '
             'para capturar o snapshot e gerar o checklist.',
-            style: TextStyle(color: clx.ink3, fontSize: 13, height: 1.4),
+            style: tt.bodyMedium?.copyWith(color: clx.ink3, height: 1.4),
           ),
           const SizedBox(height: ClxSpace.x3),
           async.when(
@@ -684,7 +680,7 @@ class _BodyState extends ConsumerState<_Body> {
               if (servicos.isEmpty) {
                 return Text(
                   'Nenhum serviço ativo no catálogo.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 );
               }
               final ordenados = [...servicos]
@@ -733,7 +729,11 @@ class _BodyState extends ConsumerState<_Body> {
       children: [
         Icon(icon, size: 15, color: clx.ink3),
         const SizedBox(width: ClxSpace.x1),
-        Text(text, style: TextStyle(color: clx.ink2, fontSize: 13)),
+        Text(
+          text,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: clx.ink2),
+        ),
       ],
     );
   }
@@ -746,7 +746,11 @@ class _BodyState extends ConsumerState<_Body> {
         Icon(icon, size: 15, color: clx.ink3),
         const SizedBox(width: ClxSpace.x2),
         Expanded(
-          child: Text(text, style: TextStyle(color: clx.ink2, fontSize: 13)),
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: clx.ink2),
+          ),
         ),
       ],
     );
@@ -828,7 +832,7 @@ class _DescontosFieldState extends State<_DescontosField> {
         enabled: widget.enabled,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.right,
-        style: TextStyle(color: clx.ink, fontSize: 14),
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink),
         decoration: const InputDecoration(
           isDense: true,
           prefixText: r'R$ ',

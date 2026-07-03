@@ -110,11 +110,9 @@ class ContaBadge extends StatelessWidget {
               conta.nome,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: clx.ink2,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: clx.ink2),
             ),
           ),
         ],

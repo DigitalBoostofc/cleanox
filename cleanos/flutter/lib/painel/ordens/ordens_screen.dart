@@ -422,6 +422,7 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final showBadge =
         count != null && (alwaysShowCount || count! > 0);
     return Padding(
@@ -444,9 +445,8 @@ class _Tab extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
+                  style: tt.bodyLarge?.copyWith(
                     color: selected ? clx.primary : clx.ink2,
-                    fontSize: 13.5,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
@@ -465,9 +465,8 @@ class _Tab extends StatelessWidget {
                     ),
                     child: Text(
                       '${count!}',
-                      style: TextStyle(
+                      style: tt.labelSmall?.copyWith(
                         color: selected ? clx.primary : clx.ink3,
-                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -495,9 +494,8 @@ class _HeaderCell extends StatelessWidget {
       flex: flex,
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: clx.ink3,
-          fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
@@ -527,6 +525,7 @@ class _OrdemRow extends StatelessWidget {
     final prof = os.expand?.profissional;
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
+    final tt = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -545,9 +544,8 @@ class _OrdemRow extends StatelessWidget {
                     os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: tt.titleSmall?.copyWith(
                       color: clx.ink,
-                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -555,7 +553,7 @@ class _OrdemRow extends StatelessWidget {
                     os.bairro,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: clx.ink3, fontSize: 12),
+                    style: tt.bodySmall?.copyWith(color: clx.ink3),
                   ),
                 ],
               ),
@@ -566,7 +564,7 @@ class _OrdemRow extends StatelessWidget {
                 os.tipoServicoNome ?? '—',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: tt.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -575,7 +573,7 @@ class _OrdemRow extends StatelessWidget {
                 formatDateTime(os.dataHora),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -584,16 +582,15 @@ class _OrdemRow extends StatelessWidget {
                 prof?.displayName ?? '—',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: tt.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
               flex: 2,
               child: Text(
                 formatCurrency(os.valorServico ?? 0),
-                style: TextStyle(
+                style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
-                  fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -667,6 +664,7 @@ class _OrdemCard extends StatelessWidget {
     final prof = os.expand?.profissional;
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       onTap: onTap,
       child: Column(
@@ -682,9 +680,8 @@ class _OrdemCard extends StatelessWidget {
                       os.tipoServicoNome ?? '—',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -692,7 +689,7 @@ class _OrdemCard extends StatelessWidget {
                       '${os.nomeCurto} · ${os.bairro}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ],
                 ),
@@ -707,14 +704,13 @@ class _OrdemCard extends StatelessWidget {
               const SizedBox(width: ClxSpace.x1),
               Text(
                 formatDateTime(os.dataHora),
-                style: TextStyle(color: clx.ink2, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
               const Spacer(),
               Text(
                 formatCurrency(os.valorServico ?? 0),
-                style: TextStyle(
+                style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
-                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -731,7 +727,7 @@ class _OrdemCard extends StatelessWidget {
                     prof.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: clx.ink2, fontSize: 13),
+                    style: tt.bodyMedium?.copyWith(color: clx.ink2),
                   ),
                 ),
               ],

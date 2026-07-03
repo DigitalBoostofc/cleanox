@@ -361,9 +361,8 @@ class _HeaderCell extends StatelessWidget {
       flex: flex,
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: clx.ink3,
-          fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
@@ -407,11 +406,9 @@ class _StatusToggle extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   servicoStatusLabel(servico.status ?? ServicoStatus.inativo),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: color),
                 ),
               ],
             ),
@@ -454,7 +451,9 @@ class _CategoriaGrupo extends StatelessWidget {
             '${categoriaLabel(servico.categoria ?? Categoria.veicular)} /',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
           ),
         ),
         const SizedBox(width: ClxSpace.x1),
@@ -539,6 +538,7 @@ class _ServicoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -565,9 +565,8 @@ class _ServicoRow extends StatelessWidget {
                       servico.nome.isEmpty ? '—' : servico.nome,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -588,9 +587,8 @@ class _ServicoRow extends StatelessWidget {
                 formatValorServico(servico),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
-                  fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -611,7 +609,7 @@ class _ServicoRow extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -660,6 +658,7 @@ class _ServicoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       onTap: onTap,
       child: Column(
@@ -680,9 +679,8 @@ class _ServicoCard extends StatelessWidget {
                   servico.nome.isEmpty ? '—' : servico.nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: tt.titleSmall?.copyWith(
                     color: clx.ink,
-                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -705,7 +703,7 @@ class _ServicoCard extends StatelessWidget {
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             ],
@@ -716,9 +714,8 @@ class _ServicoCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   formatValorServico(servico),
-                  style: TextStyle(
+                  style: tt.bodyLarge?.copyWith(
                     color: clx.ink,
-                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -752,7 +749,9 @@ class _ConfirmDeleteDialog extends StatelessWidget {
         'Tem certeza que deseja excluir o serviço "$nome"? Esta ação não pode '
         'ser desfeita. Considere INATIVAR o serviço caso ele ainda seja usado '
         'em orçamentos ou OS.',
-        style: TextStyle(color: clx.ink2, fontSize: 14, height: 1.5),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: clx.ink2, height: 1.5),
       ),
       actions: [
         ClxButton(

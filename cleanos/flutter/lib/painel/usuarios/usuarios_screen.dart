@@ -256,9 +256,8 @@ class _HeaderCell extends StatelessWidget {
       flex: flex,
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: clx.ink3,
-          fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
@@ -297,9 +296,8 @@ class _Avatar extends StatelessWidget {
       backgroundColor: clx.accent,
       child: Text(
         initial,
-        style: const TextStyle(
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: Colors.white,
-          fontSize: 13,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -345,9 +343,8 @@ class _UsuarioRow extends StatelessWidget {
                       user.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: clx.ink,
-                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -361,7 +358,7 @@ class _UsuarioRow extends StatelessWidget {
                 user.email,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -374,7 +371,7 @@ class _UsuarioRow extends StatelessWidget {
                     const SizedBox(width: ClxSpace.x2),
                     Text(
                       '(app)',
-                      style: TextStyle(color: clx.ink3, fontSize: 11.5),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
                     ),
                   ],
                 ],
@@ -454,9 +451,8 @@ class _UsuarioCard extends StatelessWidget {
                       user.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -464,7 +460,7 @@ class _UsuarioCard extends StatelessWidget {
                       user.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ],
                 ),
@@ -515,7 +511,7 @@ class _ConfirmDeleteDialog extends StatelessWidget {
       content: Text(
         'Tem certeza que deseja excluir o usuário "$nome"? Esta ação não pode '
         'ser desfeita.',
-        style: TextStyle(color: clx.ink2, fontSize: 14, height: 1.5),
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2, height: 1.5),
       ),
       actions: [
         ClxButton(

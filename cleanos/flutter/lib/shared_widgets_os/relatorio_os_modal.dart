@@ -111,7 +111,9 @@ class _RelatorioOSModalState extends State<RelatorioOSModal> {
                           Expanded(
                             child: Text(
                               c.titulo,
-                              style: TextStyle(color: clx.ink, fontSize: 14),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.copyWith(color: clx.ink),
                             ),
                           ),
                         ],
@@ -127,14 +129,18 @@ class _RelatorioOSModalState extends State<RelatorioOSModal> {
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     child: Text(
                       '• ${o.texto}',
-                      style: TextStyle(color: clx.ink, fontSize: 14),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: clx.ink),
                     ),
                   ),
               ]),
             const SizedBox(height: ClxSpace.x2),
             Text(
               rel.textoPadrao,
-              style: TextStyle(color: clx.ink3, fontSize: 12.5, height: 1.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: clx.ink3, height: 1.5),
             ),
             const SizedBox(height: ClxSpace.x10),
           ],
@@ -190,9 +196,8 @@ class _RelatorioOSModalState extends State<RelatorioOSModal> {
           children: [
             Text(
               title.toUpperCase(),
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: clx.ink3,
-                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
               ),
@@ -218,9 +223,8 @@ class _RelatorioOSModalState extends State<RelatorioOSModal> {
                 width: 110,
                 child: Text(
                   label,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: clx.ink3,
-                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -228,11 +232,14 @@ class _RelatorioOSModalState extends State<RelatorioOSModal> {
               Expanded(
                 child: Text(
                   value,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: strong ? 15 : 14,
-                    fontWeight: strong ? FontWeight.w800 : FontWeight.w400,
-                  ),
+                  style: strong
+                      ? Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: clx.ink,
+                          fontWeight: FontWeight.w800,
+                        )
+                      : Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(color: clx.ink),
                 ),
               ),
             ],
@@ -261,9 +268,8 @@ class _EvidenciasResumo extends StatelessWidget {
           children: [
             Text(
               'REGISTRO FOTOGRÁFICO',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: clx.ink3,
-                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
               ),
@@ -273,12 +279,16 @@ class _EvidenciasResumo extends StatelessWidget {
               'Antes: ${count(FaseFoto.antes)} · '
               'Durante: ${count(FaseFoto.durante)} · '
               'Depois: ${count(FaseFoto.depois)}',
-              style: TextStyle(color: clx.ink2, fontSize: 14),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
             ),
             const SizedBox(height: ClxSpace.x1),
             Text(
               '${evidencias.length} foto(s) entram no PDF.',
-              style: TextStyle(color: clx.ink3, fontSize: 12.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
             ),
           ],
         ),

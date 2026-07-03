@@ -89,6 +89,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -99,11 +100,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
         ],
         Text(
           'Valor pago (R\$)',
-          style: TextStyle(
-            color: clx.ink2,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+          style: tt.labelMedium?.copyWith(color: clx.ink2),
         ),
         const SizedBox(height: ClxSpace.x1),
         TextField(
@@ -118,11 +115,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
         const SizedBox(height: ClxSpace.x4),
         Text(
           'Forma de pagamento',
-          style: TextStyle(
-            color: clx.ink2,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+          style: tt.labelMedium?.copyWith(color: clx.ink2),
         ),
         const SizedBox(height: ClxSpace.x1),
         DropdownButtonFormField<FormaPagamento>(

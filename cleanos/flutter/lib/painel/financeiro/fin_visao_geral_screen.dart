@@ -110,11 +110,9 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               'Visão geral',
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: clx.ink),
             ),
           ),
           const FinPeriodSelector(),
@@ -398,11 +396,9 @@ class _QuickAction extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 softWrap: false,
-                style: TextStyle(
-                  color: clx.ink2,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: clx.ink2),
               ),
             ),
           ],
@@ -454,7 +450,9 @@ class _PreviewCard extends StatelessWidget {
                 kind == TipoLancamento.receita
                     ? 'Nenhuma conta a receber.'
                     : 'Nenhuma conta a pagar.',
-                style: TextStyle(color: clx.ink3, fontSize: 13),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
               ),
             )
           else
@@ -483,6 +481,7 @@ class _PreviewRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final l = pendente.lancamento;
     final venc = (l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data;
     final sub = l.origem == OrigemLancamento.viaOs &&
@@ -501,19 +500,14 @@ class _PreviewRow extends StatelessWidget {
                 l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: clx.ink,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: tt.titleSmall?.copyWith(color: clx.ink),
               ),
               Text(
                 sub,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: tt.bodySmall?.copyWith(
                   color: pendente.emAtraso ? clx.error : clx.ink3,
-                  fontSize: 12,
                 ),
               ),
             ],
@@ -525,11 +519,10 @@ class _PreviewRow extends StatelessWidget {
           children: [
             Text(
               formatCurrency(l.valor),
-              style: TextStyle(
+              style: tt.bodyLarge?.copyWith(
                 color: kind == TipoLancamento.receita
                     ? clx.finIncome
                     : clx.finExpense,
-                fontSize: 13.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -566,7 +559,9 @@ class _GastosCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Nenhuma despesa paga no período.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -633,7 +628,9 @@ class _OrigemCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Nenhuma receita recebida no período.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -684,7 +681,9 @@ class _LimitesCard extends StatelessWidget {
             title: 'Limite de gastos do mês',
             trailing: Text(
               '${rows.length} categoria${rows.length == 1 ? '' : 's'}',
-              style: TextStyle(color: clx.ink3, fontSize: 12),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
             ),
           ),
           const SizedBox(height: ClxSpace.x4),
@@ -693,7 +692,9 @@ class _LimitesCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: ClxSpace.x4),
               child: Text(
                 'Nenhum limite definido.',
-                style: TextStyle(color: clx.ink3, fontSize: 13),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
               ),
             )
           else
@@ -737,15 +738,16 @@ class _LimiteRow extends StatelessWidget {
                 nome,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
               ),
             ),
             Text(
               '${formatCurrency(progresso.gasto)} / '
               '${formatCurrency(progresso.limite)}',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: estourou ? clx.error : clx.ink3,
-                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),

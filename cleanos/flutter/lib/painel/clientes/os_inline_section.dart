@@ -453,7 +453,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             padding: const EdgeInsets.only(top: ClxSpace.x1),
             child: Text(
               'Ao atribuir um profissional, o status passa para "Atribuída".',
-              style: TextStyle(color: clx.ink3, fontSize: 11.5),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
             ),
           ),
           const SizedBox(height: ClxSpace.x4),
@@ -497,9 +497,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
       child: Text.rich(
         TextSpan(
           text: text,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
           children: [
@@ -564,9 +563,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             ),
             child: Text(
               display,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _dataDate.isEmpty ? clx.ink3 : clx.ink,
-                fontSize: 14,
               ),
             ),
           ),
@@ -591,7 +589,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
                 const SizedBox(width: ClxSpace.x2),
                 Text(
                   'Carregando horários…',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -602,9 +600,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
             child: Text(
               'Profissional não atende neste dia',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: clx.error,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -615,7 +612,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
             child: Text(
               'Sem horários disponíveis nesta data',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
             ),
           )
         else if (s.slotMode)

@@ -215,9 +215,8 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
                   children: [
                     Text(
                       'Disponibilidade',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: clx.ink,
-                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -225,7 +224,7 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
                       widget.profissional.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink3, fontSize: 13),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ],
                 ),
@@ -242,7 +241,7 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
           ),
         ),
         Divider(height: 1, color: clx.line),
-        Flexible(child: _body(clx)),
+        Flexible(child: _body(context, clx)),
         Divider(height: 1, color: clx.line),
         Padding(
           padding: const EdgeInsets.all(ClxSpace.x4),
@@ -272,7 +271,7 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
     );
   }
 
-  Widget _body(CleanoxColors clx) {
+  Widget _body(BuildContext context, CleanoxColors clx) {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.all(ClxSpace.x10),
@@ -301,9 +300,8 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
                 const SizedBox(width: ClxSpace.x2),
                 Text(
                   'Disponibilidade salva.',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: clx.success,
-                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -317,9 +315,8 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
               Expanded(
                 child: Text(
                   'Duração do serviço (slot)',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: clx.ink2,
-                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -411,9 +408,8 @@ class _DiaRow extends StatelessWidget {
                     nome,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: clx.ink,
-                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -444,7 +440,7 @@ class _DiaRow extends StatelessWidget {
                     ),
                     child: Text(
                       'até',
-                      style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ),
                   Expanded(
@@ -467,7 +463,7 @@ class _DiaRow extends StatelessWidget {
             Expanded(
               child: Text(
                 'Indisponível',
-                style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
               ),
             ),
         ],
@@ -524,7 +520,7 @@ class _TimeField extends StatelessWidget {
             vertical: ClxSpace.x2,
           ),
         ),
-        child: Text(value, style: TextStyle(color: clx.ink, fontSize: 13.5)),
+        child: Text(value, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink)),
       ),
     );
   }

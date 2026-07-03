@@ -176,7 +176,9 @@ class _TransferenciaFormState extends ConsumerState<TransferenciaForm> {
               padding: const EdgeInsets.only(top: ClxSpace.x1),
               child: Text(
                 'De ${label(_fromId!)} para ${label(_toId!)}.',
-                style: TextStyle(color: context.clx.ink3, fontSize: 12.5),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: context.clx.ink3),
               ),
             ),
         ],

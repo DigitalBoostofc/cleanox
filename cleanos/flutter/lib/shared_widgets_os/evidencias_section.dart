@@ -93,9 +93,8 @@ class EvidenciasSection extends StatelessWidget {
       children: [
         Text(
           'Evidências do serviço',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: clx.ink,
-            fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -103,7 +102,9 @@ class EvidenciasSection extends StatelessWidget {
         Text(
           'Registre fotos do antes, durante e depois. Toque numa foto para '
           'legendar ou vincular a um item do serviço.',
-          style: TextStyle(color: clx.ink3, fontSize: 13, height: 1.45),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
         ),
         for (final fase in _fases) ...[
           const SizedBox(height: ClxSpace.x4),
@@ -163,9 +164,8 @@ class _FaseGrupo extends StatelessWidget {
           children: [
             Text(
               faseFotoLabel(fase),
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: clx.ink2,
-                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -206,7 +206,9 @@ class _FaseGrupo extends StatelessWidget {
             ),
             child: Text(
               'Nenhuma foto de ${faseFotoLabel(fase).toLowerCase()}',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
             ),
           )
         else
@@ -336,11 +338,9 @@ class _FotoCard extends StatelessWidget {
                         const SizedBox(height: ClxSpace.x1),
                         Text(
                           uploading ? 'Enviando…' : 'Removendo…',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium?.copyWith(color: Colors.white),
                         ),
                       ],
                     ),
@@ -398,7 +398,7 @@ class _FotoCard extends StatelessWidget {
                   initialValue: foto.legenda ?? '',
                   enabled: !busy,
                   onChanged: onLegenda,
-                  style: const TextStyle(fontSize: 13),
+                  style: Theme.of(context).textTheme.bodyMedium,
                   decoration: const InputDecoration(
                     isDense: true,
                     hintText: 'Descreva a foto…',
@@ -409,7 +409,9 @@ class _FotoCard extends StatelessWidget {
                   DropdownButtonFormField<String>(
                     initialValue: selectedValue.isEmpty ? null : selectedValue,
                     isExpanded: true,
-                    style: TextStyle(fontSize: 13, color: clx.ink),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: clx.ink),
                     decoration: const InputDecoration(isDense: true),
                     hint: const Text('Sem vínculo'),
                     items: [

@@ -170,9 +170,8 @@ class _SubNavItem extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: active ? clx.ink : clx.ink3,
-            fontSize: 14,
             fontWeight: active ? FontWeight.w700 : FontWeight.w500,
           ),
         ),

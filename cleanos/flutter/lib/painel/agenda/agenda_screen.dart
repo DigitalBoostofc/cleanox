@@ -101,9 +101,8 @@ class _Toolbar extends ConsumerWidget {
                   child: Text(
                     agendaPeriodLabel(state.view, state.anchor),
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: clx.ink,
-                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -336,6 +335,7 @@ class _WeekDayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
       decoration: BoxDecoration(
@@ -345,9 +345,8 @@ class _WeekDayHeader extends StatelessWidget {
         children: [
           Text(
             kDowShort[day.weekday % 7],
-            style: TextStyle(
+            style: tt.labelSmall?.copyWith(
               color: isToday ? clx.primary : clx.ink3,
-              fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.3,
             ),
@@ -355,9 +354,8 @@ class _WeekDayHeader extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '${day.day}',
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: isToday ? clx.primary : clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -385,7 +383,7 @@ class _HourLabel extends StatelessWidget {
       ),
       child: Text(
         '${hour}h',
-        style: TextStyle(color: clx.ink3, fontSize: 11.5, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: clx.ink3),
       ),
     );
   }
@@ -443,7 +441,10 @@ class _EventChip extends StatelessWidget {
           '${formatTime(os.dataHora)} ${os.nomeCurto.isEmpty ? '—' : os.nomeCurto}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: clx.ink, fontSize: 11, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: clx.ink,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -485,9 +486,8 @@ class _MonthView extends StatelessWidget {
                     child: Text(
                       d,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: clx.ink3,
-                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -570,11 +570,10 @@ class _MonthDayCell extends StatelessWidget {
                     : null,
                 child: Text(
                   '${day.day}',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: isToday
                         ? Colors.white
                         : (isOtherMonth ? clx.ink3 : clx.ink),
-                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -593,7 +592,8 @@ class _MonthDayCell extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 2, top: 1),
                         child: Text(
                           '+${events.length - 3} mais',
-                          style: TextStyle(color: clx.ink3, fontSize: 10.5),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: clx.ink3),
                         ),
                       ),
                   ],
@@ -634,7 +634,10 @@ class _DayView extends StatelessWidget {
           ),
           child: Text(
             '${agendaDayLabelLong(day)}${isToday ? ' — Hoje' : ''}',
-            style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: clx.ink,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
         Expanded(
@@ -677,11 +680,8 @@ class _DaySlot extends StatelessWidget {
             width: 48,
             child: Text(
               '${hour}h',
-              style: TextStyle(
-                color: clx.ink3,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(context).textTheme.labelMedium
+                  ?.copyWith(color: clx.ink3),
             ),
           ),
           Expanded(
@@ -706,6 +706,7 @@ class _DayEventTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final prof = os.expand?.profissional?.displayName;
     return InkWell(
       onTap: () => onTap(os),
@@ -727,7 +728,10 @@ class _DayEventTile extends StatelessWidget {
           children: [
             Text(
               formatTime(os.dataHora),
-              style: TextStyle(color: clx.ink, fontSize: 13, fontWeight: FontWeight.w700),
+              style: tt.bodyMedium?.copyWith(
+                color: clx.ink,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(width: ClxSpace.x2),
             Expanded(
@@ -737,7 +741,7 @@ class _DayEventTile extends StatelessWidget {
                 '${prof != null && prof != '—' ? ' · $prof' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 12.5),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
             ),
             StatusBadge(status: os.status, dense: true),
@@ -759,6 +763,7 @@ class _AgendaMiniCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final prof = os.expand?.profissional?.displayName;
     return InkWell(
       onTap: () => onTap(os),
@@ -781,7 +786,10 @@ class _AgendaMiniCard extends StatelessWidget {
           children: [
             Text(
               formatTime(os.dataHora),
-              style: TextStyle(color: clx.ink, fontSize: 13, fontWeight: FontWeight.w800),
+              style: tt.bodyMedium?.copyWith(
+                color: clx.ink,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(width: ClxSpace.x3),
             Expanded(
@@ -792,9 +800,8 @@ class _AgendaMiniCard extends StatelessWidget {
                     os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: tt.titleSmall?.copyWith(
                       color: clx.ink,
-                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -803,7 +810,7 @@ class _AgendaMiniCard extends StatelessWidget {
                     '${prof != null && prof != '—' ? ' · $prof' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: clx.ink3, fontSize: 11.5),
+                    style: tt.bodySmall?.copyWith(color: clx.ink3),
                   ),
                 ],
               ),
@@ -838,7 +845,10 @@ class _MobileDayView extends StatelessWidget {
       children: [
         Text(
           '${agendaDayLabelLong(day)}${sameDay(day, today) ? ' — Hoje' : ''}',
-          style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: clx.ink,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: ClxSpace.x3),
         if (events.isEmpty)
@@ -889,9 +899,8 @@ class _MobileWeekView extends StatelessWidget {
                 children: [
                   Text(
                     agendaDayLabelShort(d),
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: sameDay(d, today) ? clx.primary : clx.ink3,
-                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.3,
                     ),
@@ -942,7 +951,10 @@ class _MobileMonthView extends StatelessWidget {
                 child: Text(
                   d,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: clx.ink3, fontSize: 10.5, fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: clx.ink3,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
           ],
@@ -967,7 +979,10 @@ class _MobileMonthView extends StatelessWidget {
         const SizedBox(height: ClxSpace.x4),
         Text(
           agendaDayLabelLong(selected),
-          style: TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: clx.ink,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: ClxSpace.x2),
         if (selectedEvents.isEmpty)
@@ -1014,9 +1029,8 @@ class _MobileMonthDay extends StatelessWidget {
           children: [
             Text(
               '${day.day}',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: isOtherMonth ? clx.ink3 : clx.ink,
-                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1057,7 +1071,7 @@ class _EmptyDay extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: ClxSpace.x4),
       child: Text(
         'Sem atendimentos neste dia',
-        style: TextStyle(color: clx.ink3, fontSize: 13),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
       ),
     );
   }
@@ -1072,6 +1086,7 @@ class _OSDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final prof = os.expand?.profissional?.displayName;
     return AlertDialog(
       backgroundColor: clx.bg,
@@ -1081,7 +1096,10 @@ class _OSDetailDialog extends StatelessWidget {
           Expanded(
             child: Text(
               os.nomeCurto.isEmpty ? 'Ordem de serviço' : os.nomeCurto,
-              style: TextStyle(color: clx.ink, fontSize: 18, fontWeight: FontWeight.w700),
+              style: tt.titleMedium?.copyWith(
+                color: clx.ink,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           StatusBadge(status: os.status, dense: true),
@@ -1091,24 +1109,28 @@ class _OSDetailDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row(clx, 'Bairro', os.bairro.isEmpty ? '—' : os.bairro),
-          _row(clx, 'Serviço', os.tipoServicoNome ?? '—'),
-          _row(clx, 'Data / Hora', formatDateTime(os.dataHora)),
-          _row(clx, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
+          _row(clx, tt, 'Bairro', os.bairro.isEmpty ? '—' : os.bairro),
+          _row(clx, tt, 'Serviço', os.tipoServicoNome ?? '—'),
+          _row(clx, tt, 'Data / Hora', formatDateTime(os.dataHora)),
+          _row(clx, tt, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
           if (os.status == OSStatus.concluida) ...[
             const SizedBox(height: ClxSpace.x2),
             Text(
               'Financeiro',
-              style: TextStyle(color: clx.ink3, fontSize: 11.5, fontWeight: FontWeight.w700),
+              style: tt.labelMedium?.copyWith(
+                color: clx.ink3,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: ClxSpace.x1),
             _row(
               clx,
+              tt,
               'Valor pago',
               os.valorPago != null ? formatCurrency(os.valorPago!) : '—',
             ),
             if (os.formaPagamento != null)
-              _row(clx, 'Forma', os.formaPagamento!.label),
+              _row(clx, tt, 'Forma', os.formaPagamento!.label),
           ],
         ],
       ),
@@ -1122,22 +1144,29 @@ class _OSDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _row(CleanoxColors clx, String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: ClxSpace.x2),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 108,
-          child: Text(label, style: TextStyle(color: clx.ink3, fontSize: 12.5)),
+  Widget _row(CleanoxColors clx, TextTheme tt, String label, String value) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 108,
+              child: Text(
+                label,
+                style: tt.bodyMedium?.copyWith(color: clx.ink3),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: tt.bodyLarge?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(color: clx.ink, fontSize: 13.5, fontWeight: FontWeight.w500),
-          ),
-        ),
-      ],
-    ),
-  );
+      );
 }

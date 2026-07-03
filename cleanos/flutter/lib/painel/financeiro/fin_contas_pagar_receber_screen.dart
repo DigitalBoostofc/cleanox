@@ -241,10 +241,9 @@ class _FinContasPagarReceberScreenState
                     child: Text(
                       'Os totais consideram todas as contas em aberto. As listas '
                       'abaixo respeitam o período e os filtros selecionados.',
-                      style: TextStyle(
-                        color: context.clx.ink3,
-                        fontSize: 12,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: context.clx.ink3),
                     ),
                   ),
                   if (_showFilters) ...[
@@ -461,17 +460,14 @@ class _Filter<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: clx.ink3,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-          ),
+          style: tt.labelMedium?.copyWith(color: clx.ink3),
         ),
         const SizedBox(height: ClxSpace.x1),
         Container(
@@ -488,7 +484,7 @@ class _Filter<T> extends StatelessWidget {
               isDense: true,
               isExpanded: true,
               borderRadius: ClxRadii.rMd,
-              style: TextStyle(color: clx.ink, fontSize: 13.5),
+              style: tt.bodyLarge?.copyWith(color: clx.ink),
               dropdownColor: clx.bg,
               items: [
                 for (final e in entries)
@@ -609,6 +605,7 @@ class _Coluna extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,7 +614,7 @@ class _Coluna extends StatelessWidget {
             title: titulo,
             trailing: Text(
               '${itens.length} ${itens.length == 1 ? 'item' : 'itens'}',
-              style: TextStyle(color: clx.ink3, fontSize: 12.5),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             ),
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -627,7 +624,7 @@ class _Coluna extends StatelessWidget {
               child: Center(
                 child: Text(
                   vazio,
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -670,6 +667,7 @@ class _PendenteRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final l = pendente.lancamento;
     final venc = (l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data;
     return Container(
@@ -689,11 +687,7 @@ class _PendenteRow extends StatelessWidget {
                   l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: clx.ink),
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -709,9 +703,8 @@ class _PendenteRow extends StatelessWidget {
                         'Vence ${formatDateOnlyBr(venc)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: tt.bodySmall?.copyWith(
                           color: pendente.emAtraso ? clx.error : clx.ink3,
-                          fontSize: 12,
                           fontWeight: pendente.emAtraso
                               ? FontWeight.w700
                               : FontWeight.w400,
@@ -737,9 +730,8 @@ class _PendenteRow extends StatelessWidget {
           const SizedBox(width: ClxSpace.x2),
           Text(
             formatCurrency(l.valor),
-            style: TextStyle(
+            style: tt.bodyLarge?.copyWith(
               color: tipoColor(clx, tipo),
-              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -770,6 +762,7 @@ class _RodapeOs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,9 +786,8 @@ class _RodapeOs extends StatelessWidget {
                   children: [
                     Text(
                       'Recebimentos via Ordens de Serviço',
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -804,9 +796,8 @@ class _RodapeOs extends StatelessWidget {
                       'Quando uma OS é marcada como paga, o sistema pode gerar '
                       'automaticamente a conta a receber e registrar o pagamento, '
                       'mantendo suas finanças sempre atualizadas.',
-                      style: TextStyle(
+                      style: tt.bodyMedium?.copyWith(
                         color: clx.ink3,
-                        fontSize: 12.5,
                         height: 1.5,
                       ),
                     ),

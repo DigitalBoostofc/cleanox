@@ -35,7 +35,9 @@ class ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: clx.ink2, fontSize: 14),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
             ),
           ),
           if (onRetry != null) ...[

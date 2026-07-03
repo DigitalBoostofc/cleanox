@@ -174,6 +174,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
     List<VinculoOption> vinculoOptions,
   ) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
 
     if (state.loading && state.os == null) {
       return const Center(child: Spinner(size: 26));
@@ -222,11 +223,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
             children: [
               Text(
                 os.nomeCurto.isNotEmpty ? os.nomeCurto : 'Cliente',
-                style: TextStyle(
-                  color: clx.ink,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: tt.titleMedium?.copyWith(color: clx.ink),
               ),
               const SizedBox(height: ClxSpace.x2),
               Wrap(
@@ -270,11 +267,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
                       Expanded(
                         child: Text(
                           os.enderecoLiberado!,
-                          style: TextStyle(
-                            color: clx.ink,
-                            fontSize: 13.5,
-                            height: 1.4,
-                          ),
+                          style: tt.bodyLarge?.copyWith(color: clx.ink),
                         ),
                       ),
                     ],
@@ -302,17 +295,13 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
               children: [
                 Text(
                   'Serviço não definido',
-                  style: TextStyle(
-                    color: clx.ink2,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: clx.ink2),
                 ),
                 const SizedBox(height: ClxSpace.x1),
                 Text(
                   'O administrador ainda não configurou o serviço desta OS.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -352,7 +341,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
                   state.checklist.isNotEmpty
                       ? '${state.checklistDone} de ${state.checklist.length} itens · ${state.fotos.length} foto${state.fotos.length != 1 ? 's' : ''}'
                       : '${state.fotos.length} foto${state.fotos.length != 1 ? 's' : ''}',
-                  style: TextStyle(color: clx.ink2, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink2),
                 ),
               ),
               const SizedBox(width: ClxSpace.x2),
@@ -387,7 +376,12 @@ class _MetaChip extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: clx.ink3),
         const SizedBox(width: ClxSpace.x1),
-        Text(text, style: TextStyle(color: clx.ink2, fontSize: 13)),
+        Text(
+          text,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
+        ),
       ],
     );
   }
@@ -421,7 +415,12 @@ class _SaveIndicator extends StatelessWidget {
           Icon(icon, size: 13, color: color),
         const SizedBox(width: ClxSpace.x1),
         Flexible(
-          child: Text(text, style: TextStyle(color: color, fontSize: 12)),
+          child: Text(
+            text,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: color),
+          ),
         ),
       ],
     );

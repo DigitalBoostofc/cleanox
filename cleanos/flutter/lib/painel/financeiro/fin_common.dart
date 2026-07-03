@@ -78,11 +78,9 @@ class FinPeriodSelector extends ConsumerWidget {
             child: Text(
               period.label,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: clx.ink),
             ),
           ),
           IconButton(
@@ -112,9 +110,8 @@ class FinSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: clx.ink,
-              fontSize: 16,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
@@ -155,6 +152,7 @@ class FinKpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,11 +168,7 @@ class FinKpiCard extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: clx.ink3,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.labelMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             ],
@@ -184,9 +178,8 @@ class FinKpiCard extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: tt.titleLarge?.copyWith(
               color: color,
-              fontSize: 22,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.6,
             ),
@@ -208,10 +201,8 @@ class FinKpiCard extends StatelessWidget {
                     trend!.text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: tt.labelMedium?.copyWith(
                       color: trend!.up ? clx.finIncome : clx.finExpense,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -223,7 +214,7 @@ class FinKpiCard extends StatelessWidget {
               hint!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: clx.ink3, fontSize: 11.5),
+              style: tt.bodySmall?.copyWith(color: clx.ink3),
             ),
           ],
         ],

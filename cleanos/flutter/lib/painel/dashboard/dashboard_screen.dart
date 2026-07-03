@@ -83,6 +83,7 @@ class _DashboardBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final upcoming = data.upcoming;
 
     return RefreshIndicator(
@@ -105,7 +106,7 @@ class _DashboardBody extends ConsumerWidget {
                     title: 'Hoje',
                     trailing: Text(
                       _longDatePtBr(),
-                      style: TextStyle(color: clx.ink3, fontSize: 13),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ),
                   const SizedBox(height: ClxSpace.x3),
@@ -123,9 +124,8 @@ class _DashboardBody extends ConsumerWidget {
                   Text(
                     'Ordens abertas — ${upcoming.length} '
                     'registro${upcoming.length == 1 ? '' : 's'}',
-                    style: TextStyle(
+                    style: tt.bodyMedium?.copyWith(
                       color: clx.ink3,
-                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -228,9 +228,8 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: clx.ink,
-              fontSize: 17,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
@@ -315,26 +314,22 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: clx.ink3,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+            style: tt.labelMedium?.copyWith(color: clx.ink3),
           ),
           const SizedBox(height: ClxSpace.x2),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: (wide ? tt.titleLarge : tt.headlineMedium)?.copyWith(
               color: color,
-              fontSize: wide ? 22 : 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.6,
             ),
@@ -355,6 +350,7 @@ class _UpcomingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final prof = os.expand?.profissional;
     final subtitle = [
       os.tipoServicoNome ?? '—',
@@ -376,15 +372,14 @@ class _UpcomingCard extends StatelessWidget {
               children: [
                 Text(
                   formatTime(os.dataHora),
-                  style: TextStyle(
+                  style: tt.titleSmall?.copyWith(
                     color: clx.ink,
-                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   formatDate(os.dataHora).substring(0, 5), // dd/MM
-                  style: TextStyle(color: clx.ink3, fontSize: 11),
+                  style: tt.labelSmall?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -398,18 +393,14 @@ class _UpcomingCard extends StatelessWidget {
                   '${os.nomeCurto} — ${os.bairro}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: clx.ink),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),

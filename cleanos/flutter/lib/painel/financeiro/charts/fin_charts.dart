@@ -53,6 +53,7 @@ class FinDonutChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final positivas = slices.where((s) => s.value > 0).toList();
     final total = positivas.fold<double>(0, (a, s) => a + s.value);
 
@@ -84,17 +85,15 @@ class FinDonutChart extends StatelessWidget {
               if (centerLabel != null)
                 Text(
                   centerLabel!,
-                  style: TextStyle(
+                  style: tt.labelSmall?.copyWith(
                     color: clx.ink3,
-                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               Text(
                 formatCurrency(total),
-                style: TextStyle(
+                style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
-                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -129,15 +128,14 @@ class FinDonutChart extends StatelessWidget {
                     s.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: clx.ink2, fontSize: 12.5),
+                    style: tt.bodyMedium?.copyWith(color: clx.ink2),
                   ),
                 ),
                 const SizedBox(width: ClxSpace.x2),
                 Text(
                   total > 0 ? '${(s.value / total * 100).round()}%' : '0%',
-                  style: TextStyle(
+                  style: tt.labelMedium?.copyWith(
                     color: clx.ink3,
-                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -203,6 +201,7 @@ class FinGroupedBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final hasLucro = groups.any((g) => g.lucro != null);
 
     // Faixa de valores (inclui zero e negativos de lucro).
@@ -238,10 +237,9 @@ class FinGroupedBarChart extends StatelessWidget {
                   getTooltipColor: (_) => clx.accent,
                   getTooltipItem: (group, _, rod, __) => BarTooltipItem(
                     formatCurrency(rod.toY),
-                    const TextStyle(
+                    tt.labelMedium!.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
-                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -269,7 +267,7 @@ class FinGroupedBarChart extends StatelessWidget {
                         padding: const EdgeInsets.only(top: ClxSpace.x1),
                         child: Text(
                           groups[i].label,
-                          style: TextStyle(color: clx.ink3, fontSize: 11),
+                          style: tt.labelSmall?.copyWith(color: clx.ink3),
                         ),
                       );
                     },
@@ -331,7 +329,12 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, borderRadius: ClxRadii.rSm),
         ),
         const SizedBox(width: ClxSpace.x2),
-        Text(label, style: TextStyle(color: clx.ink2, fontSize: 12)),
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: clx.ink2),
+        ),
       ],
     );
   }
@@ -349,6 +352,7 @@ class FinBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final maxV = slices.fold<double>(0, (a, s) => s.value > a ? s.value : a);
     final maxY = maxV <= 0 ? 1.0 : maxV * 1.2;
 
@@ -365,10 +369,9 @@ class FinBarChart extends StatelessWidget {
               getTooltipColor: (_) => clx.accent,
               getTooltipItem: (group, _, rod, __) => BarTooltipItem(
                 formatCurrency(rod.toY),
-                const TextStyle(
+                tt.labelMedium!.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -396,7 +399,7 @@ class FinBarChart extends StatelessWidget {
                     padding: const EdgeInsets.only(top: ClxSpace.x1),
                     child: Text(
                       slices[i].label,
-                      style: TextStyle(color: clx.ink3, fontSize: 11),
+                      style: tt.labelSmall?.copyWith(color: clx.ink3),
                     ),
                   );
                 },

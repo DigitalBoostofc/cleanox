@@ -189,6 +189,7 @@ class _LimiteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final pct = progresso.pct;
     final estourou = progresso.gasto > progresso.limite && progresso.limite > 0;
     final atencao = pct >= 0.8 && !estourou;
@@ -216,11 +217,7 @@ class _LimiteCard extends StatelessWidget {
                   categoria.nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: clx.ink),
                 ),
               ),
               if (estourou)
@@ -252,7 +249,7 @@ class _LimiteCard extends StatelessWidget {
           else
             Text(
               'Limite zerado',
-              style: TextStyle(fontSize: 12, color: clx.warning),
+              style: tt.bodySmall?.copyWith(color: clx.warning),
             ),
           const SizedBox(height: ClxSpace.x2),
           Row(
@@ -260,14 +257,13 @@ class _LimiteCard extends StatelessWidget {
               Text(
                 '${formatCurrency(progresso.gasto)} de '
                 '${formatCurrency(progresso.limite)}',
-                style: TextStyle(color: clx.ink2, fontSize: 12.5),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
               const Spacer(),
               Text(
                 '${(pct * 100).round()}%',
-                style: TextStyle(
+                style: tt.bodyMedium?.copyWith(
                   color: barColor,
-                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),

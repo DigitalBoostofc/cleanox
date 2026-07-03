@@ -38,11 +38,11 @@ class ClxChip extends StatelessWidget {
           ],
           Text(
             label,
-            style: TextStyle(
-              color: color,
-              fontSize: dense ? 11 : 12,
-              fontWeight: FontWeight.w600,
-            ),
+            style:
+                (dense
+                        ? Theme.of(context).textTheme.labelSmall
+                        : Theme.of(context).textTheme.labelMedium)
+                    ?.copyWith(color: color, fontWeight: FontWeight.w600),
           ),
         ],
       ),

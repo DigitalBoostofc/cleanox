@@ -261,7 +261,9 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         content: Text(
           'Você tem alterações não salvas neste serviço. Se sair agora, elas '
           'serão perdidas.',
-          style: TextStyle(color: clx.ink2, fontSize: 14, height: 1.5),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: clx.ink2, height: 1.5),
         ),
         actions: [
           ClxButton(
@@ -342,6 +344,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   }
 
   Widget _header(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     return Container(
       color: clx.bg,
       padding: const EdgeInsets.symmetric(
@@ -363,9 +366,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
               children: [
                 Text(
                   _isEdit ? 'Editar serviço' : 'Novo serviço',
-                  style: TextStyle(
+                  style: tt.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.4,
                   ),
@@ -374,7 +376,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                   'Usado em orçamento, agendamento e OS.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -626,7 +628,12 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
               children: [
                 Icon(Icons.check_circle_rounded, size: 16, color: clx.success),
                 const SizedBox(width: ClxSpace.x2),
-                Text(r, style: TextStyle(color: clx.ink2, fontSize: 13.5)),
+                Text(
+                  r,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
+                ),
               ],
             ),
           ),
@@ -677,7 +684,9 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             ativo
                 ? 'Serviço ativo e disponível para orçamento e OS.'
                 : 'Serviço inativo — não aparece em novos orçamentos e OS.',
-            style: TextStyle(color: clx.ink2, fontSize: 13.5),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
           ),
         ),
       ],
@@ -692,6 +701,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     String? subtitle,
     required Widget child,
   }) {
+    final tt = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(ClxSpace.x5),
       decoration: BoxDecoration(
@@ -704,9 +714,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         children: [
           Text(
             title,
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -714,7 +723,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             const SizedBox(height: ClxSpace.x1),
             Text(
               subtitle,
-              style: TextStyle(color: clx.ink3, fontSize: 12.5, height: 1.4),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3, height: 1.4),
             ),
           ],
           const SizedBox(height: ClxSpace.x4),
@@ -745,9 +754,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       child: Text.rich(
         TextSpan(
           text: text,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
           children: [
@@ -995,6 +1003,7 @@ class _PreviewOS extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final nome = servico.nome.trim().isEmpty
         ? 'Nome do serviço'
         : servico.nome.trim();
@@ -1040,27 +1049,26 @@ class _PreviewOS extends StatelessWidget {
                   children: [
                     Text(
                       nome,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       descricao,
-                      style: TextStyle(
+                      style: tt.bodyMedium?.copyWith(
                         color: clx.ink3,
-                        fontSize: 12.5,
                         height: 1.4,
                       ),
                     ),
                     const SizedBox(height: ClxSpace.x3),
                     Row(
                       children: [
-                        _meta(clx, 'Valor', _previewValor()),
+                        _meta(tt, clx, 'Valor', _previewValor()),
                         const SizedBox(width: ClxSpace.x6),
                         _meta(
+                          tt,
                           clx,
                           'Tempo',
                           formatTempoMedio(
@@ -1080,9 +1088,8 @@ class _PreviewOS extends StatelessWidget {
           const SizedBox(height: ClxSpace.x3),
           Text(
             'INCLUI',
-            style: TextStyle(
+            style: tt.labelSmall?.copyWith(
               color: clx.ink3,
-              fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
             ),
@@ -1091,7 +1098,7 @@ class _PreviewOS extends StatelessWidget {
           if (visiveis.isEmpty)
             Text(
               'Sem itens no checklist',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             )
           else ...[
             for (final it in visiveis)
@@ -1109,7 +1116,7 @@ class _PreviewOS extends StatelessWidget {
                     Expanded(
                       child: Text(
                         it.titulo,
-                        style: TextStyle(color: clx.ink2, fontSize: 13),
+                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
                       ),
                     ),
                   ],
@@ -1120,11 +1127,7 @@ class _PreviewOS extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '+$restantes ${restantes == 1 ? 'item' : 'itens'}',
-                  style: TextStyle(
-                    color: clx.ink3,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.labelMedium?.copyWith(color: clx.ink3),
                 ),
               ),
           ],
@@ -1133,20 +1136,19 @@ class _PreviewOS extends StatelessWidget {
     );
   }
 
-  Widget _meta(CleanoxColors clx, String label, String value) {
+  Widget _meta(TextTheme tt, CleanoxColors clx, String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(color: clx.ink3, fontSize: 11),
+          style: tt.labelSmall?.copyWith(color: clx.ink3),
         ),
         const SizedBox(height: 1),
         Text(
           value,
-          style: TextStyle(
+          style: tt.bodyLarge?.copyWith(
             color: clx.ink,
-            fontSize: 13.5,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1167,7 +1169,7 @@ class _OutrosServicosTable extends StatelessWidget {
     if (servicos.isEmpty) {
       return Text(
         'Nenhum outro serviço cadastrado ainda.',
-        style: TextStyle(color: clx.ink3, fontSize: 13),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
       );
     }
     return Column(
@@ -1182,6 +1184,7 @@ class _OutrosServicosTable extends StatelessWidget {
 
   Widget _row(BuildContext context, ServicoPB s) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final ativo = (s.status ?? ServicoStatus.inativo) == ServicoStatus.ativo;
     final statusColor = ativo ? clx.success : clx.ink3;
     return InkWell(
@@ -1201,18 +1204,14 @@ class _OutrosServicosTable extends StatelessWidget {
                     s.nome.isEmpty ? '—' : s.nome,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: clx.ink,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: tt.titleSmall?.copyWith(color: clx.ink),
                   ),
                   Text(
                     '${categoriaLabel(s.categoria ?? Categoria.veicular)} · '
                     '${grupoLabel(s.grupo ?? Grupo.outros)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: clx.ink3, fontSize: 12),
+                    style: tt.bodySmall?.copyWith(color: clx.ink3),
                   ),
                 ],
               ),
@@ -1225,7 +1224,7 @@ class _OutrosServicosTable extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
-                style: TextStyle(color: clx.ink2, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink2),
               ),
             ),
             const SizedBox(width: ClxSpace.x2),

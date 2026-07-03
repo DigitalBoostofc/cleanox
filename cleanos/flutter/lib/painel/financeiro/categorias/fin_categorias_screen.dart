@@ -240,6 +240,7 @@ class _CategoriaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final accent = _parseHex(categoria.cor) ?? clx.primary;
     return ClxCard(
       padding: const EdgeInsets.symmetric(
@@ -269,9 +270,8 @@ class _CategoriaTile extends StatelessWidget {
           ),
           title: Text(
             categoria.nome,
-            style: TextStyle(
+            style: tt.titleSmall?.copyWith(
               color: clx.ink,
-              fontSize: 14.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -279,7 +279,7 @@ class _CategoriaTile extends StatelessWidget {
             filhos.isEmpty
                 ? 'Sem subcategorias'
                 : '${filhos.length} subcategoria${filhos.length == 1 ? '' : 's'}',
-            style: TextStyle(color: clx.ink3, fontSize: 12),
+            style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
           trailing: _menu(context),
           children: [
@@ -365,7 +365,9 @@ class _SubRow extends StatelessWidget {
                 categoria.nome,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             IconButton(

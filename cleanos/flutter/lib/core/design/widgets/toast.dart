@@ -20,9 +20,10 @@ void showClxToast(
       Colors.white,
       Icons.check_circle_rounded,
     ),
+    // warning claro é #B45309 (escuro, WCAG) → texto/ícone brancos.
     ToastType.warning => (
       clx.warning,
-      Colors.black87,
+      Colors.white,
       Icons.warning_amber_rounded,
     ),
     ToastType.error => (clx.error, Colors.white, Icons.error_rounded),
@@ -43,7 +44,12 @@ void showClxToast(
             Icon(icon, color: fg, size: 20),
             const SizedBox(width: ClxSpace.x3),
             Expanded(
-              child: Text(message, style: TextStyle(color: fg, fontSize: 14)),
+              child: Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: fg),
+              ),
             ),
           ],
         ),

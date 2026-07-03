@@ -83,6 +83,7 @@ class PerfilScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final user = ref.watch(currentUserProvider);
     final statsAsync = ref.watch(perfilStatsProvider);
     final rawName = user?.displayName ?? '—';
@@ -107,20 +108,14 @@ class PerfilScreen extends ConsumerWidget {
                       backgroundColor: clx.accent,
                       child: Text(
                         avatarInitial,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: tt.headlineSmall?.copyWith(color: Colors.white),
                       ),
                     ),
                     const SizedBox(height: ClxSpace.x3),
                     Text(
                       displayName,
-                      style: TextStyle(
+                      style: tt.titleMedium?.copyWith(
                         color: clx.ink,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -128,7 +123,7 @@ class PerfilScreen extends ConsumerWidget {
                       const SizedBox(height: 2),
                       Text(
                         user!.email,
-                        style: TextStyle(color: clx.ink3, fontSize: 13),
+                        style: tt.bodyMedium?.copyWith(color: clx.ink3),
                       ),
                     ],
                     const SizedBox(height: ClxSpace.x2),
@@ -142,18 +137,16 @@ class PerfilScreen extends ConsumerWidget {
                                 children: [
                                   Text(
                                     'Sua avaliação: ',
-                                    style: TextStyle(
+                                    style: tt.bodyLarge?.copyWith(
                                       color: clx.ink2,
-                                      fontSize: 13.5,
                                     ),
                                   ),
                                   StarRating(value: s.media!, size: 15),
                                   const SizedBox(width: ClxSpace.x1),
                                   Text(
                                     s.media!.toStringAsFixed(1),
-                                    style: TextStyle(
+                                    style: tt.bodyLarge?.copyWith(
                                       color: clx.ink,
-                                      fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -164,7 +157,9 @@ class PerfilScreen extends ConsumerWidget {
                               padding: const EdgeInsets.only(top: ClxSpace.x2),
                               child: Text(
                                 'Nenhuma avaliação ainda',
-                                style: TextStyle(color: clx.ink3, fontSize: 13),
+                                style: tt.bodyMedium?.copyWith(
+                                  color: clx.ink3,
+                                ),
                               ),
                             ),
                       orElse: () => const SizedBox.shrink(),
@@ -229,10 +224,8 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               'Perfil',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: clx.ink,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
                 letterSpacing: -0.4,
               ),
             ),
@@ -261,6 +254,7 @@ class _ResumoDoDia extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -275,9 +269,8 @@ class _ResumoDoDia extends StatelessWidget {
             ),
             child: Text(
               'RESUMO DE HOJE',
-              style: TextStyle(
+              style: tt.labelSmall?.copyWith(
                 color: clx.ink3,
-                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
               ),
@@ -290,7 +283,7 @@ class _ResumoDoDia extends StatelessWidget {
               loading: () => const Center(child: Spinner(size: 20)),
               error: (_, __) => Text(
                 'Não foi possível carregar o resumo.',
-                style: TextStyle(color: clx.ink3, fontSize: 13),
+                style: tt.bodyMedium?.copyWith(color: clx.ink3),
               ),
               data: (s) => Row(
                 children: [
@@ -328,25 +321,20 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Column(
       children: [
         Text(
           value,
-          style: TextStyle(
+          style: tt.displaySmall?.copyWith(
             color: color,
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
             letterSpacing: -0.6,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
-            color: clx.ink3,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+          style: tt.labelMedium?.copyWith(color: clx.ink3),
         ),
       ],
     );
@@ -396,6 +384,7 @@ class _LiberarLocalizacaoTileState
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return ClxCard(
       onTap: _busy ? null : _liberar,
       child: Row(
@@ -408,17 +397,13 @@ class _LiberarLocalizacaoTileState
               children: [
                 Text(
                   'Liberar localização',
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: tt.titleSmall?.copyWith(color: clx.ink),
                 ),
                 Text(
                   Env.trackingEnabled
                       ? 'Permite avisar o cliente quando você está a caminho.'
                       : 'Em breve: acompanhamento em tempo real a caminho da OS.',
-                  style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -535,11 +520,9 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
                   Expanded(
                     child: Text(
                       'Alterar senha',
-                      style: TextStyle(
-                        color: clx.ink,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleSmall?.copyWith(color: clx.ink),
                     ),
                   ),
                   Icon(
@@ -568,10 +551,8 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
                         Expanded(
                           child: Text(
                             'Senha alterada! Redirecionando para o login…',
-                            style: TextStyle(
-                              color: clx.success,
-                              fontSize: 13.5,
-                            ),
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: clx.success),
                           ),
                         ),
                       ],

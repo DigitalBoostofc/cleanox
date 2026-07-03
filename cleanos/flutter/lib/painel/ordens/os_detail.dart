@@ -142,6 +142,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final lookups = ref.watch(ordensLookupsProvider);
     final profs = lookups.maybeWhen(
       data: (lk) => lk.profissionais,
@@ -164,9 +165,8 @@ class _OSDetailState extends ConsumerState<OSDetail> {
               Expanded(
                 child: Text(
                   'OS — ${_os.nomeCurto.isEmpty ? "Cliente" : _os.nomeCurto}',
-                  style: TextStyle(
+                  style: tt.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -202,7 +202,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   _section(clx, 'Endereço (liberado)', [
                     Text(
                       _os.enderecoLiberado!,
-                      style: TextStyle(color: clx.ink, fontSize: 14),
+                      style: tt.bodyLarge?.copyWith(color: clx.ink),
                     ),
                   ]),
                 _profissionalSection(clx, profs),
@@ -334,12 +334,13 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   /// Avaliação da OS concluída (estrelas + motivo + data). Espelha o bloco
   /// "Avaliação" do detalhe no React.
   Widget _avaliacaoSection(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final nota = _os.avaliacaoNota;
     if (nota == null) {
       return _section(clx, 'Avaliação', [
         Text(
           'Avaliação pendente',
-          style: TextStyle(color: clx.ink3, fontSize: 13.5),
+          style: tt.bodyLarge?.copyWith(color: clx.ink3),
         ),
       ]);
     }
@@ -353,9 +354,8 @@ class _OSDetailState extends ConsumerState<OSDetail> {
               width: 130,
               child: Text(
                 'Nota',
-                style: TextStyle(
+                style: tt.bodyMedium?.copyWith(
                   color: clx.ink3,
-                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -379,9 +379,8 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         children: [
           Text(
             title.toUpperCase(),
-            style: TextStyle(
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: clx.ink3,
-              fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
             ),
@@ -394,6 +393,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   }
 
   Widget _row(CleanoxColors clx, String label, String value) {
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -403,15 +403,17 @@ class _OSDetailState extends ConsumerState<OSDetail> {
             width: 130,
             child: Text(
               label,
-              style: TextStyle(
+              style: tt.bodyMedium?.copyWith(
                 color: clx.ink3,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           Expanded(
-            child: Text(value, style: TextStyle(color: clx.ink, fontSize: 14)),
+            child: Text(
+              value,
+              style: tt.bodyLarge?.copyWith(color: clx.ink),
+            ),
           ),
         ],
       ),

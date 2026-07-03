@@ -15,45 +15,200 @@ import 'tokens.dart';
 /// Chave de persistência do tema (paridade com o web).
 const String kThemeStorageKey = 'cleanos-theme';
 
-ThemeData _build(Brightness brightness, CleanoxColors clx) {
+/// Cor de texto/ícone sobre o cyan da marca (primary e primaryContainer).
+const Color _onBrandCyan = ClxBrand.onPrimary;
+
+/// ColorScheme MD3 COMPLETO derivado da marca (todos os roles preenchidos —
+/// tertiary, tiers de surface-container, inverse*, containers de feedback).
+/// Pares X/onX verificados a ≥ 4.5:1 (WCAG AA texto normal).
+ColorScheme _scheme(Brightness brightness, CleanoxColors clx) {
   final isDark = brightness == Brightness.dark;
-  final scheme = ColorScheme(
+  return ColorScheme(
     brightness: brightness,
     primary: clx.primary,
-    onPrimary: const Color(0xFF04201E),
+    onPrimary: _onBrandCyan,
     primaryContainer: clx.primary2,
-    onPrimaryContainer: Colors.white,
+    onPrimaryContainer: _onBrandCyan,
     secondary: clx.accent,
-    onSecondary: Colors.white,
+    onSecondary: isDark ? const Color(0xFF06222B) : Colors.white,
     secondaryContainer: clx.accent2,
-    onSecondaryContainer: Colors.white,
+    onSecondaryContainer: isDark ? const Color(0xFF06222B) : Colors.white,
+    tertiary: isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED),
+    onTertiary: isDark ? const Color(0xFF2E1065) : Colors.white,
+    tertiaryContainer: isDark
+        ? const Color(0xFF5B21B6)
+        : const Color(0xFFEDE9FE),
+    onTertiaryContainer: isDark
+        ? const Color(0xFFEDE9FE)
+        : const Color(0xFF4C1D95),
+    error: clx.error,
+    onError: isDark ? const Color(0xFF450A0A) : Colors.white,
+    errorContainer: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2),
+    onErrorContainer: isDark
+        ? const Color(0xFFFECACA)
+        : const Color(0xFF7F1D1D),
     surface: clx.bg,
     onSurface: clx.ink,
-    surfaceContainerHighest: clx.bg3,
     onSurfaceVariant: clx.ink2,
-    error: clx.error,
-    onError: Colors.white,
+    surfaceDim: isDark ? const Color(0xFF0C0C0C) : const Color(0xFFE6ECF1),
+    surfaceBright: isDark ? const Color(0xFF2E2E2E) : const Color(0xFFFFFFFF),
+    surfaceContainerLowest: isDark
+        ? const Color(0xFF070707)
+        : const Color(0xFFFFFFFF),
+    surfaceContainerLow: clx.bg2,
+    surfaceContainer: isDark
+        ? const Color(0xFF1B1B1B)
+        : const Color(0xFFF4F7FA),
+    surfaceContainerHigh: isDark
+        ? const Color(0xFF1E1E1E)
+        : const Color(0xFFF1F5F8),
+    surfaceContainerHighest: clx.bg3,
+    inverseSurface: isDark ? const Color(0xFFF7F9FB) : clx.ink,
+    onInverseSurface: isDark ? const Color(0xFF0B1F2A) : clx.bg2,
+    inversePrimary: isDark ? const Color(0xFF007A74) : clx.primary,
     outline: clx.line2,
     outlineVariant: clx.line,
     shadow: const Color(0xFF0F4C5C),
+    surfaceTint: clx.primary,
   );
+}
+
+/// Escala tipográfica MD3 com os tamanhos da marca (Sora). Cores herdam de
+/// `onSurface` — texto muted usa `copyWith(color: clx.ink2/ink3)` no ponto de
+/// uso. Papéis seguem a semântica MD3: Display (números-herói/KPI), Headline
+/// (seções), Title (títulos de página/card), Body (corpo), Label (botões,
+/// chips, captions).
+TextTheme _textTheme() {
+  const f = kFontFamily;
+  return const TextTheme(
+    displayLarge: TextStyle(
+      fontFamily: f,
+      fontSize: 36,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+    ),
+    displayMedium: TextStyle(
+      fontFamily: f,
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+    ),
+    displaySmall: TextStyle(
+      fontFamily: f,
+      fontSize: 30,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+    ),
+    headlineLarge: TextStyle(
+      fontFamily: f,
+      fontSize: 28,
+      fontWeight: FontWeight.w700,
+      height: 1.25,
+    ),
+    headlineMedium: TextStyle(
+      fontFamily: f,
+      fontSize: 26,
+      fontWeight: FontWeight.w700,
+      height: 1.25,
+    ),
+    headlineSmall: TextStyle(
+      fontFamily: f,
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
+      height: 1.25,
+    ),
+    titleLarge: TextStyle(
+      fontFamily: f,
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      height: 1.3,
+    ),
+    titleMedium: TextStyle(
+      fontFamily: f,
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      height: 1.35,
+    ),
+    titleSmall: TextStyle(
+      fontFamily: f,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      height: 1.35,
+    ),
+    bodyLarge: TextStyle(
+      fontFamily: f,
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      height: 1.45,
+    ),
+    bodyMedium: TextStyle(
+      fontFamily: f,
+      fontSize: 13,
+      fontWeight: FontWeight.w400,
+      height: 1.45,
+    ),
+    bodySmall: TextStyle(
+      fontFamily: f,
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+      height: 1.4,
+    ),
+    labelLarge: TextStyle(
+      fontFamily: f,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+    ),
+    labelMedium: TextStyle(
+      fontFamily: f,
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+    ),
+    labelSmall: TextStyle(
+      fontFamily: f,
+      fontSize: 11,
+      fontWeight: FontWeight.w500,
+      height: 1.2,
+    ),
+  );
+}
+
+ThemeData _build(Brightness brightness, CleanoxColors clx) {
+  final isDark = brightness == Brightness.dark;
+  final scheme = _scheme(brightness, clx);
+  final textTheme = _textTheme();
 
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
     fontFamily: kFontFamily,
+    textTheme: textTheme,
     scaffoldBackgroundColor: clx.bg2,
     canvasColor: clx.bg,
     dividerColor: clx.line,
     extensions: <ThemeExtension<dynamic>>[clx],
+    // Transições de rota MD3 (fade-forwards) + iOS nativo.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+      },
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: clx.bg,
       foregroundColor: clx.ink,
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
+      titleTextStyle: textTheme.titleLarge?.copyWith(color: clx.ink),
     ),
+    // Card "outlined" (variante MD3): elevação 0 + borda outline-variant.
     cardTheme: CardThemeData(
       color: clx.bg,
       elevation: 0,
@@ -61,6 +216,48 @@ ThemeData _build(Brightness brightness, CleanoxColors clx) {
       shape: RoundedRectangleBorder(
         borderRadius: ClxRadii.rLg,
         side: BorderSide(color: clx.line),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: scheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+      titleTextStyle: textTheme.headlineSmall?.copyWith(color: clx.ink),
+      contentTextStyle: textTheme.bodyLarge?.copyWith(color: clx.ink2),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surfaceContainerLow,
+      dragHandleColor: scheme.outline,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(ClxRadii.xl)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: scheme.inverseSurface,
+      contentTextStyle: textTheme.bodyMedium?.copyWith(
+        color: scheme.onInverseSurface,
+      ),
+      actionTextColor: scheme.inversePrimary,
+      behavior: SnackBarBehavior.floating,
+      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rSm),
+    ),
+    chipTheme: ChipThemeData(
+      labelStyle: textTheme.labelMedium?.copyWith(color: clx.ink2),
+      side: BorderSide(color: clx.line),
+      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rSm),
+      backgroundColor: scheme.surfaceContainerLow,
+      selectedColor: scheme.secondaryContainer,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scheme.surfaceContainer,
+      indicatorColor: scheme.secondaryContainer,
+      labelTextStyle: WidgetStatePropertyAll(textTheme.labelMedium),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: clx.bgSidebar,
+      indicatorColor: scheme.secondaryContainer,
+      selectedLabelTextStyle: textTheme.labelMedium?.copyWith(color: clx.ink),
+      unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        color: clx.ink2,
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -87,13 +284,31 @@ ThemeData _build(Brightness brightness, CleanoxColors clx) {
         borderSide: BorderSide(color: clx.error),
       ),
     ),
+    // Botões com shape "full" (StadiumBorder), padrão MD3; texto = labelLarge.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: clx.primary,
-        foregroundColor: const Color(0xFF04201E),
+        foregroundColor: _onBrandCyan,
         minimumSize: const Size(0, ClxLayout.minTouchTarget),
-        shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rMd),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        shape: const StadiumBorder(),
+        textStyle: textTheme.labelLarge,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: clx.ink2,
+        side: BorderSide(color: clx.line2),
+        minimumSize: const Size(0, ClxLayout.minTouchTarget),
+        shape: const StadiumBorder(),
+        textStyle: textTheme.labelLarge,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: isDark ? clx.primary : scheme.secondary,
+        minimumSize: const Size(0, ClxLayout.minTouchTarget),
+        shape: const StadiumBorder(),
+        textStyle: textTheme.labelLarge,
       ),
     ),
     dividerTheme: DividerThemeData(color: clx.line, thickness: 1, space: 1),

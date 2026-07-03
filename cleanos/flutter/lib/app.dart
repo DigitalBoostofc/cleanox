@@ -10,6 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/design/theme.dart';
+import 'core/design/tokens.dart';
 import 'core/router/app_router.dart';
 
 /// Superfície-alvo do entrypoint (só afeta o título; o roteamento é por papel).
@@ -32,6 +33,9 @@ class CleanosApp extends ConsumerWidget {
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
       themeMode: themeMode,
+      // Troca claro↔escuro animada com os motion tokens MD3.
+      themeAnimationDuration: ClxMotion.standardDuration,
+      themeAnimationCurve: ClxMotion.standard,
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR')],
       localizationsDelegates: const [

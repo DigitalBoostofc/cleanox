@@ -327,9 +327,8 @@ class _HeaderCell extends StatelessWidget {
       flex: flex,
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: clx.ink3,
-          fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
@@ -374,9 +373,8 @@ class _TableRow extends StatelessWidget {
                     nomeCompleto.isEmpty ? '—' : nomeCompleto,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: clx.ink,
-                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -385,7 +383,7 @@ class _TableRow extends StatelessWidget {
                       cliente.email!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink3, fontSize: 12),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
                     ),
                 ],
               ),
@@ -394,7 +392,7 @@ class _TableRow extends StatelessWidget {
               flex: 2,
               child: Text(
                 cliente.telefone.isEmpty ? '—' : maskPhoneBR(cliente.telefone),
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -403,7 +401,7 @@ class _TableRow extends StatelessWidget {
                 cliente.enderecoBairro.isEmpty ? '—' : cliente.enderecoBairro,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -414,7 +412,7 @@ class _TableRow extends StatelessWidget {
                     : cliente.enderecoCidade!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ),
             Expanded(
@@ -480,9 +478,8 @@ class _ClienteCard extends StatelessWidget {
                       nomeCompleto.isEmpty ? '—' : nomeCompleto,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -491,7 +488,7 @@ class _ClienteCard extends StatelessWidget {
                         cliente.email!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                       ),
                   ],
                 ),
@@ -501,20 +498,21 @@ class _ClienteCard extends StatelessWidget {
           ),
           const SizedBox(height: ClxSpace.x3),
           _cardRow(
+            context,
             clx,
             Icons.phone_outlined,
             cliente.telefone.isEmpty ? '—' : maskPhoneBR(cliente.telefone),
           ),
           if (local.isNotEmpty) ...[
             const SizedBox(height: ClxSpace.x1),
-            _cardRow(clx, Icons.place_outlined, local),
+            _cardRow(context, clx, Icons.place_outlined, local),
           ],
         ],
       ),
     );
   }
 
-  Widget _cardRow(CleanoxColors clx, IconData icon, String text) {
+  Widget _cardRow(BuildContext context, CleanoxColors clx, IconData icon, String text) {
     return Row(
       children: [
         Icon(icon, size: 15, color: clx.ink3),
@@ -524,7 +522,7 @@ class _ClienteCard extends StatelessWidget {
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: clx.ink2, fontSize: 13.5),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
           ),
         ),
       ],

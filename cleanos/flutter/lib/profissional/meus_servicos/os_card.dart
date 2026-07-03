@@ -72,6 +72,7 @@ class OSCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final statusColor = clx.statusColor(os.status);
 
     // Faixa de status à esquerda: uma borda não-uniforme com borderRadius é
@@ -111,10 +112,8 @@ class OSCard extends StatelessWidget {
                                 children: [
                                   Text(
                                     formatHour(os.dataHora),
-                                    style: TextStyle(
+                                    style: tt.titleLarge?.copyWith(
                                       color: clx.accent,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
                                       letterSpacing: -0.4,
                                     ),
                                   ),
@@ -124,10 +123,8 @@ class OSCard extends StatelessWidget {
                                       os.nomeCurto,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
+                                      style: tt.titleSmall?.copyWith(
                                         color: clx.ink,
-                                        fontSize: 15.5,
-                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
@@ -140,17 +137,15 @@ class OSCard extends StatelessWidget {
                                   if ((os.tipoServicoNome ?? '').isNotEmpty)
                                     Text(
                                       os.tipoServicoNome!,
-                                      style: TextStyle(
+                                      style: tt.bodyMedium?.copyWith(
                                         color: clx.ink2,
-                                        fontSize: 13,
                                       ),
                                     ),
                                   if (os.bairro.isNotEmpty)
                                     Text(
                                       os.bairro,
-                                      style: TextStyle(
+                                      style: tt.bodyMedium?.copyWith(
                                         color: clx.ink3,
-                                        fontSize: 13,
                                       ),
                                     ),
                                 ],
@@ -166,9 +161,8 @@ class OSCard extends StatelessWidget {
                             const SizedBox(height: ClxSpace.x1),
                             Text(
                               formatCurrency(os.valorServico ?? 0),
-                              style: TextStyle(
+                              style: tt.bodyLarge?.copyWith(
                                 color: clx.ink2,
-                                fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -209,11 +203,7 @@ class OSCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 os.enderecoLiberado!,
-                                style: TextStyle(
-                                  color: clx.ink,
-                                  fontSize: 13.5,
-                                  height: 1.4,
-                                ),
+                                style: tt.bodyLarge?.copyWith(color: clx.ink),
                               ),
                             ),
                           ],
@@ -350,7 +340,9 @@ class OSCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: ClxSpace.x1),
                 child: Text(
                   'Registre o pagamento antes de concluir.',
-                  style: TextStyle(color: clx.ink3, fontSize: 12),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: clx.ink3),
                 ),
               ),
           ],
@@ -359,7 +351,9 @@ class OSCard extends StatelessWidget {
         return Text(
           'Serviço cancelado.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: clx.ink3, fontSize: 13),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
         );
       case OSStatus.agendada:
       case OSStatus.concluida:
@@ -410,9 +404,8 @@ class _InfoStrip extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: color,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),

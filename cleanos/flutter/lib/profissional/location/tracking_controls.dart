@@ -109,6 +109,7 @@ class _TrackingControlsState extends ConsumerState<TrackingControls> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
 
     if (_sharing) {
       return Column(
@@ -128,9 +129,8 @@ class _TrackingControlsState extends ConsumerState<TrackingControls> {
                 Expanded(
                   child: Text(
                     'Compartilhando sua localização com o cliente.',
-                    style: TextStyle(
+                    style: tt.bodyMedium?.copyWith(
                       color: clx.success,
-                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -156,7 +156,7 @@ class _TrackingControlsState extends ConsumerState<TrackingControls> {
         children: [
           Text(
             'Localização negada — o tracking automático está desligado.',
-            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+            style: tt.bodyMedium?.copyWith(color: clx.ink3),
           ),
           const SizedBox(height: ClxSpace.x2),
           ClxButton(

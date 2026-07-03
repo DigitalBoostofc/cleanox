@@ -100,9 +100,8 @@ class _DadosCard extends StatelessWidget {
               const SizedBox(width: ClxSpace.x2),
               Text(
                 'Minha conta',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: clx.ink,
-                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -112,12 +111,12 @@ class _DadosCard extends StatelessWidget {
           const SizedBox(height: ClxSpace.x4),
           _DetailRow(
             label: 'Nome',
-            child: Text(nome, style: _valStyle(clx)),
+            child: Text(nome, style: _valStyle(context, clx)),
           ),
           Divider(height: ClxSpace.x5, color: clx.line),
           _DetailRow(
             label: 'E-mail',
-            child: Text(email, style: _valStyle(clx)),
+            child: Text(email, style: _valStyle(context, clx)),
           ),
           Divider(height: ClxSpace.x5, color: clx.line),
           _DetailRow(
@@ -129,8 +128,11 @@ class _DadosCard extends StatelessWidget {
     );
   }
 
-  TextStyle _valStyle(CleanoxColors clx) =>
-      TextStyle(color: clx.ink, fontSize: 14, fontWeight: FontWeight.w600);
+  TextStyle? _valStyle(BuildContext context, CleanoxColors clx) =>
+      Theme.of(context).textTheme.bodyLarge?.copyWith(
+        color: clx.ink,
+        fontWeight: FontWeight.w600,
+      );
 }
 
 class _DetailRow extends StatelessWidget {
@@ -147,7 +149,7 @@ class _DetailRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 96,
-          child: Text(label, style: TextStyle(color: clx.ink3, fontSize: 13)),
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3)),
         ),
         const SizedBox(width: ClxSpace.x3),
         Expanded(
@@ -253,9 +255,8 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
               const SizedBox(width: ClxSpace.x2),
               Text(
                 'Alterar senha',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: clx.ink,
-                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -332,7 +333,7 @@ class _SuccessBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Senha alterada com sucesso! Você será redirecionado para o login…',
-              style: TextStyle(color: clx.ink2, fontSize: 14),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
             ),
           ),
         ],
@@ -371,9 +372,8 @@ class _PwdField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),

@@ -31,16 +31,16 @@ void main() {
     );
   });
 
-  test('statusColor mapeia OSStatus (paridade tokens.css)', () {
+  test('statusColor mapeia OSStatus (tons WCAG ≥ 4.5:1 do upgrade MD3)', () {
     final clx = CleanoxColors.light;
-    expect(clx.statusColor(OSStatus.concluida), const Color(0xFF22C55E));
-    expect(clx.statusColor(OSStatus.emAndamento), const Color(0xFFF59E0B));
-    expect(clx.statusColor(OSStatus.cancelada), const Color(0xFFEF4444));
+    expect(clx.statusColor(OSStatus.concluida), const Color(0xFF15803D));
+    expect(clx.statusColor(OSStatus.emAndamento), const Color(0xFFB45309));
+    expect(clx.statusColor(OSStatus.cancelada), const Color(0xFFDC2626));
   });
 
   test('groupColor mapeia Grupo', () {
     final clx = CleanoxColors.light;
-    expect(clx.groupColor(Grupo.avulsos), const Color(0xFFFF8C42));
+    expect(clx.groupColor(Grupo.avulsos), const Color(0xFFC2410C));
     expect(clx.groupColor(Grupo.sofa), clx.groupColor(Grupo.colchao));
   });
 

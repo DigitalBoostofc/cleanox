@@ -207,6 +207,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
 
@@ -394,7 +395,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                 padding: const EdgeInsets.only(bottom: ClxSpace.x3),
                 child: Text(
                   _errs['parcelas']!,
-                  style: TextStyle(color: clx.error, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.error),
                 ),
               ),
           ],
@@ -428,13 +429,13 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                     child: Text(
                       'Gerado pela OS ${widget.editing!.osNumero ?? ''} — '
                       'o vínculo é preservado.',
-                      style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                   ),
                 ],
               ),
             ),
-          _anexosSection(clx),
+          _anexosSection(clx, tt),
         ],
       ),
     );
@@ -444,7 +445,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     if (_errs.containsKey(key)) setState(() => _errs.remove(key));
   }
 
-  Widget _anexosSection(CleanoxColors clx) {
+  Widget _anexosSection(CleanoxColors clx, TextTheme tt) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -452,9 +453,8 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           children: [
             Text(
               'Anexos',
-              style: TextStyle(
+              style: tt.bodyMedium?.copyWith(
                 color: clx.ink2,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -469,7 +469,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
         if (_anexos.isEmpty)
           Text(
             'Nenhum comprovante anexado.',
-            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+            style: tt.bodyMedium?.copyWith(color: clx.ink3),
           )
         else
           for (var i = 0; i < _anexos.length; i++)
@@ -486,7 +486,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                           : _anexos[i].nome,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink2, fontSize: 13),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink2),
                     ),
                   ),
                   IconButton(

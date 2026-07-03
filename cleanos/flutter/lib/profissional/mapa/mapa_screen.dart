@@ -127,9 +127,8 @@ class _Header extends StatelessWidget {
       ),
       child: Text(
         'Mapa',
-        style: TextStyle(
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: clx.ink,
-          fontSize: 20,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.4,
         ),
@@ -170,36 +169,40 @@ class _ActiveCard extends StatelessWidget {
                       children: [
                         Text(
                           'SERVIÇO EM ANDAMENTO',
-                          style: TextStyle(
-                            color: clx.statusEmAndamento,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: clx.statusEmAndamento,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                              ),
                         ),
                         const SizedBox(height: ClxSpace.x2),
                         Text(
                           '${formatHour(os.dataHora)} — ${os.nomeCurto}',
-                          style: TextStyle(
-                            color: clx.ink,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.4,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: clx.ink,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.4,
+                              ),
                         ),
                         if ((os.tipoServicoNome ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Text(
                               os.tipoServicoNome!,
-                              style: TextStyle(color: clx.ink2, fontSize: 14),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
                             ),
                           ),
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             '${os.bairro} · ${formatCurrency(os.valorServico ?? 0)}',
-                            style: TextStyle(color: clx.ink3, fontSize: 13.5),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
                           ),
                         ),
                         const SizedBox(height: ClxSpace.x3),
@@ -224,11 +227,9 @@ class _ActiveCard extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   os.enderecoLiberado!,
-                                  style: TextStyle(
-                                    color: clx.ink,
-                                    fontSize: 14,
-                                    height: 1.45,
-                                  ),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodyLarge?.copyWith(color: clx.ink),
                                 ),
                               ),
                             ],
@@ -259,7 +260,9 @@ class _ActiveCard extends StatelessWidget {
         Text(
           'O endereço é liberado apenas enquanto o serviço está em andamento.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: clx.ink3, fontSize: 12.5, height: 1.5),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: clx.ink3, height: 1.5),
         ),
       ],
     );

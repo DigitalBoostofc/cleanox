@@ -189,9 +189,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
               Expanded(
                 child: Text(
                   _isEdit ? 'Editar usuário' : 'Novo usuário',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -316,7 +315,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
               padding: const EdgeInsets.only(top: ClxSpace.x1),
               child: Text(
                 'Não é possível alterar o próprio papel.',
-                style: TextStyle(color: clx.warning, fontSize: 11.5),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.warning),
               ),
             ),
         ],
@@ -335,7 +334,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       child: Text(
         'Para redefinir a senha deste usuário, use o Admin UI do PocketBase (/_/). '
         'Apenas o próprio usuário pode trocar a própria senha pelo painel.',
-        style: TextStyle(color: clx.ink2, fontSize: 12.5, height: 1.5),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink2, height: 1.5),
       ),
     );
   }
@@ -347,9 +346,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       child: Text.rich(
         TextSpan(
           text: text,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
           children: [

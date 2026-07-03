@@ -251,9 +251,8 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
               Expanded(
                 child: Text(
                   'Área de atuação',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -270,7 +269,7 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
           ),
         ),
         Divider(height: 1, color: clx.line),
-        Flexible(child: _body(clx)),
+        Flexible(child: _body(context, clx)),
         Divider(height: 1, color: clx.line),
         Padding(
           padding: const EdgeInsets.all(ClxSpace.x4),
@@ -303,7 +302,7 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
     );
   }
 
-  Widget _body(CleanoxColors clx) {
+  Widget _body(BuildContext context, CleanoxColors clx) {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.all(ClxSpace.x10),
@@ -332,9 +331,8 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
                 const SizedBox(width: ClxSpace.x2),
                 Text(
                   'Área de atuação salva.',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: clx.success,
-                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -346,9 +344,8 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
           // Estado (UF).
           Text(
             'Estado (UF)',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: clx.ink2,
-              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -378,9 +375,8 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
           // Cidades atendidas.
           Text(
             'CIDADES ATENDIDAS',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: clx.ink2,
-              fontSize: 11.5,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
             ),
@@ -392,7 +388,7 @@ class _ConfigAtuacaoEditorState extends ConsumerState<ConfigAtuacaoEditor> {
               padding: const EdgeInsets.only(bottom: ClxSpace.x3),
               child: Text(
                 'Nenhuma cidade cadastrada.',
-                style: TextStyle(color: clx.ink3, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink3),
               ),
             ),
 
@@ -490,10 +486,8 @@ class _CidadeCard extends StatelessWidget {
                   cidade.nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: clx.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -526,9 +520,8 @@ class _CidadeCard extends StatelessWidget {
                           const SizedBox(width: ClxSpace.x1),
                           Text(
                             'Principal',
-                            style: TextStyle(
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: cidade.principal ? clx.primary : clx.ink2,
-                              fontSize: 12.5,
                               fontWeight: cidade.principal
                                   ? FontWeight.w600
                                   : FontWeight.w400,
@@ -557,7 +550,7 @@ class _CidadeCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: ClxSpace.x2),
               child: Text(
                 'Nenhum bairro cadastrado.',
-                style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
               ),
             )
           else
@@ -641,10 +634,8 @@ class _BairroChip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: ClxSpace.x1),

@@ -91,9 +91,8 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
               Expanded(
                 child: Text(
                   'Checklist de execução',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -112,17 +111,17 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
                 children: [
                   Text(
                     'Checklist vazio',
-                    style: TextStyle(
-                      color: clx.ink2,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: clx.ink2),
                   ),
                   const SizedBox(height: ClxSpace.x1),
                   Text(
                     'Este serviço não tem itens de checklist configurados.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: clx.ink3, fontSize: 13),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                   ),
                 ],
               ),
@@ -215,14 +214,13 @@ class _ChecklistTile extends StatelessWidget {
                         children: [
                           Text(
                             item.titulo,
-                            style: TextStyle(
-                              color: clx.ink,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              decoration: concluido
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: clx.ink,
+                                  decoration: concluido
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
                           ),
                           if (item.obrigatorio && !concluido)
                             ClxChip(
@@ -248,10 +246,8 @@ class _ChecklistTile extends StatelessWidget {
                                 child: Text(
                                   '${item.concluidoPor != null ? '${item.concluidoPor} · ' : ''}'
                                   '${formatDateTime(item.concluidoEm!)}',
-                                  style: TextStyle(
-                                    color: clx.success,
-                                    fontSize: 11.5,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: clx.success),
                                 ),
                               ),
                             ],
@@ -262,11 +258,11 @@ class _ChecklistTile extends StatelessWidget {
                           padding: const EdgeInsets.only(top: ClxSpace.x1),
                           child: Text(
                             '“${item.observacao}”',
-                            style: TextStyle(
-                              color: clx.ink2,
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: clx.ink2,
+                                  fontStyle: FontStyle.italic,
+                                ),
                           ),
                         ),
                     ],

@@ -113,6 +113,7 @@ class _StatusPanelState extends ConsumerState<_StatusPanel> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     // Liga/desliga o polling conforme o estado muda (ex.: conectou → para).
     // Efeito colateral fica SÓ no listen — nunca no corpo do build (o primeiro
     // estado é coberto pelo post-frame do initState).
@@ -134,9 +135,8 @@ class _StatusPanelState extends ConsumerState<_StatusPanel> {
               Expanded(
                 child: Text(
                   'WhatsApp da empresa',
-                  style: TextStyle(
+                  style: tt.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
                   ),
@@ -166,7 +166,7 @@ class _StatusPanelState extends ConsumerState<_StatusPanel> {
                 const SizedBox(width: ClxSpace.x3),
                 Text(
                   'Verificando status…',
-                  style: TextStyle(color: clx.ink2, fontSize: 14),
+                  style: tt.bodyLarge?.copyWith(color: clx.ink2),
                 ),
               ],
             )
@@ -197,6 +197,7 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final (color, label) = state.connected
         ? (clx.success, 'Conectado')
         : state.aguardandoQr
@@ -213,9 +214,8 @@ class _StatusBadge extends StatelessWidget {
         const SizedBox(width: ClxSpace.x2),
         Text(
           label,
-          style: TextStyle(
+          style: tt.titleSmall?.copyWith(
             color: color,
-            fontSize: 14.5,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -227,7 +227,7 @@ class _StatusBadge extends StatelessWidget {
               '— $profileName',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: clx.ink2, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink2),
             ),
           ),
         ],
@@ -268,7 +268,9 @@ class _ConnActions extends StatelessWidget {
                 Flexible(
                   child: Text(
                     'Avisos ativos',
-                    style: TextStyle(color: clx.success, fontSize: 12.5),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: clx.success),
                   ),
                 ),
               ],
@@ -295,15 +297,15 @@ class _QrBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final bytes = _decodeQr(qrcode);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Escaneie o QR code',
-          style: TextStyle(
+          style: tt.titleSmall?.copyWith(
             color: clx.ink,
-            fontSize: 14.5,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -311,7 +313,7 @@ class _QrBlock extends StatelessWidget {
         Text(
           'Abra o WhatsApp da empresa → Aparelhos conectados → Conectar '
           'aparelho e aponte a câmera para o código.',
-          style: TextStyle(color: clx.ink2, fontSize: 13, height: 1.5),
+          style: tt.bodyMedium?.copyWith(color: clx.ink2, height: 1.5),
         ),
         const SizedBox(height: ClxSpace.x4),
         if (bytes != null)
@@ -342,14 +344,13 @@ class _QrBlock extends StatelessWidget {
               children: [
                 Text(
                   'Ou use o código de pareamento:',
-                  style: TextStyle(color: clx.ink2, fontSize: 12.5),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink2),
                 ),
                 const SizedBox(height: ClxSpace.x1),
                 SelectableText(
                   paircode!.trim(),
-                  style: TextStyle(
+                  style: tt.titleLarge?.copyWith(
                     color: clx.ink,
-                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2,
                   ),
@@ -366,7 +367,7 @@ class _QrBlock extends StatelessWidget {
             const SizedBox(width: ClxSpace.x2),
             Text(
               'Aguardando leitura do QR code…',
-              style: TextStyle(color: clx.ink3, fontSize: 12.5),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             ),
           ],
         ),
@@ -406,7 +407,9 @@ class _QrIndisponivel extends StatelessWidget {
             Text(
               'QR code indisponível. Toque em "Gerar novo QR code".',
               textAlign: TextAlign.center,
-              style: TextStyle(color: clx.ink3, fontSize: 12.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
             ),
           ],
         ),
@@ -423,6 +426,7 @@ class _TemplatesPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final state = ref.watch(whatsAppTemplatesControllerProvider);
     final notifier = ref.read(whatsAppTemplatesControllerProvider.notifier);
 
@@ -433,9 +437,8 @@ class _TemplatesPanel extends ConsumerWidget {
         children: [
           Text(
             'Mensagens automáticas',
-            style: TextStyle(
+            style: tt.titleMedium?.copyWith(
               color: clx.ink,
-              fontSize: 16,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
@@ -450,7 +453,7 @@ class _TemplatesPanel extends ConsumerWidget {
                 const SizedBox(width: ClxSpace.x3),
                 Text(
                   'Carregando mensagens…',
-                  style: TextStyle(color: clx.ink2, fontSize: 14),
+                  style: tt.bodyLarge?.copyWith(color: clx.ink2),
                 ),
               ],
             )
@@ -547,11 +550,9 @@ class _TemplateField extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: clx.ink2,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: clx.ink2),
           ),
           const SizedBox(height: ClxSpace.x1),
           _ControlledField(value: value, onChanged: onChanged),
@@ -629,7 +630,9 @@ class _Nota extends StatelessWidget {
       ),
       child: Text(
         texto,
-        style: TextStyle(color: clx.ink2, fontSize: 12.5, height: 1.5),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: clx.ink2, height: 1.5),
       ),
     );
   }
@@ -656,7 +659,9 @@ class _SuccessBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Mensagens salvas com sucesso!',
-              style: TextStyle(color: clx.ink2, fontSize: 13.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
             ),
           ),
         ],

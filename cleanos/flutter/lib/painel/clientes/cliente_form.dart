@@ -343,9 +343,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
               Expanded(
                 child: Text(
                   _isEdit ? 'Editar cliente' : 'Novo cliente',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -512,9 +511,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
     return Text.rich(
       TextSpan(
         text: label,
-        style: TextStyle(
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: clx.ink2,
-          fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
         children: [
@@ -587,7 +585,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
                 const SizedBox(width: ClxSpace.x1),
                 Text(
                   'buscando…',
-                  style: TextStyle(color: clx.ink3, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
                 ),
               ],
             ],
@@ -620,7 +618,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
         children: [
           Text(
             'Bairros da área de atuação',
-            style: TextStyle(color: clx.ink3, fontSize: 12),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
           ),
           const SizedBox(height: ClxSpace.x2),
           Wrap(
@@ -698,9 +696,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
         children: [
           Text(
             'Status',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: clx.ink2,
-              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -715,7 +712,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
               const SizedBox(width: ClxSpace.x2),
               Text(
                 _ativo ? 'Cliente ativo' : 'Cliente inativo',
-                style: TextStyle(color: clx.ink2, fontSize: 14),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ],
           ),
@@ -736,9 +733,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
         const SizedBox(width: ClxSpace.x2),
         Text(
           'Gerar OS',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: clx.ink2,
-            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -754,9 +750,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
         const SizedBox(height: ClxSpace.x3),
         Text(
           'ORDEM DE SERVIÇO',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: clx.ink3,
-            fontSize: 11.5,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
@@ -799,9 +794,8 @@ class _SuggestionChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: color,
-            fontSize: 12.5,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

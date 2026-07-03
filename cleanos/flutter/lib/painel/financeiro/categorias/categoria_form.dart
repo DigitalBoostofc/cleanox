@@ -241,7 +241,9 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
               padding: const EdgeInsets.only(bottom: ClxSpace.x4),
               child: Text(
                 'A subcategoria herda o tipo da categoria-mãe.',
-                style: TextStyle(fontSize: 12, color: clx.ink3),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: clx.ink3),
               ),
             ),
           _iconePicker(clx),

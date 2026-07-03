@@ -133,6 +133,7 @@ class _ContaFormState extends ConsumerState<ContaForm> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return FinModalScaffold(
       title: _isEdit ? 'Editar carteira' : 'Nova carteira',
       saving: _saving,
@@ -182,7 +183,7 @@ class _ContaFormState extends ConsumerState<ContaForm> {
               },
             ),
           ),
-          _corPicker(clx),
+          _corPicker(clx, tt),
           const SizedBox(height: ClxSpace.x2),
           Row(
             children: [
@@ -194,7 +195,7 @@ class _ContaFormState extends ConsumerState<ContaForm> {
               const SizedBox(width: ClxSpace.x2),
               Text(
                 _ativo ? 'Carteira ativa' : 'Carteira inativa',
-                style: TextStyle(color: clx.ink2, fontSize: 14),
+                style: tt.bodyLarge?.copyWith(color: clx.ink2),
               ),
             ],
           ),
@@ -203,7 +204,7 @@ class _ContaFormState extends ConsumerState<ContaForm> {
     );
   }
 
-  Widget _corPicker(CleanoxColors clx) {
+  Widget _corPicker(CleanoxColors clx, TextTheme tt) {
     final cores = clx.finSeries;
     String hex(Color c) =>
         '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
@@ -212,9 +213,8 @@ class _ContaFormState extends ConsumerState<ContaForm> {
       children: [
         Text(
           'Cor de destaque',
-          style: TextStyle(
+          style: tt.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),

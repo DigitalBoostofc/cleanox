@@ -75,9 +75,8 @@ class FinField extends StatelessWidget {
           Text.rich(
             TextSpan(
               text: label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: clx.ink2,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               children: [
@@ -149,9 +148,8 @@ class FinDropdown<T> extends StatelessWidget {
           Text.rich(
             TextSpan(
               text: label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: clx.ink2,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               children: [
@@ -243,9 +241,8 @@ class FinDateField extends StatelessWidget {
           Text.rich(
             TextSpan(
               text: label,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: clx.ink2,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               children: [
@@ -273,9 +270,8 @@ class FinDateField extends StatelessWidget {
                   final txt = _fmtBr(value.text);
                   return Text(
                     txt.isEmpty ? 'Selecionar…' : txt,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: txt.isEmpty ? clx.ink3 : clx.ink,
-                      fontSize: 14,
                     ),
                   );
                 },
@@ -353,11 +349,9 @@ class FinModalScaffold extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: clx.ink),
                 ),
               ),
               IconButton(

@@ -37,7 +37,7 @@ class ClxButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final (bg, fg, border) = switch (variant) {
-      ClxButtonVariant.primary => (clx.primary, const Color(0xFF04201E), null),
+      ClxButtonVariant.primary => (clx.primary, ClxBrand.onPrimary, null),
       ClxButtonVariant.secondary => (clx.accent, Colors.white, null),
       ClxButtonVariant.ghost => (Colors.transparent, clx.ink2, clx.line2),
       ClxButtonVariant.danger => (clx.error, Colors.white, null),
@@ -57,11 +57,9 @@ class ClxButton extends StatelessWidget {
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: fg,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: fg),
                 ),
               ),
             ],

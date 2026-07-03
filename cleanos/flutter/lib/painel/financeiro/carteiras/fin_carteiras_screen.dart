@@ -157,9 +157,8 @@ class _Toolbar extends StatelessWidget {
           Expanded(
             child: Text(
               'Carteiras e contas',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: clx.ink,
-                fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -201,6 +200,7 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final total = contas.fold<double>(0, (s, c) => s + c.saldoAtual);
     final ativas = contas.where((c) => c.ativo).length;
 
@@ -228,13 +228,12 @@ class _Body extends StatelessWidget {
                   children: [
                     Text(
                       'Saldo geral',
-                      style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
                     ),
                     Text(
                       formatCurrency(total),
-                      style: TextStyle(
+                      style: tt.headlineMedium?.copyWith(
                         color: total < 0 ? clx.finExpense : clx.ink,
-                        fontSize: 26,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.6,
                       ),
@@ -245,7 +244,7 @@ class _Body extends StatelessWidget {
               Text(
                 '${contas.length} carteira${contas.length == 1 ? '' : 's'} · '
                 '$ativas ativa${ativas == 1 ? '' : 's'}',
-                style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                style: tt.bodyMedium?.copyWith(color: clx.ink3),
               ),
             ],
           ),
@@ -297,6 +296,7 @@ class _ContaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final accent = _parseHex(conta.cor) ?? clx.primary;
     return ClxCard(
       onTap: onEdit,
@@ -323,15 +323,14 @@ class _ContaCard extends StatelessWidget {
                       conta.nome,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: tt.titleSmall?.copyWith(
                         color: clx.ink,
-                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       contaTipoLabel(conta.tipo),
-                      style: TextStyle(color: clx.ink3, fontSize: 12),
+                      style: tt.bodySmall?.copyWith(color: clx.ink3),
                     ),
                   ],
                 ),
@@ -353,9 +352,8 @@ class _ContaCard extends StatelessWidget {
           const SizedBox(height: ClxSpace.x3),
           Text(
             formatCurrency(conta.saldoAtual),
-            style: TextStyle(
+            style: tt.titleLarge?.copyWith(
               color: conta.saldoAtual < 0 ? clx.finExpense : clx.ink,
-              fontSize: 20,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
             ),
@@ -371,7 +369,7 @@ class _ContaCard extends StatelessWidget {
               const Spacer(),
               Text(
                 'Inicial ${formatCurrency(conta.saldoInicial)}',
-                style: TextStyle(color: clx.ink3, fontSize: 11.5),
+                style: tt.bodySmall?.copyWith(color: clx.ink3),
               ),
             ],
           ),

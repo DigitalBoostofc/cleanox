@@ -598,9 +598,8 @@ class _FilterChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: selected ? c : clx.ink2,
-            fontSize: 12.5,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
@@ -713,9 +712,8 @@ class _MenuPill extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: active ? clx.primary : clx.ink2,
-                fontSize: 12.5,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
@@ -733,6 +731,7 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -744,23 +743,21 @@ class _DayHeader extends StatelessWidget {
         children: [
           Text(
             formatDateOnlyBr(grupo.data),
-            style: TextStyle(
+            style: tt.labelMedium?.copyWith(
               color: clx.ink2,
-              fontSize: 12.5,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(width: ClxSpace.x2),
           Text(
             '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
-            style: TextStyle(color: clx.ink3, fontSize: 11.5),
+            style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
           const Spacer(),
           Text(
             formatSignedValue(grupo.totalDia),
-            style: TextStyle(
+            style: tt.labelMedium?.copyWith(
               color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
-              fontSize: 12.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -817,6 +814,7 @@ class _LancamentoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final l = lancamento;
     final sub = _sub();
     return Padding(
@@ -842,18 +840,14 @@ class _LancamentoRow extends StatelessWidget {
                     l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: clx.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: tt.titleSmall?.copyWith(color: clx.ink),
                   ),
                   if (sub.isNotEmpty)
                     Text(
                       sub,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: clx.ink3, fontSize: 12),
+                      style: tt.bodySmall?.copyWith(color: clx.ink3),
                     ),
                   const SizedBox(height: ClxSpace.x1),
                   Wrap(
@@ -874,9 +868,8 @@ class _LancamentoRow extends StatelessWidget {
             const SizedBox(width: ClxSpace.x3),
             Text(
               formatSigned(l),
-              style: TextStyle(
+              style: tt.bodyLarge?.copyWith(
                 color: tipoColor(clx, l.tipo),
-                fontSize: 14.5,
                 fontWeight: FontWeight.w800,
               ),
             ),

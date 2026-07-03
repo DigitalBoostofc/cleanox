@@ -38,9 +38,8 @@ class ClxModal extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

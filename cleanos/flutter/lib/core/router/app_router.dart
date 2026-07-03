@@ -158,9 +158,8 @@ class NotFoundScreen extends ConsumerWidget {
                   Text(
                     'CleanOS',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       color: clx.accent,
-                      fontSize: 30,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
                     ),
@@ -171,9 +170,8 @@ class NotFoundScreen extends ConsumerWidget {
                   Text(
                     'Página não encontrada',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: clx.ink,
-                      fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -181,7 +179,9 @@ class NotFoundScreen extends ConsumerWidget {
                   Text(
                     'O endereço que você abriu não existe ou foi movido.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: clx.ink3, fontSize: 14),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
                   ),
                   const SizedBox(height: ClxSpace.x6),
                   ClxButton(

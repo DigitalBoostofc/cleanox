@@ -143,7 +143,9 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
             child: Text(
               'Nenhum item no checklist. Adicione itens que a equipe deverá '
               'marcar durante a execução.',
-              style: TextStyle(color: clx.ink3, fontSize: 13, height: 1.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: clx.ink3, height: 1.5),
             ),
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -181,6 +183,7 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
 
   Widget _rowTile(CleanoxColors clx, int i) {
     final row = _rows[i];
+    final tt = Theme.of(context).textTheme;
     return Padding(
       key: ValueKey(row.id),
       padding: const EdgeInsets.only(bottom: ClxSpace.x2),
@@ -213,9 +216,8 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
             ),
             Text(
               '${i + 1}.',
-              style: TextStyle(
+              style: tt.bodyMedium?.copyWith(
                 color: clx.ink3,
-                fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -226,7 +228,7 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
                 enabled: widget.enabled,
                 onChanged: (_) => _emit(),
                 textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(color: clx.ink, fontSize: 14),
+                style: tt.bodyLarge?.copyWith(color: clx.ink),
                 decoration: const InputDecoration(
                   isDense: true,
                   hintText: 'Descreva o item…',
@@ -260,8 +262,7 @@ class _ChecklistEditorState extends State<ChecklistEditor> {
                       const SizedBox(width: 4),
                       Text(
                         'Obrigatório',
-                        style: TextStyle(
-                          fontSize: 11.5,
+                        style: tt.labelSmall?.copyWith(
                           color: row.obrigatorio ? clx.error : clx.ink3,
                           fontWeight: row.obrigatorio
                               ? FontWeight.w700

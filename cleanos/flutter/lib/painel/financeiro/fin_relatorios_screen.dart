@@ -221,11 +221,9 @@ class _Header extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Relatórios',
-                  style: TextStyle(
-                    color: clx.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: clx.ink),
                 ),
               ),
               ClxButton(
@@ -302,11 +300,9 @@ class _RepFilter<T> extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: clx.ink3,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(color: clx.ink3),
         ),
         const SizedBox(height: ClxSpace.x1),
         Container(
@@ -324,7 +320,9 @@ class _RepFilter<T> extends StatelessWidget {
               isExpanded: true,
               borderRadius: ClxRadii.rMd,
               dropdownColor: clx.bg,
-              style: TextStyle(color: clx.ink, fontSize: 13.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: clx.ink),
               items: [
                 for (final e in entries)
                   DropdownMenuItem<T>(
@@ -652,9 +650,8 @@ class _Tabs extends StatelessWidget {
                   ),
                   child: Text(
                     t.label,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: t == active ? clx.primary : clx.ink2,
-                      fontSize: 13,
                       fontWeight: t == active
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -711,6 +708,7 @@ class _DonutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final total = slices.fold<double>(0, (s, x) => s + x.value);
     return ClxCard(
       child: Column(
@@ -724,7 +722,7 @@ class _DonutCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   emptyMsg,
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -758,14 +756,13 @@ class _DonutCard extends StatelessWidget {
                         s.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: clx.ink2, fontSize: 13),
+                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
                       ),
                     ),
                     Text(
                       formatCurrency(s.value),
-                      style: TextStyle(
+                      style: tt.bodyMedium?.copyWith(
                         color: clx.ink,
-                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -775,7 +772,7 @@ class _DonutCard extends StatelessWidget {
                       child: Text(
                         '${(total > 0 ? s.pct * 100 : 0).toStringAsFixed(1).replaceAll('.', ',')}%',
                         textAlign: TextAlign.right,
-                        style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                        style: tt.bodyMedium?.copyWith(color: clx.ink3),
                       ),
                     ),
                   ],
@@ -837,7 +834,9 @@ class _ResumoCard extends StatelessWidget {
           const SizedBox(height: ClxSpace.x2),
           Text(
             'Movimentação realizada (lançamentos pagos) no período.',
-            style: TextStyle(color: clx.ink3, fontSize: 11.5),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: clx.ink3),
           ),
         ],
       ),
@@ -846,6 +845,7 @@ class _ResumoCard extends StatelessWidget {
 
   Widget _row(BuildContext context, String label, String value, Color color) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: ClxSpace.x1),
       child: Row(
@@ -853,14 +853,13 @@ class _ResumoCard extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(color: clx.ink2, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink2),
             ),
           ),
           Text(
             value,
-            style: TextStyle(
+            style: tt.bodyLarge?.copyWith(
               color: color,
-              fontSize: 13.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -905,18 +904,18 @@ class _ResumoSimplesCard extends StatelessWidget {
 
   Widget _kv(BuildContext context, String label, String value, Color color) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: ClxSpace.x1),
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: TextStyle(color: clx.ink2, fontSize: 13)),
+            child: Text(label, style: tt.bodyMedium?.copyWith(color: clx.ink2)),
           ),
           Text(
             value,
-            style: TextStyle(
+            style: tt.bodyLarge?.copyWith(
               color: color,
-              fontSize: 13.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -942,6 +941,7 @@ class _ViaOsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final outras = (totReceita - receitaViaOs).clamp(0, double.infinity);
     return ClxCard(
       child: Column(
@@ -955,7 +955,7 @@ class _ViaOsCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Sem receitas no período.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -981,15 +981,14 @@ class _ViaOsCard extends StatelessWidget {
                 children: [
                   Text(
                     formatCurrency(receitaViaOs),
-                    style: TextStyle(
+                    style: tt.titleLarge?.copyWith(
                       color: clx.primary,
-                      fontSize: 20,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   Text(
                     '${pctViaOs.toStringAsFixed(1).replaceAll('.', ',')}% do total de receitas',
-                    style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                    style: tt.bodyMedium?.copyWith(color: clx.ink3),
                   ),
                 ],
               ),
@@ -1023,7 +1022,9 @@ class _FluxoCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Sem movimentação nos últimos meses.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -1051,6 +1052,7 @@ class _ContasTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final linhas = contas.map((c) {
       final doConta = viewLancs.where((l) => l.contaId == c.id).toList();
       final t = _totaisPorTipo(doConta);
@@ -1065,11 +1067,7 @@ class _ContasTable extends StatelessWidget {
             title: 'Movimentação por conta',
             trailing: Text(
               'Saldo geral: ${formatCurrency(saldoFinal)}',
-              style: TextStyle(
-                color: clx.ink3,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
+              style: tt.labelMedium?.copyWith(color: clx.ink3),
             ),
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -1079,7 +1077,7 @@ class _ContasTable extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Nenhuma conta cadastrada.',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
             )
@@ -1097,9 +1095,8 @@ class _ContasTable extends StatelessWidget {
                         l.conta.nome,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: tt.bodyMedium?.copyWith(
                           color: clx.ink,
-                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1132,9 +1129,8 @@ class _ContasTable extends StatelessWidget {
               child: Text(
                 cols[i],
                 textAlign: i == 0 ? TextAlign.left : TextAlign.right,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: clx.ink3,
-                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1149,7 +1145,10 @@ class _ContasTable extends StatelessWidget {
       child: Text(
         value,
         textAlign: TextAlign.right,
-        style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -1164,6 +1163,7 @@ class _TagsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final m = <String, ({double receita, double despesa, int count})>{};
     for (final l in viewLancs) {
       for (final tag in l.tags) {
@@ -1218,16 +1218,15 @@ class _TagsTable extends StatelessWidget {
                       child: Text(
                         '${e.value.count}',
                         textAlign: TextAlign.right,
-                        style: TextStyle(color: clx.ink2, fontSize: 13),
+                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         formatCurrency(e.value.receita),
                         textAlign: TextAlign.right,
-                        style: TextStyle(
+                        style: tt.bodyMedium?.copyWith(
                           color: clx.finIncome,
-                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1236,9 +1235,8 @@ class _TagsTable extends StatelessWidget {
                       child: Text(
                         formatCurrency(e.value.despesa),
                         textAlign: TextAlign.right,
-                        style: TextStyle(
+                        style: tt.bodyMedium?.copyWith(
                           color: clx.finExpense,
-                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

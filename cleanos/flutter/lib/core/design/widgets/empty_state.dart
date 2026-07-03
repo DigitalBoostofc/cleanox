@@ -32,18 +32,18 @@ class EmptyState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: clx.ink,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: clx.ink),
             ),
             if (message != null) ...[
               const SizedBox(height: ClxSpace.x2),
               Text(
                 message!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: clx.ink3, fontSize: 14),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
               ),
             ],
             if (action != null) ...[

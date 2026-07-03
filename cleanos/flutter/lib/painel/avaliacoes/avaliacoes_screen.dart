@@ -180,9 +180,8 @@ class _AccordionItem extends StatelessWidget {
                           prof.displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             color: clx.ink,
-                            fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -199,14 +198,14 @@ class _AccordionItem extends StatelessWidget {
                                 '${stats!.media.toStringAsFixed(1)} '
                                 '(${stats!.total} '
                                 'avalia${stats!.total != 1 ? 'ções' : 'ção'})',
-                                style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                               ),
                             ],
                           )
                         else
                           Text(
                             'sem avaliações ainda',
-                            style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                           ),
                       ],
                     ),
@@ -214,7 +213,8 @@ class _AccordionItem extends StatelessWidget {
                   if (hasRatings)
                     AnimatedRotation(
                       turns: isOpen ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: ClxMotion.standardDuration,
+                      curve: ClxMotion.standard,
                       child: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         color: clx.ink3,
@@ -224,16 +224,26 @@ class _AccordionItem extends StatelessWidget {
               ),
             ),
           ),
-          if (isOpen) ...[
-            Divider(height: 1, color: clx.line),
-            _AccordionBody(
-              reviews: reviews,
-              reviewsLoading: reviewsLoading,
-              reviewsError: reviewsError,
-              hasMore: hasMore,
-              onLoadMore: onLoadMore,
-            ),
-          ],
+          // Expansão animada com os motion tokens MD3 (emphasized decelerate).
+          AnimatedSize(
+            duration: ClxMotion.emphasizedDuration,
+            curve: ClxMotion.emphasized,
+            alignment: Alignment.topCenter,
+            child: !isOpen
+                ? const SizedBox(width: double.infinity)
+                : Column(
+                    children: [
+                      Divider(height: 1, color: clx.line),
+                      _AccordionBody(
+                        reviews: reviews,
+                        reviewsLoading: reviewsLoading,
+                        reviewsError: reviewsError,
+                        hasMore: hasMore,
+                        onLoadMore: onLoadMore,
+                      ),
+                    ],
+                  ),
+          ),
         ],
       ),
     );
@@ -272,7 +282,7 @@ class _AccordionBody extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
               child: Text(
                 'Nenhuma avaliação encontrada.',
-                style: TextStyle(color: clx.ink3, fontSize: 13.5),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink3),
               ),
             )
           else
@@ -323,7 +333,7 @@ class _ReviewCard extends StatelessWidget {
               const Spacer(),
               Text(
                 os.avaliacaoEm == null ? '—' : formatDateTime(os.avaliacaoEm!),
-                style: TextStyle(color: clx.ink3, fontSize: 12),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
               ),
             ],
           ),
@@ -334,20 +344,19 @@ class _ReviewCard extends StatelessWidget {
             runSpacing: ClxSpace.x1,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _meta(clx, os.tipoServicoNome ?? '—', bold: true),
-              _sep(clx),
-              _meta(clx, os.nomeCurto.isEmpty ? '—' : os.nomeCurto),
-              _sep(clx),
-              _meta(clx, formatDateTime(os.dataHora)),
+              _meta(context, clx, os.tipoServicoNome ?? '—', bold: true),
+              _sep(context, clx),
+              _meta(context, clx, os.nomeCurto.isEmpty ? '—' : os.nomeCurto),
+              _sep(context, clx),
+              _meta(context, clx, formatDateTime(os.dataHora)),
             ],
           ),
           if (_comentario(os) case final texto?) ...[
             const SizedBox(height: ClxSpace.x2),
             Text(
               texto,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: os.avaliacaoMotivo == null ? clx.ink3 : clx.ink2,
-                fontSize: 13.5,
                 height: 1.5,
                 fontStyle: os.avaliacaoMotivo == null
                     ? FontStyle.italic
@@ -370,15 +379,14 @@ class _ReviewCard extends StatelessWidget {
     return null;
   }
 
-  Widget _meta(CleanoxColors clx, String text, {bool bold = false}) => Text(
+  Widget _meta(BuildContext context, CleanoxColors clx, String text, {bool bold = false}) => Text(
     text,
-    style: TextStyle(
+    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
       color: bold ? clx.ink : clx.ink2,
-      fontSize: 13,
       fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
     ),
   );
 
-  Widget _sep(CleanoxColors clx) =>
-      Text('·', style: TextStyle(color: clx.ink3, fontSize: 13));
+  Widget _sep(BuildContext context, CleanoxColors clx) =>
+      Text('·', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3));
 }

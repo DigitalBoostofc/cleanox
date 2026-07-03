@@ -97,6 +97,7 @@ class _LancamentoDetailPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final l = lancamento;
     final isReceita = l.tipo == TipoLancamento.receita;
     final temVinculoOs =
@@ -132,9 +133,8 @@ class _LancamentoDetailPanel extends StatelessWidget {
                   l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: tt.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -165,16 +165,12 @@ class _LancamentoDetailPanel extends StatelessWidget {
                         children: [
                           Text(
                             categoria?.nome ?? 'Sem categoria',
-                            style: TextStyle(
-                              color: clx.ink,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: tt.titleSmall?.copyWith(color: clx.ink),
                           ),
                           if (subcategoria != null)
                             Text(
                               subcategoria!.nome,
-                              style: TextStyle(color: clx.ink3, fontSize: 12),
+                              style: tt.bodySmall?.copyWith(color: clx.ink3),
                             ),
                         ],
                       ),
@@ -186,9 +182,8 @@ class _LancamentoDetailPanel extends StatelessWidget {
                 title: 'Valor',
                 child: Text(
                   formatCurrency(l.valor),
-                  style: TextStyle(
+                  style: tt.titleLarge?.copyWith(
                     color: tipoColor(clx, l.tipo),
-                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                   ),
@@ -210,14 +205,14 @@ class _LancamentoDetailPanel extends StatelessWidget {
                   children: [
                     Text(
                       formatDateOnlyBr(l.data),
-                      style: TextStyle(color: clx.ink, fontSize: 14),
+                      style: tt.bodyLarge?.copyWith(color: clx.ink),
                     ),
                     if (l.vencimento?.isNotEmpty ?? false)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           'Vencimento: ${formatDateOnlyBr(l.vencimento!)}',
-                          style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                          style: tt.bodyMedium?.copyWith(color: clx.ink3),
                         ),
                       ),
                   ],
@@ -235,14 +230,14 @@ class _LancamentoDetailPanel extends StatelessWidget {
                     const SizedBox(height: ClxSpace.x1),
                     Text(
                       _recorrenciaDescricao(l),
-                      style: TextStyle(color: clx.ink2, fontSize: 13),
+                      style: tt.bodyMedium?.copyWith(color: clx.ink2),
                     ),
                     if (l.recorrencia == RecorrenciaTipo.parcelada)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           'Parcela $parcelaTexto',
-                          style: TextStyle(color: clx.ink3, fontSize: 12.5),
+                          style: tt.bodyMedium?.copyWith(color: clx.ink3),
                         ),
                       ),
                   ],
@@ -268,7 +263,7 @@ class _LancamentoDetailPanel extends StatelessWidget {
                               ? 'OS #${l.osNumero}'
                                     '${l.servicoNome != null ? ' · ${l.servicoNome}' : l.clienteNome != null ? ' · ${l.clienteNome}' : ''}'
                               : 'OS vinculada',
-                          style: TextStyle(color: clx.ink2, fontSize: 13),
+                          style: tt.bodyMedium?.copyWith(color: clx.ink2),
                         ),
                       ),
                     ],
@@ -279,7 +274,7 @@ class _LancamentoDetailPanel extends StatelessWidget {
                   title: 'Forma de pagamento',
                   child: Text(
                     l.formaPagamento!,
-                    style: TextStyle(color: clx.ink2, fontSize: 13.5),
+                    style: tt.bodyLarge?.copyWith(color: clx.ink2),
                   ),
                 ),
               if (l.observacao?.isNotEmpty ?? false)
@@ -287,11 +282,7 @@ class _LancamentoDetailPanel extends StatelessWidget {
                   title: 'Observação',
                   child: Text(
                     l.observacao!,
-                    style: TextStyle(
-                      color: clx.ink2,
-                      fontSize: 13.5,
-                      height: 1.4,
-                    ),
+                    style: tt.bodyLarge?.copyWith(color: clx.ink2, height: 1.4),
                   ),
                 ),
               if (l.anexos.isNotEmpty)
@@ -316,9 +307,8 @@ class _LancamentoDetailPanel extends StatelessWidget {
                                   a.nome.isEmpty ? a.url : a.nome,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
+                                  style: tt.bodyMedium?.copyWith(
                                     color: clx.ink2,
-                                    fontSize: 13,
                                   ),
                                 ),
                               ),
@@ -393,9 +383,8 @@ class _Section extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: clx.ink3,
-              fontSize: 11.5,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.3,
             ),
@@ -445,11 +434,9 @@ class _Action extends StatelessWidget {
               const SizedBox(height: ClxSpace.x1),
               Text(
                 label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: color),
               ),
             ],
           ),

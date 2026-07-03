@@ -41,6 +41,9 @@ class PainelShell extends ConsumerWidget {
 
   static const double _desktopBreakpoint = 1024;
 
+  /// Janela "medium" MD3 (600–1023dp): NavigationRail em vez de Drawer.
+  static const double _mediumBreakpoint = 600;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
@@ -82,7 +85,28 @@ class PainelShell extends ConsumerWidget {
           );
         }
 
-        // Mobile/tablet: sidebar em Drawer, hambúrguer na AppBar.
+        // Tablet/janela média (600–1023dp): NavigationRail fixo (MD3).
+        if (constraints.maxWidth >= _mediumBreakpoint) {
+          return Scaffold(
+            backgroundColor: clx.bg2,
+            body: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _NavRail(items: items, active: section),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _TopBar(section: section, showMenu: false),
+                      Expanded(child: _Content(child: navigationShell)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Compact (<600dp): sidebar em Drawer, hambúrguer na AppBar.
         return Scaffold(
           backgroundColor: clx.bg2,
           drawer: Drawer(
@@ -179,9 +203,8 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
               painelTitle(section),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: clx.ink,
-                fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.4,
               ),
@@ -202,14 +225,109 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.only(left: ClxSpace.x2),
               child: Text(
                 user.email,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: clx.ink3,
-                  fontSize: 12.5,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// NavigationRail da janela média: mesmas seções da sidebar, com "Minha
+/// Conta" e logout no rodapé. Rolável para não estourar em janelas baixas.
+class _NavRail extends ConsumerWidget {
+  const _NavRail({required this.items, required this.active});
+
+  final List<PainelNavItem> items;
+  final PainelSection active;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clx = context.clx;
+    final selected = items.indexWhere((i) => i.section == active);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: clx.bgSidebar,
+        border: Border(right: BorderSide(color: clx.line)),
+      ),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, c) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: c.maxHeight),
+              child: IntrinsicHeight(
+                child: NavigationRail(
+                  backgroundColor: Colors.transparent,
+                  labelType: NavigationRailLabelType.all,
+                  selectedIndex: selected >= 0 ? selected : null,
+                  onDestinationSelected: (i) =>
+                      context.go(painelPath(items[i].section)),
+                  leading: Padding(
+                    padding: const EdgeInsets.only(
+                      top: ClxSpace.x2,
+                      bottom: ClxSpace.x3,
+                    ),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: clx.primary,
+                        borderRadius: ClxRadii.rMd,
+                      ),
+                      child: const Icon(
+                        Icons.cleaning_services_rounded,
+                        size: 18,
+                        color: ClxBrand.onPrimary,
+                      ),
+                    ),
+                  ),
+                  trailing: Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Minha Conta',
+                              icon: Icon(
+                                Icons.person_outline_rounded,
+                                color: active == PainelSection.conta
+                                    ? clx.primary
+                                    : clx.ink2,
+                              ),
+                              onPressed: () =>
+                                  context.go(painelPath(PainelSection.conta)),
+                            ),
+                            IconButton(
+                              tooltip: 'Sair',
+                              icon: Icon(Icons.logout_rounded, color: clx.ink2),
+                              onPressed: () =>
+                                  ref.read(authServiceProvider).logout(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  destinations: [
+                    for (final item in items)
+                      NavigationRailDestination(
+                        icon: Icon(item.icon),
+                        label: Text(item.label),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -272,16 +390,15 @@ class _Sidebar extends ConsumerWidget {
                     child: const Icon(
                       Icons.cleaning_services_rounded,
                       size: 18,
-                      color: Color(0xFF04201E),
+                      color: ClxBrand.onPrimary,
                     ),
                   ),
                   const SizedBox(width: ClxSpace.x2),
                   Expanded(
                     child: Text(
                       'CleanOS',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: clx.ink,
-                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
@@ -332,9 +449,8 @@ class _Sidebar extends ConsumerWidget {
                               backgroundColor: clx.accent,
                               child: Text(
                                 avatarInitial,
-                                style: const TextStyle(
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Colors.white,
-                                  fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -349,9 +465,8 @@ class _Sidebar extends ConsumerWidget {
                                     dn != '—' ? dn : 'Usuário',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                       color: clx.ink,
-                                      fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -359,9 +474,8 @@ class _Sidebar extends ConsumerWidget {
                                     role?.wire ?? '—',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: clx.ink3,
-                                      fontSize: 11.5,
                                     ),
                                   ),
                                 ],
@@ -427,9 +541,8 @@ class _NavTile extends StatelessWidget {
                     item.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: active ? clx.ink : clx.ink2,
-                      fontSize: 14,
                       fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),

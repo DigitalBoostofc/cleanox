@@ -496,9 +496,8 @@ class _OSFormState extends ConsumerState<OSForm> {
               Expanded(
                 child: Text(
                   _isEdit ? 'Editar OS' : 'Nova Ordem de Serviço',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -714,7 +713,9 @@ class _OSFormState extends ConsumerState<OSForm> {
             padding: const EdgeInsets.only(top: ClxSpace.x1),
             child: Text(
               'Ao atribuir um profissional, o status passa para "Atribuída".',
-              style: TextStyle(color: clx.ink3, fontSize: 11.5),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
             ),
           ),
           const SizedBox(height: ClxSpace.x4),
@@ -767,9 +768,8 @@ class _OSFormState extends ConsumerState<OSForm> {
       child: Text.rich(
         TextSpan(
           text: text,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: clx.ink2,
-            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
           children: [
@@ -837,9 +837,8 @@ class _OSFormState extends ConsumerState<OSForm> {
             ),
             child: Text(
               display,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _dataDate.isEmpty ? clx.ink3 : clx.ink,
-                fontSize: 14,
               ),
             ),
           ),
@@ -849,6 +848,7 @@ class _OSFormState extends ConsumerState<OSForm> {
   }
 
   Widget _horaField(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
     final s = _slotState();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,7 +864,7 @@ class _OSFormState extends ConsumerState<OSForm> {
                 const SizedBox(width: ClxSpace.x2),
                 Text(
                   'Carregando horários…',
-                  style: TextStyle(color: clx.ink3, fontSize: 13),
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ],
             ),
@@ -875,9 +875,8 @@ class _OSFormState extends ConsumerState<OSForm> {
             padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
             child: Text(
               'Profissional não atende neste dia',
-              style: TextStyle(
+              style: tt.bodyMedium?.copyWith(
                 color: clx.error,
-                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -888,7 +887,7 @@ class _OSFormState extends ConsumerState<OSForm> {
             padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
             child: Text(
               'Sem horários disponíveis nesta data',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             ),
           )
         else if (s.slotMode)
@@ -1145,6 +1144,7 @@ class _ClientePickerState extends ConsumerState<_ClientePicker> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1184,17 +1184,13 @@ class _ClientePickerState extends ConsumerState<_ClientePicker> {
                   dense: true,
                   title: Text(
                     opt.label,
-                    style: TextStyle(
-                      color: clx.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: tt.titleSmall?.copyWith(color: clx.ink),
                   ),
                   subtitle: opt.sub.isEmpty
                       ? null
                       : Text(
                           opt.sub,
-                          style: TextStyle(color: clx.ink3, fontSize: 12),
+                          style: tt.bodySmall?.copyWith(color: clx.ink3),
                         ),
                   onTap: () => _select(opt),
                 );
@@ -1206,7 +1202,7 @@ class _ClientePickerState extends ConsumerState<_ClientePicker> {
             padding: const EdgeInsets.only(top: ClxSpace.x2),
             child: Text(
               'Nenhum cliente encontrado.',
-              style: TextStyle(color: clx.ink3, fontSize: 13),
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
             ),
           ),
       ],

@@ -64,19 +64,16 @@ class SnapshotResumo extends StatelessWidget {
                           text:
                               'Cópia do serviço no momento da seleção — alterações '
                               'futuras no cadastro não afetam esta OS.',
-                          style: TextStyle(
-                            color: clx.warning,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: clx.warning, height: 1.4),
                         ),
                         if (snapshot.capturedAt.isNotEmpty)
                           TextSpan(
                             text:
                                 ' Capturado em '
                                 '${formatDateTime(snapshot.capturedAt)}.',
-                            style: TextStyle(color: clx.ink3, fontSize: 12),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: clx.ink3),
                           ),
                       ],
                     ),
@@ -97,9 +94,8 @@ class SnapshotResumo extends StatelessWidget {
               children: [
                 Text(
                   snapshot.nome,
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: clx.ink,
-                    fontSize: 17,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                   ),
@@ -167,7 +163,9 @@ class SnapshotResumo extends StatelessWidget {
                   const SizedBox(height: ClxSpace.x3),
                   Text(
                     'Sem observações técnicas ou orientações cadastradas.',
-                    style: TextStyle(color: clx.ink3, fontSize: 13),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
                   ),
                 ],
               ],
@@ -193,9 +191,8 @@ class _Campo extends StatelessWidget {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: clx.ink3,
-            fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
           ),
@@ -203,7 +200,9 @@ class _Campo extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           value,
-          style: TextStyle(color: clx.ink, fontSize: 14, height: 1.45),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: clx.ink),
         ),
       ],
     );
