@@ -533,24 +533,47 @@ class _OSFormState extends ConsumerState<OSForm> {
         Divider(height: 1, color: clx.line),
         Padding(
           padding: const EdgeInsets.all(ClxSpace.x4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              ClxButton(
+          // Rodapé de ações: em largura comum os botões ficam lado a lado à
+          // direita numa `Row` (comportamento original, aparência preservada).
+          // Em telas muito estreitas (≤ ~366px úteis — aparelhos pequenos ou
+          // split-screen) o par não cabia na `Row` e estourava ~5,5px
+          // (RenderFlex overflow); abaixo do breakpoint troca-se por um `Wrap`
+          // alinhado à direita que deixa o "Salvar" descer para a 2ª linha —
+          // rótulos preservados, sem corte nem overflow. O gate por
+          // `LayoutBuilder` garante que em largura normal o layout (e a altura)
+          // continua idêntico ao original. (F-603)
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final cancelar = ClxButton(
                 label: 'Cancelar',
                 variant: ClxButtonVariant.ghost,
                 onPressed: _saving
                     ? null
                     : () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: ClxSpace.x3),
-              ClxButton(
+              );
+              final salvar = ClxButton(
                 label: 'Salvar',
                 icon: Icons.check_rounded,
                 loading: _saving,
                 onPressed: _saving ? null : _save,
-              ),
-            ],
+              );
+              if (constraints.maxWidth < 366) {
+                return Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: ClxSpace.x3,
+                  runSpacing: ClxSpace.x2,
+                  children: [cancelar, salvar],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  cancelar,
+                  const SizedBox(width: ClxSpace.x3),
+                  salvar,
+                ],
+              );
+            },
           ),
         ),
       ],
