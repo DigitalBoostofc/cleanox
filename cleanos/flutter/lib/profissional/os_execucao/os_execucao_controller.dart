@@ -17,6 +17,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/errors/os_error.dart';
+import '../../core/models/collections.dart' show OSStatus;
 import '../../core/models/os_execucao.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/servico.dart';
@@ -519,6 +520,18 @@ class OSExecucaoController
       failedIds: {...state.failedIds}..remove(id),
     );
     await _queue?.retry();
+  }
+
+  // ── conclusão ───────────────────────────────────────────────────────────
+
+  /// Conclui a OS a partir do CTA fixo da tela de execução (reskin Fintech
+  /// Clean, doc 12 Onda 2 — espelha `MeusServicosController.concluir`, mas
+  /// sem repetir o `getExec`: o checklist já está ao vivo em [state]). A UI
+  /// só habilita o botão sem obrigatórios pendentes e com pagamento
+  /// registrado; o servidor (`os_logic.js`) segue sendo a trava definitiva.
+  Future<void> concluir() async {
+    final updated = await _repo.updateStatus(_osId, OSStatus.concluida);
+    state = state.copyWith(os: updated);
   }
 
   // ── laudo ───────────────────────────────────────────────────────────────
