@@ -149,9 +149,16 @@ class FinDonutChart extends StatelessWidget {
       builder: (context, c) {
         // Empilha em telas estreitas; lado a lado no desktop.
         if (c.maxWidth < 360) {
+          // `stretch` + `Center`: o card (ClxCard/Column crossAxisAlignment
+          // start) só dá largura solta pra este widget — sem isso, a Column
+          // shrink-wrap na largura do filho mais largo e o donut (tamanho
+          // fixo) cola na ESQUERDA do card com um vão vazio à direita
+          // (feedback do dono, QA-F7). A legenda continua alinhada à
+          // esquerda (o próprio `legend` já tem `CrossAxisAlignment.start`).
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              chart,
+              Center(child: chart),
               const SizedBox(height: ClxSpace.x4),
               legend,
             ],
