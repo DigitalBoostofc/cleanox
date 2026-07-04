@@ -257,5 +257,44 @@ void main() {
       expect(c.saldoInicial, 500.0);
       expect(c.saldoAtual, 320.5);
     });
+
+    // Bug de produção (dono, 04/07): categoria criada não aparecia na tela de
+    // Categorias mesmo com o fix de defaultTipo (540321f) já embarcado.
+    // Causa raiz: `parent_id` é um TextField (não RelationField, migration 14)
+    // — o PocketBase grava vazio como `""`, nunca `null` — mas TODA a árvore de
+    // Categorias/Relatórios/Contas a pagar/formulários decide "é raiz?" com
+    // `c.parentId == null`. Sem normalizar no `fromRecord`, NENHUMA categoria
+    // raiz (a esmagadora maioria) nunca batia nesse teste: a lista de
+    // Categorias ficava permanentemente vazia, com ou sem o fix de tipo.
+    test(
+      'FinCategoria.fromRecord normaliza parent_id "" (PocketBase) para null',
+      () {
+        final rec = RecordModel.fromJson({
+          'id': 'c1',
+          'nome': 'Marketing',
+          'tipo': 'despesa',
+          'parent_id': '',
+        });
+        final cat = FinCategoria.fromRecord(rec);
+        expect(
+          cat.parentId,
+          isNull,
+          reason:
+              'categoria-raiz do PocketBase vem com parent_id="", '
+              'precisa virar null pro filtro `parentId == null` funcionar',
+        );
+      },
+    );
+
+    test('FinCategoria.fromRecord preserva parent_id de subcategoria', () {
+      final rec = RecordModel.fromJson({
+        'id': 'c2',
+        'nome': 'Google Ads',
+        'tipo': 'despesa',
+        'parent_id': 'c1',
+      });
+      final cat = FinCategoria.fromRecord(rec);
+      expect(cat.parentId, 'c1');
+    });
   });
 }

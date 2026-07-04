@@ -135,8 +135,19 @@ class FinCategoria with _$FinCategoria {
   factory FinCategoria.fromJson(Map<String, dynamic> json) =>
       _$FinCategoriaFromJson(json);
 
-  factory FinCategoria.fromRecord(RecordModel record) =>
-      FinCategoria.fromJson(record.toJson());
+  /// `parent_id` é um `TextField` (não `RelationField`, de propósito — ver a
+  /// migration 14) e o PocketBase grava campo de texto vazio como `""`, nunca
+  /// `null`. Toda categoria-RAIZ (a maioria) chega do servidor com
+  /// `parent_id: ""`, mas o app inteiro decide "é raiz?" com
+  /// `c.parentId == null` (Categorias, Relatórios, Contas a pagar/receber,
+  /// formulários de categoria/lançamento) — sem essa normalização nenhuma
+  /// categoria-raiz nunca bate nesse teste, e a árvore de Categorias fica
+  /// permanentemente vazia mesmo com dezenas de categorias no banco.
+  factory FinCategoria.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['parent_id'] == '') json['parent_id'] = null;
+    return FinCategoria.fromJson(json);
+  }
 }
 
 /* ---- Lançamento (receita ou despesa) ---- */
