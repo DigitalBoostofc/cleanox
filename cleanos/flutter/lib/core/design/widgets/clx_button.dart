@@ -37,7 +37,7 @@ class ClxButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final (bg, fg, border) = switch (variant) {
-      ClxButtonVariant.primary => (clx.primary, ClxBrand.onPrimary, null),
+      ClxButtonVariant.primary => (clx.primary, clx.onPrimary, null),
       ClxButtonVariant.secondary => (clx.accent, Colors.white, null),
       ClxButtonVariant.ghost => (Colors.transparent, clx.ink2, clx.line2),
       ClxButtonVariant.danger => (clx.error, Colors.white, null),
