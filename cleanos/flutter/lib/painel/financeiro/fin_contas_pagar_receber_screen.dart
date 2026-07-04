@@ -172,7 +172,26 @@ class _FinContasPagarReceberScreenState
 
     final catById = {for (final c in categorias) c.id: c};
     final contaById = {for (final c in contas) c.id: c};
-    final showFilters = _showFilters ?? !finIsMobile(context);
+    final mobile = finIsMobile(context);
+    final showFilters = _showFilters ?? !mobile;
+
+    final filtrosBar = _FiltrosBar(
+      filters: _filters,
+      categorias: categorias,
+      contas: contas,
+      onChange: (f) => setState(() => _filters = f),
+      onClear: () => setState(() => _filters = const _CprFilters()),
+      onSave: () {
+        setState(() => _showFilters = false);
+        showClxToast(
+          context,
+          'Filtro aplicado',
+          type: ToastType.success,
+          position: ToastPosition.top,
+          duration: const Duration(milliseconds: 2500),
+        );
+      },
+    );
 
     return Column(
       children: [
@@ -208,6 +227,16 @@ class _FinContasPagarReceberScreenState
               return ListView(
                 padding: const EdgeInsets.all(ClxSpace.x6),
                 children: [
+                  // Mobile (feedback do dono): o painel de filtros aparece
+                  // LOGO ABAIXO do botão "Filtros" (aqui, antes dos cards de
+                  // totais) — antes ele só existia depois dos KPIs/texto
+                  // explicativo, e o usuário tocava "Filtros" sem ver nada
+                  // acontecer sem rolar a tela inteira. Desktop/web mantêm a
+                  // posição original (depois do texto explicativo).
+                  if (mobile && showFilters) ...[
+                    filtrosBar,
+                    const SizedBox(height: ClxSpace.x4),
+                  ],
                   FinKpiGrid(
                     cards: [
                       FinKpiCard(
@@ -254,16 +283,9 @@ class _FinContasPagarReceberScreenState
                       ).textTheme.bodySmall?.copyWith(color: context.clx.ink3),
                     ),
                   ),
-                  if (showFilters) ...[
+                  if (!mobile && showFilters) ...[
                     const SizedBox(height: ClxSpace.x4),
-                    _FiltrosBar(
-                      filters: _filters,
-                      categorias: categorias,
-                      contas: contas,
-                      onChange: (f) => setState(() => _filters = f),
-                      onClear: () =>
-                          setState(() => _filters = const _CprFilters()),
-                    ),
+                    filtrosBar,
                   ],
                   const SizedBox(height: ClxSpace.x5),
                   _Colunas(
@@ -442,6 +464,7 @@ class _FiltrosBar extends StatelessWidget {
     required this.contas,
     required this.onChange,
     required this.onClear,
+    required this.onSave,
   });
 
   final _CprFilters filters;
@@ -449,6 +472,11 @@ class _FiltrosBar extends StatelessWidget {
   final List<FinConta> contas;
   final ValueChanged<_CprFilters> onChange;
   final VoidCallback onClear;
+
+  /// Feedback do dono: fecha o painel + toast "Filtro aplicado". Os filtros
+  /// já aplicam ao vivo (cada dropdown chama [onChange] na hora) — "Salvar"
+  /// não reprocessa nada, é só fechar + confirmar visualmente.
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -458,70 +486,77 @@ class _FiltrosBar extends StatelessWidget {
           ..sort((a, b) => a.nome.compareTo(b.nome));
 
     return ClxCard(
-      child: Wrap(
-        spacing: ClxSpace.x4,
-        runSpacing: ClxSpace.x3,
-        crossAxisAlignment: WrapCrossAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Filter<TipoLancamento?>(
-            label: 'Tipo',
-            value: filters.tipo,
-            entries: [
-              (value: null, text: 'Todos os tipos'),
-              (value: TipoLancamento.despesa, text: 'Despesas (a pagar)'),
-              (value: TipoLancamento.receita, text: 'Receitas (a receber)'),
+          Wrap(
+            spacing: ClxSpace.x4,
+            runSpacing: ClxSpace.x3,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              _Filter<TipoLancamento?>(
+                label: 'Tipo',
+                value: filters.tipo,
+                entries: [
+                  (value: null, text: 'Todos os tipos'),
+                  (value: TipoLancamento.despesa, text: 'Despesas (a pagar)'),
+                  (value: TipoLancamento.receita, text: 'Receitas (a receber)'),
+                ],
+                onChanged: (v) => onChange(filters.copyWith(tipo: v)),
+              ),
+              _Filter<OrigemLancamento?>(
+                label: 'Origem',
+                value: filters.origem,
+                entries: [
+                  (value: null, text: 'Todas as origens'),
+                  (value: OrigemLancamento.manual, text: 'Manual'),
+                  (value: OrigemLancamento.viaOs, text: 'Via OS'),
+                ],
+                onChanged: (v) => onChange(filters.copyWith(origem: v)),
+              ),
+              _Filter<String?>(
+                label: 'Categoria',
+                value: filters.categoriaId,
+                entries: [
+                  (value: null, text: 'Todas as categorias'),
+                  for (final c in roots) (value: c.id, text: c.nome),
+                ],
+                onChanged: (v) => onChange(filters.copyWith(categoriaId: v)),
+              ),
+              _Filter<String?>(
+                label: 'Conta',
+                value: filters.contaId,
+                entries: [
+                  (value: null, text: 'Todas as contas'),
+                  for (final c in contas) (value: c.id, text: c.nome),
+                ],
+                onChanged: (v) => onChange(filters.copyWith(contaId: v)),
+              ),
+              _Filter<_Venc>(
+                label: 'Vencimento',
+                value: filters.venc,
+                entries: const [
+                  (value: _Venc.todos, text: 'Todos os vencimentos'),
+                  (value: _Venc.vencidas, text: 'Vencidas'),
+                  (value: _Venc.hoje, text: 'Vence hoje'),
+                  (value: _Venc.d7, text: 'Próximos 7 dias'),
+                  (value: _Venc.d30, text: 'Próximos 30 dias'),
+                ],
+                onChanged: (v) => onChange(filters.copyWith(venc: v)),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: TextButton.icon(
+                  onPressed: filters.ativos ? onClear : null,
+                  icon: const Icon(Icons.clear_rounded, size: 16),
+                  label: const Text('Limpar filtros'),
+                  style: TextButton.styleFrom(foregroundColor: clx.ink2),
+                ),
+              ),
             ],
-            onChanged: (v) => onChange(filters.copyWith(tipo: v)),
           ),
-          _Filter<OrigemLancamento?>(
-            label: 'Origem',
-            value: filters.origem,
-            entries: [
-              (value: null, text: 'Todas as origens'),
-              (value: OrigemLancamento.manual, text: 'Manual'),
-              (value: OrigemLancamento.viaOs, text: 'Via OS'),
-            ],
-            onChanged: (v) => onChange(filters.copyWith(origem: v)),
-          ),
-          _Filter<String?>(
-            label: 'Categoria',
-            value: filters.categoriaId,
-            entries: [
-              (value: null, text: 'Todas as categorias'),
-              for (final c in roots) (value: c.id, text: c.nome),
-            ],
-            onChanged: (v) => onChange(filters.copyWith(categoriaId: v)),
-          ),
-          _Filter<String?>(
-            label: 'Conta',
-            value: filters.contaId,
-            entries: [
-              (value: null, text: 'Todas as contas'),
-              for (final c in contas) (value: c.id, text: c.nome),
-            ],
-            onChanged: (v) => onChange(filters.copyWith(contaId: v)),
-          ),
-          _Filter<_Venc>(
-            label: 'Vencimento',
-            value: filters.venc,
-            entries: const [
-              (value: _Venc.todos, text: 'Todos os vencimentos'),
-              (value: _Venc.vencidas, text: 'Vencidas'),
-              (value: _Venc.hoje, text: 'Vence hoje'),
-              (value: _Venc.d7, text: 'Próximos 7 dias'),
-              (value: _Venc.d30, text: 'Próximos 30 dias'),
-            ],
-            onChanged: (v) => onChange(filters.copyWith(venc: v)),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: TextButton.icon(
-              onPressed: filters.ativos ? onClear : null,
-              icon: const Icon(Icons.clear_rounded, size: 16),
-              label: const Text('Limpar filtros'),
-              style: TextButton.styleFrom(foregroundColor: clx.ink2),
-            ),
-          ),
+          const SizedBox(height: ClxSpace.x4),
+          ClxButton(label: 'Salvar filtro', onPressed: onSave, expand: true),
         ],
       ),
     );
