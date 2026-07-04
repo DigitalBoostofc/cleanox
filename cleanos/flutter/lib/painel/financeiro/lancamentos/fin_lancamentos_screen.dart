@@ -1089,19 +1089,16 @@ class _LancamentoRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x3),
-            // Flexible + ellipsis: valores muito longos elipsam em vez de
-            // estourar a Row (a descrição no Expanded já cede espaço primeiro).
-            Flexible(
-              child: Text(
-                formatSigned(l),
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: tt.bodyLarge?.copyWith(
-                  color: tipoColor(clx, l.tipo),
-                  fontWeight: FontWeight.w800,
-                ),
+            // Sem Flexible/Expanded (QA-F3): o valor precisa da sua largura
+            // intrínseca inteira — nunca trunca. É a descrição no Expanded
+            // acima que cede espaço (ellipsis) quando o valor for longo.
+            Text(
+              formatSigned(l),
+              maxLines: 1,
+              softWrap: false,
+              style: tt.bodyLarge?.copyWith(
+                color: tipoColor(clx, l.tipo),
+                fontWeight: FontWeight.w800,
               ),
             ),
             PopupMenuButton<String>(
