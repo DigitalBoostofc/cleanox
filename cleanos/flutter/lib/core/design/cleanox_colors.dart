@@ -250,7 +250,12 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     line2: Color(0x290F1720), // rgba(15,23,32,.16)
     error: Color(0xFFE5484D),
     success: Color(0xFF00C896), // == primary
-    warning: Color(0xFFB8790A),
+    // ANTI-DRIFT: doc12 §2.1 especifica #E8A400 p/ warning, mas #E8A400 sobre
+    // bg2 (#F7F8FA) dá ~2.0:1 e o #B8790A herdado da Onda 2 dá ~3.4:1 — ambos
+    // abaixo do mínimo AA de 4.5:1 p/ texto normal. #96650A mantém a mesma
+    // intenção âmbar e atinge ~4.75:1 (validado via luminância relativa
+    // WCAG). Não reverta para os valores do doc — o doc é quem está errado.
+    warning: Color(0xFF96650A),
     info: Color(0xFF3E7BFA),
     errorBg: Color(0x1AE5484D), // rgba(229,72,77,.10)
     successBg: Color(0x1F00C896), // rgba(0,200,150,.12)
