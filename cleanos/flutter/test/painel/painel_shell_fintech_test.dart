@@ -225,5 +225,35 @@ void main() {
       // Voltou a mostrar o conteúdo real (não a lista "Mais" de novo).
       expect(find.text('Minha Conta'), findsNothing);
     });
+
+    testWidgets(
+      'QA-F2: tela "Mais" tem o toggle de tema claro/escuro (único no '
+      'casco fintech — o _TopBar com o botão de tema não é montado aqui)',
+      (tester) async {
+        await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
+        );
+
+        await tester.tap(find.text('Mais'));
+        await tester.pump();
+
+        expect(find.text('Tema escuro'), findsOneWidget);
+
+        await tester.tap(find.text('Tema escuro'));
+        // MaterialApp anima claro↔escuro (`themeAnimationDuration`, 300ms —
+        // ClxMotion.standardDuration); pumpAndSettle espera a AnimatedTheme
+        // terminar antes de checar o brightness resultante.
+        await tester.pumpAndSettle();
+
+        expect(
+          Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
+          Brightness.dark,
+        );
+        expect(find.text('Tema claro'), findsOneWidget);
+      },
+    );
   });
 }

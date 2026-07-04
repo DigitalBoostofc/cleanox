@@ -15,6 +15,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/design.dart';
@@ -133,20 +134,24 @@ class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
   }
 }
 
-/// Lista da aba "Mais": as seções que não couberam na bottom nav direta.
-class _MaisScreen extends StatelessWidget {
+/// Lista da aba "Mais": as seções que não couberam na bottom nav direta + o
+/// toggle de tema claro/escuro (único lugar do casco fintech pra alternar —
+/// o `_TopBar` com o botão de tema não é montado neste surface, QA-F2).
+class _MaisScreen extends ConsumerWidget {
   const _MaisScreen({required this.role, required this.onSelect});
 
   final Role? role;
   final ValueChanged<PainelSection> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     final isAdmin = role == Role.admin;
     final items = kFintechMaisSections
         .where((s) => s != PainelSection.whatsapp || isAdmin)
         .toList();
+    final mode = ref.watch(themeModeControllerProvider);
+    final isDark = mode == ThemeMode.dark;
 
     return Column(
       children: [
@@ -170,9 +175,25 @@ class _MaisScreen extends StatelessWidget {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x2),
-            itemCount: items.length,
+            itemCount: items.length + 1,
             separatorBuilder: (context, i) => Divider(height: 1, color: clx.line),
             itemBuilder: (context, i) {
+              if (i == items.length) {
+                return ListTile(
+                  leading: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    color: clx.ink2,
+                  ),
+                  title: Text(
+                    isDark ? 'Tema claro' : 'Tema escuro',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: clx.ink),
+                  ),
+                  onTap: () =>
+                      ref.read(themeModeControllerProvider.notifier).toggle(),
+                );
+              }
               final s = items[i];
               return ListTile(
                 leading: Icon(fintechIconFor(s), color: clx.ink2),
