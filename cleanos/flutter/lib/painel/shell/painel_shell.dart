@@ -27,8 +27,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/models/collections.dart';
+import 'fintech/fintech_painel_shell.dart';
 import 'painel_nav.dart';
 
 class PainelShell extends ConsumerWidget {
@@ -51,6 +53,18 @@ class PainelShell extends ConsumerWidget {
     final section = painelSectionForLocation(
       GoRouterState.of(context).matchedLocation,
     );
+
+    // Fintech Clean (doc 12): bottom nav de 5 itens em TODO Android — celular
+    // E tablet, sem NavigationRail no APK (decisão do dono P-2). Só a Web
+    // segue com sidebar/rail/drawer responsivo abaixo.
+    if (ref.watch(isFintechCleanProvider)) {
+      return FintechPainelScaffold(
+        navigationShell: navigationShell,
+        section: section,
+        role: role,
+      );
+    }
+
     final items = navItemsForRole(role);
 
     return LayoutBuilder(
