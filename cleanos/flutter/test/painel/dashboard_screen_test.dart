@@ -4,6 +4,7 @@ library;
 import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/painel/dashboard/dashboard_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes_painel.dart';
@@ -90,5 +91,44 @@ void main() {
       expect(find.byType(ErrorBanner), findsOneWidget);
       expect(find.text('Tentar de novo'), findsOneWidget);
     });
+
+    testWidgets(
+      'QA-F8: nenhum label dos 4 atalhos de "Acesso rápido" começa com "+" '
+      '("Nova OS" e "Novo Cliente" já têm o ícone add — duplicava)',
+      (tester) async {
+        await pumpPainel(
+          tester,
+          const DashboardScreen(),
+          overrides: painelOverrides(
+            user: painelUser(),
+            repo: FakePainelOrdens.empty(),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Os 4 atalhos de "Acesso rápido" (por label — a tela tem outros
+        // ClxButton fora dessa seção, ex.: "Ver todas" no cabeçalho).
+        const atalhos = {'Nova OS', 'Novo Cliente', 'Ver Agenda', 'Financeiro'};
+        final buttons = tester
+            .widgetList<ClxButton>(find.byType(ClxButton))
+            .where((b) => atalhos.contains(b.label))
+            .toList();
+        expect(buttons, hasLength(4));
+        for (final b in buttons) {
+          expect(
+            b.label.startsWith('+'),
+            isFalse,
+            reason: '"${b.label}" não deveria começar com "+"',
+          );
+        }
+
+        // "Nova OS"/"Novo Cliente" mantêm o ícone add (sem duplicar no texto).
+        final novaOs = buttons.firstWhere((b) => b.label == 'Nova OS');
+        expect(novaOs.icon, Icons.add_rounded);
+        final novoCliente = buttons.firstWhere((b) => b.label == 'Novo Cliente');
+        expect(novoCliente.icon, Icons.add_rounded);
+      },
+    );
   });
 }
