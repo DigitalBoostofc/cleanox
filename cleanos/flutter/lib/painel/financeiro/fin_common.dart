@@ -276,7 +276,7 @@ class FinKpiCard extends StatelessWidget {
                       Flexible(
                         child: Text(
                           label,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: tt.labelMedium?.copyWith(color: clx.ink3),
                         ),
@@ -287,7 +287,7 @@ class FinKpiCard extends StatelessWidget {
                     const SizedBox(height: ClxSpace.x1),
                     Text(
                       hint!,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: tt.bodySmall?.copyWith(color: clx.ink3),
                     ),
@@ -323,7 +323,7 @@ class FinKpiCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: tt.labelMedium?.copyWith(color: clx.ink3),
                 ),
@@ -369,7 +369,7 @@ class FinKpiCard extends StatelessWidget {
             const SizedBox(height: ClxSpace.x1),
             Text(
               hint!,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: tt.bodySmall?.copyWith(color: clx.ink3),
             ),
