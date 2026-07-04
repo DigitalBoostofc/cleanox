@@ -95,4 +95,38 @@ void main() {
       expect(descText.overflow, TextOverflow.ellipsis);
     },
   );
+
+  testWidgets(
+    'review: valor absurdo (R\$ 123.456.789,00) a 320x800 não estoura a Row '
+    'e não elipsa — o FittedBox só reduz a escala',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final lanc = fakeLanc(
+        id: '1',
+        descricao: 'Recebimento',
+        tipo: TipoLancamento.receita,
+        valor: 123456789,
+      );
+
+      await pumpAt(tester, debugLancamentoRow(lanc), 320);
+      expect(tester.takeException(), isNull);
+
+      final valueFinder = find.textContaining('123.456.789,00');
+      expect(valueFinder, findsOneWidget);
+      final valueText = tester.widget<Text>(valueFinder);
+      expect(
+        valueText.overflow,
+        isNot(TextOverflow.ellipsis),
+        reason: 'valor não pode elipsar mesmo em caso extremo — só reduz de escala',
+      );
+      expect(
+        find.ancestor(of: valueFinder, matching: find.byType(FittedBox)),
+        findsOneWidget,
+      );
+    },
+  );
 }
