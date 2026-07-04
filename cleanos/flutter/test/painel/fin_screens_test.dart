@@ -276,6 +276,46 @@ void main() {
       await settle(tester);
       expect(find.byType(BarChart), findsOneWidget);
     });
+
+    // Desktop preserva a tabela densa (só o mobile vira cards — ver
+    // fin_mobile_layout_test.dart).
+    testWidgets('desktop: aba Contas mantém a tabela com colunas', (
+      tester,
+    ) async {
+      final fake = FakeFinanceiro(
+        contas: [fakeConta(id: 'c', nome: 'Caixa', saldoAtual: 500)],
+        lancamentos: [
+          fakeLanc(
+            id: '1',
+            tipo: TipoLancamento.receita,
+            valor: 300,
+            contaId: 'c',
+          ),
+          fakeLanc(
+            id: '2',
+            tipo: TipoLancamento.despesa,
+            valor: 120,
+            contaId: 'c',
+          ),
+        ],
+      );
+      await pumpPainel(
+        tester,
+        const FinRelatoriosScreen(),
+        overrides: withFin(fake),
+      );
+      await settle(tester);
+
+      // No desktop o filtro "Contas" do header e a aba "Contas" coexistem;
+      // a aba é a última no widget tree (renderizada depois do header).
+      await tester.tap(find.text('Contas').last);
+      await settle(tester);
+
+      expect(find.text('Conta'), findsOneWidget);
+      expect(find.text('Entradas'), findsOneWidget);
+      expect(find.text('Saídas'), findsOneWidget);
+      expect(find.text('Saldo atual'), findsOneWidget);
+    });
   });
 
   group('Limites (progresso)', () {

@@ -15,9 +15,12 @@
 library;
 
 import 'package:cleanos/core/design/design.dart';
+import 'package:cleanos/core/formatters/formatters.dart';
+import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/painel/financeiro/categorias/fin_categorias_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_contas_pagar_receber_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
+import 'package:cleanos/painel/financeiro/fin_relatorios_screen.dart';
 import 'package:cleanos/painel/financeiro/lancamentos/fin_lancamentos_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +56,23 @@ void main() {
       tester.takeException(),
       isNull,
       reason: 'Overflow no layout estável a 360 px de largura',
+    );
+  }
+
+  /// Igual a [expectStableNoOverflow], mas para uma largura arbitrária (usado
+  /// pelos cards de "Movimentação por conta" a 360 e 320 px).
+  Future<void> expectStableNoOverflowAt(WidgetTester tester, Size target) async {
+    while (tester.takeException() != null) {}
+    tester.view.physicalSize = Size(target.width + 40, target.height);
+    await tester.pump();
+    while (tester.takeException() != null) {}
+    tester.view.physicalSize = target;
+    await tester.pump();
+    await tester.pump();
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'Overflow no layout estável a ${target.width.toInt()} px de largura',
     );
   }
 
@@ -186,6 +206,122 @@ void main() {
       );
 
       await expectStableNoOverflow(tester);
+    },
+  );
+
+  group(
+    'Relatórios — Movimentação por conta em cards no mobile (feedback dono: '
+    'nunca tabela)',
+    () {
+      // 2 contas com valores distintos entre si E distintos dos totais dos
+      // KPIs (soma das 2), pra não colidir na busca por texto do teste.
+      FakeFinanceiro fakeComContas({
+        String contaNome = 'Cartão Empresarial Nubank',
+      }) => FakeFinanceiro(
+        contas: [
+          fakeConta(id: 'c', nome: contaNome, saldoAtual: 2260),
+          fakeConta(id: 'c2', nome: 'Caixa Loja', saldoAtual: 700),
+        ],
+        categorias: [fakeCategoria(id: 'cat', nome: 'Material')],
+        lancamentos: [
+          fakeLanc(
+            id: '1',
+            tipo: TipoLancamento.receita,
+            valor: 2500,
+            contaId: 'c',
+            categoriaId: 'cat',
+          ),
+          fakeLanc(
+            id: '2',
+            tipo: TipoLancamento.despesa,
+            valor: 240,
+            contaId: 'c',
+            categoriaId: 'cat',
+          ),
+          fakeLanc(
+            id: '3',
+            tipo: TipoLancamento.receita,
+            valor: 800,
+            contaId: 'c2',
+            categoriaId: 'cat',
+          ),
+          fakeLanc(
+            id: '4',
+            tipo: TipoLancamento.despesa,
+            valor: 100,
+            contaId: 'c2',
+            categoriaId: 'cat',
+          ),
+        ],
+      );
+
+      Future<void> irParaAbaContas(WidgetTester tester) async {
+        // A faixa de abas rola horizontalmente e "Contas" pode nascer fora da
+        // viewport estreita — traz para a tela antes de tocar.
+        final tab = find.text('Contas');
+        await tester.ensureVisible(tab);
+        await tester.pump();
+        await tester.tap(tab);
+        await settle(tester);
+      }
+
+      testWidgets(
+        '360×800: card por conta com nome completo (sem truncar) e valores '
+        'completos (sem quebra no meio do número), sem overflow',
+        (tester) async {
+          const size = Size(360, 800);
+          await pumpPainel(
+            tester,
+            const FinRelatoriosScreen(),
+            overrides: withFin(fakeComContas()),
+            size: size,
+          );
+          await settle(tester);
+          await irParaAbaContas(tester);
+
+          // 2 cards (não tabela): nomes por extenso + as 3 métricas de cada
+          // conta com valor completo (nada colide com os totais dos KPIs).
+          expect(find.text('Cartão Empresarial Nubank'), findsOneWidget);
+          expect(find.text('Caixa Loja'), findsOneWidget);
+          expect(find.text('Entradas'), findsNWidgets(2));
+          expect(find.text('Saídas'), findsNWidgets(2));
+          expect(find.text('Saldo atual'), findsNWidgets(2));
+          expect(find.text(formatCurrency(2500)), findsOneWidget);
+          expect(find.text(formatCurrency(240)), findsOneWidget);
+          expect(find.text(formatCurrency(2260)), findsOneWidget);
+          expect(find.text(formatCurrency(800)), findsOneWidget);
+          expect(find.text(formatCurrency(100)), findsOneWidget);
+          expect(find.text(formatCurrency(700)), findsOneWidget);
+
+          // Nunca tabela no mobile: sem cabeçalho de colunas.
+          expect(find.text('Conta'), findsNothing);
+
+          await expectStableNoOverflowAt(tester, size);
+        },
+      );
+
+      testWidgets('320×800: sem overflow', (tester) async {
+        const size = Size(320, 800);
+        await pumpPainel(
+          tester,
+          const FinRelatoriosScreen(),
+          overrides: withFin(fakeComContas()),
+          size: size,
+        );
+        await settle(tester);
+        await irParaAbaContas(tester);
+
+        expect(find.text('Cartão Empresarial Nubank'), findsOneWidget);
+        expect(find.text('Caixa Loja'), findsOneWidget);
+        expect(find.text(formatCurrency(2500)), findsOneWidget);
+        expect(find.text(formatCurrency(240)), findsOneWidget);
+        expect(find.text(formatCurrency(2260)), findsOneWidget);
+        expect(find.text(formatCurrency(800)), findsOneWidget);
+        expect(find.text(formatCurrency(100)), findsOneWidget);
+        expect(find.text(formatCurrency(700)), findsOneWidget);
+
+        await expectStableNoOverflowAt(tester, size);
+      });
     },
   );
 }
