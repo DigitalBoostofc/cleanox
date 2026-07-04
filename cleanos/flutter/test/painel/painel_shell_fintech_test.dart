@@ -1,8 +1,9 @@
 /// painel_shell_fintech_test.dart — Bifurcação Fintech Clean do APK (doc 12,
-/// Onda 1): tema aplicado por `AppSurface`, bottom nav de 5 itens (Dashboard ·
-/// Ordens de Serviço · Agenda · Financeiro · Mais) e a lista "Mais" com guard
-/// de papel. Sobe o `CleanosApp` de verdade (não só `PainelShell` isolado) pra
-/// provar a bifurcação de `app.dart` ponta a ponta.
+/// Onda 1): tema aplicado por `AppSurface`, bottom nav de 5 itens (Clientes ·
+/// Ordens de Serviço · Agenda · Financeiro · Mais — Dashboard mudou pro topo
+/// do "Mais", feedback do dono/QA-F6) e a lista "Mais" com guard de papel.
+/// Sobe o `CleanosApp` de verdade (não só `PainelShell` isolado) pra provar a
+/// bifurcação de `app.dart` ponta a ponta.
 ///
 /// Não-regressão: `AppSurface.painel` continua com o `ThemeData` clássico e a
 /// sidebar/rail — os 52 arquivos de teste pré-existentes (que montam
@@ -112,37 +113,40 @@ void main() {
   });
 
   group('bottom nav fintech (5 itens)', () {
-    testWidgets('renderiza os 5 destinos e navega pelos diretos', (
-      tester,
-    ) async {
-      final router = await _pumpCleanosApp(
-        tester,
-        surface: AppSurface.android,
-        user: painelUser(role: Role.admin),
-        repo: FakePainelOrdens.empty(),
-      );
-
-      expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.text('Dashboard'), findsOneWidget);
-      expect(find.text('Ordens de Serviço'), findsOneWidget);
-      expect(find.text('Agenda'), findsOneWidget);
-      expect(find.text('Financeiro'), findsOneWidget);
-      expect(find.text('Mais'), findsOneWidget);
-
-      // Financeiro (não Agenda): já tem os fixes de overflow mobile
-      // (bda7b11/7744973); Agenda/Avaliações ainda não foram adaptadas pra
-      // largura de telefone — reskin de conteúdo é escopo da Onda 3, não
-      // desta fundação (doc 12 §4).
-      await tester.tap(find.text('Financeiro'));
-      for (var i = 0; i < 8; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    testWidgets(
+      'renderiza Clientes/OS/Agenda/Financeiro/Mais (Dashboard saiu da '
+      'barra, QA-F6) e navega pelos diretos',
+      (tester) async {
+        final router = await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
         );
-        await tester.pump(const Duration(milliseconds: 12));
-      }
 
-      expect(currentLocation(router), '/painel/financeiro/visao-geral');
-    });
+        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(find.text('Dashboard'), findsNothing);
+        expect(find.text('Clientes'), findsOneWidget);
+        expect(find.text('Ordens de Serviço'), findsOneWidget);
+        expect(find.text('Agenda'), findsOneWidget);
+        expect(find.text('Financeiro'), findsOneWidget);
+        expect(find.text('Mais'), findsOneWidget);
+
+        // Financeiro (não Agenda): já tem os fixes de overflow mobile
+        // (bda7b11/7744973); Agenda/Avaliações ainda não foram adaptadas pra
+        // largura de telefone — reskin de conteúdo é escopo da Onda 3, não
+        // desta fundação (doc 12 §4).
+        await tester.tap(find.text('Financeiro'));
+        for (var i = 0; i < 8; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 12));
+        }
+
+        expect(currentLocation(router), '/painel/financeiro/visao-geral');
+      },
+    );
 
     testWidgets('bottom nav também no tamanho tablet (P-2: sem NavigationRail no APK)', (
       tester,
@@ -161,26 +165,33 @@ void main() {
   });
 
   group('tela "Mais"', () {
-    testWidgets('admin vê Serviços/Clientes/Avaliações/Usuários/WhatsApp/Conta', (
-      tester,
-    ) async {
-      await _pumpCleanosApp(
-        tester,
-        surface: AppSurface.android,
-        user: painelUser(role: Role.admin),
-        repo: FakePainelOrdens.empty(),
-      );
+    testWidgets(
+      'admin vê Dashboard (primeiro item, QA-F6)/Serviços/Avaliações/'
+      'Usuários/WhatsApp/Conta',
+      (tester) async {
+        await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
+        );
 
-      await tester.tap(find.text('Mais'));
-      await tester.pump();
+        await tester.tap(find.text('Mais'));
+        await tester.pump();
 
-      expect(find.text('Serviços'), findsOneWidget);
-      expect(find.text('Clientes'), findsOneWidget);
-      expect(find.text('Avaliações'), findsOneWidget);
-      expect(find.text('Usuários'), findsOneWidget);
-      expect(find.text('WhatsApp'), findsOneWidget);
-      expect(find.text('Minha Conta'), findsOneWidget);
-    });
+        expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Serviços'), findsOneWidget);
+        expect(find.text('Avaliações'), findsOneWidget);
+        expect(find.text('Usuários'), findsOneWidget);
+        expect(find.text('WhatsApp'), findsOneWidget);
+        expect(find.text('Minha Conta'), findsOneWidget);
+
+        // Dashboard é o PRIMEIRO item da lista (acima de Serviços).
+        final dashboardTop = tester.getTopLeft(find.text('Dashboard')).dy;
+        final servicosTop = tester.getTopLeft(find.text('Serviços')).dy;
+        expect(dashboardTop, lessThan(servicosTop));
+      },
+    );
 
     testWidgets('gerente NÃO vê WhatsApp na lista "Mais" (guard de papel)', (
       tester,
@@ -253,6 +264,82 @@ void main() {
           Brightness.dark,
         );
         expect(find.text('Tema claro'), findsOneWidget);
+      },
+    );
+  });
+
+  group('QA-F6: Dashboard sem destino direto → barra sem seleção', () {
+    /// Cor resolvida (via `IconTheme` ambiente) de cada ícone de destino da
+    /// `NavigationBar`, na mesma ordem em que aparecem na barra.
+    List<Color?> destinationIconColors(WidgetTester tester) {
+      final iconFinder = find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.byType(Icon),
+      );
+      return [
+        for (var i = 0; i < iconFinder.evaluate().length; i++)
+          IconTheme.of(tester.element(iconFinder.at(i))).color,
+      ];
+    }
+
+    testWidgets(
+      'abrir o app mostra Dashboard com NENHUM item da barra selecionado',
+      (tester) async {
+        await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
+        );
+
+        // Cai no Dashboard (rota inicial inalterada) — Dashboard não está
+        // mais na barra, e nem "Mais" está marcado.
+        final colors = destinationIconColors(tester);
+        final clx = _clxOf(tester);
+        // Todos os ícones (incl. "Mais") na MESMA cor "não selecionada" —
+        // nenhum item aparenta estar ativo.
+        expect(colors.toSet(), {clx.ink3});
+      },
+    );
+
+    testWidgets(
+      'Mais > Dashboard também deixa a barra sem seleção',
+      (tester) async {
+        await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
+        );
+
+        // Navega pra outra seção primeiro (Financeiro, direta) — prova que
+        // dá pra SAIR do estado "sem seleção" e...
+        await tester.tap(find.text('Financeiro'));
+        for (var i = 0; i < 8; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 12));
+        }
+        final clx = _clxOf(tester);
+        expect(
+          destinationIconColors(tester).toSet().contains(clx.primary),
+          isTrue,
+          reason: 'Financeiro precisa aparecer selecionado antes do teste',
+        );
+
+        // ...voltar pra Dashboard via Mais > Dashboard restaura "sem seleção".
+        await tester.tap(find.text('Mais'));
+        await tester.pump();
+        await tester.tap(find.text('Dashboard'));
+        for (var i = 0; i < 8; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 12));
+        }
+
+        expect(destinationIconColors(tester).toSet(), {clx.ink3});
       },
     );
   });

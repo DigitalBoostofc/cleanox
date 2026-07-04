@@ -1,12 +1,17 @@
 /// fintech_painel_shell.dart — Casco fintech do Painel (APK, doc 12 §3).
 ///
-/// Bottom nav de 5 itens (decisão do dono P-3): Dashboard · Ordens de Serviço ·
-/// Agenda · Financeiro têm destino direto; "Mais" abre uma tela local (não é
-/// uma rota/branch nova) listando as demais seções — Serviços, Clientes,
-/// Avaliações, Usuários, WhatsApp (admin-only) e Conta — reaproveitando os
-/// MESMOS `PainelNavItem`/`painelPath()` de `painel_nav.dart`. Nenhuma tela ou
-/// rota nova: é uma segunda casca em cima do MESMO
-/// `StatefulShellRoute.indexedStack` que a sidebar/rail da Web já usa.
+/// Bottom nav de 5 itens: Clientes · Ordens de Serviço · Agenda · Financeiro
+/// têm destino direto; "Mais" abre uma tela local (não é uma rota/branch
+/// nova) listando as demais seções — Dashboard (primeiro item, feedback do
+/// dono testando o APK), Serviços, Avaliações, Usuários, WhatsApp
+/// (admin-only) e Conta — reaproveitando os MESMOS
+/// `PainelNavItem`/`painelPath()` de `painel_nav.dart`. Nenhuma tela ou rota
+/// nova: é uma segunda casca em cima do MESMO `StatefulShellRoute.indexedStack`
+/// que a sidebar/rail da Web já usa.
+///
+/// A rota inicial continua sendo Dashboard (inalterada), mas como ele não tem
+/// mais destino direto, abrir o app deixa a barra SEM nenhum item marcado —
+/// ver `noneSelected` em `_FintechPainelScaffoldState.build`.
 ///
 /// Navegação pelos itens diretos usa `context.go(painelPath(section))` — o
 /// mesmo padrão que `_Sidebar`/`_NavRail` (painel_shell.dart) já usam, em vez
@@ -22,19 +27,22 @@ import '../../../core/design/design.dart';
 import '../../../core/models/collections.dart';
 import '../painel_nav.dart';
 
-/// Seções com destino direto na bottom nav (ordem fixada pelo dono, P-3).
+/// Seções com destino direto na bottom nav (ordem revisada, feedback do dono
+/// testando o APK: Dashboard sai da barra e vira o topo do "Mais" — ver
+/// [kFintechMaisSections]).
 const List<PainelSection> kFintechDirectSections = [
-  PainelSection.dashboard,
+  PainelSection.clientes,
   PainelSection.ordens,
   PainelSection.agenda,
   PainelSection.financeiro,
 ];
 
-/// Agrupamento de "Mais" (ordem fixada pelo dono, P-3). WhatsApp é filtrado
-/// por papel na hora de montar a lista (mesmo guard do menu da Web).
+/// Agrupamento de "Mais" (ordem revisada, feedback do dono: Dashboard entra
+/// como primeiro item, acima de Serviços). WhatsApp é filtrado por papel na
+/// hora de montar a lista (mesmo guard do menu da Web).
 const List<PainelSection> kFintechMaisSections = [
+  PainelSection.dashboard,
   PainelSection.servicos,
-  PainelSection.clientes,
   PainelSection.avaliacoes,
   PainelSection.usuarios,
   PainelSection.whatsapp,
@@ -101,11 +109,55 @@ class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final directIndex = kFintechDirectSections.indexOf(widget.section);
-    // Seção "Mais"-agrupada ativa (ex.: Clientes) também realça o item "Mais",
-    // mesmo com a lista fechada (mostrando o conteúdo real da seção).
-    final selectedIndex = _showMais || directIndex < 0
-        ? kFintechDirectSections.length
-        : directIndex;
+    // Dashboard não tem destino direto (feedback do dono): abrir o app (ou
+    // navegar Mais > Dashboard) precisa mostrar a tela SEM nenhum item da
+    // barra selecionado — nem Dashboard (não está mais na barra) nem "Mais"
+    // (a lista já fechou). As demais seções fora da barra (Serviços,
+    // Avaliações, Usuários, WhatsApp, Conta) continuam realçando "Mais".
+    final noneSelected = !_showMais && widget.section == PainelSection.dashboard;
+    final int selectedIndex;
+    if (_showMais) {
+      selectedIndex = kFintechDirectSections.length;
+    } else if (noneSelected) {
+      // Índice fixo (0, Clientes) só pra satisfazer o assert do
+      // `NavigationBar` M3 (exige 0 <= selectedIndex < length — não aceita
+      // -1/fora do range). O visual "selecionado" desse índice é
+      // neutralizado logo abaixo via `NavigationBarTheme` local, que faz o
+      // ícone de QUALQUER destino renderizar sempre na cor "não selecionado"
+      // (indicatorColor já é transparente no tema fintech) — ou seja,
+      // nenhum item aparenta estar ativo.
+      selectedIndex = 0;
+    } else if (directIndex >= 0) {
+      selectedIndex = directIndex;
+    } else {
+      // Outras seções fora da barra (Serviços, Avaliações, Usuários,
+      // WhatsApp, Conta) continuam realçando "Mais".
+      selectedIndex = kFintechDirectSections.length;
+    }
+
+    Widget navBar = NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: _onDestinationSelected,
+      destinations: [
+        for (final s in kFintechDirectSections)
+          NavigationDestination(
+            icon: Icon(fintechIconFor(s)),
+            label: painelTitle(s),
+          ),
+        const NavigationDestination(
+          icon: Icon(Icons.more_horiz_rounded),
+          label: 'Mais',
+        ),
+      ],
+    );
+    if (noneSelected) {
+      navBar = NavigationBarTheme(
+        data: NavigationBarTheme.of(
+          context,
+        ).copyWith(iconTheme: WidgetStatePropertyAll(IconThemeData(color: clx.ink3))),
+        child: navBar,
+      );
+    }
 
     return Scaffold(
       backgroundColor: clx.bg2,
@@ -115,21 +167,7 @@ class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
             ? _MaisScreen(role: widget.role, onSelect: _openFromMais)
             : widget.navigationShell,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: _onDestinationSelected,
-        destinations: [
-          for (final s in kFintechDirectSections)
-            NavigationDestination(
-              icon: Icon(fintechIconFor(s)),
-              label: painelTitle(s),
-            ),
-          const NavigationDestination(
-            icon: Icon(Icons.more_horiz_rounded),
-            label: 'Mais',
-          ),
-        ],
-      ),
+      bottomNavigationBar: navBar,
     );
   }
 }
