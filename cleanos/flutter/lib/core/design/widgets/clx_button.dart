@@ -87,7 +87,6 @@ class ClxButton extends StatelessWidget {
                 borderRadius: ClxRadii.rPill,
                 border: border == null ? null : Border.all(color: border),
               ),
-              alignment: Alignment.center,
               child: child,
             ),
           ),

@@ -73,4 +73,41 @@ void main() {
     );
     expect(find.text('Entrar'), findsOneWidget);
   });
+
+  testWidgets(
+    'ClxButton como bottomNavigationBar não infla com constraints '
+    'soltas-mas-limitadas (regressão do Align interno)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildLightTheme(),
+          home: Scaffold(
+            body: const Center(child: Text('conteúdo visível')),
+            bottomNavigationBar: SafeArea(
+              top: false,
+              child: ClxButton(
+                label: 'Concluir serviço',
+                expand: true,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // O corpo continua visível — se o botão tivesse inflado (Align
+      // expandindo p/ preencher a constraint solta do bottomNavigationBar),
+      // ele tomaria a tela quase toda e empurraria/cobriria o body.
+      expect(find.text('conteúdo visível'), findsOneWidget);
+
+      final height = tester.getSize(find.byType(ClxButton)).height;
+      expect(
+        height,
+        inInclusiveRange(ClxLayout.minTouchTarget, ClxLayout.minTouchTarget + 8),
+        reason: 'ClxButton deveria hugging sua altura natural (~48-56dp), '
+            'não preencher a constraint solta do bottomNavigationBar',
+      );
+    },
+  );
 }

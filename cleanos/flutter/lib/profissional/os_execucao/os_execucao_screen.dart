@@ -440,21 +440,12 @@ class _StickyConcluirCta extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: clx.line)),
           ),
-          // `ClxButton` centra o conteúdo com `Align` internamente — sem uma
-          // altura FIXA aqui, ele herda a constraint solta (e alta) que o
-          // Scaffold dá ao `bottomNavigationBar` e "infla" a barra pra ocupar
-          // a tela toda (Align expande p/ preencher constraints limitadas).
-          // Fora do território desta onda mudar o `ClxButton` (core/design);
-          // a correção local é dar um teto de altura só aqui.
-          child: SizedBox(
-            height: ClxLayout.minTouchTarget + 6,
-            child: ClxButton(
-              label: 'Concluir serviço',
-              icon: Icons.check_circle_outline_rounded,
-              expand: true,
-              loading: loading,
-              onPressed: enabled ? onPressed : null,
-            ),
+          child: ClxButton(
+            label: 'Concluir serviço',
+            icon: Icons.check_circle_outline_rounded,
+            expand: true,
+            loading: loading,
+            onPressed: enabled ? onPressed : null,
           ),
         ),
       ),
