@@ -244,6 +244,60 @@ void main() {
       expect(rec.valorComSinal, -100.0);
     });
 
+    // Bug de produção (review, 04/07): mesmo bug "" vs null do parent_id de
+    // FinCategoria (05e2388), aqui em `subcategoria_id` de FinLancamento.
+    // `subcategoria_id` é um RelationField OPCIONAL (migration 14) — o
+    // PocketBase grava relação vazia como `""`, nunca `null`. O form de
+    // edição usa `FinDropdown<String?>` com `items: [null, ...subs]`; sem
+    // normalizar no `fromRecord`, o valor `""` não bate em nenhum item da
+    // lista e o assert do `DropdownButtonFormField` derruba a tela ao editar
+    // QUALQUER lançamento sem subcategoria (a esmagadora maioria).
+    test(
+      'FinLancamento.fromRecord normaliza subcategoria_id "" (PocketBase) para null',
+      () {
+        final rec = RecordModel.fromJson({
+          'id': 'l2',
+          'tipo': 'despesa',
+          'descricao': 'Combustível',
+          'categoria_id': 'cat1',
+          'subcategoria_id': '',
+          'valor': 100,
+          'conta_id': 'conta1',
+          'data': '2026-07-01 12:00:00.000Z',
+          'status': 'pago',
+          'recorrencia': 'unica',
+          'origem': 'manual',
+        });
+        final l = FinLancamento.fromRecord(rec);
+        expect(
+          l.subcategoriaId,
+          isNull,
+          reason:
+              'lançamento sem subcategoria vem do PocketBase com '
+              'subcategoria_id="", precisa virar null pro FinDropdown<String?> '
+              'não crashar ao editar',
+        );
+      },
+    );
+
+    test('FinLancamento.fromRecord preserva subcategoria_id quando presente', () {
+      final rec = RecordModel.fromJson({
+        'id': 'l3',
+        'tipo': 'despesa',
+        'descricao': 'Combustível',
+        'categoria_id': 'cat1',
+        'subcategoria_id': 'sub1',
+        'valor': 100,
+        'conta_id': 'conta1',
+        'data': '2026-07-01 12:00:00.000Z',
+        'status': 'pago',
+        'recorrencia': 'unica',
+        'origem': 'manual',
+      });
+      final l = FinLancamento.fromRecord(rec);
+      expect(l.subcategoriaId, 'sub1');
+    });
+
     test('FinConta mapeia saldo_inicial/saldo_atual', () {
       final c = FinConta.fromJson({
         'id': 'conta1',

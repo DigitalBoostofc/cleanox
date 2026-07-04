@@ -195,8 +195,18 @@ class FinLancamento with _$FinLancamento {
   factory FinLancamento.fromJson(Map<String, dynamic> json) =>
       _$FinLancamentoFromJson(json);
 
-  factory FinLancamento.fromRecord(RecordModel record) =>
-      FinLancamento.fromJson(record.toJson());
+  /// `subcategoria_id` é um `RelationField` OPCIONAL (migration 14) — o
+  /// PocketBase grava relação vazia como `""`, nunca `null`. O form de edição
+  /// usa `FinDropdown<String?>` com `items: [null, ...subs]`; se o valor
+  /// chegar como `""` (não normalizado), ele não bate em nenhum item da
+  /// lista e o assert do `DropdownButtonFormField` derruba a tela ao editar
+  /// QUALQUER lançamento sem subcategoria — mesmo bug "" vs null do
+  /// `parent_id` de `FinCategoria` (05e2388), aqui no boundary de Lançamento.
+  factory FinLancamento.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
+    return FinLancamento.fromJson(json);
+  }
 
   /// Valor COM sinal (receita +, despesa −).
   double get valorComSinal => tipo == TipoLancamento.receita ? valor : -valor;
