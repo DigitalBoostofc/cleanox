@@ -127,7 +127,7 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.text('Dashboard'), findsNothing);
         expect(find.text('Clientes'), findsOneWidget);
-        expect(find.text('Ordens de Serviço'), findsOneWidget);
+        expect(find.text('OS'), findsOneWidget);
         expect(find.text('Agenda'), findsOneWidget);
         expect(find.text('Financeiro'), findsOneWidget);
         expect(find.text('Mais'), findsOneWidget);

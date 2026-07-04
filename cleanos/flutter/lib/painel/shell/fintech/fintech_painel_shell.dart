@@ -56,6 +56,13 @@ IconData fintechIconFor(PainelSection s) {
   return kPainelNavItems.firstWhere((i) => i.section == s).icon;
 }
 
+/// Label curto da bottom nav (feedback do dono: "Ordens de Serviço" quebra em
+/// 2 linhas e polui a barra). Só afeta o texto visível do item da barra — o
+/// tooltip do destino e as demais menções à seção (tela "Mais", topbar) usam
+/// `painelTitle` cheio normalmente.
+String _fintechNavLabel(PainelSection s) =>
+    s == PainelSection.ordens ? 'OS' : painelTitle(s);
+
 /// Casco fintech: `NavigationBar` de 5 itens sobre o mesmo
 /// `StatefulNavigationShell` que a Web usa (sidebar/rail/drawer).
 class FintechPainelScaffold extends StatefulWidget {
@@ -142,7 +149,8 @@ class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
         for (final s in kFintechDirectSections)
           NavigationDestination(
             icon: Icon(fintechIconFor(s)),
-            label: painelTitle(s),
+            label: _fintechNavLabel(s),
+            tooltip: painelTitle(s),
           ),
         const NavigationDestination(
           icon: Icon(Icons.more_horiz_rounded),
