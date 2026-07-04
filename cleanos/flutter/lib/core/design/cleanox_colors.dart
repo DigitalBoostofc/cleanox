@@ -22,6 +22,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     required this.ink3,
     required this.primary,
     required this.primary2,
+    required this.onPrimary,
     required this.accent,
     required this.accent2,
     required this.line,
@@ -60,7 +61,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
 
   final Color bg, bg2, bg3, bgSidebar;
   final Color ink, ink2, ink3;
-  final Color primary, primary2, accent, accent2;
+  final Color primary, primary2, onPrimary, accent, accent2;
   final Color line, line2;
   final Color error, success, warning, info;
   final Color errorBg, successBg, warningBg, infoBg;
@@ -127,6 +128,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ink3: Color(0xFF5C6B76),
     primary: Color(0xFF00C2B8),
     primary2: Color(0xFF00A39B),
+    onPrimary: Color(0xFF04201E), // == ClxBrand.onPrimary (paridade)
     accent: Color(0xFF0F4C5C),
     accent2: Color(0xFF1B6B7A),
     line: Color(0x1A0F4C5C), // rgba(15,76,92,0.10)
@@ -182,6 +184,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ink3: Color(0xFF9A9A9A), // ≥ 4.5:1 sobre bg/bg2/bg3 escuros
     primary: Color(0xFF00C2B8),
     primary2: Color(0xFF00A39B),
+    onPrimary: Color(0xFF04201E), // == ClxBrand.onPrimary (paridade)
     accent: Color(0xFF3DA5D9),
     accent2: Color(0xFF60B8E5),
     line: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
@@ -227,6 +230,122 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ],
   );
 
+  /// Fintech Clean (Opção B), variante clara — reskin do APK (redesign 12).
+  /// Grupos de serviço e série financeira herdam de [light] (fora do escopo de
+  /// tokens da Opção B nesta onda).
+  static const CleanoxColors fintechLight = CleanoxColors(
+    bg: Color(0xFFFFFFFF),
+    bg2: Color(0xFFF7F8FA),
+    bg3: Color(0xFFF0F2F5),
+    bgSidebar: Color(0xFFFFFFFF),
+    ink: Color(0xFF0B1220),
+    ink2: Color(0xFF46525C),
+    ink3: Color(0xFF64707A),
+    primary: Color(0xFF00C896),
+    primary2: Color(0xFF00A87F),
+    onPrimary: Color(0xFF04231C),
+    accent: Color(0xFF0F4C5C),
+    accent2: Color(0xFF1B6B7A),
+    line: Color(0x170F1720), // rgba(15,23,32,.09)
+    line2: Color(0x290F1720), // rgba(15,23,32,.16)
+    error: Color(0xFFE5484D),
+    success: Color(0xFF00C896), // == primary
+    warning: Color(0xFFB8790A),
+    info: Color(0xFF3E7BFA),
+    errorBg: Color(0x1AE5484D), // rgba(229,72,77,.10)
+    successBg: Color(0x1F00C896), // rgba(0,200,150,.12)
+    warningBg: Color(0x29E8A400), // rgba(232,164,0,.16)
+    infoBg: Color(0x1A3E7BFA), // rgba(62,123,250,.10)
+    statusAgendada: Color(0xFF3E7BFA),
+    statusAtribuida: Color(0xFF7C5CFC),
+    statusEmAndamento: Color(0xFFB8790A),
+    statusConcluida: Color(0xFF00C896),
+    statusCancelada: Color(0xFFE5484D),
+    statusAgendadaBg: Color(0x1A3E7BFA),
+    statusAtribuidaBg: Color(0x1A7C5CFC), // rgba(124,92,252,.10)
+    statusEmAndamentoBg: Color(0x29E8A400),
+    statusConcluidaBg: Color(0x1F00C896),
+    statusCanceladaBg: Color(0x1AE5484D),
+    groupPlano: Color(0xFF64748B),
+    groupPromocao: Color(0xFFB45309),
+    groupAdicional: Color(0xFF2563EB),
+    groupAvulsos: Color(0xFFC2410C),
+    groupSofa: Color(0xFF9333EA),
+    groupColchao: Color(0xFF9333EA),
+    groupOutros: Color(0xFF64748B),
+    finIncome: Color(0xFF00C896),
+    finExpense: Color(0xFFE5484D),
+    finInfo: Color(0xFF3E7BFA),
+    finMuted: Color(0xFF64707A),
+    finSeries: [
+      Color(0xFF00C896),
+      Color(0xFFE5484D),
+      Color(0xFFB8790A),
+      Color(0xFF3E7BFA),
+      Color(0xFF7C5CFC),
+      Color(0xFF64707A),
+      Color(0xFF46525C),
+      Color(0xFFD1D5DB),
+    ],
+  );
+
+  /// Fintech Clean (Opção B), variante escura.
+  static const CleanoxColors fintechDark = CleanoxColors(
+    bg: Color(0xFF17191B),
+    bg2: Color(0xFF0E0F10),
+    bg3: Color(0xFF1F2224),
+    bgSidebar: Color(0xFF17191B),
+    ink: Color(0xFFF3F5F6),
+    ink2: Color(0xFFB7BEC4),
+    ink3: Color(0xFF9CA6AE),
+    primary: Color(0xFF2FE3B4),
+    primary2: Color(0xFF16C99C),
+    onPrimary: Color(0xFF04231C),
+    accent: Color(0xFF3DA5D9),
+    accent2: Color(0xFF60B8E5),
+    line: Color(0x14FFFFFF), // rgba(255,255,255,.08)
+    line2: Color(0x29FFFFFF), // rgba(255,255,255,.16)
+    error: Color(0xFFFF6B6E),
+    success: Color(0xFF2FE3B4), // == primary
+    warning: Color(0xFFFFC24B),
+    info: Color(0xFF6C9BFF),
+    errorBg: Color(0x24FF6B6E), // rgba(255,107,110,.14)
+    successBg: Color(0x242FE3B4), // rgba(47,227,180,.14)
+    warningBg: Color(0x29FFC24B), // rgba(255,194,75,.16)
+    infoBg: Color(0x246C9BFF), // rgba(108,155,255,.14)
+    statusAgendada: Color(0xFF6C9BFF),
+    statusAtribuida: Color(0xFFA78BFA),
+    statusEmAndamento: Color(0xFFFFC24B),
+    statusConcluida: Color(0xFF2FE3B4),
+    statusCancelada: Color(0xFFFF6B6E),
+    statusAgendadaBg: Color(0x246C9BFF),
+    statusAtribuidaBg: Color(0x29A78BFA), // rgba(167,139,250,.16)
+    statusEmAndamentoBg: Color(0x29FFC24B),
+    statusConcluidaBg: Color(0x242FE3B4),
+    statusCanceladaBg: Color(0x24FF6B6E),
+    groupPlano: Color(0xFF94A3B8),
+    groupPromocao: Color(0xFFFBBF24),
+    groupAdicional: Color(0xFF60A5FA),
+    groupAvulsos: Color(0xFFFFB27A),
+    groupSofa: Color(0xFFD8B4FE),
+    groupColchao: Color(0xFFD8B4FE),
+    groupOutros: Color(0xFF94A3B8),
+    finIncome: Color(0xFF2FE3B4),
+    finExpense: Color(0xFFFF6B6E),
+    finInfo: Color(0xFF6C9BFF),
+    finMuted: Color(0xFF9CA6AE),
+    finSeries: [
+      Color(0xFF2FE3B4),
+      Color(0xFFFF6B6E),
+      Color(0xFFFFC24B),
+      Color(0xFF6C9BFF),
+      Color(0xFFA78BFA),
+      Color(0xFF9CA6AE),
+      Color(0xFFB7BEC4),
+      Color(0xFF4B5563),
+    ],
+  );
+
   @override
   CleanoxColors copyWith({
     Color? bg,
@@ -238,6 +357,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     Color? ink3,
     Color? primary,
     Color? primary2,
+    Color? onPrimary,
     Color? accent,
     Color? accent2,
     Color? line,
@@ -283,6 +403,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
       ink3: ink3 ?? this.ink3,
       primary: primary ?? this.primary,
       primary2: primary2 ?? this.primary2,
+      onPrimary: onPrimary ?? this.onPrimary,
       accent: accent ?? this.accent,
       accent2: accent2 ?? this.accent2,
       line: line ?? this.line,
@@ -337,6 +458,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
       ink3: c(ink3, other.ink3),
       primary: c(primary, other.primary),
       primary2: c(primary2, other.primary2),
+      onPrimary: c(onPrimary, other.onPrimary),
       accent: c(accent, other.accent),
       accent2: c(accent2, other.accent2),
       line: c(line, other.line),
