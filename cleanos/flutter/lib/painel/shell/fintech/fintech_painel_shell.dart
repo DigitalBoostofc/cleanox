@@ -63,6 +63,45 @@ IconData fintechIconFor(PainelSection s) {
 String _fintechNavLabel(PainelSection s) =>
     s == PainelSection.ordens ? 'OS' : painelTitle(s);
 
+/// Semântica de substituição da bottom nav quando NENHUM item está
+/// selecionado (QA-F6, Dashboard). Reconstrói os mesmos botões/labels dos
+/// destinos diretos + "Mais", todos com `selected: false` explícito — a
+/// barra real fica com a semântica excluída (ver `noneSelected` acima) e este
+/// widget é sobreposto no lugar dela, do mesmo tamanho.
+class _FintechNavBarNoSelectionSemantics extends StatelessWidget {
+  const _FintechNavBarNoSelectionSemantics({required this.sections, required this.onSelect});
+
+  final List<PainelSection> sections;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < sections.length; i++)
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: false,
+              label: painelTitle(sections[i]),
+              onTap: () => onSelect(i),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        Expanded(
+          child: Semantics(
+            button: true,
+            selected: false,
+            label: 'Mais',
+            onTap: () => onSelect(sections.length),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Casco fintech: `NavigationBar` de 5 itens sobre o mesmo
 /// `StatefulNavigationShell` que a Web usa (sidebar/rail/drawer).
 class FintechPainelScaffold extends StatefulWidget {
@@ -159,11 +198,34 @@ class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
       ],
     );
     if (noneSelected) {
-      navBar = NavigationBarTheme(
-        data: NavigationBarTheme.of(
-          context,
-        ).copyWith(iconTheme: WidgetStatePropertyAll(IconThemeData(color: clx.ink3))),
-        child: navBar,
+      // `selectedIndex` acima é um índice fixo (0) só pra satisfazer o assert
+      // do `NavigationBar` — internamente ele sempre marca ESSE destino como
+      // `Semantics(selected: true)` (a flag nunca pode ser "desfeita" por um
+      // `Semantics(selected: false)` descendente: flags booleanas fazem OR no
+      // merge, então `true` sempre vence). Por isso o visual é neutralizado
+      // acima (ícones sempre na cor "não selecionado") e AQUI escondemos a
+      // árvore de semântica inteira da barra (`ExcludeSemantics`) e a
+      // reconstruímos do zero por cima, com os mesmos botões/labels mas SEM
+      // nenhum marcado como selecionado — do contrário um leitor de tela
+      // (TalkBack) anunciaria "Clientes, aba, selecionada" ao abrir o app no
+      // Dashboard, o que é falso.
+      navBar = Stack(
+        children: [
+          ExcludeSemantics(
+            child: NavigationBarTheme(
+              data: NavigationBarTheme.of(
+                context,
+              ).copyWith(iconTheme: WidgetStatePropertyAll(IconThemeData(color: clx.ink3))),
+              child: navBar,
+            ),
+          ),
+          Positioned.fill(
+            child: _FintechNavBarNoSelectionSemantics(
+              sections: kFintechDirectSections,
+              onSelect: _onDestinationSelected,
+            ),
+          ),
+        ],
       );
     }
 

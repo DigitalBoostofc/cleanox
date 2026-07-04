@@ -19,6 +19,7 @@ import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/core/repositories/ordens_repository.dart';
 import 'package:cleanos/core/router/app_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -340,6 +341,43 @@ void main() {
         }
 
         expect(destinationIconColors(tester).toSet(), {clx.ink3});
+      },
+    );
+
+    testWidgets(
+      'review: nenhuma aba é anunciada como selecionada (semântica, não só '
+      'visual) quando a barra está sem seleção; a seção ativa continua '
+      'anunciada corretamente',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+
+        await _pumpCleanosApp(
+          tester,
+          surface: AppSurface.android,
+          user: painelUser(role: Role.admin),
+          repo: FakePainelOrdens.empty(),
+        );
+
+        // Dashboard (sem seleção, QA-F6): nenhum nó de semântica em toda a
+        // árvore tem a flag `isSelected` — nem o índice fixo (0, Clientes)
+        // que a `NavigationBar` interna usa só pra satisfazer seu assert.
+        expect(find.semantics.byFlag(SemanticsFlag.isSelected), findsNothing);
+
+        // Financeiro (seção ativa): o nó correto continua anunciado como
+        // selecionado normalmente — a barra "sem seleção" não regrediu isso.
+        await tester.tap(find.text('Financeiro'));
+        for (var i = 0; i < 8; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 12));
+        }
+        expect(
+          tester.getSemantics(find.text('Financeiro')),
+          containsSemantics(isSelected: true, isButton: true),
+        );
+
+        handle.dispose();
       },
     );
   });
