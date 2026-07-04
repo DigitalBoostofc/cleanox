@@ -7,6 +7,8 @@ library;
 import 'package:cleanos/core/design/app_surface_provider.dart';
 import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/design/theme_fintech.dart';
+import 'package:cleanos/core/design/widgets/clx_card.dart';
+import 'package:cleanos/painel/financeiro/fin_common.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
 import 'package:cleanos/painel/financeiro/fin_visao_geral_screen.dart';
 import 'package:cleanos/painel/financeiro/fintech/fintech_balance_hero.dart';
@@ -93,6 +95,34 @@ void main() {
         expect(find.text('Entradas do mês'), findsOneWidget);
         expect(find.text('Saídas do mês'), findsOneWidget);
         expect(find.text('Saldo do mês'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '"Saldo do mês" usa a variante wide (linha inteira, valor à direita)',
+      (tester) async {
+        await pumpVisaoGeral(
+          tester,
+          theme: buildFintechLightTheme(),
+          fintech: true,
+        );
+
+        final saldoMesCardFinder = find.ancestor(
+          of: find.text('Saldo do mês'),
+          matching: find.byType(FinKpiCard),
+        );
+        final card = tester.widget<FinKpiCard>(saldoMesCardFinder);
+        expect(card.wide, isTrue);
+
+        // wide: layout raiz em Row (não Column) — label à esquerda, valor à
+        // direita — diferente do Column dos outros dois cards (não-wide).
+        final directChild = tester.widget<ClxCard>(
+          find.descendant(
+            of: saldoMesCardFinder,
+            matching: find.byType(ClxCard),
+          ),
+        ).child;
+        expect(directChild, isA<Row>());
       },
     );
 

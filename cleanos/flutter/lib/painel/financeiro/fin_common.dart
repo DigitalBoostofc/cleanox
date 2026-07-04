@@ -232,6 +232,7 @@ class FinKpiCard extends StatelessWidget {
     this.icon,
     this.trend,
     this.hint,
+    this.wide = false,
   });
 
   final String label;
@@ -247,10 +248,68 @@ class FinKpiCard extends StatelessWidget {
   /// quando não há [trend], igual ao web.
   final String? hint;
 
+  /// Variante horizontal (mock `.kpi-card--wide`): label+hint à esquerda,
+  /// valor grande empurrado à direita — usada só p/ "Saldo do mês" no
+  /// surface Fintech Clean, ocupando a linha inteira em vez da grade 2x2.
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
+    if (wide) {
+      return ClxCard(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 16, color: color),
+                        const SizedBox(width: ClxSpace.x2),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tt.labelMedium?.copyWith(color: clx.ink3),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (hint != null) ...[
+                    const SizedBox(height: ClxSpace.x1),
+                    Text(
+                      hint!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.bodySmall?.copyWith(color: clx.ink3),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x3),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: tt.titleLarge?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

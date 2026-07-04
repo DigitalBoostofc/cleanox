@@ -257,7 +257,14 @@ class _Body extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: ClxSpace.x3),
-              saldoMesCard,
+              FinKpiCard(
+                label: 'Saldo do mês',
+                value: formatCurrency(resumo.saldoMes),
+                color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
+                icon: Icons.equalizer_rounded,
+                hint: 'Entradas − saídas',
+                wide: true,
+              ),
             ],
           )
         : FinKpiGrid(
