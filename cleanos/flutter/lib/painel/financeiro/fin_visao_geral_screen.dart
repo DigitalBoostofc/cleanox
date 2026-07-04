@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
@@ -21,6 +22,7 @@ import 'fin_common.dart';
 import 'fin_derivations.dart';
 import 'fin_labels.dart';
 import 'fin_providers.dart';
+import 'fintech/fintech_balance_hero.dart';
 import 'lancamentos/lancamento_form.dart';
 
 class FinVisaoGeralScreen extends ConsumerWidget {
@@ -65,6 +67,7 @@ class FinVisaoGeralScreen extends ConsumerWidget {
     final limites = ref.watch(finLimitesProvider).valueOrNull ?? const [];
     final pendentes = ref.watch(finPendentesProvider).valueOrNull ?? const [];
     final mobile = finIsMobile(context);
+    final fintech = ref.watch(isFintechCleanProvider);
 
     // Mobile (F-741): o cabeçalho (título + seletor de mês) rola junto com o
     // conteúdo, em vez de ser uma faixa fixa acima do Expanded.
@@ -82,6 +85,7 @@ class FinVisaoGeralScreen extends ConsumerWidget {
         limites: limites,
         pendentes: pendentes,
         mobile: mobile,
+        fintech: fintech,
         leadingChildren: leadingChildren,
         onNovaReceita: () =>
             _novoLancamento(context, ref, TipoLancamento.receita),
@@ -169,6 +173,7 @@ class _Body extends StatelessWidget {
     required this.onNovaDespesa,
     required this.onTransferencia,
     this.mobile = false,
+    this.fintech = false,
     this.leadingChildren = const [],
   });
 
@@ -183,6 +188,11 @@ class _Body extends StatelessWidget {
 
   /// Layout de celular: reduz o padding e recebe o cabeçalho rolável.
   final bool mobile;
+
+  /// APK "Fintech Clean" (doc 12): saldo geral vira [FintechBalanceHero] em
+  /// vez de um card de KPI a mais na grade. A Web (`fintech=false`) preserva
+  /// 100% do layout de 4 KPIs de hoje.
+  final bool fintech;
 
   /// Widgets inseridos ANTES dos KPIs (cabeçalho mobile). Vazio no desktop.
   final List<Widget> leadingChildren;
@@ -203,42 +213,73 @@ class _Body extends StatelessWidget {
     final receber = contasAReceber(pendentes, hoje).take(5).toList();
     final pagar = contasAPagar(pendentes, hoje).take(5).toList();
 
+    final entradasCard = FinKpiCard(
+      label: 'Entradas do mês',
+      value: formatCurrency(resumo.entradas),
+      color: clx.finIncome,
+      icon: Icons.north_east_rounded,
+      hint: 'Receitas realizadas',
+    );
+    final saidasCard = FinKpiCard(
+      label: 'Saídas do mês',
+      value: formatCurrency(resumo.saidas),
+      color: clx.finExpense,
+      icon: Icons.south_west_rounded,
+      hint: 'Despesas realizadas',
+    );
+    final saldoMesCard = FinKpiCard(
+      label: 'Saldo do mês',
+      value: formatCurrency(resumo.saldoMes),
+      color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
+      icon: Icons.equalizer_rounded,
+      hint: 'Entradas − saídas',
+    );
+
+    // Fintech Clean (APK): saldo geral sai da grade e vira o hero no topo
+    // (doc 12 §2.5) — os outros 3 KPIs seguem em cards hairline (2 colunas +
+    // "Saldo do mês" ocupando a linha inteira, como o mock).
+    final kpiSection = fintech
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FintechBalanceHero(
+                label: 'Saldo geral',
+                value: formatCurrency(saldoTotal),
+                hint: 'Disponível em contas',
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: entradasCard),
+                  const SizedBox(width: ClxSpace.x3),
+                  Expanded(child: saidasCard),
+                ],
+              ),
+              const SizedBox(height: ClxSpace.x3),
+              saldoMesCard,
+            ],
+          )
+        : FinKpiGrid(
+            cards: [
+              entradasCard,
+              saidasCard,
+              saldoMesCard,
+              FinKpiCard(
+                label: 'Saldo geral',
+                value: formatCurrency(saldoTotal),
+                color: saldoTotal < 0 ? clx.finExpense : clx.ink,
+                icon: Icons.account_balance_outlined,
+                hint: 'Disponível em contas',
+              ),
+            ],
+          );
+
     return ListView(
       padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x6),
       children: [
         ...leadingChildren,
-        FinKpiGrid(
-          cards: [
-            FinKpiCard(
-              label: 'Entradas do mês',
-              value: formatCurrency(resumo.entradas),
-              color: clx.finIncome,
-              icon: Icons.north_east_rounded,
-              hint: 'Receitas realizadas',
-            ),
-            FinKpiCard(
-              label: 'Saídas do mês',
-              value: formatCurrency(resumo.saidas),
-              color: clx.finExpense,
-              icon: Icons.south_west_rounded,
-              hint: 'Despesas realizadas',
-            ),
-            FinKpiCard(
-              label: 'Saldo do mês',
-              value: formatCurrency(resumo.saldoMes),
-              color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
-              icon: Icons.equalizer_rounded,
-              hint: 'Entradas − saídas',
-            ),
-            FinKpiCard(
-              label: 'Saldo geral',
-              value: formatCurrency(saldoTotal),
-              color: saldoTotal < 0 ? clx.finExpense : clx.ink,
-              icon: Icons.account_balance_outlined,
-              hint: 'Disponível em contas',
-            ),
-          ],
-        ),
+        kpiSection,
         const SizedBox(height: ClxSpace.x5),
         // Ações rápidas.
         ClxCard(
