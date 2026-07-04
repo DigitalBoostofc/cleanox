@@ -34,8 +34,10 @@ void main() {
 
     expect(find.text('0 de 2 concluídos'), findsOneWidget);
 
-    // Marca o primeiro checkbox.
-    await tester.tap(find.byType(Checkbox).first);
+    // Marca o primeiro item (reskin Fintech Clean trocou o `Checkbox` do
+    // Material por uma caixa de marcação custom — o alvo de toque agora é
+    // achado pela `Key` do item, não mais por tipo).
+    await tester.tap(find.byKey(const ValueKey('checklist-toggle-c1')));
     await tester.pump();
 
     expect(emitido, isNotNull);
