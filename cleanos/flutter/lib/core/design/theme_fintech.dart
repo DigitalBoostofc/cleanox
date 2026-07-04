@@ -198,6 +198,16 @@ ThemeData _buildFintech(Brightness brightness, CleanoxColors clx) {
       titleTextStyle: textTheme.headlineSmall?.copyWith(color: clx.ink),
     ),
     // Cards planos hairline (sem elevação, borda fina) — o "cartão" da Opção B.
+    //
+    // DECISÃO (revisão Onda 4): o mock (.card/.job-card) usa 18px, um valor
+    // fora da escala (nem rLg=14 nem rXl=20). Ficamos com rLg — ClxCard e
+    // OSCard (os "cards" de verdade da Opção B) são widgets COMPARTILHADOS
+    // com a Web e hardcodam ClxRadii.rLg direto (não leem este cardTheme);
+    // trocar exigiria acoplar esses widgets ao surface (isFintechClean) só
+    // por 4px de diferença, imperceptível no tamanho de card do app (ganho
+    // visual não justifica o acoplamento). rXl já é usado nos elementos de
+    // destaque (hero, diálogos, bottom sheets) — a hierarquia "cards mais
+    // retos que elementos de destaque" é intencional.
     cardTheme: CardThemeData(
       color: clx.bg,
       elevation: 0,

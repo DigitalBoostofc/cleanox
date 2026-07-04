@@ -282,6 +282,12 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     finExpense: Color(0xFFE5484D),
     finInfo: Color(0xFF3E7BFA),
     finMuted: Color(0xFF64707A),
+    // Revisado na Onda 4: alguns tons (ex.: o teal do índice 0, o cinza-claro
+    // do índice 7) ficam < 3:1 sobre bg branco isoladamente, mas é o MESMO
+    // padrão já em produção no tema Web clássico (`light.finSeries`) — os
+    // segmentos do donut sempre vêm com legenda em `ink`/`ink2` (não a cor da
+    // série faz o papel de texto) e separação visual entre fatias. Sem
+    // regressão introduzida pelo reskin; não ajustado.
     finSeries: [
       Color(0xFF00C896),
       Color(0xFFE5484D),
