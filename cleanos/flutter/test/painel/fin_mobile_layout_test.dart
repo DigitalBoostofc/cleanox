@@ -14,6 +14,9 @@
 ///    overflowed`) — verificado forçando um relayout final a exatamente 360 px.
 library;
 
+import 'package:cleanos/core/design/design.dart';
+import 'package:cleanos/painel/financeiro/categorias/fin_categorias_screen.dart';
+import 'package:cleanos/painel/financeiro/fin_contas_pagar_receber_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
 import 'package:cleanos/painel/financeiro/lancamentos/fin_lancamentos_screen.dart';
 import 'package:flutter/material.dart';
@@ -103,25 +106,85 @@ void main() {
     },
   );
 
+  testWidgets('Lançamentos no mobile: tocar "Filtros" revela o campo de busca', (
+    tester,
+  ) async {
+    await pumpPainel(
+      tester,
+      const FinLancamentosScreen(),
+      overrides: withFin(fakeComLancamentos()),
+      size: narrow,
+    );
+    await settle(tester);
+
+    expect(searchField, findsNothing);
+
+    await tester.tap(find.text('Filtros'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Busca agora visível; layout estável segue sem overflow com o filtro aberto.
+    expect(searchField, findsOneWidget);
+    await expectStableNoOverflow(tester);
+  });
+
   testWidgets(
-    'Lançamentos no mobile: tocar "Filtros" revela o campo de busca',
+    'review: Categorias no mobile — toggle Despesas/Receitas ocupa a MESMA '
+    'largura do botão "Nova categoria" abaixo (feedback dono)',
     (tester) async {
       await pumpPainel(
         tester,
-        const FinLancamentosScreen(),
-        overrides: withFin(fakeComLancamentos()),
+        const FinCategoriasScreen(),
+        overrides: withFin(
+          FakeFinanceiro(
+            categorias: [fakeCategoria(id: 'm', nome: 'Marketing')],
+          ),
+        ),
         size: narrow,
       );
       await settle(tester);
 
-      expect(searchField, findsNothing);
+      final toggleWidth = tester
+          .getSize(find.byWidgetPredicate((w) => w is SegmentedButton))
+          .width;
+      final buttonWidth = tester
+          .getSize(find.widgetWithText(ClxButton, 'Nova categoria'))
+          .width;
 
-      await tester.tap(find.text('Filtros'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        (toggleWidth - buttonWidth).abs(),
+        lessThanOrEqualTo(2),
+        reason: 'toggle e botão precisam ter a mesma largura total no mobile',
+      );
 
-      // Busca agora visível; layout estável segue sem overflow com o filtro aberto.
-      expect(searchField, findsOneWidget);
+      await expectStableNoOverflow(tester);
+    },
+  );
+
+  testWidgets(
+    'review: Contas a pagar/receber no mobile — grupo A pagar/A receber/'
+    'Todas ocupa a largura total do header (mesmo padrão de Categorias)',
+    (tester) async {
+      await pumpPainel(
+        tester,
+        const FinContasPagarReceberScreen(),
+        overrides: withFin(FakeFinanceiro()),
+        size: narrow,
+      );
+      await settle(tester);
+
+      final toggleWidth = tester
+          .getSize(find.byWidgetPredicate((w) => w is SegmentedButton))
+          .width;
+      final expectedWidth = narrow.width - 2 * ClxSpace.x6;
+
+      expect(
+        (toggleWidth - expectedWidth).abs(),
+        lessThanOrEqualTo(2),
+        reason:
+            'grupo A pagar/A receber/Todas precisa ocupar a largura total no mobile',
+      );
+
       await expectStableNoOverflow(tester);
     },
   );

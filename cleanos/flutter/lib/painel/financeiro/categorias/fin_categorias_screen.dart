@@ -193,32 +193,37 @@ class _Toolbar extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context) {
-    final segmented = SegmentedButton<TipoLancamento>(
-      segments: const [
-        ButtonSegment(
-          value: TipoLancamento.despesa,
-          label: Text('Despesas'),
-          icon: Icon(Icons.south_west_rounded, size: 16),
-        ),
-        ButtonSegment(
-          value: TipoLancamento.receita,
-          label: Text('Receitas'),
-          icon: Icon(Icons.north_east_rounded, size: 16),
-        ),
-      ],
-      selected: {tipo},
-      showSelectedIcon: false,
-      onSelectionChanged: (s) => onTipo(s.first),
-    );
+  Widget _buildSegmented(EdgeInsets? expandedInsets) =>
+      SegmentedButton<TipoLancamento>(
+        segments: const [
+          ButtonSegment(
+            value: TipoLancamento.despesa,
+            label: Text('Despesas'),
+            icon: Icon(Icons.south_west_rounded, size: 16),
+          ),
+          ButtonSegment(
+            value: TipoLancamento.receita,
+            label: Text('Receitas'),
+            icon: Icon(Icons.north_east_rounded, size: 16),
+          ),
+        ],
+        selected: {tipo},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) => onTipo(s.first),
+        expandedInsets: expandedInsets,
+      );
 
+  Widget _buildContent(BuildContext context) {
     // Mobile: toggle acima do botão (Row original cortava
-    // "+ Nova categoria" na borda direita da tela).
+    // "+ Nova categoria" na borda direita da tela). `expandedInsets` (review,
+    // feedback do dono) faz o toggle ocupar a MESMA largura total do botão
+    // abaixo, dividindo os 2 segmentos 50/50, em vez de ficar encolhido com
+    // a própria largura intrínseca.
     if (finIsMobile(context)) {
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          segmented,
+          _buildSegmented(EdgeInsets.zero),
           const SizedBox(height: ClxSpace.x3),
           ClxButton(
             label: 'Nova categoria',
@@ -232,7 +237,7 @@ class _Toolbar extends StatelessWidget {
 
     return Row(
       children: [
-        segmented,
+        _buildSegmented(null),
         const Spacer(),
         ClxButton(
           label: 'Nova categoria',

@@ -86,7 +86,9 @@ class _FinContasPagarReceberScreenState
 
   String _vencYmd(ContaPendente p) {
     final l = p.lancamento;
-    return dateOnly((l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data);
+    return dateOnly(
+      (l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data,
+    );
   }
 
   String _ymdPlus(String ymd, int days) => DateTime.parse(
@@ -368,6 +370,12 @@ class _Toolbar extends StatelessWidget {
             selected: {aba},
             showSelectedIcon: false,
             onSelectionChanged: (s) => onAba(s.first),
+            // Mobile: mesma inconsistência de largura da toolbar de
+            // Categorias (review, feedback do dono) — o grupo fica encolhido
+            // com a própria largura intrínseca enquanto o resto do header
+            // mobile é full-width. `expandedInsets` estica os 3 segmentos
+            // pra dividir a largura total igualmente.
+            expandedInsets: finIsMobile(context) ? EdgeInsets.zero : null,
           ),
         ],
       ),
@@ -397,7 +405,9 @@ class _FiltrosButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: ClxRadii.rPill,
         child: Container(
-          constraints: const BoxConstraints(minHeight: ClxLayout.minTouchTarget),
+          constraints: const BoxConstraints(
+            minHeight: ClxLayout.minTouchTarget,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x5),
           decoration: BoxDecoration(
             borderRadius: ClxRadii.rPill,
@@ -540,10 +550,7 @@ class _Filter<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: tt.labelMedium?.copyWith(color: clx.ink3),
-        ),
+        Text(label, style: tt.labelMedium?.copyWith(color: clx.ink3)),
         const SizedBox(height: ClxSpace.x1),
         Container(
           constraints: const BoxConstraints(minWidth: 150),
