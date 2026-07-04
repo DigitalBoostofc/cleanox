@@ -29,6 +29,7 @@ class FinCategoriasScreen extends ConsumerWidget {
     WidgetRef ref, {
     FinCategoria? editing,
     FinCategoria? parent,
+    TipoLancamento? defaultTipo,
   }) async {
     final todas =
         ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
@@ -37,6 +38,7 @@ class FinCategoriasScreen extends ConsumerWidget {
       editing: editing,
       parent: parent,
       parents: todas,
+      defaultTipo: defaultTipo,
     );
     if (saved == true) {
       ref.invalidate(finCategoriasProvider);
@@ -105,7 +107,7 @@ class FinCategoriasScreen extends ConsumerWidget {
         _Toolbar(
           tipo: tipo,
           onTipo: (t) => ref.read(_tipoFilterProvider.notifier).state = t,
-          onNova: () => _form(context, ref),
+          onNova: () => _form(context, ref, defaultTipo: tipo),
         ),
         Expanded(
           child: FinAsync<List<FinCategoria>>(
@@ -127,7 +129,7 @@ class FinCategoriasScreen extends ConsumerWidget {
                   action: ClxButton(
                     label: 'Nova categoria',
                     icon: Icons.add_rounded,
-                    onPressed: () => _form(context, ref),
+                    onPressed: () => _form(context, ref, defaultTipo: tipo),
                   ),
                 );
               }
@@ -187,33 +189,62 @@ class _Toolbar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
-        children: [
-          SegmentedButton<TipoLancamento>(
-            segments: const [
-              ButtonSegment(
-                value: TipoLancamento.despesa,
-                label: Text('Despesas'),
-                icon: Icon(Icons.south_west_rounded, size: 16),
-              ),
-              ButtonSegment(
-                value: TipoLancamento.receita,
-                label: Text('Receitas'),
-                icon: Icon(Icons.north_east_rounded, size: 16),
-              ),
-            ],
-            selected: {tipo},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => onTipo(s.first),
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildSegmented(EdgeInsets? expandedInsets) =>
+      SegmentedButton<TipoLancamento>(
+        segments: const [
+          ButtonSegment(
+            value: TipoLancamento.despesa,
+            label: Text('Despesas'),
+            icon: Icon(Icons.south_west_rounded, size: 16),
           ),
-          const Spacer(),
+          ButtonSegment(
+            value: TipoLancamento.receita,
+            label: Text('Receitas'),
+            icon: Icon(Icons.north_east_rounded, size: 16),
+          ),
+        ],
+        selected: {tipo},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) => onTipo(s.first),
+        expandedInsets: expandedInsets,
+      );
+
+  Widget _buildContent(BuildContext context) {
+    // Mobile: toggle acima do botão (Row original cortava
+    // "+ Nova categoria" na borda direita da tela). `expandedInsets` (review,
+    // feedback do dono) faz o toggle ocupar a MESMA largura total do botão
+    // abaixo, dividindo os 2 segmentos 50/50, em vez de ficar encolhido com
+    // a própria largura intrínseca.
+    if (finIsMobile(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSegmented(EdgeInsets.zero),
+          const SizedBox(height: ClxSpace.x3),
           ClxButton(
             label: 'Nova categoria',
             icon: Icons.add_rounded,
             onPressed: onNova,
+            expand: true,
           ),
         ],
-      ),
+      );
+    }
+
+    return Row(
+      children: [
+        _buildSegmented(null),
+        const Spacer(),
+        ClxButton(
+          label: 'Nova categoria',
+          icon: Icons.add_rounded,
+          onPressed: onNova,
+        ),
+      ],
     );
   }
 }

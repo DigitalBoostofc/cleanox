@@ -94,7 +94,13 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   }
 
   Future<void> _openForm({FinLancamento? editing}) async {
-    final saved = await showLancamentoForm(context, editing: editing);
+    final saved = await showLancamentoForm(
+      context,
+      editing: editing,
+      // Criação herda o tipo do filtro ativo (Receitas/Despesas); com filtro
+      // em "Todos" ou na edição, mantém o default do form.
+      initialTipo: editing == null ? _filters.tipo : null,
+    );
     if (saved == true) {
       await _refreshAfterMutation();
       if (mounted) {
@@ -336,9 +342,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       ];
     }
     if (state.isEmpty) {
-      return [
-        SliverFillRemaining(hasScrollBody: false, child: _emptyState()),
-      ];
+      return [SliverFillRemaining(hasScrollBody: false, child: _emptyState())];
     }
 
     final catById = {for (final c in categorias) c.id: c};
@@ -498,7 +502,8 @@ class _Kpis extends ConsumerWidget {
     final pct = (cur - prev) / prev * 100;
     return (
       up: pct >= 0,
-      text: '${pct.abs().toStringAsFixed(1).replaceAll('.', ',')}% vs. $prevLabel',
+      text:
+          '${pct.abs().toStringAsFixed(1).replaceAll('.', ',')}% vs. $prevLabel',
     );
   }
 
@@ -507,9 +512,7 @@ class _Kpis extends ConsumerWidget {
     final clx = context.clx;
     final lancs =
         ref.watch(finPeriodLancamentosProvider).valueOrNull ?? const [];
-    final prev = ref
-        .watch(finPrevPeriodResumoProvider)
-        .valueOrNull;
+    final prev = ref.watch(finPrevPeriodResumoProvider).valueOrNull;
     final prevLabel = ref
         .watch(finPeriodProvider)
         .shift(-1)
@@ -610,9 +613,8 @@ class _Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Categorias-mãe (todas as naturezas) para o filtro.
-    final roots =
-        categorias.where((c) => c.parentId == null).toList()
-          ..sort((a, b) => a.nome.compareTo(b.nome));
+    final roots = categorias.where((c) => c.parentId == null).toList()
+      ..sort((a, b) => a.nome.compareTo(b.nome));
 
     if (mobile) return _mobile(context, roots);
     return _desktop(context, roots);
@@ -767,7 +769,6 @@ class _Toolbar extends StatelessWidget {
   }
 }
 
-
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     required this.label,
@@ -866,7 +867,10 @@ class _IdFilterMenu extends StatelessWidget {
       tooltip: 'Filtrar por $allLabel',
       onSelected: (v) => onChanged((v == null || v.isEmpty) ? null : v),
       itemBuilder: (_) => [
-        PopupMenuItem<String?>(value: '', child: Text('Todas as ${allLabel.toLowerCase()}s')),
+        PopupMenuItem<String?>(
+          value: '',
+          child: Text('Todas as ${allLabel.toLowerCase()}s'),
+        ),
         for (final e in items)
           PopupMenuItem<String?>(value: e.id, child: Text(e.nome)),
       ],
@@ -1045,85 +1049,100 @@ class _LancamentoRow extends StatelessWidget {
           horizontal: ClxSpace.x4,
           vertical: ClxSpace.x3,
         ),
-        child: Row(
-          children: [
-            FinCategoriaAvatar(categoria: categoria, size: 36),
-            const SizedBox(width: ClxSpace.x3),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.titleSmall?.copyWith(color: clx.ink),
-                  ),
-                  if (sub.isNotEmpty)
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              FinCategoriaAvatar(categoria: categoria, size: 36),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      sub,
+                      l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: tt.bodySmall?.copyWith(color: clx.ink3),
+                      style: tt.titleSmall?.copyWith(color: clx.ink),
                     ),
-                  const SizedBox(height: ClxSpace.x1),
-                  Wrap(
-                    spacing: ClxSpace.x1,
-                    runSpacing: ClxSpace.x1,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      OrigemChip(origem: l.origem),
-                      if (conta != null) ContaBadge(conta: conta!),
-                      if (l.recorrencia != RecorrenciaTipo.unica)
-                        RecorrenciaChip(recorrencia: l.recorrencia),
-                      StatusLancamentoChip(status: l.status, dense: true),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: ClxSpace.x3),
-            // Flexible + ellipsis: valores muito longos elipsam em vez de
-            // estourar a Row (a descrição no Expanded já cede espaço primeiro).
-            Flexible(
-              child: Text(
-                formatSigned(l),
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: tt.bodyLarge?.copyWith(
-                  color: tipoColor(clx, l.tipo),
-                  fontWeight: FontWeight.w800,
+                    if (sub.isNotEmpty)
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tt.bodySmall?.copyWith(color: clx.ink3),
+                      ),
+                    const SizedBox(height: ClxSpace.x1),
+                    Wrap(
+                      spacing: ClxSpace.x1,
+                      runSpacing: ClxSpace.x1,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        OrigemChip(origem: l.origem),
+                        if (conta != null) ContaBadge(conta: conta!),
+                        if (l.recorrencia != RecorrenciaTipo.unica)
+                          RecorrenciaChip(recorrencia: l.recorrencia),
+                        StatusLancamentoChip(status: l.status, dense: true),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Ações',
-              icon: Icon(Icons.more_vert_rounded, size: 18, color: clx.ink3),
-              onSelected: (v) {
-                switch (v) {
-                  case 'detail':
-                    onDetail();
-                  case 'edit':
-                    onEdit();
-                  case 'repeat':
-                    onRepeat();
-                  case 'duplicate':
-                    onDuplicate();
-                  case 'delete':
-                    onDelete();
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'detail', child: Text('Ver detalhes')),
-                PopupMenuItem(value: 'edit', child: Text('Editar')),
-                PopupMenuItem(value: 'repeat', child: Text('Repetir')),
-                PopupMenuItem(value: 'duplicate', child: Text('Copiar')),
-                PopupMenuItem(value: 'delete', child: Text('Excluir')),
-              ],
-            ),
-          ],
+              const SizedBox(width: ClxSpace.x3),
+              // Sem Flexible/Expanded (QA-F3): o valor precisa da sua largura
+              // intrínseca inteira — nunca trunca pra valores normais. É a
+              // descrição no Expanded acima que cede espaço (ellipsis) quando o
+              // valor for longo. Como filho não-flex de uma Row, o valor recebe
+              // largura IRRESTRITA do Flutter (só Flexible/Expanded limitariam
+              // — proibido aqui) — por isso o ConstrainedBox abaixo (review) dá
+              // um teto (fração da largura DISPONÍVEL na Row, via
+              // `LayoutBuilder`) só pra valores ABSURDOS (ex.:
+              // R$ 123.456.789,00), que o FittedBox então encolhe pra caber, em
+              // vez de estourar a Row (RenderFlex overflow). Qualquer valor
+              // realista fica bem abaixo do teto e nunca é afetado.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.4,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    formatSigned(l),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: tt.bodyLarge?.copyWith(
+                      color: tipoColor(clx, l.tipo),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Ações',
+                icon: Icon(Icons.more_vert_rounded, size: 18, color: clx.ink3),
+                onSelected: (v) {
+                  switch (v) {
+                    case 'detail':
+                      onDetail();
+                    case 'edit':
+                      onEdit();
+                    case 'repeat':
+                      onRepeat();
+                    case 'duplicate':
+                      onDuplicate();
+                    case 'delete':
+                      onDelete();
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'detail', child: Text('Ver detalhes')),
+                  PopupMenuItem(value: 'edit', child: Text('Editar')),
+                  PopupMenuItem(value: 'repeat', child: Text('Repetir')),
+                  PopupMenuItem(value: 'duplicate', child: Text('Copiar')),
+                  PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -34,6 +34,7 @@ function httpSend(method, endpoint, headersObj, bodyObj) {
     method,
     url: baseUrl() + endpoint,
     headers: Object.assign({ "Accept": "application/json" }, headersObj),
+    timeout: 8,
   };
   if (bodyObj !== undefined) {
     req.body = JSON.stringify(bodyObj);

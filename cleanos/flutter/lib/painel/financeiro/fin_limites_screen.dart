@@ -158,17 +158,36 @@ class _Header extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
-        children: [
-          const FinPeriodSelector(),
-          const Spacer(),
-          ClxButton(
-            label: 'Novo limite',
-            icon: Icons.add_rounded,
-            onPressed: onNovo,
-          ),
-        ],
-      ),
+      // Mobile: período em largura total + botão embaixo (Row original
+      // cortava "+ Novo limite" na borda direita da tela).
+      child: finIsMobile(context)
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(
+                  width: double.infinity,
+                  child: FinPeriodSelector(expand: true),
+                ),
+                const SizedBox(height: ClxSpace.x3),
+                ClxButton(
+                  label: 'Novo limite',
+                  icon: Icons.add_rounded,
+                  onPressed: onNovo,
+                  expand: true,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                const FinPeriodSelector(),
+                const Spacer(),
+                ClxButton(
+                  label: 'Novo limite',
+                  icon: Icons.add_rounded,
+                  onPressed: onNovo,
+                ),
+              ],
+            ),
     );
   }
 }

@@ -142,6 +142,30 @@ class _Toolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final title = Text(
+      'Carteiras e contas',
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+        color: clx.ink,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    final transferButton = Tooltip(
+      message: onTransfer == null
+          ? 'É preciso ao menos 2 contas ativas'
+          : 'Transferir entre contas',
+      child: ClxButton(
+        label: 'Transferência',
+        icon: Icons.swap_horiz_rounded,
+        variant: ClxButtonVariant.ghost,
+        onPressed: onTransfer,
+      ),
+    );
+    final novaButton = ClxButton(
+      label: 'Nova carteira',
+      icon: Icons.add_rounded,
+      onPressed: onNova,
+    );
+
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -152,36 +176,29 @@ class _Toolbar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Carteiras e contas',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: clx.ink,
-                fontWeight: FontWeight.w700,
-              ),
+      // Mobile: título acima dos botões (Row original espremia o título até
+      // virar texto vertical quando os dois botões não cabiam ao lado dele).
+      child: finIsMobile(context)
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: ClxSpace.x3),
+                Wrap(
+                  spacing: ClxSpace.x2,
+                  runSpacing: ClxSpace.x2,
+                  children: [transferButton, novaButton],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: title),
+                transferButton,
+                const SizedBox(width: ClxSpace.x2),
+                novaButton,
+              ],
             ),
-          ),
-          Tooltip(
-            message: onTransfer == null
-                ? 'É preciso ao menos 2 contas ativas'
-                : 'Transferir entre contas',
-            child: ClxButton(
-              label: 'Transferência',
-              icon: Icons.swap_horiz_rounded,
-              variant: ClxButtonVariant.ghost,
-              onPressed: onTransfer,
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          ClxButton(
-            label: 'Nova carteira',
-            icon: Icons.add_rounded,
-            onPressed: onNova,
-          ),
-        ],
-      ),
     );
   }
 }
@@ -241,10 +258,15 @@ class _Body extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                '${contas.length} carteira${contas.length == 1 ? '' : 's'} · '
-                '$ativas ativa${ativas == 1 ? '' : 's'}',
-                style: tt.bodyMedium?.copyWith(color: clx.ink3),
+              Flexible(
+                child: Text(
+                  '${contas.length} carteira${contas.length == 1 ? '' : 's'} · '
+                  '$ativas ativa${ativas == 1 ? '' : 's'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                ),
               ),
             ],
           ),
@@ -367,9 +389,14 @@ class _ContaCard extends StatelessWidget {
                 dense: true,
               ),
               const Spacer(),
-              Text(
-                'Inicial ${formatCurrency(conta.saldoInicial)}',
-                style: tt.bodySmall?.copyWith(color: clx.ink3),
+              Flexible(
+                child: Text(
+                  'Inicial ${formatCurrency(conta.saldoInicial)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: tt.bodySmall?.copyWith(color: clx.ink3),
+                ),
               ),
             ],
           ),

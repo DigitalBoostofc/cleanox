@@ -52,32 +52,80 @@ void main() {
   });
 
   testWidgets(
-    'F-742: valor longo do _LancamentoRow é protegido (Flexible + ellipsis)',
+    'QA-F3: valor do _LancamentoRow NUNCA trunca — é a descrição que cede '
+    '(ellipsis) quando o espaço aperta',
     (tester) async {
       final lanc = fakeLanc(
         id: '1',
         descricao: 'Recebimento muito grande com descrição longa',
         tipo: TipoLancamento.receita,
-        valor: 987654321.98, // R$ 987.654.321,98 — valor propositalmente longo
+        valor: 1234567.89, // R$ 1.234.567,89 — o valor citado no finding
       );
 
-      // Largura confortável p/ os chips (o overflow interno do ClxChip em
-      // larguras minúsculas é pré-existente e DISTINTO de F-742). Aqui o foco é
-      // o Text de VALOR, que agora encolhe com ellipsis em vez de estourar.
-      await pumpAt(tester, debugLancamentoRow(lanc), 420);
+      // 440px, não 320/360: sem carregar fontes reais no harness de teste
+      // (`flutter test` usa um fallback mais largo que o Sora/Roboto de
+      // produção), o próprio valor sozinho já passa dos ~422px "de teste"
+      // que o overhead fixo da Row (avatar 36 + paddings do card/lista +
+      // botão de ações) deixa livre — ficaria overflow por causa do
+      // font fallback, não do layout. 440px é o menor valor estável neste
+      // harness; a garantia real (valor nunca corta) é a estrutural abaixo.
+      await pumpAt(tester, debugLancamentoRow(lanc), 440);
       expect(tester.takeException(), isNull);
 
-      // O valor está envolto em Flexible e elipsa (a proteção do fix F-742).
-      final valueText = tester.widget<Text>(
-        find.textContaining('987.654.321'),
-      );
-      expect(valueText.overflow, TextOverflow.ellipsis);
+      // O valor aparece INTEIRO (nenhum "...").
+      final valueFinder = find.textContaining('1.234.567,89');
+      expect(valueFinder, findsOneWidget);
+      final valueText = tester.widget<Text>(valueFinder);
       expect(
-        find.ancestor(
-          of: find.textContaining('987.654.321'),
-          matching: find.byType(Flexible),
-        ),
-        findsWidgets,
+        valueText.overflow,
+        isNot(TextOverflow.ellipsis),
+        reason: 'valor não pode elipsar — QA-F3',
+      );
+      // ...e não está mais dentro de um Flexible/Expanded (que o forçaria a
+      // dividir espaço com a descrição em vez de tomar sua largura inteira).
+      expect(
+        find.ancestor(of: valueFinder, matching: find.byType(Flexible)),
+        findsNothing,
+      );
+
+      // É a DESCRIÇÃO (não o valor) que elipsa quando falta espaço.
+      final descText = tester.widget<Text>(
+        find.textContaining('Recebimento muito grande'),
+      );
+      expect(descText.overflow, TextOverflow.ellipsis);
+    },
+  );
+
+  testWidgets(
+    'review: valor absurdo (R\$ 123.456.789,00) a 320x800 não estoura a Row '
+    'e não elipsa — o FittedBox só reduz a escala',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final lanc = fakeLanc(
+        id: '1',
+        descricao: 'Recebimento',
+        tipo: TipoLancamento.receita,
+        valor: 123456789,
+      );
+
+      await pumpAt(tester, debugLancamentoRow(lanc), 320);
+      expect(tester.takeException(), isNull);
+
+      final valueFinder = find.textContaining('123.456.789,00');
+      expect(valueFinder, findsOneWidget);
+      final valueText = tester.widget<Text>(valueFinder);
+      expect(
+        valueText.overflow,
+        isNot(TextOverflow.ellipsis),
+        reason: 'valor não pode elipsar mesmo em caso extremo — só reduz de escala',
+      );
+      expect(
+        find.ancestor(of: valueFinder, matching: find.byType(FittedBox)),
+        findsOneWidget,
       );
     },
   );

@@ -37,20 +37,29 @@ class ClxButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final (bg, fg, border) = switch (variant) {
-      ClxButtonVariant.primary => (clx.primary, ClxBrand.onPrimary, null),
+      ClxButtonVariant.primary => (clx.primary, clx.onPrimary, null),
       ClxButtonVariant.secondary => (clx.accent, Colors.white, null),
       ClxButtonVariant.ghost => (Colors.transparent, clx.ink2, clx.line2),
       ClxButtonVariant.danger => (clx.error, Colors.white, null),
     };
 
+    // Disabled (não-loading) usa cores dedessaturadas do tema em vez de
+    // opacity uniforme: opacity sobre um bg vivo (ex.: primary/success no
+    // fintech) ainda lê como CTA ativo. bg3/ink3 garantem contraste reduzido
+    // e consistente nos dois temas sem alterar o botão HABILITADO.
+    final disabledLook = _disabled && !loading;
+    final resolvedBg = disabledLook ? clx.bg3 : bg;
+    final resolvedFg = disabledLook ? clx.ink3 : fg;
+    final resolvedBorder = disabledLook ? clx.line2 : border;
+
     final child = loading
-        ? Spinner(size: 18, color: fg)
+        ? Spinner(size: 18, color: resolvedFg)
         : Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18, color: fg),
+                Icon(icon, size: 18, color: resolvedFg),
                 const SizedBox(width: ClxSpace.x2),
               ],
               Flexible(
@@ -59,37 +68,35 @@ class ClxButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
-                  ).textTheme.labelLarge?.copyWith(color: fg),
+                  ).textTheme.labelLarge?.copyWith(color: resolvedFg),
                 ),
               ),
             ],
           );
 
-    return Opacity(
-      opacity: _disabled && !loading ? 0.5 : 1,
-      child: Semantics(
-        button: true,
-        enabled: !_disabled,
-        label: label,
-        child: Material(
-          color: bg,
+    return Semantics(
+      button: true,
+      enabled: !_disabled,
+      label: label,
+      child: Material(
+        color: resolvedBg,
+        borderRadius: ClxRadii.rPill,
+        child: InkWell(
+          onTap: _disabled ? null : onPressed,
           borderRadius: ClxRadii.rPill,
-          child: InkWell(
-            onTap: _disabled ? null : onPressed,
-            borderRadius: ClxRadii.rPill,
-            child: Container(
-              constraints: const BoxConstraints(
-                minHeight: ClxLayout.minTouchTarget,
-              ),
-              width: expand ? double.infinity : null,
-              padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x5),
-              decoration: BoxDecoration(
-                borderRadius: ClxRadii.rPill,
-                border: border == null ? null : Border.all(color: border),
-              ),
-              alignment: Alignment.center,
-              child: child,
+          child: Container(
+            constraints: const BoxConstraints(
+              minHeight: ClxLayout.minTouchTarget,
             ),
+            width: expand ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x5),
+            decoration: BoxDecoration(
+              borderRadius: ClxRadii.rPill,
+              border: resolvedBorder == null
+                  ? null
+                  : Border.all(color: resolvedBorder),
+            ),
+            child: child,
           ),
         ),
       ),

@@ -766,10 +766,11 @@ class _Body extends StatelessWidget {
             contas: contas,
             viewLancs: viewLancs,
             saldoFinal: saldoFinal,
+            mobile: mobile,
           ),
         ];
       case _Tab.tags:
-        return [_TagsTable(viewLancs: viewLancs)];
+        return [_TagsTable(viewLancs: viewLancs, mobile: mobile)];
     }
   }
 }
@@ -1203,11 +1204,15 @@ class _ContasTable extends StatelessWidget {
     required this.contas,
     required this.viewLancs,
     required this.saldoFinal,
+    required this.mobile,
   });
 
   final List<FinConta> contas;
   final List<FinLancamento> viewLancs;
   final double saldoFinal;
+
+  /// Mobile (feedback dono): um card por conta em vez da tabela densa.
+  final bool mobile;
 
   @override
   Widget build(BuildContext context) {
@@ -1219,17 +1224,40 @@ class _ContasTable extends StatelessWidget {
       return (conta: c, entradas: t.receita, saidas: t.despesa);
     }).toList();
 
-    return ClxCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FinSectionHeader(
+    // No mobile, título e "Saldo geral" ficam em linhas separadas — lado a
+    // lado (FinSectionHeader) estoura em telas de 320–360px.
+    final header = mobile
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Movimentação por conta',
+                style: tt.titleMedium?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x1),
+              Text(
+                'Saldo geral: ${formatCurrency(saldoFinal)}',
+                style: tt.labelMedium?.copyWith(color: clx.ink3),
+              ),
+            ],
+          )
+        : FinSectionHeader(
             title: 'Movimentação por conta',
             trailing: Text(
               'Saldo geral: ${formatCurrency(saldoFinal)}',
               style: tt.labelMedium?.copyWith(color: clx.ink3),
             ),
-          ),
+          );
+
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
           const SizedBox(height: ClxSpace.x3),
           if (linhas.isEmpty)
             Padding(
@@ -1241,6 +1269,16 @@ class _ContasTable extends StatelessWidget {
                 ),
               ),
             )
+          else if (mobile)
+            for (var i = 0; i < linhas.length; i++) ...[
+              _ContaMovCard(
+                nome: linhas[i].conta.nome,
+                entradas: linhas[i].entradas,
+                saidas: linhas[i].saidas,
+                saldoAtual: linhas[i].conta.saldoAtual,
+              ),
+              if (i < linhas.length - 1) const SizedBox(height: ClxSpace.x3),
+            ]
           else ...[
             _headerRow(context, const ['Conta', 'Entradas', 'Saídas', 'Saldo atual']),
             Divider(height: 1, color: clx.line),
@@ -1314,11 +1352,119 @@ class _ContasTable extends StatelessWidget {
   }
 }
 
+/// Card de conta no mobile (feedback dono: nunca tabela no celular). Nome
+/// pode quebrar linha (sem truncar); as 3 métricas usam `FittedBox` para
+/// nunca quebrar o valor no meio do número, só encolher em telas estreitas.
+class _ContaMovCard extends StatelessWidget {
+  const _ContaMovCard({
+    required this.nome,
+    required this.entradas,
+    required this.saidas,
+    required this.saldoAtual,
+  });
+
+  final String nome;
+  final double entradas;
+  final double saidas;
+  final double saldoAtual;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return ClxCard(
+      padding: const EdgeInsets.all(ClxSpace.x3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            nome,
+            style: tt.titleSmall?.copyWith(
+              color: clx.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _MetricStat(
+                  label: 'Entradas',
+                  value: entradas,
+                  color: clx.finIncome,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: _MetricStat(
+                  label: 'Saídas',
+                  value: saidas,
+                  color: clx.finExpense,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: _MetricStat(
+                  label: 'Saldo atual',
+                  value: saldoAtual,
+                  color: saldoAtual < 0 ? clx.finExpense : clx.ink,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rótulo pequeno + valor monetário de uma linha, usado nos cards mobile de
+/// "Movimentação por conta" e "Lançamentos por tag". `FittedBox` encolhe o
+/// valor em vez de quebrá-lo no meio do número em telas estreitas (320–360px).
+class _MetricStat extends StatelessWidget {
+  const _MetricStat({required this.label, required this.value, required this.color});
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: tt.labelSmall?.copyWith(color: clx.ink3)),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            formatCurrency(value),
+            maxLines: 1,
+            softWrap: false,
+            style: tt.bodyMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /* ─────────────────────── tabela por tag ─────────────────────── */
 
 class _TagsTable extends StatelessWidget {
-  const _TagsTable({required this.viewLancs});
+  const _TagsTable({required this.viewLancs, required this.mobile});
   final List<FinLancamento> viewLancs;
+
+  /// Mobile (feedback dono): um card por tag em vez da tabela densa.
+  final bool mobile;
 
   @override
   Widget build(BuildContext context) {
@@ -1357,6 +1503,16 @@ class _TagsTable extends StatelessWidget {
                 message: 'Adicione tags aos lançamentos para vê-los aqui.',
               ),
             )
+          else if (mobile)
+            for (var i = 0; i < linhas.length; i++) ...[
+              _TagMovCard(
+                tag: linhas[i].key,
+                count: linhas[i].value.count,
+                receita: linhas[i].value.receita,
+                despesa: linhas[i].value.despesa,
+              ),
+              if (i < linhas.length - 1) const SizedBox(height: ClxSpace.x3),
+            ]
           else
             for (final e in linhas)
               Padding(
@@ -1404,6 +1560,72 @@ class _TagsTable extends StatelessWidget {
                   ],
                 ),
               ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card de tag no mobile: chip da tag + contagem no topo, entradas/saídas
+/// como métricas embaixo (mesmo padrão de [_ContaMovCard]).
+class _TagMovCard extends StatelessWidget {
+  const _TagMovCard({
+    required this.tag,
+    required this.count,
+    required this.receita,
+    required this.despesa,
+  });
+
+  final String tag;
+  final int count;
+  final double receita;
+  final double despesa;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return ClxCard(
+      padding: const EdgeInsets.all(ClxSpace.x3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ClxChip(label: tag, color: clx.ink2, dense: true),
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x2),
+              Text(
+                '$count lançamento${count == 1 ? '' : 's'}',
+                style: tt.labelSmall?.copyWith(color: clx.ink3),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _MetricStat(
+                  label: 'Entradas',
+                  value: receita,
+                  color: clx.finIncome,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: _MetricStat(
+                  label: 'Saídas',
+                  value: despesa,
+                  color: clx.finExpense,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

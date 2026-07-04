@@ -182,12 +182,13 @@ class _DashboardBody extends ConsumerWidget {
                     runSpacing: ClxSpace.x3,
                     children: [
                       ClxButton(
-                        label: '+ Nova OS',
+                        label: 'Nova OS',
                         icon: Icons.add_rounded,
                         onPressed: () => _go(context, PainelSection.ordens),
                       ),
                       ClxButton(
-                        label: '+ Novo Cliente',
+                        label: 'Novo Cliente',
+                        icon: Icons.add_rounded,
                         variant: ClxButtonVariant.ghost,
                         onPressed: () => _go(context, PainelSection.clientes),
                       ),

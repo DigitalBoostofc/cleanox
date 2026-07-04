@@ -8,7 +8,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/design/app_surface_provider.dart';
 import '../core/design/design.dart';
 import '../core/formatters/formatters.dart';
 import '../core/models/os_execucao.dart';
@@ -132,7 +134,7 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 6,
-                backgroundColor: clx.line,
+                backgroundColor: clx.bg2,
                 valueColor: AlwaysStoppedAnimation<Color>(clx.success),
               ),
             ),
@@ -177,8 +179,10 @@ class _ChecklistTile extends StatelessWidget {
     final concluido = item.concluido;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: clx.line),
-        borderRadius: ClxRadii.rMd,
+        border: Border.all(
+          color: concluido ? clx.success.withValues(alpha: 0.25) : clx.line,
+        ),
+        borderRadius: ClxRadii.rLg,
         color: concluido ? clx.successBg : clx.bg2,
       ),
       padding: const EdgeInsets.symmetric(
@@ -191,16 +195,67 @@ class _ChecklistTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Checkbox (toque mínimo 48 via SizedBox do IconButton).
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Checkbox(
-                  value: concluido,
-                  activeColor: clx.success,
-                  onChanged: (_) => onToggle(),
-                  materialTapTargetSize: MaterialTapTargetSize.padded,
-                ),
+              // Caixa de marcação: custom (22dp + check próprio) só no APK
+              // fintech (QA-F5) — a Web mantém o Checkbox Material de sempre
+              // (widget compartilhado com o Painel admin; "web intocada").
+              Consumer(
+                builder: (context, ref, _) {
+                  if (!ref.watch(isFintechCleanProvider)) {
+                    return SizedBox(
+                      key: ValueKey('checklist-toggle-${item.id}'),
+                      width: 40,
+                      height: 40,
+                      child: Checkbox(
+                        value: concluido,
+                        activeColor: clx.success,
+                        onChanged: (_) => onToggle(),
+                        materialTapTargetSize: MaterialTapTargetSize.padded,
+                      ),
+                    );
+                  }
+                  // Alvo de toque 48dp (Fitts' Law), maior que o quadrado
+                  // visual de 22dp.
+                  return Semantics(
+                    checked: concluido,
+                    label: item.titulo,
+                    child: SizedBox(
+                      key: ValueKey('checklist-toggle-${item.id}'),
+                      width: ClxLayout.minTouchTarget,
+                      height: ClxLayout.minTouchTarget,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: onToggle,
+                          customBorder: const CircleBorder(),
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: ClxMotion.shortDuration,
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: concluido
+                                    ? clx.success
+                                    : Colors.transparent,
+                                borderRadius: ClxRadii.rMd,
+                                border: Border.all(
+                                  color: concluido ? clx.success : clx.line2,
+                                  width: 2,
+                                ),
+                              ),
+                              child: concluido
+                                  ? Icon(
+                                      Icons.check_rounded,
+                                      size: 14,
+                                      color: clx.onPrimary,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               Expanded(
                 child: Padding(
@@ -239,7 +294,7 @@ class _ChecklistTile extends StatelessWidget {
                               Icon(
                                 Icons.check_rounded,
                                 size: 12,
-                                color: clx.success,
+                                color: clx.primary2,
                               ),
                               const SizedBox(width: ClxSpace.x1),
                               Flexible(
@@ -247,7 +302,7 @@ class _ChecklistTile extends StatelessWidget {
                                   '${item.concluidoPor != null ? '${item.concluidoPor} · ' : ''}'
                                   '${formatDateTime(item.concluidoEm!)}',
                                   style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: clx.success),
+                                      ?.copyWith(color: clx.primary2),
                                 ),
                               ),
                             ],

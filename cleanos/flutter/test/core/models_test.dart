@@ -244,6 +244,60 @@ void main() {
       expect(rec.valorComSinal, -100.0);
     });
 
+    // Bug de produção (review, 04/07): mesmo bug "" vs null do parent_id de
+    // FinCategoria (05e2388), aqui em `subcategoria_id` de FinLancamento.
+    // `subcategoria_id` é um RelationField OPCIONAL (migration 14) — o
+    // PocketBase grava relação vazia como `""`, nunca `null`. O form de
+    // edição usa `FinDropdown<String?>` com `items: [null, ...subs]`; sem
+    // normalizar no `fromRecord`, o valor `""` não bate em nenhum item da
+    // lista e o assert do `DropdownButtonFormField` derruba a tela ao editar
+    // QUALQUER lançamento sem subcategoria (a esmagadora maioria).
+    test(
+      'FinLancamento.fromRecord normaliza subcategoria_id "" (PocketBase) para null',
+      () {
+        final rec = RecordModel.fromJson({
+          'id': 'l2',
+          'tipo': 'despesa',
+          'descricao': 'Combustível',
+          'categoria_id': 'cat1',
+          'subcategoria_id': '',
+          'valor': 100,
+          'conta_id': 'conta1',
+          'data': '2026-07-01 12:00:00.000Z',
+          'status': 'pago',
+          'recorrencia': 'unica',
+          'origem': 'manual',
+        });
+        final l = FinLancamento.fromRecord(rec);
+        expect(
+          l.subcategoriaId,
+          isNull,
+          reason:
+              'lançamento sem subcategoria vem do PocketBase com '
+              'subcategoria_id="", precisa virar null pro FinDropdown<String?> '
+              'não crashar ao editar',
+        );
+      },
+    );
+
+    test('FinLancamento.fromRecord preserva subcategoria_id quando presente', () {
+      final rec = RecordModel.fromJson({
+        'id': 'l3',
+        'tipo': 'despesa',
+        'descricao': 'Combustível',
+        'categoria_id': 'cat1',
+        'subcategoria_id': 'sub1',
+        'valor': 100,
+        'conta_id': 'conta1',
+        'data': '2026-07-01 12:00:00.000Z',
+        'status': 'pago',
+        'recorrencia': 'unica',
+        'origem': 'manual',
+      });
+      final l = FinLancamento.fromRecord(rec);
+      expect(l.subcategoriaId, 'sub1');
+    });
+
     test('FinConta mapeia saldo_inicial/saldo_atual', () {
       final c = FinConta.fromJson({
         'id': 'conta1',
@@ -256,6 +310,45 @@ void main() {
       expect(c.tipo, ContaTipo.caixa);
       expect(c.saldoInicial, 500.0);
       expect(c.saldoAtual, 320.5);
+    });
+
+    // Bug de produção (dono, 04/07): categoria criada não aparecia na tela de
+    // Categorias mesmo com o fix de defaultTipo (540321f) já embarcado.
+    // Causa raiz: `parent_id` é um TextField (não RelationField, migration 14)
+    // — o PocketBase grava vazio como `""`, nunca `null` — mas TODA a árvore de
+    // Categorias/Relatórios/Contas a pagar/formulários decide "é raiz?" com
+    // `c.parentId == null`. Sem normalizar no `fromRecord`, NENHUMA categoria
+    // raiz (a esmagadora maioria) nunca batia nesse teste: a lista de
+    // Categorias ficava permanentemente vazia, com ou sem o fix de tipo.
+    test(
+      'FinCategoria.fromRecord normaliza parent_id "" (PocketBase) para null',
+      () {
+        final rec = RecordModel.fromJson({
+          'id': 'c1',
+          'nome': 'Marketing',
+          'tipo': 'despesa',
+          'parent_id': '',
+        });
+        final cat = FinCategoria.fromRecord(rec);
+        expect(
+          cat.parentId,
+          isNull,
+          reason:
+              'categoria-raiz do PocketBase vem com parent_id="", '
+              'precisa virar null pro filtro `parentId == null` funcionar',
+        );
+      },
+    );
+
+    test('FinCategoria.fromRecord preserva parent_id de subcategoria', () {
+      final rec = RecordModel.fromJson({
+        'id': 'c2',
+        'nome': 'Google Ads',
+        'tipo': 'despesa',
+        'parent_id': 'c1',
+      });
+      final cat = FinCategoria.fromRecord(rec);
+      expect(cat.parentId, 'c1');
     });
   });
 }

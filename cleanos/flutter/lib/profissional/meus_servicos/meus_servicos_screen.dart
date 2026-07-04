@@ -242,7 +242,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
               ? ClxChip(
                   label:
                       '${state.today.length} serviço${state.today.length != 1 ? 's' : ''}',
-                  color: clx.primary,
+                  color: clx.primary2,
                 )
               : null,
         ),

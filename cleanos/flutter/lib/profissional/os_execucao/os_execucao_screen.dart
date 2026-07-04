@@ -37,9 +37,46 @@ class OSExecucaoScreen extends ConsumerStatefulWidget {
 class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _gerandoLaudo = false;
+  bool _concluindo = false;
 
   OSExecucaoController get _ctrl =>
       ref.read(osExecucaoProvider(widget.osId).notifier);
+
+  /// Habilita o CTA fixo "Concluir serviço" (espec tela 3, doc 12 Onda 2):
+  /// mesma regra do `OSCard` da lista — pagamento registrado + nenhum item
+  /// obrigatório pendente no checklist AO VIVO (não o `checklistExec` da OS
+  /// carregada, que pode estar desatualizado em relação à edição em tela).
+  bool _podeConcluir(OSExecucaoState state) {
+    final os = state.os;
+    if (os == null || os.status != OSStatus.emAndamento) return false;
+    final pagamentoOk = (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
+    final obrigatoriosOk = !state.checklist.any(
+      (i) => i.obrigatorio && !i.concluido,
+    );
+    return pagamentoOk && obrigatoriosOk;
+  }
+
+  Future<void> _concluir() async {
+    if (_concluindo) return;
+    setState(() => _concluindo = true);
+    try {
+      await _ctrl.concluir();
+      if (mounted) {
+        showClxToast(context, 'Serviço concluído!', type: ToastType.success);
+        Navigator.of(context).maybePop();
+      }
+    } catch (err) {
+      if (mounted) {
+        showClxToast(
+          context,
+          describeOSError(err).message,
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _concluindo = false);
+    }
+  }
 
   Future<void> _pick(FaseFoto fase) async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -165,6 +202,15 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ],
       ),
       body: SafeArea(child: _buildBody(context, state, vinculoOptions)),
+      // CTA fixo "Concluir serviço" (espec tela 3, doc 12 Onda 2) — só quando
+      // há OS carregada; some nos estados de loading/erro do corpo.
+      bottomNavigationBar: os == null
+          ? null
+          : _StickyConcluirCta(
+              enabled: _podeConcluir(state),
+              loading: _concluindo,
+              onPressed: _concluir,
+            ),
     );
   }
 
@@ -358,6 +404,51 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ),
         const SizedBox(height: ClxSpace.x8),
       ],
+    );
+  }
+}
+
+/// CTA fixo do rodapé (espec tela 3, doc 12 Onda 2 — `sticky-cta` do mock):
+/// barra com borda superior sobre `clx.bg2` (o mesmo tom do Scaffold), CTA
+/// pill full-width. Desabilitado enquanto [enabled] é false — não esconde o
+/// botão (o profissional precisa ver que a ação existe e por que está presa).
+class _StickyConcluirCta extends StatelessWidget {
+  const _StickyConcluirCta({
+    required this.enabled,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg2,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            ClxSpace.x4,
+            ClxSpace.x3,
+            ClxSpace.x4,
+            ClxSpace.x3,
+          ),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: clx.line)),
+          ),
+          child: ClxButton(
+            label: 'Concluir serviço',
+            icon: Icons.check_circle_outline_rounded,
+            expand: true,
+            loading: loading,
+            onPressed: enabled ? onPressed : null,
+          ),
+        ),
+      ),
     );
   }
 }

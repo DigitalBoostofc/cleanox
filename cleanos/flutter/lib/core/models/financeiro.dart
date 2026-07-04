@@ -135,8 +135,19 @@ class FinCategoria with _$FinCategoria {
   factory FinCategoria.fromJson(Map<String, dynamic> json) =>
       _$FinCategoriaFromJson(json);
 
-  factory FinCategoria.fromRecord(RecordModel record) =>
-      FinCategoria.fromJson(record.toJson());
+  /// `parent_id` é um `TextField` (não `RelationField`, de propósito — ver a
+  /// migration 14) e o PocketBase grava campo de texto vazio como `""`, nunca
+  /// `null`. Toda categoria-RAIZ (a maioria) chega do servidor com
+  /// `parent_id: ""`, mas o app inteiro decide "é raiz?" com
+  /// `c.parentId == null` (Categorias, Relatórios, Contas a pagar/receber,
+  /// formulários de categoria/lançamento) — sem essa normalização nenhuma
+  /// categoria-raiz nunca bate nesse teste, e a árvore de Categorias fica
+  /// permanentemente vazia mesmo com dezenas de categorias no banco.
+  factory FinCategoria.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['parent_id'] == '') json['parent_id'] = null;
+    return FinCategoria.fromJson(json);
+  }
 }
 
 /* ---- Lançamento (receita ou despesa) ---- */
@@ -184,8 +195,18 @@ class FinLancamento with _$FinLancamento {
   factory FinLancamento.fromJson(Map<String, dynamic> json) =>
       _$FinLancamentoFromJson(json);
 
-  factory FinLancamento.fromRecord(RecordModel record) =>
-      FinLancamento.fromJson(record.toJson());
+  /// `subcategoria_id` é um `RelationField` OPCIONAL (migration 14) — o
+  /// PocketBase grava relação vazia como `""`, nunca `null`. O form de edição
+  /// usa `FinDropdown<String?>` com `items: [null, ...subs]`; se o valor
+  /// chegar como `""` (não normalizado), ele não bate em nenhum item da
+  /// lista e o assert do `DropdownButtonFormField` derruba a tela ao editar
+  /// QUALQUER lançamento sem subcategoria — mesmo bug "" vs null do
+  /// `parent_id` de `FinCategoria` (05e2388), aqui no boundary de Lançamento.
+  factory FinLancamento.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
+    return FinLancamento.fromJson(json);
+  }
 
   /// Valor COM sinal (receita +, despesa −).
   double get valorComSinal => tipo == TipoLancamento.receita ? valor : -valor;

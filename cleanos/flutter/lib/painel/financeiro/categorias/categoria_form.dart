@@ -38,9 +38,15 @@ Future<bool?> showCategoriaForm(
   FinCategoria? editing,
   FinCategoria? parent,
   List<FinCategoria> parents = const [],
+  TipoLancamento? defaultTipo,
 }) => showFinModal<bool>(
   context,
-  CategoriaForm(editing: editing, parent: parent, parents: parents),
+  CategoriaForm(
+    editing: editing,
+    parent: parent,
+    parents: parents,
+    defaultTipo: defaultTipo,
+  ),
 );
 
 class CategoriaForm extends ConsumerStatefulWidget {
@@ -49,6 +55,7 @@ class CategoriaForm extends ConsumerStatefulWidget {
     this.editing,
     this.parent,
     this.parents = const [],
+    this.defaultTipo,
   });
 
   final FinCategoria? editing;
@@ -56,6 +63,12 @@ class CategoriaForm extends ConsumerStatefulWidget {
 
   /// Lista completa de categorias disponíveis como possíveis mães.
   final List<FinCategoria> parents;
+
+  /// Natureza (Despesas/Receitas) da aba corrente da tela — usada como default
+  /// ao criar uma categoria RAIZ nova (sem [editing]/[parent], que já carregam
+  /// seu próprio tipo). Sem isso o form sempre nascia em Despesas, então criar
+  /// na aba Receitas gerava uma categoria invisível na aba corrente.
+  final TipoLancamento? defaultTipo;
 
   @override
   ConsumerState<CategoriaForm> createState() => _CategoriaFormState();
@@ -95,7 +108,11 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
     super.initState();
     final c = widget.editing;
     _parentId = c?.parentId ?? widget.parent?.id;
-    _tipo = c?.tipo ?? widget.parent?.tipo ?? TipoLancamento.despesa;
+    _tipo =
+        c?.tipo ??
+        widget.parent?.tipo ??
+        widget.defaultTipo ??
+        TipoLancamento.despesa;
     _icone = c?.icone ?? widget.parent?.icone ?? 'tag';
     _cor = c?.cor ?? widget.parent?.cor ?? kPresetCores[0];
     _nome = TextEditingController(text: c?.nome ?? '');

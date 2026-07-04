@@ -113,7 +113,7 @@ class OSCard extends StatelessWidget {
                                   Text(
                                     formatHour(os.dataHora),
                                     style: tt.titleLarge?.copyWith(
-                                      color: clx.accent,
+                                      color: clx.primary2,
                                       letterSpacing: -0.4,
                                     ),
                                   ),
@@ -216,7 +216,7 @@ class OSCard extends StatelessWidget {
                       (os.valorPago ?? 0) > 0 &&
                       os.formaPagamento != null)
                     _InfoStrip(
-                      color: clx.success,
+                      color: clx.primary2,
                       bg: clx.successBg,
                       text:
                           'Pago: ${formatCurrency(os.valorPago!)} via '
@@ -319,7 +319,7 @@ class OSCard extends StatelessWidget {
               )
             else
               _InfoStrip(
-                color: clx.success,
+                color: clx.primary2,
                 bg: clx.successBg,
                 text:
                     'Pagamento: ${formatCurrency(os.valorPago!)} via '

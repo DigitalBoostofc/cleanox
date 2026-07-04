@@ -154,7 +154,18 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   Future<FinCategoria> createCategoria(Map<String, dynamic> data) async {
     createCategoriaCount++;
     lastCreateCategoria = data;
-    return fakeCategoria(id: 'nova', nome: (data['nome'] as String?) ?? 'Nova');
+    // Espelha o PocketBase real: o novo registro passa a existir e deve
+    // aparecer num listCategorias() subsequente (prova reload/invalidate).
+    final nova = fakeCategoria(
+      id: 'nova_$createCategoriaCount',
+      nome: (data['nome'] as String?) ?? 'Nova',
+      tipo: TipoLancamento.values.byName(
+        (data['tipo'] as String?) ?? TipoLancamento.despesa.wire,
+      ),
+      parentId: data['parent_id'] as String?,
+    );
+    categorias = [...categorias, nova];
+    return nova;
   }
 
   @override
@@ -184,10 +195,21 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   Future<FinLancamento> createLancamento(Map<String, dynamic> data) async {
     createLancCount++;
     lastCreateLanc = data;
-    return fakeLanc(
-      id: 'novo',
+    // Espelha o PocketBase real: o novo registro passa a existir e deve
+    // aparecer num listLancamentos() subsequente (prova reload/invalidate).
+    final novo = fakeLanc(
+      id: 'novo_$createLancCount',
       descricao: (data['descricao'] as String?) ?? '',
+      tipo: TipoLancamento.values.byName(
+        (data['tipo'] as String?) ?? TipoLancamento.despesa.wire,
+      ),
+      valor: (data['valor'] as num?)?.toDouble() ?? 100,
+      categoriaId: (data['categoria_id'] as String?) ?? 'cat',
+      contaId: (data['conta_id'] as String?) ?? 'conta',
+      data: (data['data'] as String?) ?? '2026-07-10',
     );
+    lancamentos = [...lancamentos, novo];
+    return novo;
   }
 
   @override
