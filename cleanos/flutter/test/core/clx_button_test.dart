@@ -5,7 +5,9 @@
 /// (toque de 48dp), o que o antigo `ClxRadii.rMd` (=10px) NÃO satisfazia.
 library;
 
+import 'package:cleanos/core/design/cleanox_colors.dart';
 import 'package:cleanos/core/design/theme.dart';
+import 'package:cleanos/core/design/theme_fintech.dart';
 import 'package:cleanos/core/design/tokens.dart';
 import 'package:cleanos/core/design/widgets/clx_button.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +41,16 @@ double _decorationRadius(WidgetTester tester) {
       .resolve(TextDirection.ltr);
   return radius.topLeft.x;
 }
+
+/// Cor de fundo (`Material.color`) do container pill do `ClxButton`.
+Color _buttonBg(WidgetTester tester) => tester
+    .widget<Material>(
+      find.descendant(
+        of: find.byType(ClxButton),
+        matching: find.byType(Material),
+      ),
+    )
+    .color!;
 
 void main() {
   testWidgets('ClxButton renderiza como PILL — raio ≥ metade da altura mínima '
@@ -108,6 +120,65 @@ void main() {
         reason: 'ClxButton deveria hugging sua altura natural (~48-56dp), '
             'não preencher a constraint solta do bottomNavigationBar',
       );
+    },
+  );
+
+  group('QA-F1: disabled usa bg3/ink3 dedicados (não opacity sobre o '
+      'enabled) — diferente do enabled, claro e escuro', () {
+    Future<void> pumpWith(WidgetTester tester, ThemeData theme) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: Center(
+              child: ClxButton(label: 'Concluir serviço', onPressed: null),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    final cases = <String, (ThemeData, CleanoxColors)>{
+      'light': (buildLightTheme(), CleanoxColors.light),
+      'dark': (buildDarkTheme(), CleanoxColors.dark),
+      'fintechLight': (buildFintechLightTheme(), CleanoxColors.fintechLight),
+      'fintechDark': (buildFintechDarkTheme(), CleanoxColors.fintechDark),
+    };
+
+    for (final entry in cases.entries) {
+      final (theme, clx) = entry.value;
+      testWidgets(
+        '${entry.key}: fundo do disabled é bg3, não o primary do enabled',
+        (tester) async {
+          await pumpWith(tester, theme);
+
+          final bg = _buttonBg(tester);
+          expect(
+            bg,
+            clx.bg3,
+            reason: 'disabled deveria usar clx.bg3, não clx.primary com '
+                'opacity — no fintech dark isso ainda lia como CTA ativo',
+          );
+          expect(
+            bg,
+            isNot(clx.primary),
+            reason: 'cor de fundo do disabled precisa ser != a do enabled',
+          );
+
+          final label = tester.widget<Text>(find.text('Concluir serviço'));
+          expect(label.style?.color, clx.ink3);
+        },
+      );
+    }
+  });
+
+  testWidgets(
+    'QA-F1: o botão HABILITADO continua com o mesmo bg do variant '
+    '(nenhuma regressão visual) — primary em foco',
+    (tester) async {
+      await _pump(tester, ClxButton(label: 'Entrar', onPressed: () {}));
+      expect(_buttonBg(tester), CleanoxColors.light.primary);
     },
   );
 }
