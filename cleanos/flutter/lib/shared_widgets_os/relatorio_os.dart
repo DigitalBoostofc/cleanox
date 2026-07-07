@@ -184,4 +184,4 @@ String numeroFromId(String id) =>
 
 /// Link de avaliação enviado ao cliente (produção). Espelha `avaliacaoLink`.
 String avaliacaoLink(String osId) =>
-    'https://cleanox.wenox.com.br/avaliar/${Uri.encodeComponent(osId)}';
+    'https://app.cleanox.com.br/avaliar/${Uri.encodeComponent(osId)}';

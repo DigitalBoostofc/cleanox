@@ -1,7 +1,7 @@
 /// Configuração de ambiente resolvida em tempo de compilação via `--dart-define`.
 ///
 /// Espelha `web/src/lib/pb.ts` (`import.meta.env.VITE_PB_URL`). O default aponta
-/// para produção (`https://cleanox.wenox.com.br`, ver memória de deploy). Para dev
+/// para produção (`https://app.cleanox.com.br`, ver memória de deploy). Para dev
 /// local contra o PocketBase da máquina, rode com:
 ///   --dart-define=PB_URL=http://127.0.0.1:8090
 ///
@@ -14,7 +14,7 @@ class Env {
   /// URL base do PocketBase. Produção por default; dev via --dart-define.
   static const String pbUrl = String.fromEnvironment(
     'PB_URL',
-    defaultValue: 'https://cleanox.wenox.com.br',
+    defaultValue: 'https://app.cleanox.com.br',
   );
 
   /// STUB (doc 09 / gate G-2) — chave do Google Maps para GPS/ETA. Vazia = desligado.

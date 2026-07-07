@@ -3,7 +3,7 @@
 /// Rode com (dev local contra o PB da máquina):
 ///   flutter run -d chrome --dart-define=PB_URL=http://127.0.0.1:8090 \
 ///     -t lib/main_painel.dart
-/// Produção (default de PB_URL já é https://cleanox.wenox.com.br):
+/// Produção (default de PB_URL já é https://app.cleanox.com.br):
 ///   flutter build web --release -t lib/main_painel.dart
 ///
 /// O binário compartilha o core; o roteamento por papel garante que só
