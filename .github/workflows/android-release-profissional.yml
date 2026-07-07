@@ -156,6 +156,13 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # ----- Quality gate: falha o job antes de gastar tempo no build assinado -----
+      - name: Gate — flutter analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Gate — flutter test
+        run: flutter test
+
       # ----- Release signing: only when the keystore secrets are present -----
       # Writes android/key.properties (git-ignored) consumed by app/build.gradle.kts.
       # If KEYSTORE_FILE is empty the step is skipped and the build falls back to
