@@ -50,7 +50,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- App Link (doc 09 §6.3): https://cleanox.wenox.com.br/app/os/<id>
+            <!-- App Link (doc 09 §6.3): https://app.cleanox.com.br/app/os/<id>
                  abre o app direto na OS. autoVerify exige o assetlinks.json
                  publicado em /.well-known/ com o SHA-256 da chave de release.
                  Escopo restrito a /app/os/ — o restante do domínio (web app, /api)
@@ -62,7 +62,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="cleanox.wenox.com.br"
+                    android:host="app.cleanox.com.br"
                     android:pathPrefix="/app/os/" />
             </intent-filter>
         </activity>

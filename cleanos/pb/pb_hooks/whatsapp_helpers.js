@@ -104,7 +104,7 @@ function notifyProfNovaOS(app, userId, os) {
   }
 
   // 3. Mensagem — só campos seguros (os que o profissional já vê) + deep-link.
-  const base = ($os.getenv("APP_PUBLIC_URL") || "https://cleanox.wenox.com.br").replace(/\/+$/, "");
+  const base = ($os.getenv("APP_PUBLIC_URL") || "https://app.cleanox.com.br").replace(/\/+$/, "");
   const link = `${base}/app/os/${String(os.id)}`;
   const quando = fmtBrt(os.getString("data_hora"));
   const linhas = [
