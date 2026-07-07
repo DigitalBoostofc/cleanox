@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "br.com.wenox.cleanos",
       "sha256_cert_fingerprints": [
-        "8C:EE:31:BE:43:F0:00:10:B7:9A:55:BF:8F:55:CE:2E:1B:B7:1A:C6:AC:2C:13:74:11:80:5C:D2:DD:A4:30:DA"
+        "8C:EE:31:BE:43:F0:00:10:B7:9A:55:BF:8F:55:CE:2E:1B:B7:1A:C6:AC:2C:13:74:11:80:5C:D2:DD:A4:30:DA",
+        "8C:75:48:A8:C1:55:DB:2D:E7:B7:90:A3:44:33:60:C7:50:7E:18:09:6D:2E:F9:2B:D0:1B:38:C1:8A:98:E8:A5"
       ]
     }
   }
