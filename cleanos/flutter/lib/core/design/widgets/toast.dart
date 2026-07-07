@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../cleanox_colors.dart';
@@ -86,6 +88,24 @@ void showClxToast(
     );
 }
 
+/// Um único toast-topo por vez. Guarda o `OverlayEntry` ativo e seu timer de
+/// remoção pra SUBSTITUIR (não empilhar) quando um novo toast sobe — espelha o
+/// `clearSnackBars()` do caminho `bottom`. Sem isso, um duplo toque em "Salvar
+/// filtro" (ou um rebuild) empilhava dois banners idênticos no topo.
+OverlayEntry? _activeTopToast;
+Timer? _activeTopToastTimer;
+
+void _dismissTopToast() {
+  _activeTopToastTimer?.cancel();
+  _activeTopToastTimer = null;
+  // `_activeTopToast` só é != null enquanto o entry está no overlay, e o
+  // overlay é setado de forma síncrona no insert — então `remove()` roda no
+  // máximo uma vez por entry (não dá pra confiar em `.mounted`, que só vira
+  // true depois do próximo frame e falharia no caso de disparo no mesmo frame).
+  _activeTopToast?.remove();
+  _activeTopToast = null;
+}
+
 /// Sobe um banner fixo no topo da tela (abaixo da safe area), some sozinho
 /// após [duration]. Não depende do `Scaffold`/`ScaffoldMessenger` (usa o
 /// `Overlay` da rota), então funciona em qualquer tela.
@@ -97,6 +117,8 @@ void _showTopToast(
   required IconData icon,
   required Duration duration,
 }) {
+  // Remove um toast-topo anterior antes de inserir o novo (anti-duplicação).
+  _dismissTopToast();
   final overlay = Overlay.of(context);
   final topPadding = MediaQuery.paddingOf(context).top;
   late final OverlayEntry entry;
@@ -132,8 +154,10 @@ void _showTopToast(
       ),
     ),
   );
+  _activeTopToast = entry;
   overlay.insert(entry);
-  Future.delayed(duration, () {
-    if (entry.mounted) entry.remove();
+  _activeTopToastTimer = Timer(duration, () {
+    // Só remove se ainda for o toast vigente (um mais novo já se auto-gerencia).
+    if (identical(_activeTopToast, entry)) _dismissTopToast();
   });
 }

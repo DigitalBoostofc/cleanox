@@ -85,6 +85,43 @@ void main() {
     );
   });
 
+  testWidgets(
+    'toast-topo não empilha em disparo duplo (dedup — regressão duplo toque)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildLightTheme(),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => showClxToast(
+                    context,
+                    'Filtro aplicado',
+                    type: ToastType.success,
+                    position: ToastPosition.top,
+                    duration: const Duration(milliseconds: 2500),
+                  ),
+                  child: const Text('go'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      // Duplo toque no mesmo frame (ClxButton não faz debounce) → antes do fix
+      // subiam DOIS banners idênticos no topo.
+      await tester.tap(find.text('go'));
+      await tester.tap(find.text('go'));
+      await tester.pump();
+      expect(find.text('Filtro aplicado'), findsOneWidget);
+
+      // Some sozinho após a duração (sem timers pendentes no teardown).
+      await tester.pump(const Duration(milliseconds: 2600));
+      expect(find.text('Filtro aplicado'), findsNothing);
+    },
+  );
+
   test('contraste do warning ≥ 4.5:1 (WCAG AA) nos dois temas', () {
     // Tema CLARO: #B45309 + branco.
     final lightBg = CleanoxColors.light.warning;
