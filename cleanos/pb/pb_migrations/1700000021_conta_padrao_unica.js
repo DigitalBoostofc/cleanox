@@ -18,10 +18,10 @@
  * contas marcadas; as `padrao=0` ficam de FORA do índice e não colidem entre si.
  * Respeita a regra do projeto (bool nunca é null; comparo pelo valor, não == null).
  *
- * PRÉ-CONDIÇÃO: hoje existe no máximo uma conta com `padrao=true` (a mig 16 marca
- * exatamente uma e o app não expõe marcar duas). Se por acaso houvesse duas, o
- * CREATE UNIQUE INDEX falharia no `up` — o que é o comportamento correto: expõe
- * um dado inconsistente em vez de mascará-lo.
+ * FIX D2-002: antes de criar o índice, o UP deduplica quaisquer linhas com
+ * padrao=true existentes — mantém a mais recente (por `updated`) e zera as
+ * demais — para que a criação do índice nunca falhe por dados inconsistentes.
+ * Safe quando há 0 ou 1 linha padrão (o loop não executa).
  *
  * IDEMPOTENTE (checa se o índice já existe) / REVERSÍVEL (o DOWN remove o índice;
  * o campo `padrao` continua — ele pertence à migration 16).
@@ -31,6 +31,17 @@ migrate(
     let contas = null;
     try { contas = app.findCollectionByNameOrId("fincontas000001"); } catch (_) { contas = null; }
     if (!contas) return; // base sem a coleção financeira — nada a fazer
+
+    // ── DEDUPE (D2-002): ≤1 padrao=true antes de criar o índice ─────────────
+    // Ordena pela mais recente; mantém a [0] e zera as demais.
+    // Não executa quando há 0 ou 1 linha (idempotente).
+    const padraoRows = app.findRecordsByFilter(
+      "fin_contas", "padrao = true", "-updated", 0, 0, {}
+    );
+    for (let i = 1; i < padraoRows.length; i++) {
+      padraoRows[i].set("padrao", false);
+      app.save(padraoRows[i]);
+    }
 
     const IDX = "idx_fin_contas_padrao_unica";
     const hasIdx = (contas.indexes || []).some(function (s) {
