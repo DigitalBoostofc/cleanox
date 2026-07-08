@@ -9,6 +9,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
@@ -18,6 +19,17 @@ import 'usuario_form.dart';
 import 'usuarios_controller.dart';
 
 const double _kTableBreakpoint = 720;
+
+/// Extrai a mensagem real do PocketBase (campo `message` da resposta HTTP).
+/// Para erros 400 do hook de exclusão segura, o backend devolve a frase PT-BR
+/// verbatim — exibimos ela em vez de uma string genérica.
+String _deleteErrorMessage(Object? err) {
+  if (err is ClientException) {
+    final msg = err.response['message'];
+    if (msg is String && msg.isNotEmpty) return msg;
+  }
+  return 'Não foi possível excluir o usuário.';
+}
 
 class UsuariosScreen extends ConsumerWidget {
   const UsuariosScreen({super.key});
@@ -59,7 +71,10 @@ class UsuariosScreen extends ConsumerWidget {
     }
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => _ConfirmDeleteDialog(nome: u.displayName),
+      builder: (_) => _ConfirmDeleteDialog(
+        nome: u.displayName,
+        isProfissional: u.role == Role.profissional,
+      ),
     );
     if (confirm != true) return;
     try {
@@ -67,11 +82,11 @@ class UsuariosScreen extends ConsumerWidget {
       if (context.mounted) {
         showClxToast(context, 'Usuário excluído.', type: ToastType.success);
       }
-    } catch (_) {
+    } catch (e) {
       if (context.mounted) {
         showClxToast(
           context,
-          'Não foi possível excluir o usuário.',
+          _deleteErrorMessage(e),
           type: ToastType.error,
         );
       }
@@ -498,19 +513,28 @@ class _UsuarioCard extends StatelessWidget {
 }
 
 class _ConfirmDeleteDialog extends StatelessWidget {
-  const _ConfirmDeleteDialog({required this.nome});
+  const _ConfirmDeleteDialog({
+    required this.nome,
+    this.isProfissional = false,
+  });
   final String nome;
+  final bool isProfissional;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final content = isProfissional
+        ? 'Tem certeza que deseja excluir o profissional "$nome"? '
+          'A agenda de disponibilidade deste profissional também será excluída. '
+          'Esta ação não pode ser desfeita.'
+        : 'Tem certeza que deseja excluir o usuário "$nome"? Esta ação não pode '
+          'ser desfeita.';
     return AlertDialog(
       backgroundColor: clx.bg,
       shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
       title: const Text('Excluir usuário'),
       content: Text(
-        'Tem certeza que deseja excluir o usuário "$nome"? Esta ação não pode '
-        'ser desfeita.',
+        content,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2, height: 1.5),
       ),
       actions: [
