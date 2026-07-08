@@ -16,6 +16,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
+import '../../core/design/theme_fintech.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -68,8 +69,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isFintechClean = ref.watch(isFintechCleanProvider);
+    // isNarrowWeb: browser + largura < 600dp → mesmo visual fintech do APK.
+    // isWebPlatformProvider é sobreponível em testes para cobrir este path.
+    final isNarrow = ref.watch(isWebPlatformProvider) &&
+        MediaQuery.sizeOf(context).width < ClxLayout.narrowBreakpoint;
+    final isFintech = isFintechClean || isNarrow;
+
+    // Narrow web precisa do ThemeData fintech que o APK recebe via MaterialApp.
+    // (isFintechClean=true já tem o tema de fora — sem duplo wrapper.)
+    if (isNarrow && !isFintechClean) {
+      final themeMode = ref.watch(themeModeControllerProvider);
+      return Theme(
+        data: themeMode == ThemeMode.dark
+            ? buildFintechDarkTheme()
+            : buildFintechLightTheme(),
+        child: Builder(builder: (ctx) => _buildScaffold(ctx, isFintech: true)),
+      );
+    }
+    return _buildScaffold(context, isFintech: isFintech);
+  }
+
+  Widget _buildScaffold(BuildContext context, {required bool isFintech}) {
     final clx = context.clx;
-    final isFintech = ref.watch(isFintechCleanProvider);
     return Scaffold(
       backgroundColor: clx.bg2,
       body: SafeArea(

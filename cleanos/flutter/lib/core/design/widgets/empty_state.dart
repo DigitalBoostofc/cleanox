@@ -38,7 +38,10 @@ class EmptyState extends StatelessWidget {
             Consumer(
               builder: (context, ref, _) {
                 final iconWidget = Icon(icon, size: 48, color: clx.ink3);
-                if (!ref.watch(isFintechCleanProvider)) return iconWidget;
+                if (!ref.watch(isFintechCleanProvider) &&
+                    !ref.watch(isNarrowWebProvider)) {
+                  return iconWidget;
+                }
                 return Container(
                   width: 72,
                   height: 72,

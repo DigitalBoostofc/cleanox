@@ -22,6 +22,7 @@
 /// visita, então o chunk só baixa quando a seção é aberta.
 library;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +30,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
+import '../../core/design/theme_fintech.dart';
 import '../../core/models/collections.dart';
 import 'fintech/fintech_painel_shell.dart';
 import 'painel_nav.dart';
@@ -42,9 +44,8 @@ class PainelShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
   static const double _desktopBreakpoint = 1024;
-
-  /// Janela "medium" MD3 (600–1023dp): NavigationRail em vez de Drawer.
-  static const double _mediumBreakpoint = 600;
+  // Janela "narrow/compact" (<600dp): usa [ClxLayout.narrowBreakpoint] — valor
+  // canônico definido em tokens.dart para não duplicar a constante 600.
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,11 +66,38 @@ class PainelShell extends ConsumerWidget {
       );
     }
 
+    // Lido aqui (fora do LayoutBuilder) para que a assinatura seja registrada
+    // em build() — não durante o callback de layout.
+    final themeMode = ref.watch(themeModeControllerProvider);
+
     final items = navItemsForRole(role);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= _desktopBreakpoint;
+        final width = constraints.maxWidth;
+
+        // ── NARROW WEB ────────────────────────────────────────────────────────
+        // kIsWeb é uma const de compilação: em testes (VM) sempre false, então
+        // este branch é código morto nos testes — o layout clássico abaixo é
+        // o único exercitado. Em produção web + largura < 600dp mostra o mesmo
+        // visual fintech do APK, com o tema aplicado via Theme() wrapper.
+        if (kIsWeb && width < ClxLayout.narrowBreakpoint) {
+          return ProviderScope(
+            overrides: [isNarrowWebProvider.overrideWithValue(true)],
+            child: Theme(
+              data: themeMode == ThemeMode.dark
+                  ? buildFintechDarkTheme()
+                  : buildFintechLightTheme(),
+              child: FintechPainelScaffold(
+                navigationShell: navigationShell,
+                section: section,
+                role: role,
+              ),
+            ),
+          );
+        }
+
+        final isDesktop = width >= _desktopBreakpoint;
 
         if (isDesktop) {
           return Scaffold(
@@ -100,7 +128,7 @@ class PainelShell extends ConsumerWidget {
         }
 
         // Tablet/janela média (600–1023dp): NavigationRail fixo (MD3).
-        if (constraints.maxWidth >= _mediumBreakpoint) {
+        if (width >= ClxLayout.narrowBreakpoint) {
           return Scaffold(
             backgroundColor: clx.bg2,
             body: Row(

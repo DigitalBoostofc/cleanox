@@ -67,7 +67,7 @@ class FinVisaoGeralScreen extends ConsumerWidget {
     final limites = ref.watch(finLimitesProvider).valueOrNull ?? const [];
     final pendentes = ref.watch(finPendentesProvider).valueOrNull ?? const [];
     final mobile = finIsMobile(context);
-    final fintech = ref.watch(isFintechCleanProvider);
+    final fintech = ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
 
     // Mobile (F-741): o cabeçalho (título + seletor de mês) rola junto com o
     // conteúdo, em vez de ser uma faixa fixa acima do Expanded.
