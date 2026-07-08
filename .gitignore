@@ -13,3 +13,6 @@ node_modules/
 .claude/skills/material-3
 skills-lock.json
 .mcp.json
+
+# APK/AAB build artifacts (CI deposita aqui)
+dist/

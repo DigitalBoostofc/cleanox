@@ -20,9 +20,14 @@
 
 // ── CREATE: aplica o efeito do lançamento (se pago) ──────────────────────────
 onRecordCreate((e) => {
+  const lib = require(`${__hooks}/fin_saldo_lib.js`);
+  // Pré-validação ANTES de e.next(): se o lançamento vai mexer no saldo, a
+  // conta_id PRECISA existir. Um throw aqui aborta o save antes de qualquer
+  // persist — nada fica órfão e nada de "revert" mentiroso pós-commit (D2-001).
+  lib.assertCreateResolves(e.app, e.record);
   e.next(); // persiste o lançamento (comita)
   try {
-    require(`${__hooks}/fin_saldo_lib.js`).applyCreate(e.app, e.record);
+    lib.applyCreate(e.app, e.record);
   } catch (err) {
     // Falha ao ajustar o saldo de um lançamento JÁ persistido (dinheiro): loga
     // ALTO e relança para o cliente ver o erro e reconciliar (não engole).
@@ -37,6 +42,10 @@ onRecordUpdate((e) => {
   // Snapshot do ORIGINAL capturado ANTES de e.next() (que sobrescreve o registro).
   const orig = e.record.original ? e.record.original() : null;
   const before = orig ? lib.snapshot(orig) : { contaId: "", efeito: 0 };
+  // Pré-validação ANTES de e.next(): toda conta que sofrerá incremento não-nulo
+  // (destino, e a antiga no caso de troca de conta) precisa existir. Aborta o
+  // save antes de persistir se cairia num saldo-orphan (D2-001).
+  lib.assertUpdateResolves(e.app, before, e.record);
   e.next(); // persiste a atualização
   try {
     lib.applyUpdate(e.app, before, e.record);
@@ -50,7 +59,18 @@ onRecordUpdate((e) => {
 onRecordDelete((e) => {
   const lib = require(`${__hooks}/fin_saldo_lib.js`);
   const before = lib.snapshot(e.record); // ANTES de e.next() apagar
+  // Pré-checa a conta ANTES de apagar. Ao contrário de create/update, aqui NÃO
+  // abortamos se a conta sumiu: apagar um lançamento sempre deve ser possível e,
+  // se a conta já não existe, não há saldo a estornar (D2-001 — sem throw pós-
+  // commit mentindo "revertida"). Se a conta existe, o estorno roda normalmente.
+  const precisaEstorno = before.efeito !== 0;
+  const contaViva = precisaEstorno && lib.contaExiste(e.app, before.contaId);
   e.next(); // apaga o lançamento
+  if (precisaEstorno && !contaViva) {
+    console.error("[fin_saldo] delete do lançamento " + before.id + " com conta '" +
+      before.contaId + "' inexistente — sem estorno de saldo (conta já removida).");
+    return;
+  }
   try {
     lib.applyDelete(e.app, before);
   } catch (err) {
