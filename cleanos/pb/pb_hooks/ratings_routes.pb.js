@@ -114,53 +114,57 @@ routerAdd("GET", "/api/cleanos/ratings/pending", (e) => {
     return e.json(400, { error: "Parâmetro phone é obrigatório" });
   }
 
-  // 3) Janela de 7 dias (comparação feita em JS; dataset < 50 OS/mês)
+  // 3) Janela de 7 dias — o corte de data agora vai no WHERE do SQL (não em JS).
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().replace("T", " ").slice(0, 23) + "Z";
 
-  // 4) Carrega todas as OS concluidas e filtra em JS
-  const allConcluida = $app.findAllRecords(
-    "ordens_servico",
-    $dbx.hashExp({ status: "concluida" })
-  );
+  // 4) Candidatas em SQL: WHERE + ORDER BY + LIMIT/OFFSET em nível de banco (via
+  //    findRecordsByFilter). ANTES: findAllRecords carregava TODAS as concluídas
+  //    e filtrava/ordenava em JS. AGORA o SQLite já devolve só o subconjunto
+  //    elegível, ordenado, paginado — o único trabalho em JS é o match de
+  //    telefone (precisa do cofre `clientes` + normalização de phonesMatch, que
+  //    não dá pra expressar em filtro relacional).
+  //    Predicados empurrados pro WHERE:
+  //      status = "concluida"
+  //      avaliacao_nota entre 1 e 3
+  //      avaliacao_motivo = "" (vazio ⇒ ainda precisa de motivo; regra ""-never-null)
+  //      avaliacao_solicitada_em >= janela de 7 dias
+  //    Ordenado por -avaliacao_solicitada_em (mais recente primeiro).
+  const FILTER =
+    'status = "concluida" && avaliacao_nota >= 1 && avaliacao_nota <= 3 ' +
+    '&& avaliacao_motivo = "" && avaliacao_solicitada_em >= {:since}';
+  const SORT = "-avaliacao_solicitada_em";
+  const PAGE = 200;
 
-  // Ordena por avaliacao_solicitada_em desc (mais recente primeiro)
-  allConcluida.sort(function(a, b) {
-    const ta = a.getString("avaliacao_solicitada_em") || "";
-    const tb = b.getString("avaliacao_solicitada_em") || "";
-    if (tb > ta) return 1;
-    if (tb < ta) return -1;
-    return 0;
-  });
-
-  for (let i = 0; i < allConcluida.length; i++) {
-    const os = allConcluida[i];
-
-    // Filtra nota 1–3
-    const notaVal = Number(os.get("avaliacao_nota") || 0);
-    if (notaVal < 1 || notaVal > 3) continue;
-
-    // Filtra motivo vazio
-    const motivoVal = String(os.get("avaliacao_motivo") || "").trim();
-    if (motivoVal) continue;
-
-    // Filtra dentro da janela de 7 dias
-    const solicitadaStr = os.getString("avaliacao_solicitada_em") || "";
-    if (!solicitadaStr || solicitadaStr < sevenDaysAgo) continue;
-
-    // Verifica telefone do cliente server-side (NUNCA vaza na resposta)
+  for (let offset = 0; ; offset += PAGE) {
+    let candidatas;
     try {
-      const cid = lib.relId(os.get("cliente"));
-      if (!cid) continue;
-      const cliente    = $app.findRecordById("clientes", cid);
-      if (lib.phonesMatch(cliente.getString("telefone"), rawPhone)) {
-        return e.json(200, {
-          os_id:   os.id,
-          servico: os.getString("tipo_servico_nome") || "",
-        });
-      }
+      candidatas = $app.findRecordsByFilter(
+        "ordens_servico", FILTER, SORT, PAGE, offset, { since: sevenDaysAgo }
+      );
     } catch (_) {
-      continue;
+      break; // filtro/consulta falhou — trata como "nada pendente"
     }
+    if (!candidatas || candidatas.length === 0) break;
+
+    for (let i = 0; i < candidatas.length; i++) {
+      const os = candidatas[i];
+      // Verifica telefone do cliente server-side (NUNCA vaza na resposta).
+      try {
+        const cid = lib.relId(os.get("cliente"));
+        if (!cid) continue;
+        const cliente = $app.findRecordById("clientes", cid);
+        if (lib.phonesMatch(cliente.getString("telefone"), rawPhone)) {
+          return e.json(200, {
+            os_id:   os.id,
+            servico: os.getString("tipo_servico_nome") || "",
+          });
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+
+    if (candidatas.length < PAGE) break; // última página
   }
 
   return e.json(200, { os_id: null });
