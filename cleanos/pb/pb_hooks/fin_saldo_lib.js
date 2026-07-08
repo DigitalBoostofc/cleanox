@@ -25,15 +25,23 @@
  * exatamente uma vez. Se o OS→Financeiro também mexesse no saldo, contaria em
  * dobro — por isso foi removido de lá.
  *
- * SALDO-ORPHAN → REVERTE (dinheiro real, sem meio-termo): se `incSaldo` afetar 0
- * linhas (conta_id inexistente — relations do PB nem sempre têm FK SQL forçada),
- * o crédito/estorno NÃO pegou. Antes isso era best-effort (só logava um warn) e o
- * lançamento persistia SEM ajuste de saldo — um sub-crédito silencioso. Agora
- * `applyCreate/Update/Delete` LOGAM em nível ALTO e **lançam**: como estes
- * aplicadores rodam DENTRO da transação do hook de modelo (via `e.app`), o throw
- * propaga e a operação inteira faz ROLLBACK (o lançamento nem chega a existir).
- * Nada de saldo em conta fantasma; o erro sobe ao cliente para correção. Reverter
- * > orfanar. (Os endpoints /fin/* já revertiam via BadRequestError em ajusteConta.)
+ * SALDO-ORPHAN → PRÉ-VALIDA ANTES DE PERSISTIR (dinheiro real): se `incSaldo`
+ * afetasse 0 linhas (conta_id inexistente — relations do PB nem sempre têm FK SQL
+ * forçada), o crédito/estorno NÃO pegaria e o lançamento ficaria SEM ajuste de
+ * saldo — um sub-crédito silencioso.
+ *
+ * ATENÇÃO (verificado empiricamente — ver header de fin_saldo.pb.js): um throw
+ * DEPOIS de `e.next()` NÃO faz rollback do lançamento já comitado. Então NÃO dá
+ * para confiar num throw pós-next para "reverter": o registro persistiria órfão e
+ * a mensagem "operação revertida" seria mentira (o cliente veria 400 e o retry
+ * DUPLICARIA o lançamento). Por isso a integridade é garantida ANTES de `e.next()`:
+ * os hooks de modelo chamam `assertCreateResolves/assertUpdateResolves` (e a
+ * pré-checagem de delete) que LANÇAM se algum incremento não-nulo cairia numa
+ * conta inexistente — abortando o save ANTES de qualquer persist. Nada é gravado,
+ * nada fica órfão, e o erro é honesto (a operação de fato não aconteceu).
+ * `incSaldoOrThrow`/`failNoRows` permanecem como rede de defesa em profundidade
+ * (caso raríssimo de a conta sumir entre a pré-checagem e o apply). Os endpoints
+ * /fin/* já revalidavam via BadRequestError em ajusteConta/transferir.
  */
 
 /**
@@ -64,23 +72,80 @@ function snapshot(rec) {
 }
 
 /**
- * SALDO-ORPHAN: um ajuste de saldo que NÃO afetou linha alguma (delta não-nulo,
- * 0 linhas) — quase sempre conta_id inexistente (relation sem FK SQL forçada).
- * Loga em nível ALTO (logger estruturado + console, garantia) e LANÇA: rodando
- * dentro da transação do hook de modelo, o throw força o ROLLBACK da operação
- * inteira, então o lançamento não persiste sem o crédito/estorno correspondente.
+ * SALDO-ORPHAN (rede de defesa em profundidade): um ajuste de saldo que NÃO afetou
+ * linha alguma (delta não-nulo, 0 linhas) — quase sempre conta_id inexistente
+ * (relation sem FK SQL forçada). O caminho normal já é barrado ANTES de e.next()
+ * pelas pré-validações (`assertCreateResolves`/`assertUpdateResolves`), então aqui
+ * só se chega numa corrida rara (conta apagada entre a pré-checagem e o apply).
+ * Loga em nível ALTO (logger estruturado + console) e LANÇA para o cliente ver e
+ * reconciliar. NÃO afirma "rollback": chamado pós-`e.next()` num hook de modelo, o
+ * throw NÃO desfaz o lançamento já comitado — a mensagem é honesta sobre isso.
  */
 function failNoRows(app, kind, lancId, contaId, delta) {
   const msg =
     "[fin_saldo][SALDO-ORPHAN] incSaldo afetou 0 linhas (" + kind + "): " +
     "lancamento=" + (lancId || "?") + " conta=" + (contaId || "?") +
-    " delta=" + delta + " — conta inexistente/relation quebrada. Operação " +
-    "REVERTIDA (rollback) para não persistir lançamento sem ajuste de saldo.";
+    " delta=" + delta + " — conta inexistente/relation quebrada APÓS a " +
+    "pré-validação (corrida rara). Saldo NÃO ajustado; requer reconciliação.";
   try { app.logger().error(msg); } catch (_) {}
   console.error(msg);
   throw new BadRequestError(
-    "Conta '" + (contaId || "?") + "' não encontrada ao ajustar o saldo; operação revertida."
+    "Conta '" + (contaId || "?") + "' não encontrada ao ajustar o saldo; " +
+    "saldo não ajustado — verifique o lançamento " + (lancId || "?") + "."
   );
+}
+
+/**
+ * Existência barata de uma conta — para PRÉ-VALIDAR antes de `e.next()`. Sem FK SQL
+ * forçada nas relations do PB, um `conta_id` pode apontar para nada; checamos aqui
+ * para abortar o save ANTES de persistir. Reaproveita `findRecordById` (idêntico ao
+ * `saldoAtual`), que lança se não achar — devolvemos boolean.
+ */
+function contaExiste(app, contaId) {
+  const id = String(contaId || "");
+  if (!id) return false;
+  try {
+    app.findRecordById("fin_contas", id);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Pré-validação de um incremento (chamar ANTES de `e.next()`): se o delta é
+ * não-nulo e a conta não existe, LANÇA — abortando o save antes de qualquer
+ * persist (nada fica órfão; mensagem honesta pois a operação não aconteceu).
+ * Delta nulo → nada a ajustar → não exige conta (lançamentos pendentes/previstos).
+ */
+function assertContaIncrementavel(app, kind, contaId, delta) {
+  if (Math.round(Number(delta) * 100) !== 0 && !contaExiste(app, contaId)) {
+    throw new BadRequestError(
+      "Conta '" + (contaId || "?") + "' não encontrada (" + kind + "); " +
+      "lançamento não gravado."
+    );
+  }
+}
+
+/** Pré-valida o CREATE — mesma lógica de delta do `applyCreate`. Chamar ANTES de
+ *  `e.next()`. */
+function assertCreateResolves(app, rec) {
+  const s = snapshot(rec);
+  assertContaIncrementavel(app, "create", s.contaId, s.efeito);
+}
+
+/** Pré-valida o UPDATE — mesmos incrementos que o `applyUpdate` fará (mesma conta:
+ *  delta líquido; troca de conta: estorno na antiga + aplica na nova). `before` é o
+ *  snapshot do original; `rec` já carrega os valores novos. Chamar ANTES de
+ *  `e.next()`. */
+function assertUpdateResolves(app, before, rec) {
+  const after = snapshot(rec);
+  if (before.contaId === after.contaId) {
+    assertContaIncrementavel(app, "update", after.contaId, after.efeito - before.efeito);
+    return;
+  }
+  assertContaIncrementavel(app, "update-estorno", before.contaId, -before.efeito);
+  assertContaIncrementavel(app, "update-aplica", after.contaId, after.efeito);
 }
 
 /** Aplica um incremento e REVERTE (throw) se um delta não-nulo não afetou linha
@@ -231,6 +296,9 @@ module.exports = {
   snapshot,
   incSaldo,
   saldoAtual,
+  contaExiste,
+  assertCreateResolves,
+  assertUpdateResolves,
   applyCreate,
   applyUpdate,
   applyDelete,
