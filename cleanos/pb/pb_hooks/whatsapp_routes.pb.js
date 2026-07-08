@@ -244,8 +244,14 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
 // dados REAIS da OS (service_snapshot, checklist_exec, adicionais, observacoes_prof).
 // Mesma infra do /a-caminho: 409 quando o WhatsApp da empresa não está conectado.
 routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
-  // TODO rate-limit: hoje o reenvio do relatório é ilimitado (cada POST dispara
-  // uma nova mensagem ao cliente). Adicionar um throttle por OS/usuário.
+  // RATE-LIMIT por OS (throttle): cada POST dispara uma mensagem WhatsApp ao
+  // cliente; sem limite, um duplo-clique/retry/abuso spamma o cliente. Como a v0.39
+  // deste binário não expõe $apis.rateLimit e o estado em memória não é confiável
+  // entre as VMs isoladas dos handlers, o throttle é PERSISTENTE e por-recurso:
+  // usa o carimbo `relatorio_enviado_em` (já gravado ao final do envio) como
+  // cooldown. Um novo envio dentro de RELATORIO_COOLDOWN_SEG após o último → 429.
+  // Reenvio legítimo (relatório corrigido) continua possível após o cooldown.
+  const RELATORIO_COOLDOWN_SEG = 60;
   const h      = require(`${__hooks}/whatsapp_helpers.js`);
   const uazapi = require(`${__hooks}/uazapi.js`);
   const lib    = require(`${__hooks}/os_logic.js`);
@@ -423,6 +429,24 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
     );
   }
 
+  // 4b) RATE-LIMIT por OS: bloqueia reenvio dentro do cooldown desde o último
+  //     `relatorio_enviado_em`. Antes de qualquer chamada externa (UAZAPI/send).
+  const ultimoEnvio = os.getString("relatorio_enviado_em"); // "" se nunca enviado
+  if (ultimoEnvio) {
+    const ultimoMs = new Date(ultimoEnvio).getTime();
+    if (!isNaN(ultimoMs)) {
+      const decorridoSeg = (Date.now() - ultimoMs) / 1000;
+      if (decorridoSeg >= 0 && decorridoSeg < RELATORIO_COOLDOWN_SEG) {
+        const faltamSeg = Math.ceil(RELATORIO_COOLDOWN_SEG - decorridoSeg);
+        return e.json(429, {
+          error: "Relatório já enviado há pouco. Aguarde " + faltamSeg +
+            "s para reenviar.",
+          retryAfter: faltamSeg,
+        });
+      }
+    }
+  }
+
   // 5) Verificar configuração WhatsApp.
   const cfg           = h.getAppConfig($app);
   const instanceToken = cfg.getString("whatsapp_instance_token");
@@ -461,6 +485,12 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
   }
   const cliente   = $app.findRecordById("clientes", clienteId);
   const numero    = uazapi.normalizePhone(cliente.getString("telefone"));
+
+  // Telefone ausente/inválido → normalizePhone devolve "". Aborta com erro de
+  // negócio em vez de mandar sendText a um número vazio (espelha /a-caminho).
+  if (!numero) {
+    throw new BadRequestError("O cliente desta OS não possui telefone válido para o relatório.");
+  }
 
   // 8) Nome do profissional (best-effort; não bloqueia se ausente).
   let profNome = "";
