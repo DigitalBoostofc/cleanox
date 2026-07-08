@@ -509,13 +509,15 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
   const observacoes = readJSON(os, "observacoes_prof", []);
   const texto = buildRelatorioTexto(os, snapshot, checklist, adicionais, observacoes, profNome);
 
-  // 10) Envia a mensagem.
-  uazapi.sendText(instanceToken, numero, texto);
-
-  // 11) Grava relatorio_enviado_em server-side (bypass do guard de request).
+  // 10) Grava relatorio_enviado_em ANTES do envio (check-and-set: requisições
+  //     concorrentes que passarem no cooldown acima verão o carimbo persistido
+  //     e serão bloqueadas em 429; não espera o envio externo para gravar).
   const sentAt = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
   os.set("relatorio_enviado_em", sentAt);
   $app.save(os);
+
+  // 11) Envia a mensagem.
+  uazapi.sendText(instanceToken, numero, texto);
 
   // NUNCA retorna número, texto com número, nem telefone.
   return e.json(200, { ok: true, sentAt });
