@@ -4,7 +4,7 @@
 ///   flutter run -d ANDROID_DEVICE_ID --dart-define=PB_URL=http://10.0.2.2:8090 \
 ///     -t lib/main_profissional.dart
 ///   (10.0.2.2 é o host da máquina visto de dentro do emulador Android.)
-/// Produção (default de PB_URL já é https://cleanox.wenox.com.br):
+/// Produção (default de PB_URL já é https://app.cleanox.com.br):
 ///   flutter build apk --release -t lib/main_profissional.dart
 ///
 /// iOS fica bloqueado pelo gate do dono (G-1: conta Apple + Mac/CI).

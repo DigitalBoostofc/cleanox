@@ -123,10 +123,10 @@ export function buildRelatorioOS(input: BuildRelatorioOSInput): RelatorioOS {
 
 /**
  * Link de avaliação enviado ao cliente. Aponta para o domínio real de produção
- * (cleanox.wenox.com.br) na rota /avaliar/{osId}.
+ * (app.cleanox.com.br) na rota /avaliar/{osId}.
  */
 export function avaliacaoLink(rel: RelatorioOS): string {
-  return `https://cleanox.wenox.com.br/avaliar/${encodeURIComponent(rel.osId)}`
+  return `https://app.cleanox.com.br/avaliar/${encodeURIComponent(rel.osId)}`
 }
 
 /**
