@@ -25,14 +25,15 @@
  * exatamente uma vez. Se o OS→Financeiro também mexesse no saldo, contaria em
  * dobro — por isso foi removido de lá.
  *
- * SUB-CRÉDITO SILENCIOSO (F-MÉDIO): o lançamento já foi commitado no e.next()
- * quando o saldo é ajustado. Se `incSaldo` afetar 0 linhas (conta_id inexistente
- * — relations do PB nem sempre têm FK SQL forçada), o lançamento persiste SEM
- * crédito. O design é best-effort (não revertemos o lançamento), mas isso NÃO
- * pode passar silencioso: `applyCreate/Update/Delete` checam o rowsAffected de
- * `incSaldo` e, quando um delta não-nulo afeta 0 linhas, LOGAM EM NÍVEL ALTO
- * (`$app.logger().error` + `console.error`) com os ids (lançamento, conta) para
- * permitir reconciliação manual. Sinalizar > ignorar.
+ * SALDO-ORPHAN → REVERTE (dinheiro real, sem meio-termo): se `incSaldo` afetar 0
+ * linhas (conta_id inexistente — relations do PB nem sempre têm FK SQL forçada),
+ * o crédito/estorno NÃO pegou. Antes isso era best-effort (só logava um warn) e o
+ * lançamento persistia SEM ajuste de saldo — um sub-crédito silencioso. Agora
+ * `applyCreate/Update/Delete` LOGAM em nível ALTO e **lançam**: como estes
+ * aplicadores rodam DENTRO da transação do hook de modelo (via `e.app`), o throw
+ * propaga e a operação inteira faz ROLLBACK (o lançamento nem chega a existir).
+ * Nada de saldo em conta fantasma; o erro sobe ao cliente para correção. Reverter
+ * > orfanar. (Os endpoints /fin/* já revertiam via BadRequestError em ajusteConta.)
  */
 
 /**
@@ -63,28 +64,31 @@ function snapshot(rec) {
 }
 
 /**
- * Sinaliza (nível ALTO) um ajuste de saldo que NÃO afetou linha alguma: o
- * lançamento já está commitado mas o crédito/estorno não pegou — quase sempre
- * conta_id inexistente (relation sem FK SQL forçada). Não reverte o lançamento
- * (design best-effort); só EXPÕE os ids para reconciliação manual. Loga no
- * logger estruturado do app E no console (garantia).
+ * SALDO-ORPHAN: um ajuste de saldo que NÃO afetou linha alguma (delta não-nulo,
+ * 0 linhas) — quase sempre conta_id inexistente (relation sem FK SQL forçada).
+ * Loga em nível ALTO (logger estruturado + console, garantia) e LANÇA: rodando
+ * dentro da transação do hook de modelo, o throw força o ROLLBACK da operação
+ * inteira, então o lançamento não persiste sem o crédito/estorno correspondente.
  */
-function warnNoRows(app, kind, lancId, contaId, delta) {
+function failNoRows(app, kind, lancId, contaId, delta) {
   const msg =
-    "[fin_saldo][RECONCILIAR] incSaldo afetou 0 linhas (" + kind + "): " +
+    "[fin_saldo][SALDO-ORPHAN] incSaldo afetou 0 linhas (" + kind + "): " +
     "lancamento=" + (lancId || "?") + " conta=" + (contaId || "?") +
-    " delta=" + delta + " — conta inexistente/relation quebrada? O lançamento " +
-    "PERSISTIU SEM ajuste de saldo; reconcilie manualmente.";
+    " delta=" + delta + " — conta inexistente/relation quebrada. Operação " +
+    "REVERTIDA (rollback) para não persistir lançamento sem ajuste de saldo.";
   try { app.logger().error(msg); } catch (_) {}
   console.error(msg);
+  throw new BadRequestError(
+    "Conta '" + (contaId || "?") + "' não encontrada ao ajustar o saldo; operação revertida."
+  );
 }
 
-/** Aplica um incremento e sinaliza se um delta não-nulo não afetou linha alguma.
- *  Espelha o guard de ajusteConta (rowsAffected==0 && delta!=0 → problema). */
-function incSaldoOrWarn(app, kind, lancId, contaId, delta) {
+/** Aplica um incremento e REVERTE (throw) se um delta não-nulo não afetou linha
+ *  alguma. Espelha o guard de ajusteConta (rowsAffected==0 && delta!=0 → erro). */
+function incSaldoOrThrow(app, kind, lancId, contaId, delta) {
   const affected = incSaldo(app, contaId, delta);
   if (affected === 0 && Math.round(Number(delta) * 100) !== 0) {
-    warnNoRows(app, kind, lancId, contaId, delta);
+    failNoRows(app, kind, lancId, contaId, delta);
   }
   return affected;
 }
@@ -125,7 +129,7 @@ function saldoAtual(app, contaId) {
 /** CREATE de lançamento: aplica o efeito (se pago). Chamar APÓS e.next(). */
 function applyCreate(app, rec) {
   const s = snapshot(rec);
-  if (s.efeito !== 0) incSaldoOrWarn(app, "create", s.id, s.contaId, s.efeito);
+  if (s.efeito !== 0) incSaldoOrThrow(app, "create", s.id, s.contaId, s.efeito);
 }
 
 /**
@@ -138,20 +142,22 @@ function applyUpdate(app, before, rec) {
   const after = snapshot(rec);
   if (before.contaId === after.contaId) {
     const delta = after.efeito - before.efeito;
-    if (delta !== 0) incSaldoOrWarn(app, "update", after.id, after.contaId, delta);
+    if (delta !== 0) incSaldoOrThrow(app, "update", after.id, after.contaId, delta);
     return;
   }
-  // Troca de conta: estorna na antiga + aplica na nova, atomicamente.
+  // Troca de conta: estorna na antiga + aplica na nova, atomicamente. Um throw
+  // de incSaldoOrThrow reverte esta runInTransaction E propaga p/ o hook de
+  // modelo, revertendo a operação inteira (conta antiga/nova inconsistente).
   app.runInTransaction((txApp) => {
-    if (before.efeito !== 0) incSaldoOrWarn(txApp, "update-estorno", after.id, before.contaId, -before.efeito);
-    if (after.efeito !== 0) incSaldoOrWarn(txApp, "update-aplica", after.id, after.contaId, after.efeito);
+    if (before.efeito !== 0) incSaldoOrThrow(txApp, "update-estorno", after.id, before.contaId, -before.efeito);
+    if (after.efeito !== 0) incSaldoOrThrow(txApp, "update-aplica", after.id, after.contaId, after.efeito);
   });
 }
 
 /** DELETE de lançamento: estorna o efeito. `before` é o snapshot capturado
  *  ANTES de e.next() apagar o registro. */
 function applyDelete(app, before) {
-  if (before.efeito !== 0) incSaldoOrWarn(app, "delete", before.id, before.contaId, -before.efeito);
+  if (before.efeito !== 0) incSaldoOrThrow(app, "delete", before.id, before.contaId, -before.efeito);
 }
 
 /* ─────────────────────────── Operações de endpoint ─────────────────────────── */
