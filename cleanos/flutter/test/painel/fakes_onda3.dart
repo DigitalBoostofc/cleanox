@@ -12,6 +12,7 @@ import 'package:cleanos/core/repositories/disponibilidade_repository.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
 import 'package:cleanos/core/repositories/servicos_repository.dart';
 import 'package:cleanos/core/repositories/usuarios_repository.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 /* ─────────────────────────── builders ─────────────────────────── */
 
@@ -187,6 +188,26 @@ class FakeUsuariosFull implements UsuariosRepository {
   @override
   Future<void> delete(String id) async {
     deleteCount++;
+  }
+}
+
+/// Fake de `UsuariosRepository` que bloqueia o delete com um 400 do PocketBase
+/// (simula o hook `prof_delete.pb.js` quando há OS em aberto).
+class FakeUsuariosDeleteBlocked extends FakeUsuariosFull {
+  FakeUsuariosDeleteBlocked({required List<User> seed}) : super(seed: seed);
+
+  /// Mensagem PT-BR retornada pelo hook (campo `message` do erro 400).
+  static const String blockedMessage =
+      'Não é possível excluir este profissional: ele possui uma ordem de '
+      'serviço em aberto (não concluída/cancelada). Conclua ou cancele essa '
+      'ordem de serviço antes de excluir o profissional.';
+
+  @override
+  Future<void> delete(String id) async {
+    throw ClientException(
+      statusCode: 400,
+      response: {'message': blockedMessage},
+    );
   }
 }
 

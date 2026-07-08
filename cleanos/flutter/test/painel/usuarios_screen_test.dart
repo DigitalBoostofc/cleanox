@@ -78,6 +78,78 @@ void main() {
       expect(find.byType(ErrorBanner), findsOneWidget);
     });
 
+    testWidgets(
+      'excluir profissional: diálogo avisa que agenda será excluída',
+      (tester) async {
+        final prof = fakeUser(id: 'p1', name: 'Bia Prof', role: Role.profissional);
+        final repo = FakeUsuariosFull(seed: [prof]);
+        await pumpPainel(
+          tester,
+          const UsuariosScreen(),
+          overrides: [
+            ...painelOverrides(user: painelUser()),
+            usuariosRepositoryProvider.overrideWithValue(repo),
+          ],
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Toca no botão excluir do profissional.
+        await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+        await tester.pumpAndSettle();
+
+        // O diálogo deve mencionar a exclusão da agenda de disponibilidade.
+        expect(
+          find.textContaining('agenda de disponibilidade'),
+          findsOneWidget,
+        );
+
+        // Confirma → delete é chamado no repositório.
+        await tester.tap(find.widgetWithText(ClxButton, 'Excluir'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(repo.deleteCount, 1);
+      },
+    );
+
+    testWidgets(
+      'excluir profissional: bloqueado por OS em aberto → exibe mensagem real do PB',
+      (tester) async {
+        final prof = fakeUser(id: 'p2', name: 'Carlos Prof', role: Role.profissional);
+        final repo = FakeUsuariosDeleteBlocked(seed: [prof]);
+        await pumpPainel(
+          tester,
+          const UsuariosScreen(),
+          overrides: [
+            ...painelOverrides(user: painelUser()),
+            usuariosRepositoryProvider.overrideWithValue(repo),
+          ],
+        );
+        await tester.pump();
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+        await tester.pumpAndSettle();
+
+        // Confirma no diálogo.
+        await tester.tap(find.widgetWithText(ClxButton, 'Excluir'));
+        await tester.pump();
+        await tester.pump();
+
+        // A mensagem real do backend deve aparecer no toast (SnackBar).
+        expect(
+          find.textContaining('ordem de serviço em aberto'),
+          findsOneWidget,
+        );
+        // A mensagem genérica NÃO deve aparecer.
+        expect(
+          find.text('Não foi possível excluir o usuário.'),
+          findsNothing,
+        );
+      },
+    );
+
     testWidgets('cria: valida vazio e depois salva → create no repo', (
       tester,
     ) async {
