@@ -1,9 +1,9 @@
-/// painel_shell.dart — Casco do PAINEL admin (Flutter Web · Onda 1 da Fase 3).
+/// painel_shell.dart — Casco do PAINEL admin (Flutter Web + APK).
 ///
-/// Espelha `PainelLayout.tsx`: sidebar com o menu por papel, topbar (título +
-/// tema + usuário + logout), overlay/drawer no mobile. Desktop-first:
-///   • largura ≥ 1024px → sidebar FIXA ao lado do conteúdo;
-///   • largura  < 1024px → sidebar vira Drawer (hambúrguer na topbar).
+/// Layouts:
+///   • APK (`isFintechClean`) → [FintechPainelScaffold] (bottom nav 5 itens);
+///   • Web &lt; 600dp → mesmo casco fintech + tema Fintech Clean;
+///   • Web ≥ 1024px → sidebar fixa; 600–1023dp → NavigationRail;
 /// Conteúdo limitado a ~1200px (`ClxLayout.contentMaxW`).
 ///
 /// ── ROTAS ANINHADAS (StatefulShellRoute) ────────────────────────────────────

@@ -3,8 +3,9 @@
 /// `ThemeData` sozinha não cobre — o mock inverte a superfície (fundo `ink`,
 /// texto `bg`) mesmo no tema claro, o que não é um papel padrão do
 /// `ColorScheme`/`CleanoxColors` (nenhum dos dois define "card com cores
-/// trocadas"). Usado só quando `isFintechCleanProvider` é true; a Web nunca
-/// importa este arquivo.
+/// trocadas"). Exibido no APK e na web estreita (&lt;600dp) quando
+/// `FinVisaoGeralScreen` liga o modo fintech; no desktop web clássico a
+/// tela usa a grade de KPIs sem este hero.
 library;
 
 import 'package:flutter/material.dart';

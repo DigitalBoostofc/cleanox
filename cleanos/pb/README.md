@@ -1,12 +1,14 @@
 # CleanOS — Backend (PocketBase)
 
 Backend da ferramenta interna **CleanOS** (projeto Cleanox), uma empresa de
-higienização de estofados a domicílio (< 50 OS/mês). Stack conforme **ADR-003**:
-PocketBase (Go + SQLite, binário único) numa VPS, atrás de proxy HTTPS, servindo
-um PWA React/Vite por papel.
+higienização de estofados a domicílio (< 50 OS/mês).
 
-> **Fonte da verdade do escopo:** `../../docs/MVP-BUILD-SPEC.md`.
-> Os docs `04` e `08` são histórico (citam Asaas/Flutter/GPS/split — REMOVIDOS).
+**Stack canônica:** PocketBase (Go + SQLite, binário único) numa VPS + **frontend
+100% Flutter** (`../flutter/`) — Web (painel) e APK Android unificado. Não há
+frontend React no repositório.
+
+> **Fonte da verdade do escopo/DNA:** `../../CLAUDE.md` e `../../docs/MVP-BUILD-SPEC.md`.
+> Docs `04`/`08` e trechos antigos com React/PWA/Asaas são **histórico**, não o stack atual.
 
 ---
 

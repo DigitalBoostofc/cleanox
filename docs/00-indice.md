@@ -2,6 +2,8 @@
 
 **Data de referência:** 2026-06-25
 
+> ⚠ **Stack de implementação (atual):** **Flutter + PocketBase**. DNA vivo e orientações de dev: [`../CLAUDE.md`](../CLAUDE.md). Frontend em `cleanos/flutter/` apenas. Trechos abaixo que citam React/PWA/Vite são **histórico de descoberta**, não o código de produção.
+
 Este repositório de documentos é a fonte única de verdade para a fase de descoberta, arquitetura e planejamento do MVP do Cleanox. Reúne pesquisa de mercado, modelagem de negócio, decisões de arquitetura, análise de ameaças, backlog priorizado, fluxos de produto e plano técnico de sprint — tudo produzido antes do início do desenvolvimento para alinhar tecnologia, negócio e compliance em um só lugar.
 
 **Premissa central:** a marca Cleanox é dona do relacionamento com o cliente e do dinheiro; o prestador é um executor anônimo. Nenhum dado de contato (telefone, endereço, e-mail) do cliente é visível ao prestador fora do período estrito de execução do serviço, e nenhum dado do prestador (CPF, Pix, telefone) é visível ao cliente em nenhum momento. O modelo de anti-desintermediação — GPS + botão "a caminho" no lugar de número mascarado — é a principal diferença técnica e operacional que protege a recorrência dentro da plataforma.
@@ -25,7 +27,7 @@ Este repositório de documentos é a fonte única de verdade para a fase de desc
 
 ---
 
-> ⚠ **Nota de versão:** o MVP foi simplificado. O documento de verdade para construção é **[MVP-BUILD-SPEC.md](MVP-BUILD-SPEC.md)**. Os documentos 04 (arquitetura) e 08 (plano técnico) registram a exploração inicial mais ampla (com Asaas, Flutter, GPS, split) que foi enxugada — leia-os como histórico/aprofundamento, não como o escopo atual.
+> ⚠ **Nota de versão:** o MVP foi simplificado e o frontend migrou para **Flutter full** (Web + APK). DNA operacional: **[CLAUDE.md](../CLAUDE.md)**. Escopo de produto enxuto: **[MVP-BUILD-SPEC.md](MVP-BUILD-SPEC.md)** (apêndice técnico de React/PWA está superado). Docs 04/08 e ADR-003 com React são histórico — não implementar a partir deles.
 
 ---
 
@@ -45,9 +47,11 @@ Este repositório de documentos é a fonte única de verdade para a fase de desc
 
 ---
 
-### ADR-003 — Stack: PWA React (Vite) para painel + app do profissional; backend PocketBase (Go+SQLite, binário único) numa VPS.
+### ADR-003 — Stack: Flutter unificado (Web + Android) + backend PocketBase *(superou a versão React/PWA de 2026-06)*
 
-**Decisão:** Frontend é um PWA único em React/Vite que serve o painel (admin/gerente) e o app do profissional (colaborador) por papel — sem app nativo. Backend é PocketBase numa VPS (auth com papéis, API REST/realtime, storage de arquivos e regras de acesso por coleção nativos), atrás de proxy HTTPS, com backup do pb_data. A proteção anti-desvio (profissional não lê telefone/endereço do cliente) é imposta por regras/hooks do PocketBase, não pela UI. (Atualiza ADR-003 anterior: substitui Node/Fastify+PostgreSQL+Redis por PocketBase, e Next.js por React/Vite.)
+**Decisão (atual):** Frontend **100% Flutter** — painel em Flutter Web e app profissional no APK Android unificado (`main_android.dart`), com core compartilhado. Backend é PocketBase numa VPS (auth com papéis, API REST/realtime, storage e regras de acesso por coleção), atrás de proxy HTTPS, com backup do `pb_data`. Anti-desvio é server-side (regras/hooks), não UI.
+
+**Histórico:** a versão 2026-06 previa PWA React/Vite; a reescrita Flutter (jul/2026) a substituiu. O React foi removido do repositório.
 
 ---
 

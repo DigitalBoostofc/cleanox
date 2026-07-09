@@ -1,12 +1,14 @@
 # MVP Build Spec — Cleanox / CleanOS
 
-**Data:** 2026-06-25 | **Versão:** 1.0 | **Para:** dono do negócio + time de desenvolvimento
+**Data:** 2026-06-25 | **Versão:** 1.1 | **Para:** dono do negócio + time de desenvolvimento
+
+> ⚠ **Implementação atual (2026-07):** frontend **100% Flutter** (`cleanos/flutter/`) — painel em Flutter Web + APK Android unificado. Backend PocketBase (`cleanos/pb/`). DNA e orientações de dev: [`../CLAUDE.md`](../CLAUDE.md). Qualquer menção a React/PWA/Vite neste arquivo é **histórico de especificação**; não recriar stack legada.
 
 ---
 
 ## 1. O que é
 
-Uma ferramenta interna para a empresa de higienização de estofados a domicílio (sofá, poltrona, colchão, cadeira, tapete). É composta de dois ambientes: um **painel web** para o dono/atendente gerenciar tudo, e um **app simples no celular** para o profissional consultar os serviços do dia. A prioridade é simplicidade — o volume é pequeno (menos de 50 ordens de serviço por mês) e o objetivo é organizar a operação e proteger o negócio.
+Uma ferramenta interna para a empresa de higienização de estofados a domicílio (sofá, poltrona, colchão, cadeira, tapete). É composta de dois ambientes: um **painel web** (Flutter Web) para o dono/atendente gerenciar tudo, e um **app no celular** (Flutter Android) para o profissional consultar os serviços do dia. A prioridade é simplicidade — o volume é pequeno (menos de 50 ordens de serviço por mês) e o objetivo é organizar a operação e proteger o negócio.
 
 ---
 
@@ -39,7 +41,7 @@ O profissional **nunca vê o telefone do cliente**. Antes do dia do serviço, v�
 | **Financeiro** | Recebido no mês, pendente, ticket médio. Lançamentos com cliente, data, valor, forma de pagamento, status. Coluna "a repassar ao profissional" — admin marca como pago manualmente. |
 | **Usuários** | Cadastro de proprietário, gerente e colaborador (profissional/prestador). |
 
-### App do profissional (celular — web/PWA, funciona no navegador)
+### App do profissional (celular — Flutter Android, APK unificado)
 
 Tela principal **"Meus serviços"**: lista do dia com hora, cliente (nome parcial), serviço, endereço (só no dia), status e botões de ação. Navegação inferior: Meus serviços / Mapa / Perfil.
 
@@ -137,7 +139,7 @@ Estes itens **não serão construídos agora** para manter o sistema simples:
 
 - Gateway de pagamento online / split automático / link de pagamento
 - GPS em tempo real no mapa (a aba "Mapa" abre o Google Maps com o endereço)
-- App nativo (iOS/Android) — o app do profissional é web/PWA, funciona no navegador do celular
+- App iOS (Android já entregue em Flutter; iOS bloqueado por gate do dono)
 - Pagamento online pelo cliente antes do serviço
 - Nota fiscal automática (NFS-e)
 - Detecção por IA de qualquer tipo
@@ -159,9 +161,11 @@ A tecnologia reduz o risco de desvio de clientes — ela não elimina. Como o pr
 - PocketBase = um backend pronto, em binário único (Go + SQLite). Já traz: autenticação com papéis, API REST/realtime, painel administrativo, armazenamento de arquivos (fotos do serviço) e REGRAS DE ACESSO POR COLEÇÃO. Barato e simples de rodar numa VPS — ideal pra <50 OS/mês.
 - Rodar na VPS como serviço (systemd), atrás de um proxy com HTTPS (Caddy ou Nginx), com backup periódico da pasta pb_data.
 
-**Frontend: um PWA em React (Vite).**
-- Um único app web que serve as duas interfaces por papel: o PAINEL (admin/gerente) e o APP DO PROFISSIONAL (colaborador). Sem app nativo. O frontend conversa direto com a API do PocketBase.
-- (Next.js também funcionaria, mas com o PocketBase cuidando do backend, um PWA React+Vite é mais leve e suficiente.)
+**Frontend: Flutter unificado (único frontend do projeto).**
+- **Flutter Web** (`main_painel.dart`) — painel admin/gerente em https://app.cleanox.com.br
+- **Flutter Android** (`main_android.dart`) — APK único; roteamento por papel (admin → painel, profissional → app)
+- Estado: Riverpod · rotas: go_router · SDK: `pocketbase` Dart
+- Web estreita (&lt;600dp) usa o mesmo visual **Fintech Clean** do APK; desktop/tablet web mantém layout clássico (sidebar)
 
 **Papéis (auth do PocketBase):** admin, gerente, profissional(colaborador). O catálogo de serviços (sofá X lugares, poltrona, colchão, tapete, etc.) e os preços são editáveis pelo admin.
 

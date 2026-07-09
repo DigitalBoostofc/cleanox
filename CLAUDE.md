@@ -1,19 +1,34 @@
 # CleanOS — DNA do Projeto
 
+> **Stack canônica: Flutter + PocketBase.** Todo frontend é Flutter
+> (`cleanos/flutter/`). Não existe frontend React no repositório. Novas
+> features, fixes, QA e orientações a agentes/devs são **sempre em Flutter**.
+
 ## 1. O QUE É
 
 Gestão de empresa de limpeza: OS, agenda, clientes, profissionais, financeiro.
 
-**Superfícies:**
-- **Web painel** (Flutter Web, `AppSurface.painel`) — dono/admin/gerente; servido por `pb_public/` em https://app.cleanox.com.br
-- **APK unificado** (Android, `AppSurface.android`) — um único APK; `app_router.dart` roteia por papel (admin → painel, profissional → app)
-- **React legado** (`cleanos/web/`) — CONGELADO; substituído pelo Flutter Web; não deployar mais
+**Superfícies (todas Flutter):**
+- **Web painel** (`AppSurface.painel`, entrypoint `main_painel.dart`) — dono/admin/gerente; servido por `pb_public/` em https://app.cleanox.com.br
+- **APK unificado** (`AppSurface.android`, entrypoint `main_android.dart`) — um único APK; `app_router.dart` roteia por papel (admin → painel, profissional → app)
 
 **Usuários:** dono/admin+gerente (painel web + APK) e profissionais (APK).
+
+**UI responsiva (Fintech Clean):**
+- **APK:** sempre tema e casco fintech (bottom nav 5 itens no painel).
+- **Web estreita (&lt; 600dp):** mesmo visual fintech do APK (login, casco, hero de saldo, empty states, checklist).
+- **Web ≥ 600dp (tablet/desktop):** layout clássico do painel (sidebar/rail) — intencional.
 
 ---
 
 ## 2. STACK & ESTRUTURA
+
+```
+cleanos/
+  flutter/   ← ÚNICO frontend (Web + Android)
+  pb/        ← backend PocketBase (hooks, migrations)
+  tests/     ← integração anti-desvio + unitários de hooks PB
+```
 
 ### Flutter — `cleanos/flutter/`
 SDK local: `~/flutter-sdk` (v3.35.5 no CI). State: Riverpod. Roteamento: go_router.
@@ -26,6 +41,8 @@ SDK local: `~/flutter-sdk` (v3.35.5 no CI). State: Riverpod. Roteamento: go_rout
 | `main_android.dart` | `AppSurface.android` | APK unificado — CI e release usam **só este** |
 
 **Modelos:** `lib/core/models/` (freezed + json_serializable). Repos: `lib/core/repositories/` + implementações em `lib/painel/data/`.
+
+**Orientação a agentes:** editar só `cleanos/flutter/` e `cleanos/pb/`. Nunca propor React, Vite, TSX, ou pasta `web/` de frontend. Referências a React em `docs/` antigos ou `usability-findings.md` são **histórico**, não implementação.
 
 ### PocketBase — `cleanos/pb/`
 - Binário: `cleanos/pb/pocketbase` (v0.39.4)
@@ -50,9 +67,6 @@ SDK local: `~/flutter-sdk` (v3.35.5 no CI). State: Riverpod. Roteamento: go_rout
 - `1700000021_conta_padrao_unica.js` — índice único parcial: só 1 conta `padrao=true`
 - `1700000022_os_cliente_obrigatorio.js` — `minSelect:1` em OS.cliente (obrigatório na fonte)
 
-### React legado — `cleanos/web/` (CONGELADO)
-Vite + TypeScript. `src/lib/pb.ts` usa `import.meta.env.VITE_PB_URL` (var gitignored — bug histórico de prod). Não criar features aqui.
-
 ### CI — `.github/workflows/android-release-profissional.yml`
 - Entrypoint: `lib/main_android.dart`. Package: `br.com.wenox.cleanos`
 - **Gate obrigatório antes do build:** `flutter analyze --fatal-infos` + `flutter test`
@@ -74,7 +88,7 @@ Vite + TypeScript. `src/lib/pb.ts` usa `import.meta.env.VITE_PB_URL` (var gitign
 Throw APÓS `e.next()` NÃO faz rollback. `e.next()` dentro de `runInTransaction` DEADLOCKA. Padrão do `fin_saldo.pb.js`: `assertXxx()` → `e.next()` → efeito colateral. Razão: descoberta empírica neste binário — ignora essa regra e o banco fica num estado irrecuperável sem restore.
 
 **R4 — Mobile NUNCA tabela. Sempre card por item.**
-Qualquer `Table`/`DataTable` ou layout tabular que renderize no APK é bug. Padrão: card com nome na linha, métricas abaixo. Razão: feedback direto do dono após ver número de R$ quebrando no meio em tela pequena.
+Qualquer `Table`/`DataTable` ou layout tabular que renderize no APK **ou web estreita (&lt;600dp)** é bug. Padrão: card com nome na linha, métricas abaixo. Razão: feedback direto do dono após ver número de R$ quebrando no meio em tela pequena.
 
 **R5 — Merge ≠ deploy. Nada sobe pra prod sem ordem explícita do dono.**
 O dono aprova merges e autoriza cada deploy. Razão: prod tem usuários reais; deploy envolve risco de corrupção SQLite (histórico abaixo).
@@ -82,14 +96,17 @@ O dono aprova merges e autoriza cada deploy. Razão: prod tem usuários reais; d
 **R6 — `git add` por path explícito. NUNCA `-A`.**
 Razão: evita commitar `pb_data/`, `.env*`, binários, `node_modules`, `dist/`.
 
-**R7 — Deploy web SEMPRE preserva `sw.js` kill-switch em `pb_public/`.**
-Usar `rsync --delete build/web/ → /opt/cleanos/pb/pb_public/` mas verificar que `sw.js` foi incluído no build. Razão: clientes antigos com PWA React ainda cacheado precisam do kill-switch para migrarem.
+**R7 — Deploy web SEMPRE inclui `sw.js` kill-switch em `pb_public/`.**
+Fonte: `cleanos/flutter/web/sw.js` (copiado no `flutter build web`). Validar presença no build. Razão: navegadores que ainda tinham Service Worker de um frontend antigo precisam desregistrar cache e carregar o Flutter.
 
 **R8 — NUNCA rsyncar `1700000002_seed.js` para prod.**
 Esse arquivo semeia superuser de dev `super@cleanox.local` e dados de teste em prod. Usar rsync aditivo (sem `--delete`) e excluir o seed explicitamente. Razão: aconteceu em prod em 2026-06-30; foi preciso limpar via API.
 
 **R9 — Hooks de rota não enxergam escopo do arquivo. Sempre `require()` dentro do handler.**
 Razão: cada `routerAdd` roda em VM isolada — funções do escopo do arquivo não estão disponíveis no handler.
+
+**R10 — Frontend = Flutter only.**
+Não recriar app React/Vite/TSX. Não documentar fluxos de dev no frontend legado. Código novo e testes de UI: `cleanos/flutter/`.
 
 ---
 
@@ -118,6 +135,7 @@ cd cleanos/flutter
 flutter build web --release -t lib/main_painel.dart
 # Validar: grep 'app.cleanox.com.br' build/web/main.dart.js >/dev/null
 # Validar: ! grep '127.0.0.1:8090' build/web/main.dart.js
+# Validar: test -f build/web/sw.js
 rsync --delete build/web/ hostinger:/opt/cleanos/pb/pb_public/
 ssh hostinger "chown -R ubuntu:ubuntu /opt/cleanos/pb/pb_public"
 

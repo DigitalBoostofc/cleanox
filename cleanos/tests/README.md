@@ -1,6 +1,7 @@
-# CleanOS — Suíte de Testes
+# CleanOS — Suíte de Testes (backend / integração)
 
-Dois conjuntos de testes independentes: integração (backend) e unitário (frontend).
+Testes de integração e unitários do **PocketBase** e hooks. O frontend Flutter
+tem a própria suíte em `../flutter/test/` (`flutter test`).
 
 ---
 
@@ -48,36 +49,24 @@ e os remove no `after`, independentemente do estado atual do seed.
 
 ---
 
-## 2. Testes unitários — helpers do frontend
+## 2. Testes unitários de hooks (financeiro / prof_delete)
 
-**Arquivo:** `web/src/lib/collections.test.ts`  
-**Runner:** Vitest  
-**O que cobre (29 testes):**
-
-- Labels: `osStatusLabel`, `formaPagamentoLabel`, `repasseStatusLabel`
-- Formatadores: `formatCurrency`, `formatDate`, `formatDateTime`, `formatTime`
-- Conversores de data: `toDateInputValue`, `localInputToPBDate`, `pbDateToLocalInput`
-- Constantes: `COLLECTIONS`
-
-### Como rodar
-
-```bash
-cd cleanos/web
-npm test
-```
+Ver `integration/*.unit.test.mjs` no mesmo pacote `npm test`.
 
 ---
 
-## Rodar tudo de uma vez
+## 3. Frontend Flutter (não fica aqui)
 
 ```bash
-# Da raiz cleanos/
-(cd tests && npm test) && (cd web && npm test)
+cd cleanos/flutter
+flutter analyze --fatal-infos
+flutter test
 ```
 
 ---
 
 ## Bugs de produção encontrados pelos testes
 
-Nenhum bug de produção foi detectado. Todos os 30 testes de integração e 29
-testes unitários passaram contra a implementação atual sem modificações.
+Os testes de anti-desvio e de integridade financeira já pegaram regressões reais
+(saldo, repasse, fuso BRT, acesso ao cofre). Preferir estender esta suíte a
+reproduzir bug em script solto.

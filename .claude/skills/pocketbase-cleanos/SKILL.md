@@ -102,8 +102,10 @@ Flutter (`cleanos/flutter/lib`):
   token protegido + `idempotency_key`.
 - `profissional/data/pb_tracking_repository.dart`, `pb_whatsapp_repository.dart` —
   rotas custom via `pb.send`.
-- Web legado `cleanos/web/src/lib` (`collections.ts`, `pb.ts`, `osStore.ts`) é o
-  espelho histórico do contrato — útil de consultar, mas o Flutter é o alvo.
+
+Frontend é **somente Flutter** (`cleanos/flutter/`). Não existe `cleanos/web`
+React no repositório. Contrato de dados: models/repos Dart + `pb_migrations` +
+hooks.
 
 ## Env vars (nunca hardcode chaves)
 

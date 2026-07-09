@@ -46,9 +46,9 @@ class _CleanosAppView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeControllerProvider);
-    // Bifurcação de tema (Nível 1, doc 12 §1): só a Web (`painel`) mantém o
-    // ThemeData clássico — os dois APKs (unificado e o legado profissional,
-    // decisão do dono P-1) recebem o tema "Fintech Clean".
+    // Tema base: APKs → Fintech Clean. Web (`painel`) → clássico no
+    // MaterialApp; em viewport &lt;600dp o PainelShell/Login aplicam o tema
+    // fintech localmente (paridade com o APK — ver isNarrowWebProvider).
     final isWeb = surface == AppSurface.painel;
 
     return MaterialApp.router(

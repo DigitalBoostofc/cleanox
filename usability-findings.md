@@ -3,6 +3,10 @@
 > Contrato compartilhado. Cada worker fica NA SUA faixa de ID. Append-only:
 > nunca reescreva findings de outro worker. Status: aberto → corrigido →
 > verificado | reaberto (| precisa-decisão).
+>
+> **Nota (2026-07):** o frontend vivo é **só Flutter** (`cleanos/flutter/`).
+> Paths `cleanos/web/...` abaixo são **histórico** da era React (já removida do
+> repo). Novos findings apontam sempre para arquivos Dart em `cleanos/flutter/`.
 
 ## F-301 | categoria: funcional | severidade: média | status: corrigido
 - Tela: cleanos/web/src/pages/app/MeusServicos.tsx:377-386 (e Mapa.tsx:51, Perfil.tsx:63)
