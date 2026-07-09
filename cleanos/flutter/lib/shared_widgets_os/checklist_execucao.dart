@@ -200,7 +200,8 @@ class _ChecklistTile extends StatelessWidget {
               // (widget compartilhado com o Painel admin; "web intocada").
               Consumer(
                 builder: (context, ref, _) {
-                  if (!ref.watch(isFintechCleanProvider)) {
+                  if (!ref.watch(isFintechCleanProvider) &&
+                      !ref.watch(isNarrowWebProvider)) {
                     return SizedBox(
                       key: ValueKey('checklist-toggle-${item.id}'),
                       width: 40,

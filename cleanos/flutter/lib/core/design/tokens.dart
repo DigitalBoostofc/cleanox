@@ -52,6 +52,10 @@ class ClxLayout {
 
   /// Toque mínimo (Material / Android). iOS 44.
   static const double minTouchTarget = 48;
+
+  /// Limite inferior da janela "medium" MD3 (compact < 600dp ≤ medium).
+  /// Valor canônico do projeto — não duplicar em outros arquivos.
+  static const double narrowBreakpoint = 600;
 }
 
 /// Cores de marca fixas (independem de tema).
