@@ -33,6 +33,14 @@ mixin _$User {
   /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
   /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
   String? get whatsapp => throw _privateConstructorUsedError;
+
+  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+  ComissaoTipo get comissaoTipo => throw _privateConstructorUsedError;
+
+  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  @JsonKey(name: 'comissao_valor')
+  double get comissaoValor => throw _privateConstructorUsedError;
   bool get verified => throw _privateConstructorUsedError;
   @JsonKey(name: 'emailVisibility')
   bool get emailVisibility => throw _privateConstructorUsedError;
@@ -60,6 +68,9 @@ abstract class $UserCopyWith<$Res> {
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
     String? nome,
     String? whatsapp,
+    @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+    ComissaoTipo comissaoTipo,
+    @JsonKey(name: 'comissao_valor') double comissaoValor,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -88,6 +99,8 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? role = null,
     Object? nome = freezed,
     Object? whatsapp = freezed,
+    Object? comissaoTipo = null,
+    Object? comissaoValor = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -119,6 +132,14 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.whatsapp
                 : whatsapp // ignore: cast_nullable_to_non_nullable
                       as String?,
+            comissaoTipo: null == comissaoTipo
+                ? _value.comissaoTipo
+                : comissaoTipo // ignore: cast_nullable_to_non_nullable
+                      as ComissaoTipo,
+            comissaoValor: null == comissaoValor
+                ? _value.comissaoValor
+                : comissaoValor // ignore: cast_nullable_to_non_nullable
+                      as double,
             verified: null == verified
                 ? _value.verified
                 : verified // ignore: cast_nullable_to_non_nullable
@@ -156,6 +177,9 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
     String? nome,
     String? whatsapp,
+    @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+    ComissaoTipo comissaoTipo,
+    @JsonKey(name: 'comissao_valor') double comissaoValor,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -181,6 +205,8 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? role = null,
     Object? nome = freezed,
     Object? whatsapp = freezed,
+    Object? comissaoTipo = null,
+    Object? comissaoValor = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -212,6 +238,14 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.whatsapp
             : whatsapp // ignore: cast_nullable_to_non_nullable
                   as String?,
+        comissaoTipo: null == comissaoTipo
+            ? _value.comissaoTipo
+            : comissaoTipo // ignore: cast_nullable_to_non_nullable
+                  as ComissaoTipo,
+        comissaoValor: null == comissaoValor
+            ? _value.comissaoValor
+            : comissaoValor // ignore: cast_nullable_to_non_nullable
+                  as double,
         verified: null == verified
             ? _value.verified
             : verified // ignore: cast_nullable_to_non_nullable
@@ -243,6 +277,9 @@ class _$UserImpl extends _User {
     @JsonKey(unknownEnumValue: Role.profissional) this.role = Role.profissional,
     this.nome,
     this.whatsapp,
+    @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+    this.comissaoTipo = ComissaoTipo.nenhuma,
+    @JsonKey(name: 'comissao_valor') this.comissaoValor = 0,
     this.verified = false,
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
@@ -272,6 +309,16 @@ class _$UserImpl extends _User {
   /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
   @override
   final String? whatsapp;
+
+  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  @override
+  @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+  final ComissaoTipo comissaoTipo;
+
+  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  @override
+  @JsonKey(name: 'comissao_valor')
+  final double comissaoValor;
   @override
   @JsonKey()
   final bool verified;
@@ -285,7 +332,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -300,6 +347,10 @@ class _$UserImpl extends _User {
             (identical(other.nome, nome) || other.nome == nome) &&
             (identical(other.whatsapp, whatsapp) ||
                 other.whatsapp == whatsapp) &&
+            (identical(other.comissaoTipo, comissaoTipo) ||
+                other.comissaoTipo == comissaoTipo) &&
+            (identical(other.comissaoValor, comissaoValor) ||
+                other.comissaoValor == comissaoValor) &&
             (identical(other.verified, verified) ||
                 other.verified == verified) &&
             (identical(other.emailVisibility, emailVisibility) ||
@@ -318,6 +369,8 @@ class _$UserImpl extends _User {
     role,
     nome,
     whatsapp,
+    comissaoTipo,
+    comissaoValor,
     verified,
     emailVisibility,
     created,
@@ -346,6 +399,9 @@ abstract class _User extends User {
     @JsonKey(unknownEnumValue: Role.profissional) final Role role,
     final String? nome,
     final String? whatsapp,
+    @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+    final ComissaoTipo comissaoTipo,
+    @JsonKey(name: 'comissao_valor') final double comissaoValor,
     final bool verified,
     @JsonKey(name: 'emailVisibility') final bool emailVisibility,
     final String? created,
@@ -373,6 +429,16 @@ abstract class _User extends User {
   /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
   @override
   String? get whatsapp;
+
+  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  @override
+  @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+  ComissaoTipo get comissaoTipo;
+
+  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  @override
+  @JsonKey(name: 'comissao_valor')
+  double get comissaoValor;
   @override
   bool get verified;
   @override

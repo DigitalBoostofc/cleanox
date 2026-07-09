@@ -19,6 +19,14 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
       Role.profissional,
   nome: json['nome'] as String?,
   whatsapp: json['whatsapp'] as String?,
+  comissaoTipo:
+      $enumDecodeNullable(
+        _$ComissaoTipoEnumMap,
+        json['comissao_tipo'],
+        unknownValue: ComissaoTipo.nenhuma,
+      ) ??
+      ComissaoTipo.nenhuma,
+  comissaoValor: (json['comissao_valor'] as num?)?.toDouble() ?? 0,
   verified: json['verified'] as bool? ?? false,
   emailVisibility: json['emailVisibility'] as bool? ?? false,
   created: json['created'] as String?,
@@ -33,6 +41,8 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'role': _$RoleEnumMap[instance.role]!,
       'nome': instance.nome,
       'whatsapp': instance.whatsapp,
+      'comissao_tipo': _$ComissaoTipoEnumMap[instance.comissaoTipo]!,
+      'comissao_valor': instance.comissaoValor,
       'verified': instance.verified,
       'emailVisibility': instance.emailVisibility,
       'created': instance.created,
@@ -43,4 +53,10 @@ const _$RoleEnumMap = {
   Role.admin: 'admin',
   Role.gerente: 'gerente',
   Role.profissional: 'profissional',
+};
+
+const _$ComissaoTipoEnumMap = {
+  ComissaoTipo.nenhuma: 'nenhuma',
+  ComissaoTipo.percentual: 'percentual',
+  ComissaoTipo.fixo: 'fixo',
 };

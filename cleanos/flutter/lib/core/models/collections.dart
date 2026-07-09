@@ -20,6 +20,7 @@ class Collections {
   static const String configAtuacao = 'config_atuacao';
   static const String disponibilidade = 'disponibilidade';
   static const String osEvidencias = 'os_evidencias';
+  static const String profComissoes = 'prof_comissoes';
 }
 
 /* ---- Módulo Financeiro ---- */
@@ -30,6 +31,49 @@ class FinCollections {
   static const String categorias = 'fin_categorias';
   static const String lancamentos = 'fin_lancamentos';
   static const String limites = 'fin_limites';
+  static const String profComissoes = 'prof_comissoes';
+}
+
+/* ---- Comissão do profissional ---- */
+enum ComissaoTipo {
+  @JsonValue('nenhuma')
+  nenhuma,
+  @JsonValue('percentual')
+  percentual,
+  @JsonValue('fixo')
+  fixo;
+
+  String get wire => switch (this) {
+    ComissaoTipo.nenhuma => 'nenhuma',
+    ComissaoTipo.percentual => 'percentual',
+    ComissaoTipo.fixo => 'fixo',
+  };
+
+  String get label => switch (this) {
+    ComissaoTipo.nenhuma => 'Sem comissão',
+    ComissaoTipo.percentual => 'Percentual (%)',
+    ComissaoTipo.fixo => 'Valor fixo (R\$)',
+  };
+
+  /// Comissão configurada (percentual ou fixo com valor > 0).
+  bool get isAtiva => this == ComissaoTipo.percentual || this == ComissaoTipo.fixo;
+}
+
+enum ComissaoStatus {
+  @JsonValue('pendente')
+  pendente,
+  @JsonValue('paga')
+  paga;
+
+  String get wire => switch (this) {
+    ComissaoStatus.pendente => 'pendente',
+    ComissaoStatus.paga => 'paga',
+  };
+
+  String get label => switch (this) {
+    ComissaoStatus.pendente => 'Pendente',
+    ComissaoStatus.paga => 'Paga',
+  };
 }
 
 /* ---- Papéis de usuário ---- */

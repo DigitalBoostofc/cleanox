@@ -42,6 +42,11 @@ onRecordUpdate((e) => {
   } catch (err) {
     console.error("[fin] Erro ao criar lançamento (update, ignorado): " + err);
   }
+  try {
+    require(`${__hooks}/prof_comissao_lib.js`).criarComissaoProfissional(e.app, e.record, origStatus);
+  } catch (err) {
+    console.error("[comissao] Erro ao criar comissão (update, ignorado): " + err);
+  }
 }, "ordens_servico");
 
 // Caminho 2: CREATE — OS nascendo já 'concluida' (ex.: admin lançando OS já finalizada)
@@ -52,5 +57,10 @@ onRecordCreate((e) => {
     require(`${__hooks}/os_financeiro_lib.js`).criarLancamentoFinanceiro(e.app, e.record, null);
   } catch (err) {
     console.error("[fin] Erro ao criar lançamento (create, ignorado): " + err);
+  }
+  try {
+    require(`${__hooks}/prof_comissao_lib.js`).criarComissaoProfissional(e.app, e.record, null);
+  } catch (err) {
+    console.error("[comissao] Erro ao criar comissão (create, ignorado): " + err);
   }
 }, "ordens_servico");

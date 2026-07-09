@@ -16,9 +16,11 @@ import '../../core/repositories/config_atuacao_repository.dart';
 import '../../core/repositories/disponibilidade_repository.dart';
 import '../../core/repositories/evidencias_repository.dart';
 import '../../core/repositories/servicos_repository.dart';
+import '../../core/repositories/comissao_repository.dart';
 import '../../core/repositories/usuarios_repository.dart';
 import '../../core/repositories/whatsapp_repository.dart';
 import 'pb_clientes_repository.dart';
+import 'pb_comissao_repository.dart';
 import 'pb_config_atuacao_repository.dart';
 import 'pb_disponibilidade_repository.dart';
 import 'pb_painel_evidencias_repository.dart';
@@ -40,6 +42,11 @@ final servicosRepositoryProvider = Provider<ServicosRepository>(
 /// Usuários (dropdown de profissionais em Nova OS / reatribuição).
 final usuariosRepositoryProvider = Provider<UsuariosRepository>(
   (ref) => PbUsuariosRepository(ref.watch(pocketBaseProvider)),
+);
+
+/// Comissões por profissional (Financeiro → Comissões + extrato).
+final comissaoRepositoryProvider = Provider<ComissaoRepository>(
+  (ref) => PbComissaoRepository(ref.watch(pocketBaseProvider)),
 );
 
 /// Disponibilidade semanal por profissional (Agenda + editor de disponibilidade).

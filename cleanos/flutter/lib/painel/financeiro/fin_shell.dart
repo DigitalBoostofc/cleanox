@@ -20,15 +20,17 @@ import 'categorias/fin_categorias_screen.dart';
 import 'fin_contas_pagar_receber_screen.dart';
 import 'fin_limites_screen.dart';
 import 'fin_relatorios_screen.dart';
+import 'fin_comissoes_screen.dart';
 import 'fin_visao_geral_screen.dart';
 import 'lancamentos/fin_lancamentos_screen.dart';
 
-/// Abas do Financeiro (ordem/rótulos idênticos ao `FinanceiroLayout`). O [slug]
-/// é o segmento de URL da aba (`/painel/financeiro/<slug>`).
+/// Abas do Financeiro (ordem/rótulos idênticos ao `FinanceiroLayout` + Comissões).
+/// O [slug] é o segmento de URL da aba (`/painel/financeiro/<slug>`).
 enum FinTab {
   visaoGeral('Visão geral', 'visao-geral'),
   lancamentos('Lançamentos', 'lancamentos'),
   contas('Contas a pagar/receber', 'contas'),
+  comissoes('Comissões', 'comissoes'),
   categorias('Categorias', 'categorias'),
   relatorios('Relatórios', 'relatorios'),
   limites('Limites', 'limites'),
@@ -101,6 +103,7 @@ class _FinanceiroShellState extends State<FinanceiroShell> {
     FinTab.visaoGeral => const FinVisaoGeralScreen(),
     FinTab.lancamentos => const FinLancamentosScreen(),
     FinTab.contas => const FinContasPagarReceberScreen(),
+    FinTab.comissoes => const FinComissoesScreen(),
     FinTab.categorias => const FinCategoriasScreen(),
     FinTab.relatorios => const FinRelatoriosScreen(),
     FinTab.limites => const FinLimitesScreen(),

@@ -16,6 +16,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'financeiro/prof_financeiro_screen.dart';
 import 'mapa/mapa_screen.dart';
 import 'meus_servicos/meus_servicos_screen.dart';
 import 'os_execucao/os_execucao_screen.dart';
@@ -23,6 +24,10 @@ import 'perfil/perfil_screen.dart';
 import 'prof_shell.dart';
 
 /// Constrói o `StatefulShellRoute.indexedStack` do `/app`.
+///
+/// Branches fixos: Serviços(0) · Financeiro(1) · Mapa(2) · Perfil(3).
+/// A aba Financeiro só aparece na bottom nav se o profissional tiver comissão
+/// ativa ([ProfShell] mapeia os índices).
 ///
 /// [rootNavigatorKey] é o navigator RAIZ: a execução da OS sobe nele (tela cheia
 /// sobre a bottom nav).
@@ -50,6 +55,16 @@ StatefulShellRoute profShellRoute(GlobalKey<NavigatorState> rootNavigatorKey) {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+      // ── Financeiro (comissões) — sempre no router; nav condicional no shell. ──
+      StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: '/app/financeiro',
+            name: 'app-financeiro',
+            builder: (context, state) => const ProfFinanceiroScreen(),
           ),
         ],
       ),

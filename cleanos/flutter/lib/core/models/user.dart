@@ -31,6 +31,15 @@ class User with _$User {
     /// WhatsApp do PRÓPRIO colaborador (contato, não é PII de cliente). Usado
     /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
     String? whatsapp,
+
+    /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+    @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
+    @Default(ComissaoTipo.nenhuma)
+    ComissaoTipo comissaoTipo,
+
+    /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+    @JsonKey(name: 'comissao_valor') @Default(0) double comissaoValor,
+
     @Default(false) bool verified,
     @JsonKey(name: 'emailVisibility') @Default(false) bool emailVisibility,
     String? created,
@@ -42,7 +51,15 @@ class User with _$User {
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
 
   /// Constrói a partir de um RecordModel do SDK PocketBase.
-  factory User.fromRecord(RecordModel record) => User.fromJson(record.toJson());
+  factory User.fromRecord(RecordModel record) {
+    final j = Map<String, dynamic>.from(record.toJson());
+    // Campo opcional: PB pode omitir ou mandar "" / null.
+    final tipo = j['comissao_tipo'];
+    if (tipo == null || tipo == '') j['comissao_tipo'] = 'nenhuma';
+    final val = j['comissao_valor'];
+    if (val == null || val == '') j['comissao_valor'] = 0;
+    return User.fromJson(j);
+  }
 
   /// Nome de exibição: prioriza `nome`, cai para `name`, senão '—'
   /// (espelha `userDisplayName` de collections.ts).
@@ -51,6 +68,23 @@ class User with _$User {
     if (n != null && n.isNotEmpty) return n;
     if (name.trim().isNotEmpty) return name;
     return '—';
+  }
+
+  /// Profissional com comissão ativa (aba Financeiro no APK).
+  bool get hasComissaoAtiva =>
+      role == Role.profissional &&
+      comissaoTipo.isAtiva &&
+      comissaoValor > 0;
+
+  String get comissaoResumo {
+    if (!comissaoTipo.isAtiva || comissaoValor <= 0) return 'Sem comissão';
+    if (comissaoTipo == ComissaoTipo.percentual) {
+      final v = comissaoValor == comissaoValor.roundToDouble()
+          ? comissaoValor.toStringAsFixed(0)
+          : comissaoValor.toStringAsFixed(1);
+      return '$v% por OS';
+    }
+    return 'R\$ ${comissaoValor.toStringAsFixed(2)} por OS';
   }
 }
 
