@@ -45,6 +45,10 @@ mixin _$Cliente {
   @JsonKey(name: 'endereco_cep')
   String? get enderecoCep => throw _privateConstructorUsedError;
   bool get ativo => throw _privateConstructorUsedError;
+
+  /// Origem do lead (Instagram, Facebook, Indicação…). Opcional; "" = não
+  /// informado. Alimenta relatório de origem e a atribuição do Meta CAPI.
+  String? get origem => throw _privateConstructorUsedError;
   String? get observacoes => throw _privateConstructorUsedError;
   String? get created => throw _privateConstructorUsedError;
   String? get updated => throw _privateConstructorUsedError;
@@ -77,6 +81,7 @@ abstract class $ClienteCopyWith<$Res> {
     @JsonKey(name: 'endereco_estado') String? enderecoEstado,
     @JsonKey(name: 'endereco_cep') String? enderecoCep,
     bool ativo,
+    String? origem,
     String? observacoes,
     String? created,
     String? updated,
@@ -111,6 +116,7 @@ class _$ClienteCopyWithImpl<$Res, $Val extends Cliente>
     Object? enderecoEstado = freezed,
     Object? enderecoCep = freezed,
     Object? ativo = null,
+    Object? origem = freezed,
     Object? observacoes = freezed,
     Object? created = freezed,
     Object? updated = freezed,
@@ -169,6 +175,10 @@ class _$ClienteCopyWithImpl<$Res, $Val extends Cliente>
                 ? _value.ativo
                 : ativo // ignore: cast_nullable_to_non_nullable
                       as bool,
+            origem: freezed == origem
+                ? _value.origem
+                : origem // ignore: cast_nullable_to_non_nullable
+                      as String?,
             observacoes: freezed == observacoes
                 ? _value.observacoes
                 : observacoes // ignore: cast_nullable_to_non_nullable
@@ -209,6 +219,7 @@ abstract class _$$ClienteImplCopyWith<$Res> implements $ClienteCopyWith<$Res> {
     @JsonKey(name: 'endereco_estado') String? enderecoEstado,
     @JsonKey(name: 'endereco_cep') String? enderecoCep,
     bool ativo,
+    String? origem,
     String? observacoes,
     String? created,
     String? updated,
@@ -242,6 +253,7 @@ class __$$ClienteImplCopyWithImpl<$Res>
     Object? enderecoEstado = freezed,
     Object? enderecoCep = freezed,
     Object? ativo = null,
+    Object? origem = freezed,
     Object? observacoes = freezed,
     Object? created = freezed,
     Object? updated = freezed,
@@ -300,6 +312,10 @@ class __$$ClienteImplCopyWithImpl<$Res>
             ? _value.ativo
             : ativo // ignore: cast_nullable_to_non_nullable
                   as bool,
+        origem: freezed == origem
+            ? _value.origem
+            : origem // ignore: cast_nullable_to_non_nullable
+                  as String?,
         observacoes: freezed == observacoes
             ? _value.observacoes
             : observacoes // ignore: cast_nullable_to_non_nullable
@@ -334,6 +350,7 @@ class _$ClienteImpl extends _Cliente {
     @JsonKey(name: 'endereco_estado') this.enderecoEstado,
     @JsonKey(name: 'endereco_cep') this.enderecoCep,
     this.ativo = true,
+    this.origem,
     this.observacoes,
     this.created,
     this.updated,
@@ -382,6 +399,11 @@ class _$ClienteImpl extends _Cliente {
   @override
   @JsonKey()
   final bool ativo;
+
+  /// Origem do lead (Instagram, Facebook, Indicação…). Opcional; "" = não
+  /// informado. Alimenta relatório de origem e a atribuição do Meta CAPI.
+  @override
+  final String? origem;
   @override
   final String? observacoes;
   @override
@@ -391,7 +413,7 @@ class _$ClienteImpl extends _Cliente {
 
   @override
   String toString() {
-    return 'Cliente(id: $id, nome: $nome, sobrenome: $sobrenome, telefone: $telefone, email: $email, enderecoRua: $enderecoRua, enderecoNumero: $enderecoNumero, enderecoComplemento: $enderecoComplemento, enderecoBairro: $enderecoBairro, enderecoCidade: $enderecoCidade, enderecoEstado: $enderecoEstado, enderecoCep: $enderecoCep, ativo: $ativo, observacoes: $observacoes, created: $created, updated: $updated)';
+    return 'Cliente(id: $id, nome: $nome, sobrenome: $sobrenome, telefone: $telefone, email: $email, enderecoRua: $enderecoRua, enderecoNumero: $enderecoNumero, enderecoComplemento: $enderecoComplemento, enderecoBairro: $enderecoBairro, enderecoCidade: $enderecoCidade, enderecoEstado: $enderecoEstado, enderecoCep: $enderecoCep, ativo: $ativo, origem: $origem, observacoes: $observacoes, created: $created, updated: $updated)';
   }
 
   @override
@@ -421,6 +443,7 @@ class _$ClienteImpl extends _Cliente {
             (identical(other.enderecoCep, enderecoCep) ||
                 other.enderecoCep == enderecoCep) &&
             (identical(other.ativo, ativo) || other.ativo == ativo) &&
+            (identical(other.origem, origem) || other.origem == origem) &&
             (identical(other.observacoes, observacoes) ||
                 other.observacoes == observacoes) &&
             (identical(other.created, created) || other.created == created) &&
@@ -444,6 +467,7 @@ class _$ClienteImpl extends _Cliente {
     enderecoEstado,
     enderecoCep,
     ativo,
+    origem,
     observacoes,
     created,
     updated,
@@ -478,6 +502,7 @@ abstract class _Cliente extends Cliente {
     @JsonKey(name: 'endereco_estado') final String? enderecoEstado,
     @JsonKey(name: 'endereco_cep') final String? enderecoCep,
     final bool ativo,
+    final String? origem,
     final String? observacoes,
     final String? created,
     final String? updated,
@@ -523,6 +548,11 @@ abstract class _Cliente extends Cliente {
   String? get enderecoCep;
   @override
   bool get ativo;
+
+  /// Origem do lead (Instagram, Facebook, Indicação…). Opcional; "" = não
+  /// informado. Alimenta relatório de origem e a atribuição do Meta CAPI.
+  @override
+  String? get origem;
   @override
   String? get observacoes;
   @override

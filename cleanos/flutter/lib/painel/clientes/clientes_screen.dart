@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/cliente.dart';
@@ -190,6 +191,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
               _HeaderCell('Telefone', flex: 2),
               _HeaderCell('Bairro', flex: 2),
               _HeaderCell('Cidade', flex: 2),
+              _HeaderCell('Origem', flex: 2),
               _HeaderCell('Status', flex: 2),
             ],
           ),
@@ -219,6 +221,8 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
 
   /// Lista de cards (mobile), virtualizada.
   Widget _cardsView(ClientesState state) {
+    final easypay =
+        ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(ClxSpace.x4),
@@ -226,14 +230,20 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
       itemBuilder: (context, i) {
         if (i >= state.items.length) return _footerOrNull(state, i);
         final cli = state.items[i];
+        final card = _ClienteCard(
+          cliente: cli,
+          onTap: () => _openForm(editing: cli),
+          onToggle: () =>
+              ref.read(clientesControllerProvider.notifier).toggleAtivo(cli),
+        );
         return Padding(
           padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-          child: _ClienteCard(
-            cliente: cli,
-            onTap: () => _openForm(editing: cli),
-            onToggle: () =>
-                ref.read(clientesControllerProvider.notifier).toggleAtivo(cli),
-          ),
+          child: easypay
+              ? ClxFadeSlide(
+                  delay: Duration(milliseconds: (i % 8) * 35),
+                  child: card,
+                )
+              : card,
         );
       },
     );
@@ -417,6 +427,15 @@ class _TableRow extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
+              child: Text(
+                cliente.origemLabel ?? '—',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2),
+              ),
+            ),
+            Expanded(
+              flex: 2,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: _AtivoChip(ativo: cliente.ativo, onTap: onToggle),
@@ -458,14 +477,28 @@ class _ClienteCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: clx.accent,
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [clx.primary, clx.accent],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: clx.primary.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
                 child: Text(
                   nomeCompleto.isEmpty ? 'C' : nomeCompleto[0].toUpperCase(),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -506,6 +539,15 @@ class _ClienteCard extends StatelessWidget {
           if (local.isNotEmpty) ...[
             const SizedBox(height: ClxSpace.x1),
             _cardRow(context, clx, Icons.place_outlined, local),
+          ],
+          if (cliente.origemLabel != null) ...[
+            const SizedBox(height: ClxSpace.x1),
+            _cardRow(
+              context,
+              clx,
+              Icons.campaign_outlined,
+              cliente.origemLabel!,
+            ),
           ],
         ],
       ),
