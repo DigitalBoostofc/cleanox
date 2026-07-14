@@ -9,6 +9,25 @@
  * Chamado DEPOIS de e.next() (mesmo padrão de os_financeiro_lib.js).
  */
 
+/**
+ * "Agora" no fuso BRT (UTC-3), no formato que o PB grava.
+ *
+ * O processo do PocketBase roda em UTC na VPS. `new Date().toISOString()` puro
+ * faz uma conclusão às 21:30 BRT gravar como 00:30 do DIA SEGUINTE — e os
+ * relatórios bucketizam pela parte-data 'YYYY-MM-DD'. Espelha exatamente o que
+ * `os_financeiro_lib.js` já faz no lançamento da OS (fix F-222), para que a
+ * receita e a comissão da MESMA OS caiam sempre no MESMO dia.
+ */
+function dataBrtAgora() {
+  var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+  return (
+    new Date(Date.now() - BRT_OFFSET_MS)
+      .toISOString()
+      .replace("T", " ")
+      .slice(0, 23) + "Z"
+  );
+}
+
 function criarComissaoProfissional(app, record, origStatus) {
   const newStatus = String(record.get("status") || "");
   if (newStatus !== "concluida") return;
@@ -79,13 +98,21 @@ function criarComissaoProfissional(app, record, origStatus) {
   const col = app.findCollectionByNameOrId("prof_comissoes");
   const rec = new Record(col);
   rec.set("profissional", profId);
+  // F-225: nome DESNORMALIZADO. A relação `profissional` é opcional justamente
+  // para o extrato sobreviver à exclusão do profissional — mas sem o nome em
+  // texto o histórico ficaria anônimo ("comissão de R$60 pra ninguém").
+  rec.set("profissional_nome", String(prof.get("name") || ""));
   rec.set("os", osId);
   rec.set("valor_os", valorPago);
   rec.set("valor_comissao", valorComissao);
   rec.set("tipo_aplicado", tipo);
   rec.set("base_valor", base);
   rec.set("status", "pendente");
-  rec.set("data", new Date().toISOString());
+  // F-229: data no fuso BRT (UTC-3), IGUAL ao lançamento da OS
+  // (os_financeiro_lib.js, fix F-222). Sem isso, a receita e a comissão da MESMA
+  // OS gravavam instantes com 3h de diferença e uma conclusão entre 21h e a
+  // meia-noite caía em DIAS DIFERENTES no relatório e no extrato.
+  rec.set("data", dataBrtAgora());
 
   const nomeCurto = String(record.get("nome_curto") || "");
   const servico = String(record.get("tipo_servico_nome") || "");
@@ -111,4 +138,4 @@ function criarComissaoProfissional(app, record, origStatus) {
   }
 }
 
-module.exports = { criarComissaoProfissional };
+module.exports = { criarComissaoProfissional, dataBrtAgora };
