@@ -66,27 +66,57 @@ routerAdd("POST", "/api/cleanos/whatsapp/connect", (e) => {
   const cfg = h.getAppConfig($app);
   let instanceToken = cfg.getString("whatsapp_instance_token");
 
+  // Se o token antigo for de outro host uazapi (ex.: migração de conta),
+  // /instance/status falha e precisamos recriar a instância nesta conta.
+  if (instanceToken) {
+    try {
+      uazapi.instanceStatus(instanceToken);
+    } catch (probeErr) {
+      console.error("[whatsapp/connect] token inválido neste UAZAPI, recriando: " + probeErr);
+      instanceToken = "";
+      cfg.set("whatsapp_instance_token", "");
+      cfg.set("whatsapp_instance_name", "");
+      cfg.set("whatsapp_status", "disconnected");
+      $app.save(cfg);
+    }
+  }
+
   if (!instanceToken) {
-    const created = uazapi.createInstance("cleanox");
-    instanceToken = created.token;
+    // Nome único por conta (evita colisão se "cleanox" já existir)
+    const instName = "cleanox-ops";
+    const created = uazapi.createInstance(instName);
+    instanceToken = created.token || (created.instance && created.instance.token) || "";
     if (!instanceToken) {
       throw new BadRequestError("UAZAPI não retornou token da instância na criação.");
     }
-    cfg.set("whatsapp_instance_name", created.name || "cleanox");
+    cfg.set("whatsapp_instance_name", created.name || instName);
     cfg.set("whatsapp_instance_token", instanceToken);
     cfg.set("whatsapp_status", "disconnected");
     $app.save(cfg);
   }
 
-  const connRes = uazapi.connectInstance(instanceToken);
+  let connRes;
+  try {
+    connRes = uazapi.connectInstance(instanceToken);
+  } catch (connErr) {
+    console.error("[whatsapp/connect] Erro UAZAPI connect: " + connErr);
+    throw new BadRequestError("Falha ao conectar WhatsApp: " + String(connErr));
+  }
   const inst    = h.extractInstance(connRes);
-  const status  = inst.status || "connecting";
+  const status  = inst.status || connRes.status || "connecting";
 
   cfg.set("whatsapp_status", status);
   $app.save(cfg);
 
-  const payload = { status, qrcode: inst.qrcode || null };
-  if (inst.paircode) payload.paircode = inst.paircode;
+  // QR pode vir em instance.qrcode ou no topo da resposta
+  let qrcode = inst.qrcode || connRes.qrcode || null;
+  if (qrcode && typeof qrcode === "string" && qrcode.indexOf("data:") !== 0 && qrcode.indexOf("http") !== 0) {
+    qrcode = "data:image/png;base64," + qrcode;
+  }
+
+  const payload = { status: status, qrcode: qrcode };
+  const pair = inst.paircode || connRes.paircode;
+  if (pair) payload.paircode = pair;
   return e.json(200, payload);
 }, $apis.requireAuth());
 

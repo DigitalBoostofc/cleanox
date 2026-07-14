@@ -34,7 +34,8 @@ function httpSend(method, endpoint, headersObj, bodyObj) {
     method,
     url: baseUrl() + endpoint,
     headers: Object.assign({ "Accept": "application/json" }, headersObj),
-    timeout: 8,
+    // connect/QR pode demorar mais que o default curto
+    timeout: 25,
   };
   if (bodyObj !== undefined) {
     req.body = JSON.stringify(bodyObj);
@@ -50,11 +51,29 @@ function httpSend(method, endpoint, headersObj, bodyObj) {
 }
 
 /**
+ * Extrai token da instância de respostas create/list (top-level ou em .instance).
+ */
+function extractToken(res) {
+  if (!res) return "";
+  if (res.token) return String(res.token);
+  if (res.instance && res.instance.token) return String(res.instance.token);
+  return "";
+}
+
+/**
  * Cria uma nova instância no UAZAPI (usa admintoken).
- * Retorna `{ token, name, instance, ... }` — o `token` é o token da instância.
+ * Normaliza a resposta para sempre expor `token` e `name` no topo.
  */
 function createInstance(name) {
-  return httpSend("POST", "/instance/create", { admintoken: adminToken() }, { name });
+  const res = httpSend("POST", "/instance/create", { admintoken: adminToken() }, { name });
+  const inst = res.instance || res;
+  const token = extractToken(res);
+  return {
+    token: token,
+    name: res.name || inst.name || name,
+    instance: inst,
+    raw: res,
+  };
 }
 
 /**
