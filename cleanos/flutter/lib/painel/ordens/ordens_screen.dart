@@ -53,25 +53,40 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     }
   }
 
+  /// Recarrega a lista e, se a OS salva não pertence mais à aba ATIVA, leva a
+  /// lista até a aba do status novo.
+  ///
+  /// F-232: salvar o form pode mudar o status na surdina (agendada +
+  /// profissional → atribuída). Sem isto a OS deixa de casar com o filtro ativo
+  /// e simplesmente SOME da tela — o admin fica olhando um empty-state achando
+  /// que apagou a OS. Mesmo comportamento que o detalhe já tinha ao reatribuir.
+  Future<void> _mostrarNaAbaCerta(OrdemServico os) async {
+    final notifier = ref.read(ordensControllerProvider.notifier);
+    final filtroAtivo = ref.read(ordensControllerProvider).filter.status;
+    if (filtroAtivo != null && filtroAtivo != os.status) {
+      await notifier.setStatus(os.status);
+    } else {
+      await notifier.refresh();
+    }
+  }
+
   Future<void> _novaOS() async {
-    final saved = await showOSForm(context);
-    if (saved == true) {
-      await ref.read(ordensControllerProvider.notifier).refresh();
-      ref.invalidate(ordensCountsProvider);
-      if (mounted) {
-        showClxToast(context, 'OS criada.', type: ToastType.success);
-      }
+    final salva = await showOSForm(context);
+    if (salva == null || !mounted) return;
+    ref.invalidate(ordensCountsProvider);
+    await _mostrarNaAbaCerta(salva);
+    if (mounted) {
+      showClxToast(context, 'OS criada.', type: ToastType.success);
     }
   }
 
   Future<void> _editar(OrdemServico os) async {
-    final saved = await showOSForm(context, editing: os);
-    if (saved == true) {
-      await ref.read(ordensControllerProvider.notifier).refresh();
-      ref.invalidate(ordensCountsProvider);
-      if (mounted) {
-        showClxToast(context, 'OS atualizada.', type: ToastType.success);
-      }
+    final salva = await showOSForm(context, editing: os);
+    if (salva == null || !mounted) return;
+    ref.invalidate(ordensCountsProvider);
+    await _mostrarNaAbaCerta(salva);
+    if (mounted) {
+      showClxToast(context, 'OS atualizada.', type: ToastType.success);
     }
   }
 
@@ -117,9 +132,15 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     }
   }
 
-  void _execucao(OrdemServico os) {
+  /// Abre a Execução (visão admin) e ESPERA a volta: lá dentro dá para mudar
+  /// valor, serviço e status, então a lista e os contadores desta tela ficam
+  /// velhos se ninguém recarregar ao voltar (F-233).
+  Future<void> _execucao(OrdemServico os) async {
     // Rota deep-linkável `/painel/ordens/:osId/execucao` (tela cheia no raiz).
-    context.push('/painel/ordens/${os.id}/execucao');
+    await context.push('/painel/ordens/${os.id}/execucao');
+    if (!mounted) return;
+    await ref.read(ordensControllerProvider.notifier).refresh();
+    ref.invalidate(ordensCountsProvider);
   }
 
   Future<void> _abrirDetalhe(OrdemServico os) async {
@@ -130,11 +151,15 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
       ref.invalidate(ordensCountsProvider);
     }
     if (!mounted) return;
+    // `result.os` é a OS ATUAL — o detalhe pode ter reatribuído enquanto estava
+    // aberto. Abrir o form com o `os` do closure reabria o form com o registro
+    // velho e gravava `status=atribuida` + `profissional=""` (F-234).
+    final atual = result.os ?? os;
     switch (result.intent) {
       case OSDetailIntent.editar:
-        await _editar(os);
+        await _editar(atual);
       case OSDetailIntent.execucao:
-        _execucao(os);
+        await _execucao(atual);
       case null:
         break;
     }

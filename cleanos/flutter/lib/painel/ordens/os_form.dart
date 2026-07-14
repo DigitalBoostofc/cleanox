@@ -14,8 +14,11 @@
 /// A Duração vem **prefilada visível** com a duração do profissional (D9): o
 /// usuário vê de onde veio e pode mudar. Nada de herança invisível no servidor.
 ///
-/// Mostrado via [showOSForm] — Dialog centrado (Painel desktop-first). Resolve
-/// `true` quando salvou (o caller recarrega a lista).
+/// Mostrado via [showOSForm] — Dialog centrado (Painel desktop-first). Resolve a
+/// OS GRAVADA (ou `null` se o usuário desistiu): o caller recarrega a lista e,
+/// como o salvar pode MUDAR o status na surdina (agendada + profissional →
+/// atribuída), precisa do status resultante para levar a lista até a aba certa
+/// em vez de deixar a OS sumir da tela (F-232).
 library;
 
 import 'dart:async';
@@ -37,9 +40,16 @@ import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
 import '../servicos/servicos_labels.dart';
 import 'ordens_controller.dart';
+import 'os_rebaixar_confirm.dart';
+import 'os_status_rules.dart';
 
-Future<bool?> showOSForm(BuildContext context, {OrdemServico? editing}) {
-  return showDialog<bool>(
+/// A OS gravada volta com o profissional/cliente expandidos: ela substitui o
+/// registro na lista e alimenta o detalhe, que sem o expand mostraria "—" no
+/// lugar do nome do profissional recém-atribuído.
+const String _kFormExpand = 'profissional,cliente';
+
+Future<OrdemServico?> showOSForm(BuildContext context, {OrdemServico? editing}) {
+  return showDialog<OrdemServico>(
     context: context,
     barrierDismissible: false,
     builder: (_) => Dialog(
@@ -452,13 +462,32 @@ class _OSFormState extends ConsumerState<OSForm> {
       });
       return;
     }
+
+    final hasProf = _profissionalId.isNotEmpty;
+    final editing = widget.editing;
+
+    // Tirar o profissional de uma OS EM ANDAMENTO rebaixa o status — e o hook
+    // do servidor, ao ver o status sair de `em_andamento`, apaga o endereço
+    // liberado e as coordenadas (são efêmeros por design). Perder isso é uma
+    // consequência legítima, mas não pode acontecer sem o admin saber (F-228).
+    if (_isEdit &&
+        !hasProf &&
+        editing != null &&
+        editing.status == OSStatus.emAndamento) {
+      final ok = await confirmarRebaixarEmAndamento(
+        context,
+        removendo: true,
+      );
+      if (ok != true) return;
+    }
+
+    if (!mounted) return;
     setState(() {
       _saving = true;
       _saveError = null;
       _errs.clear();
     });
 
-    final hasProf = _profissionalId.isNotEmpty;
     final valor = double.parse(_valor.text.trim().replaceAll(',', '.'));
     final hora = hhmmDeMinutos(snap15(_horaMin!));
     final payload = <String, dynamic>{
@@ -474,28 +503,29 @@ class _OSFormState extends ConsumerState<OSForm> {
       'observacoes': _observacoes.text.trim(),
     };
 
-    // Transições de status (paridade com o React).
-    final editing = widget.editing;
+    // Status: DERIVADO do profissional que está sendo submetido, nunca deduzido
+    // de uma transição a partir do registro em mãos — que pode estar velho.
+    // Sem `statusAposEdicao`, um registro velho dizendo "agendada/sem prof" fazia
+    // os dois ramos de transição falharem, o `status` não entrava no payload e o
+    // `atribuida` do banco sobrevivia ao lado de `profissional=""` (F-234).
     if (!_isEdit) {
       payload['status'] = hasProf
           ? OSStatus.atribuida.wire
           : OSStatus.agendada.wire;
     } else if (editing != null) {
-      if (hasProf && editing.status == OSStatus.agendada) {
-        payload['status'] = OSStatus.atribuida.wire;
-      } else if (!hasProf && editing.status == OSStatus.atribuida) {
-        payload['status'] = OSStatus.agendada.wire;
-      }
+      final novo = statusAposEdicao(
+        atual: editing.status,
+        temProfissional: hasProf,
+      );
+      if (novo != null) payload['status'] = novo.wire;
     }
 
     try {
       final repo = ref.read(ordensRepositoryProvider);
-      if (_isEdit) {
-        await repo.update(editing!.id, payload);
-      } else {
-        await repo.create(payload);
-      }
-      if (mounted) Navigator.of(context).pop(true);
+      final salva = _isEdit
+          ? await repo.update(editing!.id, payload, expand: _kFormExpand)
+          : await repo.create(payload, expand: _kFormExpand);
+      if (mounted) Navigator.of(context).pop(salva);
     } catch (_) {
       if (mounted) {
         setState(() {

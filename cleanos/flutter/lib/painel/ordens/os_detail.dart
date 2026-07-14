@@ -18,13 +18,21 @@ import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import 'ordens_controller.dart';
+import 'os_rebaixar_confirm.dart';
 
 enum OSDetailIntent { editar, execucao }
 
 class OSDetailResult {
-  const OSDetailResult({this.changed = false, this.intent});
+  const OSDetailResult({this.changed = false, this.intent, this.os});
   final bool changed;
   final OSDetailIntent? intent;
+
+  /// A OS COMO ELA ESTÁ AGORA — inclusive se o detalhe a reatribuiu enquanto
+  /// estava aberto. O caller PRECISA usar esta e não o registro que ele passou
+  /// para `showOSDetail`: aquele já pode estar velho, e abrir o form de edição
+  /// com um registro velho foi o que gravou `status=atribuida` +
+  /// `profissional=""` no banco (F-234).
+  final OrdemServico? os;
 }
 
 Future<OSDetailResult?> showOSDetail(BuildContext context, OrdemServico os) {
@@ -70,6 +78,18 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       _os.status != OSStatus.concluida && _os.status != OSStatus.cancelada;
 
   Future<void> _reatribuir() async {
+    // Mexer no profissional de uma OS EM ANDAMENTO rebaixa o status, e o hook do
+    // servidor apaga endereço liberado + GPS ao ver o status sair de
+    // `em_andamento` (são efêmeros por design). Consequência legítima, mas o
+    // admin tem que saber antes de confirmar (F-228).
+    if (_os.status == OSStatus.emAndamento) {
+      final ok = await confirmarRebaixarEmAndamento(
+        context,
+        removendo: _selectedProf.isEmpty,
+      );
+      if (ok != true) return;
+      if (!mounted) return;
+    }
     setState(() {
       _reatribuindo = true;
       _reatribuirError = null;
@@ -118,7 +138,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       // a aba onde ela está agora e fecha o detalhe.
       await notifier.setStatus(novo.status);
       if (!mounted) return;
-      Navigator.of(context).pop(const OSDetailResult());
+      Navigator.of(context).pop(OSDetailResult(os: novo));
     } else {
       await notifier.refresh();
       _changed = false; // lista já recarregada; sem refresh duplicado no fechar
@@ -161,9 +181,11 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   }
 
   void _close([OSDetailIntent? intent]) {
+    // Devolve `_os` — o registro ATUAL, já com a reatribuição feita aqui dentro.
+    // Sem isso o caller reabria o form de edição com o registro velho (F-234).
     Navigator.of(
       context,
-    ).pop(OSDetailResult(changed: _changed, intent: intent));
+    ).pop(OSDetailResult(changed: _changed, intent: intent, os: _os));
   }
 
   @override
