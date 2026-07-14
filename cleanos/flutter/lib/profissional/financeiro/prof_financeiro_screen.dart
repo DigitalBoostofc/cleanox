@@ -43,6 +43,40 @@ final _profOsPeriodoProvider =
           .listDoProfissional(me.id, janela: range);
     });
 
+/// Carteira do período: OS + comissões CONGELADAS juntas.
+///
+/// As duas fontes são resolvidas ANTES de montar a tela de propósito (F-226):
+/// se as OS chegassem sozinhas, uma OS já concluída seria pintada com a
+/// estimativa da config atual até o extrato carregar — que é exatamente o
+/// valor errado que o profissional não pode ver.
+final _carteiraProvider = FutureProvider.autoDispose<EstimativaGanho>((
+  ref,
+) async {
+  final me = ref.watch(currentUserProvider);
+  final periodo = ref.watch(_estimativaPeriodoProvider);
+  if (me == null) return EstimativaGanho.vazia(periodo);
+
+  final ordens = await ref.watch(_profOsPeriodoProvider.future);
+  final comissoes = await ref.watch(_profComissoesProvider.future);
+
+  return buildEstimativa(
+    me: me,
+    ordens: ordens,
+    comissoes: comissoes,
+    periodo: periodo,
+  );
+});
+
+/// Atualiza a tela. Revalida a SESSÃO antes das listas (F-227): sem
+/// `authRefresh` o app segue com a comissão que valia no login, e o botão de
+/// atualizar só recarregaria OS com a config velha.
+Future<void> _refreshCarteira(WidgetRef ref) async {
+  await ref.read(authServiceProvider).refresh();
+  ref.invalidate(_profComissoesProvider);
+  ref.invalidate(_profOsPeriodoProvider);
+  await ref.read(_carteiraProvider.future);
+}
+
 class ProfFinanceiroScreen extends ConsumerWidget {
   const ProfFinanceiroScreen({super.key});
 
@@ -51,7 +85,7 @@ class ProfFinanceiroScreen extends ConsumerWidget {
     final clx = context.clx;
     final me = ref.watch(currentUserProvider);
     final asyncCom = ref.watch(_profComissoesProvider);
-    final asyncOs = ref.watch(_profOsPeriodoProvider);
+    final asyncCarteira = ref.watch(_carteiraProvider);
     final periodo = ref.watch(_estimativaPeriodoProvider);
 
     return Scaffold(
@@ -64,20 +98,14 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                   'Quando o admin definir sua comissão, o extrato e a estimativa aparecem aqui.',
             )
           : RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(_profComissoesProvider);
-                ref.invalidate(_profOsPeriodoProvider);
-              },
+              onRefresh: () => _refreshCarteira(ref),
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   ClxFadeSlide(
                     child: _ComissaoHero(
                       me: me,
-                      onRefresh: () {
-                        ref.invalidate(_profComissoesProvider);
-                        ref.invalidate(_profOsPeriodoProvider);
-                      },
+                      onRefresh: () => _refreshCarteira(ref),
                     ),
                   ),
                   Padding(
@@ -88,9 +116,8 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                         ClxFadeSlide(
                           delay: const Duration(milliseconds: 60),
                           child: _EstimativaSection(
-                            me: me,
                             periodo: periodo,
-                            asyncOs: asyncOs,
+                            asyncCarteira: asyncCarteira,
                             onPeriodo: (p) => ref
                                 .read(_estimativaPeriodoProvider.notifier)
                                 .state = p,
@@ -211,15 +238,13 @@ class _ComissaoHero extends StatelessWidget {
 
 class _EstimativaSection extends StatelessWidget {
   const _EstimativaSection({
-    required this.me,
     required this.periodo,
-    required this.asyncOs,
+    required this.asyncCarteira,
     required this.onPeriodo,
   });
 
-  final User me;
   final EstimativaPeriodo periodo;
-  final AsyncValue<List<OrdemServico>> asyncOs;
+  final AsyncValue<EstimativaGanho> asyncCarteira;
   final ValueChanged<EstimativaPeriodo> onPeriodo;
 
   @override
@@ -229,14 +254,15 @@ class _EstimativaSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Estimativa de ganho',
+          'Ganho no período',
           style: Theme.of(
             context,
           ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: ClxSpace.x1),
         Text(
-          'Com base nas OS já geradas para você no período (sem canceladas).',
+          'Serviço concluído entra pelo valor fechado na hora. '
+          'Serviço em aberto é estimativa e ainda pode mudar.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink2),
         ),
         const SizedBox(height: ClxSpace.x3),
@@ -258,7 +284,7 @@ class _EstimativaSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: ClxSpace.x3),
-        asyncOs.when(
+        asyncCarteira.when(
           loading: () => const ClxCard(
             child: Padding(
               padding: EdgeInsets.all(ClxSpace.x4),
@@ -268,12 +294,7 @@ class _EstimativaSection extends StatelessWidget {
           error: (e, _) => ErrorBanner(
             message: 'Não foi possível carregar as OS do período.',
           ),
-          data: (ordens) {
-            final est = buildEstimativa(
-              me: me,
-              ordens: ordens,
-              periodo: periodo,
-            );
+          data: (est) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -289,7 +310,7 @@ class _EstimativaSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: est.totalEstimado),
+                        tween: Tween(begin: 0, end: est.totalGeral),
                         duration: ClxMotion.emphasizedDuration,
                         curve: ClxMotion.emphasized,
                         builder: (context, v, _) => Text(
@@ -315,16 +336,16 @@ class _EstimativaSection extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _MiniStat(
-                              label: 'Em aberto',
-                              value: formatCurrency(est.totalAberto),
+                              label: 'Estimativa (em aberto)',
+                              value: formatCurrency(est.totalPrevisto),
                               color: clx.warning,
                             ),
                           ),
                           const SizedBox(width: ClxSpace.x2),
                           Expanded(
                             child: _MiniStat(
-                              label: 'Já concluído',
-                              value: formatCurrency(est.totalConcluido),
+                              label: 'Já garantido',
+                              value: formatCurrency(est.totalRealizado),
                               color: clx.success,
                             ),
                           ),
@@ -463,7 +484,7 @@ class _OsEstimativaTile extends StatelessWidget {
                 ),
               ),
               Text(
-                formatCurrency(linha.comissaoEstimada),
+                formatCurrency(linha.valorComissao),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: clx.primary,
@@ -474,7 +495,12 @@ class _OsEstimativaTile extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              linha.isConcluida ? 'comissao (realizada)' : 'estimativa',
+              // F-226: só chama de valor final o que está CONGELADO no banco.
+              linha.isCongelada
+                  ? 'valor final (não muda mais)'
+                  : linha.isConcluidaSemComissao
+                  ? 'estimativa · comissão ainda não gerada'
+                  : 'estimativa',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: clx.ink3,
               ),
