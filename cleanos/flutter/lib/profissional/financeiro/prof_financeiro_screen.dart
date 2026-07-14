@@ -56,19 +56,6 @@ class ProfFinanceiroScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: clx.bg2,
-      appBar: AppBar(
-        title: const Text('Meu financeiro'),
-        actions: [
-          IconButton(
-            tooltip: 'Atualizar',
-            onPressed: () {
-              ref.invalidate(_profComissoesProvider);
-              ref.invalidate(_profOsPeriodoProvider);
-            },
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
       body: me == null || !me.hasComissaoAtiva
           ? const EmptyState(
               icon: Icons.account_balance_wallet_outlined,
@@ -82,44 +69,63 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                 ref.invalidate(_profOsPeriodoProvider);
               },
               child: ListView(
-                padding: const EdgeInsets.all(ClxSpace.x4),
+                padding: EdgeInsets.zero,
                 children: [
-                  _ComissaoHeader(me: me),
-                  const SizedBox(height: ClxSpace.x4),
-                  _EstimativaSection(
-                    me: me,
-                    periodo: periodo,
-                    asyncOs: asyncOs,
-                    onPeriodo: (p) =>
-                        ref.read(_estimativaPeriodoProvider.notifier).state = p,
-                  ),
-                  const SizedBox(height: ClxSpace.x5),
-                  Text(
-                    'Extrato de comissões',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                  ClxFadeSlide(
+                    child: _ComissaoHero(
+                      me: me,
+                      onRefresh: () {
+                        ref.invalidate(_profComissoesProvider);
+                        ref.invalidate(_profOsPeriodoProvider);
+                      },
                     ),
                   ),
-                  const SizedBox(height: ClxSpace.x1),
-                  Text(
-                    'Valores gerados ao concluir o serviço.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: clx.ink2),
-                  ),
-                  const SizedBox(height: ClxSpace.x3),
-                  asyncCom.when(
-                    loading: () => const Padding(
-                      padding: EdgeInsets.all(ClxSpace.x6),
-                      child: Center(child: CircularProgressIndicator()),
+                  Padding(
+                    padding: const EdgeInsets.all(ClxSpace.x4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ClxFadeSlide(
+                          delay: const Duration(milliseconds: 60),
+                          child: _EstimativaSection(
+                            me: me,
+                            periodo: periodo,
+                            asyncOs: asyncOs,
+                            onPeriodo: (p) => ref
+                                .read(_estimativaPeriodoProvider.notifier)
+                                .state = p,
+                          ),
+                        ),
+                        const SizedBox(height: ClxSpace.x5),
+                        Text(
+                          'Extrato de comissões',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: ClxSpace.x1),
+                        Text(
+                          'Valores gerados ao concluir o serviço.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: clx.ink2),
+                        ),
+                        const SizedBox(height: ClxSpace.x3),
+                        asyncCom.when(
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(ClxSpace.x6),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                          error: (e, _) => ErrorBanner(
+                            message: 'Não foi possível carregar o extrato.',
+                            onRetry: () =>
+                                ref.invalidate(_profComissoesProvider),
+                          ),
+                          data: (items) =>
+                              _ExtratoSection(items: items, clx: clx),
+                        ),
+                        const SizedBox(height: ClxSpace.x8),
+                      ],
                     ),
-                    error: (e, _) => ErrorBanner(
-                      message: 'Não foi possível carregar o extrato.',
-                      onRetry: () => ref.invalidate(_profComissoesProvider),
-                    ),
-                    data: (items) => _ExtratoSection(items: items, clx: clx),
                   ),
-                  const SizedBox(height: ClxSpace.x8),
                 ],
               ),
             ),
@@ -127,31 +133,77 @@ class ProfFinanceiroScreen extends ConsumerWidget {
   }
 }
 
-class _ComissaoHeader extends StatelessWidget {
-  const _ComissaoHeader({required this.me});
+class _ComissaoHero extends StatelessWidget {
+  const _ComissaoHero({required this.me, required this.onRefresh});
   final User me;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    return ClxCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Sua comissão',
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: clx.ink2),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            me.comissaoResumo,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 14, 8, 22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            clx.accent,
+            Color.lerp(clx.accent, clx.primary, 0.55)!,
+            clx.primary,
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: clx.primary.withValues(alpha: 0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MINHA CARTEIRA',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    me.comissaoResumo,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Estimativa + extrato das suas comissões',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Atualizar',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -236,13 +288,18 @@ class _EstimativaSection extends StatelessWidget {
                         ).textTheme.labelLarge?.copyWith(color: clx.ink2),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        formatCurrency(est.totalEstimado),
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: clx.primary,
-                            ),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: est.totalEstimado),
+                        duration: ClxMotion.emphasizedDuration,
+                        curve: ClxMotion.emphasized,
+                        builder: (context, v, _) => Text(
+                          formatCurrency(v),
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: clx.primary,
+                              ),
+                        ),
                       ),
                       const SizedBox(height: ClxSpace.x2),
                       Text(

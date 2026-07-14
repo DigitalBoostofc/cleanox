@@ -57,7 +57,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     try {
       final res = await _ctrl.avisarACaminho(os);
       if (res.ok) {
-        _toast('Cliente avisado pela Cleanox ✓', ToastType.success);
+        _toast('Cliente avisado pela OS Fácil ✓', ToastType.success);
       } else {
         _toast('Não foi possível avisar o cliente.', ToastType.error);
       }
@@ -130,16 +130,19 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     if (mounted) showClxToast(context, msg, type: type);
   }
 
-  OSCard _card(OrdemServico os) => OSCard(
-    os: os,
-    onIniciar: () => _iniciar(os),
-    onAvisar: () => _avisar(os),
-    onPagar: () => _pagar(os),
-    onConcluir: () => _concluir(os),
-    onChecklist: () => _abrirExecucao(os),
-    actionLoading: _actionLoading[os.id] ?? false,
-    actionError: _actionError[os.id],
-    avisoLoading: _avisoLoading[os.id] ?? false,
+  Widget _card(OrdemServico os, {int index = 0}) => ClxFadeSlide(
+    delay: Duration(milliseconds: (index % 6) * 40),
+    child: OSCard(
+      os: os,
+      onIniciar: () => _iniciar(os),
+      onAvisar: () => _avisar(os),
+      onPagar: () => _pagar(os),
+      onConcluir: () => _concluir(os),
+      onChecklist: () => _abrirExecucao(os),
+      actionLoading: _actionLoading[os.id] ?? false,
+      actionError: _actionError[os.id],
+      avisoLoading: _avisoLoading[os.id] ?? false,
+    ),
   );
 
   @override
@@ -148,12 +151,50 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     final state = ref.watch(meusServicosProvider);
     final hoje = DateTime.now();
     final diaLabel = _capitalize(_weekdayLabel(hoje));
+    final countHoje = state.today.length;
 
+    // Cabeçalho global (saudação + avatar) fica no [ProfShell].
+    // Aqui só o resumo do dia + refresh.
     return Column(
       children: [
-        _Header(
-          onRefresh: state.loading ? null : _ctrl.refresh,
-          loading: state.loading,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: clx.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  countHoje == 1
+                      ? '1 serviço hoje'
+                      : '$countHoje serviços hoje',
+                  style: TextStyle(
+                    color: clx.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Atualizar',
+                onPressed: state.loading ? null : _ctrl.refresh,
+                icon: state.loading
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: clx.primary,
+                        ),
+                      )
+                    : Icon(Icons.refresh_rounded, color: clx.ink2),
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: RefreshIndicator(
@@ -229,7 +270,8 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
             ),
           ),
           const SizedBox(height: ClxSpace.x3),
-          for (final os in state.pastOpen) _card(os),
+          for (var i = 0; i < state.pastOpen.length; i++)
+            _card(state.pastOpen[i], index: i),
           const SizedBox(height: ClxSpace.x5),
         ],
 
@@ -248,13 +290,14 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
         ),
         const SizedBox(height: ClxSpace.x3),
         if (state.today.isEmpty)
-          EmptyState(
+          const EmptyState(
             icon: Icons.event_available_outlined,
             title: 'Nenhum serviço hoje',
             message: 'Você não tem serviços agendados para hoje.',
           )
         else
-          for (final os in state.today) _card(os),
+          for (var i = 0; i < state.today.length; i++)
+            _card(state.today[i], index: i),
 
         // Próximos.
         if (state.upcoming.isNotEmpty) ...[
@@ -263,7 +306,8 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
           const SizedBox(height: ClxSpace.x3),
           _SectionHeader(title: 'Próximos agendamentos', titleColor: clx.ink),
           const SizedBox(height: ClxSpace.x3),
-          for (final os in state.upcoming) _card(os),
+          for (var i = 0; i < state.upcoming.length; i++)
+            _card(state.upcoming[i], index: i),
         ],
         const SizedBox(height: ClxSpace.x8),
       ],
@@ -298,50 +342,6 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       'dezembro',
     ];
     return '${dias[d.weekday - 1]}, ${d.day} de ${meses[d.month - 1]}';
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onRefresh, required this.loading});
-
-  final VoidCallback? onRefresh;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x4,
-        ClxSpace.x3,
-        ClxSpace.x2,
-        ClxSpace.x3,
-      ),
-      decoration: BoxDecoration(
-        color: clx.bg,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Meus serviços',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: clx.ink,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Atualizar',
-            onPressed: onRefresh,
-            icon: loading
-                ? const Spinner(size: 18)
-                : const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-    );
   }
 }
 

@@ -75,102 +75,128 @@ class OSCard extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final statusColor = clx.statusColor(os.status);
 
-    // Faixa de status à esquerda: uma borda não-uniforme com borderRadius é
-    // proibida no Flutter, então o realce vira uma tira (Row + stretch).
+    // Card Easypay: sombra, stripe superior + faixa lateral de status.
     return Container(
       margin: const EdgeInsets.only(bottom: ClxSpace.x3),
       decoration: BoxDecoration(
         color: clx.bg,
-        borderRadius: ClxRadii.rLg,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: clx.line),
+        boxShadow: [
+          BoxShadow(
+            color: clx.ink.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 3, color: statusColor),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      ClxSpace.x4,
-                      ClxSpace.x3,
-                      ClxSpace.x4,
-                      ClxSpace.x2,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 4,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [statusColor, clx.primary.withValues(alpha: 0.45)],
+              ),
+            ),
+          ),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: statusColor),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          ClxSpace.x4,
+                          ClxSpace.x3,
+                          ClxSpace.x4,
+                          ClxSpace.x2,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    clx.primary.withValues(alpha: 0.18),
+                                    clx.accent.withValues(alpha: 0.1),
+                                  ],
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                formatHour(os.dataHora),
+                                style: tt.titleSmall?.copyWith(
+                                  color: clx.accent,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: ClxSpace.x3),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    formatHour(os.dataHora),
-                                    style: tt.titleLarge?.copyWith(
-                                      color: clx.primary2,
-                                      letterSpacing: -0.4,
+                                    os.nomeCurto,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: tt.titleSmall?.copyWith(
+                                      color: clx.ink,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  const SizedBox(width: ClxSpace.x2),
-                                  Expanded(
-                                    child: Text(
-                                      os.nomeCurto,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: tt.titleSmall?.copyWith(
-                                        color: clx.ink,
-                                      ),
-                                    ),
+                                  const SizedBox(height: 2),
+                                  Wrap(
+                                    spacing: ClxSpace.x2,
+                                    children: [
+                                      if ((os.tipoServicoNome ?? '').isNotEmpty)
+                                        Text(
+                                          os.tipoServicoNome!,
+                                          style: tt.bodySmall?.copyWith(
+                                            color: clx.ink2,
+                                          ),
+                                        ),
+                                      if (os.bairro.isNotEmpty)
+                                        Text(
+                                          os.bairro,
+                                          style: tt.bodySmall?.copyWith(
+                                            color: clx.ink3,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: ClxSpace.x1),
-                              Wrap(
-                                spacing: ClxSpace.x3,
-                                children: [
-                                  if ((os.tipoServicoNome ?? '').isNotEmpty)
-                                    Text(
-                                      os.tipoServicoNome!,
-                                      style: tt.bodyMedium?.copyWith(
-                                        color: clx.ink2,
-                                      ),
-                                    ),
-                                  if (os.bairro.isNotEmpty)
-                                    Text(
-                                      os.bairro,
-                                      style: tt.bodyMedium?.copyWith(
-                                        color: clx.ink3,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: ClxSpace.x2),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            StatusBadge(status: os.status, dense: true),
-                            const SizedBox(height: ClxSpace.x1),
-                            Text(
-                              formatCurrency(os.valorServico ?? 0),
-                              style: tt.bodyLarge?.copyWith(
-                                color: clx.ink2,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            ),
+                            const SizedBox(width: ClxSpace.x2),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                StatusBadge(status: os.status, dense: true),
+                                const SizedBox(height: ClxSpace.x1),
+                                Text(
+                                  formatCurrency(os.valorTotal),
+                                  style: tt.titleSmall?.copyWith(
+                                    color: clx.accent,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
 
                   // Endereço liberado (só em_andamento).
                   if (os.status == OSStatus.emAndamento &&
@@ -245,11 +271,13 @@ class OSCard extends StatelessWidget {
                     ),
                     child: _actions(context),
                   ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

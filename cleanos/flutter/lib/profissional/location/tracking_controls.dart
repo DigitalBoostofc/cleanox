@@ -53,7 +53,7 @@ class _TrackingControlsState extends ConsumerState<TrackingControls> {
             .avisarACaminho(widget.os.id);
         _toast(
           res.ok
-              ? 'Cliente avisado pela Cleanox ✓'
+              ? 'Cliente avisado pela OS Fácil ✓'
               : 'Não foi possível avisar o cliente.',
           res.ok ? ToastType.success : ToastType.warning,
         );

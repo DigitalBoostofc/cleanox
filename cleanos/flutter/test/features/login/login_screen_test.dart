@@ -59,13 +59,14 @@ Future<void> _preencherEsubmeter(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('surface Web (não-fintech): mantém o card clássico', (
+  testWidgets('surface Web (não-fintech): login em card flutuante', (
     tester,
   ) async {
     await tester.pumpWidget(_wrap(isFintechClean: false));
 
-    expect(find.byType(ClxCard), findsOneWidget);
-    expect(find.text('CleanOS'), findsOneWidget);
+    // Card visual próprio (não ClxCard) + marca + CTA.
+    expect(find.text('OS Fácil'), findsOneWidget);
+    expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
   });
 
@@ -80,7 +81,7 @@ void main() {
       await tester.pumpWidget(_wrap(isFintechClean: true));
 
       expect(find.byType(ClxCard), findsNothing);
-      expect(find.text('CleanOS'), findsOneWidget);
+      expect(find.text('OS Fácil'), findsOneWidget);
       expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
       final entrar = tester.widget<ClxButton>(
         find.widgetWithText(ClxButton, 'Entrar'),

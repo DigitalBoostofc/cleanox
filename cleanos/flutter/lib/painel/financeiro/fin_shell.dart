@@ -89,13 +89,18 @@ class _FinanceiroShellState extends State<FinanceiroShell> {
 
   @override
   Widget build(BuildContext context) {
+    final clx = context.clx;
     final active = FinTab.fromSlug(widget.tabSlug);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SubNav(active: active),
-        Expanded(child: _body(active)),
-      ],
+    // Ocupa o card flutuante inteiro (borda completa até embaixo).
+    return ColoredBox(
+      color: clx.bg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SubNav(active: active),
+          Expanded(child: _body(active)),
+        ],
+      ),
     );
   }
 
