@@ -108,6 +108,20 @@ Razão: cada `routerAdd` roda em VM isolada — funções do escopo do arquivo n
 **R10 — Frontend = Flutter only.**
 Não recriar app React/Vite/TSX. Não documentar fluxos de dev no frontend legado. Código novo e testes de UI: `cleanos/flutter/`.
 
+**R11 — NUNCA rsyncar `pb_hooks/` inteiro. Deploy de hook é cirúrgico (`scp` do arquivo).**
+A produção roda hooks que **não estão no repo**: `meta_capi_lib.js` só existe em prod, e
+`os_financeiro.pb.js` / `uazapi.js` / `whatsapp_routes.pb.js` divergem (versões do Meta CAPI,
+que está VIVO em prod — migrations 18 e 25 aplicadas). Rsync da pasta sobrescreve o hook que
+cria os lançamentos financeiros ao fechar OS. **Sempre diffar prod contra o repo antes de
+escrever qualquer hook.** Razão: descoberto em 14/07/2026, a um comando de quebrar o
+financeiro em produção. Consertar de verdade = trazer os hooks do Meta CAPI para a linha
+principal (hoje em `wip/meta-capi`).
+
+**R12 — Merge na `main` PUBLICA APK na Play Store. Merge ≠ neutro.**
+`.github/workflows/android-release-profissional.yml` dispara em `push: branches: [main]` →
+build assinado + auto-bump + publicação no track `internal`. Mergear um PR não é só integrar
+código: **distribui app pros usuários**. Precisa de decisão explícita do dono, igual deploy (R5).
+
 ---
 
 ## 4. FLUXO DE TRABALHO
@@ -120,12 +134,29 @@ Não recriar app React/Vite/TSX. Não documentar fluxos de dev no frontend legad
 5. Dev Android local: `flutter run -d <DEVICE> --dart-define=PB_URL=http://10.0.2.2:8090 -t lib/main_android.dart`
 
 **Deploy produção (VPS via `ssh hostinger`):**
-```
-# Backup ANTES de qualquer operação de risco:
-ssh hostinger "cd /opt/cleanos/pb && ./pocketbase backup create"
 
-# Backend (hooks + migrations):
-rsync -az --exclude='1700000002_seed.js' cleanos/pb/pb_hooks/ hostinger:/opt/cleanos/pb/pb_hooks/
+> ⚠️ **R11 — NUNCA rsyncar a pasta `pb_hooks/` inteira.** A produção roda hooks que
+> **não existem no repositório** (`meta_capi_lib.js`; e `os_financeiro.pb.js`, `uazapi.js`,
+> `whatsapp_routes.pb.js` divergem — são as versões do Meta CAPI, que está VIVO em prod).
+> Um rsync da pasta **sobrescreve o hook financeiro da produção** — o que cria os
+> lançamentos ao fechar OS. Deploy de hook é **cirúrgico**: `scp` do arquivo específico,
+> depois de diffar prod contra o repo. Verificado em 14/07/2026.
+
+```
+# Backup ANTES de qualquer operação de risco.
+# (o CLI `backup create` NÃO existe nesta build — usar backup online do SQLite:)
+ssh hostinger "cd /opt/cleanos/pb && mkdir -p /opt/cleanos/predeploy-\$(date +%F) && \
+  /opt/cleanos/forensics/tools/sqlite3 pb_data/data.db \".backup '/opt/cleanos/predeploy-\$(date +%F)/data.db'\" && \
+  tar czf /opt/cleanos/predeploy-\$(date +%F)/pb_public.tar.gz -C /opt/cleanos/pb pb_public"
+
+# ANTES de tocar em hook: diffar prod contra o repo (detectar drift)
+rsync -az hostinger:/opt/cleanos/pb/pb_hooks/ /tmp/prodhooks/
+diff -r /tmp/prodhooks/ cleanos/pb/pb_hooks/     # conferir arquivo a arquivo
+
+# Backend — hooks: CIRÚRGICO, um arquivo por vez (ver R11)
+scp cleanos/pb/pb_hooks/<arquivo>.js hostinger:/opt/cleanos/pb/pb_hooks/
+
+# Backend — migrations: aditivo é seguro (nunca --delete, nunca o seed — R8)
 rsync -az --exclude='1700000002_seed.js' cleanos/pb/pb_migrations/ hostinger:/opt/cleanos/pb/pb_migrations/
 ssh hostinger "cd /opt/cleanos/pb && ./pocketbase migrate up"
 ssh hostinger "systemctl restart cleanos.service"
