@@ -148,3 +148,21 @@ class ClxMotion {
   static const Duration standardDuration = Durations.medium2; // 300ms
   static const Duration shortDuration = Durations.short3; // 150ms
 }
+
+/// Cor do **placeholder** (hint) dos campos de formulário.
+///
+/// O hint é só um EXEMPLO ("Rua das Flores, 123"), não um dado digitado. Antes
+/// ele usava `ink3` e ficava em ~5.5:1 de contraste — mais forte que muito texto
+/// de corpo, então o dono confundia campo vazio com campo preenchido.
+///
+/// Aqui ele é deliberadamente fraco, pra criar uma diferença ÓBVIA contra o
+/// texto digitado (que fica em ~17:1):
+///   claro  #9AA7B0 sobre branco   → ~2.5:1
+///   escuro #626262 sobre #191919  → ~2.9:1
+///
+/// ⚠️ Isso fica ABAIXO do mínimo WCAG de 4.5:1 — de propósito, e é seguro aqui
+/// porque o hint não carrega informação: todo campo tem um rótulo real acima
+/// ("Nome", "Telefone", "CEP"). Quem lê o rótulo não perde nada. NÃO use esta
+/// cor para texto que precise ser lido.
+Color clxHintColor(bool isDark) =>
+    isDark ? const Color(0xFF626262) : const Color(0xFF9AA7B0);
