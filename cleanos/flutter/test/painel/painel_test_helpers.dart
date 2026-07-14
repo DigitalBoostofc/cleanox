@@ -49,6 +49,8 @@ class FakeAuthService implements AuthService {
   Future<User> login(String email, String password) =>
       throw UnimplementedError();
   @override
+  Future<User?> refresh() async => _user;
+  @override
   void logout() {}
 }
 

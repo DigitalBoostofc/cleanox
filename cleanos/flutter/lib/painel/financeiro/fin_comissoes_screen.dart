@@ -15,6 +15,17 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../data/painel_providers.dart';
 
+/// Percentual legível a partir do `double` cru do PocketBase (F-230): a comissão
+/// vem como `10.0` e o extrato mostrava "10.0%". Percentual redondo perde a casa
+/// decimal ("10%"); quebrado mantém a casa com vírgula ("12,5%"), como manda o
+/// pt-BR.
+String formatPercent(double v) {
+  final texto = v == v.roundToDouble()
+      ? v.toStringAsFixed(0)
+      : v.toString().replaceAll('.', ',');
+  return '$texto%';
+}
+
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
@@ -504,7 +515,7 @@ class _ComissaoExtratoTile extends StatelessWidget {
           ),
           Text(
             'OS ${formatCurrency(item.valorOs)} · '
-            '${item.tipoAplicado == ComissaoTipo.percentual ? '${item.baseValor}%' : 'fixo'}',
+            '${item.tipoAplicado == ComissaoTipo.percentual ? formatPercent(item.baseValor) : 'fixo'}',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: clx.ink2),

@@ -124,7 +124,9 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
             Navigator.pop(ctx);
             _goAndOpenForm(
               path: painelPath(PainelSection.ordens),
-              openForm: () => showOSForm(context),
+              // `showOSForm` devolve a OS gravada (ou null); aqui só interessa
+              // se salvou.
+              openForm: () => showOSForm(context).then((os) => os != null),
               onSaved: () async {
                 await ref.read(ordensControllerProvider.notifier).refresh();
                 ref.invalidate(ordensCountsProvider);

@@ -21,6 +21,14 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
+
+// PocketBase injeta BadRequestError como global (JSVM). Fora do PB, um shim
+// equivalente — o fin_saldo_lib.js o referencia no momento do throw.
+class BadRequestError extends Error {
+  constructor(message) { super(message); this.name = 'BadRequestError' }
+}
+globalThis.BadRequestError = BadRequestError
+
 const finSaldo = require('../../pb/pb_hooks/fin_saldo_lib.js')
 const osFin     = require('../../pb/pb_hooks/os_financeiro_lib.js')
 
@@ -46,30 +54,44 @@ function mockApp(rows, logs) {
   }
 }
 
-/** Captura console.error/console.log durante `fn`. */
+/**
+ * Captura console.error/console.log durante `fn` — e também o que `fn` LANÇAR.
+ *
+ * O caminho do saldo órfão não só sinaliza: ele LANÇA BadRequestError, abortando
+ * o lançamento. É de propósito — melhor recusar o lançamento do que aceitá-lo e
+ * deixar o saldo silenciosamente errado. Por isso o capture precisa devolver o
+ * erro em vez de deixá-lo escapar e derrubar o teste.
+ */
 function captureConsole(fn) {
   const errs = [], logs = []
   const oe = console.error, ol = console.log
   console.error = (...a) => errs.push(a.join(' '))
   console.log   = (...a) => logs.push(a.join(' '))
-  try { fn() } finally { console.error = oe; console.log = ol }
-  return { errs, logs }
+  let thrown = null
+  try { fn() } catch (e) { thrown = e } finally { console.error = oe; console.log = ol }
+  return { errs, logs, thrown }
 }
 
 // ── Fix 2 · sub-crédito silencioso → sinalização ─────────────────────────────
 
 describe('Fix 2 · incSaldo rowsAffected==0 é sinalizado (não silencioso)', () => {
-  it('applyCreate: conta inexistente (0 linhas, delta≠0) → logger.error + console.error com os ids', () => {
+  it('applyCreate: conta inexistente (0 linhas, delta≠0) → sinaliza em nível ALTO E ABORTA o lançamento', () => {
     const logs = []
     const app = mockApp(0, logs) // UPDATE não achou a conta → 0 linhas
     const rec = mockRec({ status: 'pago', tipo: 'receita', valor: 100, conta_id: 'contaFANTASMA' }, 'lancORFAO')
-    const { errs } = captureConsole(() => finSaldo.applyCreate(app, rec))
+    const { errs, thrown } = captureConsole(() => finSaldo.applyCreate(app, rec))
 
     assert.strictEqual(logs.length, 1, 'esperado exatamente 1 log em nível ALTO (logger.error)')
-    assert.match(logs[0], /RECONCILIAR/, 'log deve marcar RECONCILIAR')
+    assert.match(logs[0], /SALDO-ORPHAN/, 'log deve marcar o caso pra reconciliação')
     assert.match(logs[0], /lancORFAO/, 'log deve conter o id do lançamento')
     assert.match(logs[0], /contaFANTASMA/, 'log deve conter o id da conta')
     assert.ok(errs.some((l) => /lancORFAO/.test(l)), 'console.error também deve sinalizar')
+
+    // Sinalizar não basta: o lançamento é RECUSADO. Aceitá-lo deixaria o saldo
+    // silenciosamente errado — exatamente o bug que este fix existe pra impedir.
+    assert.ok(thrown, 'deve LANÇAR, não apenas logar')
+    assert.strictEqual(thrown.name, 'BadRequestError', 'erro 400 pro cliente')
+    assert.match(thrown.message, /contaFANTASMA/)
   })
 
   it('applyCreate: conta existente (1 linha) → NÃO sinaliza', () => {
@@ -90,26 +112,28 @@ describe('Fix 2 · incSaldo rowsAffected==0 é sinalizado (não silencioso)', ()
     assert.strictEqual(errs.length, 0)
   })
 
-  it('applyDelete: estorno em conta inexistente (0 linhas) → sinaliza com o id do lançamento', () => {
+  it('applyDelete: estorno em conta inexistente (0 linhas) → sinaliza e aborta', () => {
     const logs = []
     const app = mockApp(0, logs)
     const before = finSaldo.snapshot(mockRec({ status: 'pago', tipo: 'receita', valor: 44, conta_id: 'contaMORTA' }, 'lancDEL'))
-    const { errs } = captureConsole(() => finSaldo.applyDelete(app, before))
+    const { errs, thrown } = captureConsole(() => finSaldo.applyDelete(app, before))
     assert.strictEqual(logs.length, 1)
     assert.match(logs[0], /lancDEL/)
     assert.match(logs[0], /contaMORTA/)
-    assert.ok(errs.some((l) => /RECONCILIAR/.test(l)))
+    assert.ok(errs.some((l) => /SALDO-ORPHAN/.test(l)))
+    assert.strictEqual(thrown?.name, 'BadRequestError', 'estorno que não achou a conta é recusado')
   })
 
-  it('applyUpdate (mesma conta): novo delta em conta inexistente (0 linhas) → sinaliza', () => {
+  it('applyUpdate (mesma conta): novo delta em conta inexistente (0 linhas) → sinaliza e aborta', () => {
     const logs = []
     const app = mockApp(0, logs)
     const before = finSaldo.snapshot(mockRec({ status: 'pendente', tipo: 'despesa', valor: 30, conta_id: 'contaX' }, 'lancUPD'))
     const after  = mockRec({ status: 'pago', tipo: 'despesa', valor: 30, conta_id: 'contaX' }, 'lancUPD')
-    const { errs } = captureConsole(() => finSaldo.applyUpdate(app, before, after))
+    const { errs, thrown } = captureConsole(() => finSaldo.applyUpdate(app, before, after))
     assert.strictEqual(logs.length, 1)
     assert.match(logs[0], /lancUPD/)
-    assert.ok(errs.some((l) => /RECONCILIAR/.test(l)))
+    assert.ok(errs.some((l) => /SALDO-ORPHAN/.test(l)))
+    assert.strictEqual(thrown?.name, 'BadRequestError')
   })
 
   it('snapshot inclui o id do lançamento (para reconciliação por lançamento)', () => {

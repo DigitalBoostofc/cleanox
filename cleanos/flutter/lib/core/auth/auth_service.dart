@@ -98,6 +98,32 @@ class AuthService {
     }
   }
 
+  /// Revalida a sessão e RECARREGA o registro do usuário do servidor (F-227).
+  ///
+  /// O `authStore` guarda o snapshot do user de quando o login aconteceu. Se o
+  /// admin mudar a comissão (ou o papel) do profissional durante a sessão, o app
+  /// continua operando com a config ANTIGA até um F5 — o botão "atualizar" só
+  /// recarregava as listas. `authRefresh()` reescreve o record no authStore, o
+  /// que dispara `onChange` → `currentUserProvider` reemite o user novo.
+  ///
+  /// Best-effort: 401/403 (token morto) → logout; falha de rede → mantém a
+  /// sessão como está (não derruba o profissional em campo por causa de sinal).
+  Future<User?> refresh() async {
+    if (!_pb.authStore.isValid) return null;
+    try {
+      final auth = await _pb.collection(Collections.users).authRefresh();
+      return User.fromRecord(auth.record);
+    } on ClientException catch (err) {
+      if (err.statusCode == 401 || err.statusCode == 403) {
+        logout();
+        return null;
+      }
+      return currentUser;
+    } catch (_) {
+      return currentUser;
+    }
+  }
+
   /// Encerra a sessão. Além de limpar o token do secure storage (via authStore),
   /// PURGA os caches locais sensíveis do dispositivo — imagens de evidência do
   /// cliente ficam em cache em disco/memória (LGPD). Espelha o React, que apaga
