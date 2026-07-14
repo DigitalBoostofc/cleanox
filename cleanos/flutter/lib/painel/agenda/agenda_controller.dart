@@ -199,16 +199,27 @@ int agendaEventHour(OrdemServico os) {
 }
 
 /// Rótulo do período conforme a visão (PT-BR, BRT).
+///
+/// Na visão **semana**, [anchor] é o **início da janela de 7 dias** (rolante:
+/// pode ser quarta→quarta/terça, não precisa ser segunda→domingo).
 String agendaPeriodLabel(AgendaView view, DateTime anchor) {
   switch (view) {
     case AgendaView.dia:
       return '${_dowLong[_dow(anchor)]}, ${_dd(anchor.day)} de '
           '${_mesLong[anchor.month - 1]} de ${anchor.year}';
     case AgendaView.semana:
-      final ws = startOfWeek(anchor);
+      // Janela rolante de 7 dias a partir de [anchor] (inclusive).
+      // Ex.: quarta→terça, ou se começar num dia qualquer: "de X a Y".
+      final ws = DateTime(anchor.year, anchor.month, anchor.day);
       final we = addDays(ws, 6);
-      return '${_dd(ws.day)} ${_mesAbbr[ws.month - 1]} – '
-          '${_dd(we.day)} ${_mesAbbr[we.month - 1]} ${we.year}';
+      final sameMonth = ws.month == we.month && ws.year == we.year;
+      if (sameMonth) {
+        return '${kDowShort[_dow(ws)]} ${_dd(ws.day)} – '
+            '${kDowShort[_dow(we)]} ${_dd(we.day)} '
+            '${_mesAbbr[we.month - 1]} ${we.year}';
+      }
+      return '${kDowShort[_dow(ws)]} ${_dd(ws.day)} ${_mesAbbr[ws.month - 1]} – '
+          '${kDowShort[_dow(we)]} ${_dd(we.day)} ${_mesAbbr[we.month - 1]} ${we.year}';
     case AgendaView.mes:
       return '${_mesLong[anchor.month - 1]} de ${anchor.year}';
   }
@@ -326,8 +337,10 @@ class AgendaController extends StateNotifier<AgendaState> {
         from = anchor;
         to = addDays(anchor, 1);
       case AgendaView.semana:
-        from = startOfWeek(anchor);
-        to = addDays(from, 7);
+        // Janela rolante: carrega margem ampla p/ scroll contínuo da faixa.
+        // [anchor] = primeiro dia visível (não força segunda-feira).
+        from = addDays(anchor, -21);
+        to = addDays(anchor, 28);
       case AgendaView.mes:
         from = startOfWeek(DateTime(anchor.year, anchor.month, 1));
         to = addDays(from, 42);
@@ -393,6 +406,29 @@ class AgendaController extends StateNotifier<AgendaState> {
   void goPrev() => _shift(-1);
   void goNext() => _shift(1);
 
+  /// Define o primeiro dia da janela de 7 dias (scroll contínuo da faixa).
+  /// Não recarrega a cada pixel — só se a janela sair da margem carregada.
+  ///
+  /// Se o dia selecionado sair da nova janela [start, start+6], move a
+  /// seleção para o dia mais próximo dentro dela (mantém o foco coerente).
+  void setWeekWindowStart(DateTime start, {bool forceLoad = false}) {
+    final s = DateTime(start.year, start.month, start.day);
+    if (sameDay(s, state.anchor) && !forceLoad) return;
+    final prev = state.anchor;
+    final we = addDays(s, 6);
+    var sel = state.selectedDay;
+    if (sel.isBefore(s)) {
+      sel = s;
+    } else if (sel.isAfter(we)) {
+      sel = we;
+    }
+    state = state.copyWith(anchor: s, selectedDay: sel);
+    // Recarrega se avançou/recuou bastante (margem no buffer de load).
+    if (forceLoad || (s.difference(prev).inDays).abs() >= 10) {
+      load();
+    }
+  }
+
   void _shift(int dir) {
     final a = state.anchor;
     final DateTime next;
@@ -400,11 +436,22 @@ class AgendaController extends StateNotifier<AgendaState> {
       case AgendaView.dia:
         next = addDays(a, dir);
       case AgendaView.semana:
+        // Avança a janela rolante em 7 dias (setas ◀ ▶).
         next = addDays(a, dir * 7);
       case AgendaView.mes:
         next = DateTime(a.year, a.month + dir, 1);
     }
-    state = state.copyWith(anchor: next);
+    final nextSelected = state.view == AgendaView.semana
+        ? addDays(state.selectedDay, dir * 7)
+        : state.selectedDay;
+    state = state.copyWith(
+      anchor: next,
+      selectedDay: DateTime(
+        nextSelected.year,
+        nextSelected.month,
+        nextSelected.day,
+      ),
+    );
     _syncSelectedForMonth(next);
     load();
   }
