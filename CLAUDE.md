@@ -108,14 +108,31 @@ Razão: cada `routerAdd` roda em VM isolada — funções do escopo do arquivo n
 **R10 — Frontend = Flutter only.**
 Não recriar app React/Vite/TSX. Não documentar fluxos de dev no frontend legado. Código novo e testes de UI: `cleanos/flutter/`.
 
-**R11 — NUNCA rsyncar `pb_hooks/` inteiro. Deploy de hook é cirúrgico (`scp` do arquivo).**
-A produção roda hooks que **não estão no repo**: `meta_capi_lib.js` só existe em prod, e
-`os_financeiro.pb.js` / `uazapi.js` / `whatsapp_routes.pb.js` divergem (versões do Meta CAPI,
-que está VIVO em prod — migrations 18 e 25 aplicadas). Rsync da pasta sobrescreve o hook que
-cria os lançamentos financeiros ao fechar OS. **Sempre diffar prod contra o repo antes de
-escrever qualquer hook.** Razão: descoberto em 14/07/2026, a um comando de quebrar o
-financeiro em produção. Consertar de verdade = trazer os hooks do Meta CAPI para a linha
-principal (hoje em `wip/meta-capi`).
+**R11 — Deploy de hook é cirúrgico (`scp` do arquivo). NUNCA rsyncar `pb_hooks/` inteiro.**
+
+Estado **medido** em 14/07/2026, depois do deploy do PR #47:
+
+```
+rsync -az --delete hostinger:/opt/cleanos/pb/pb_hooks/ /tmp/prodhooks-fresh/
+diff -rq /tmp/prodhooks-fresh/ cleanos/pb/pb_hooks/     # vazio: 21 arquivos, byte-idênticos
+```
+
+Prod e repo estão **em paridade**. O drift do Meta CAPI (que já foi real: `meta_capi_lib.js`
+só existia em prod e 3 hooks divergiam) foi **fechado** pelos PRs #40/#43 — os hooks do Meta
+CAPI estão versionados. A premissa antiga desta regra ("prod roda código que não está no
+repo") **não vale mais**.
+
+A regra continua, por dois motivos que independem do drift:
+1. Um `rsync` da pasta apaga em prod qualquer hook que não esteja no repo — e a paridade de
+   hoje não é garantida amanhã (basta alguém `scp`ar um hook de emergência).
+2. `pb_hooks/` é hot-reload: o PocketBase reinicia a cada arquivo alterado. Rsync da pasta
+   dispara N restarts em cascata; `scp` de 3 arquivos, 3.
+
+**Sempre diffar prod contra o repo antes de escrever qualquer hook — e usar `--delete` com
+diretório FRESCO.** Rsync sem `--delete` num diretório reaproveitado deixa arquivos que já
+sumiram na origem, e o diff mente: em 14/07 eu "descobri" lixo em prod que já tinha sido
+removido horas antes, porque estava comparando contra um espelho velho. Mesma classe de erro
+da R12 — não afirme nada sobre prod a partir de um artefato; meça.
 
 **R12 — Nunca deduzir o que a CI faz lendo o `on:` do workflow. Conferir o run.**
 
@@ -151,7 +168,15 @@ e usei a primeira pra segurar merges do dono por um risco que não existia.
 **Desenvolvimento:**
 1. Branch a partir de `main` → commitar → PR → dono aprova e mergeia
 2. Mensagens de commit: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
-3. Gate antes de qualquer PR: `flutter analyze --fatal-infos` (0 issues) + `flutter test` (suíte verde)
+3. Gate antes de qualquer PR:
+   - `flutter analyze --fatal-infos` (0 issues) + `flutter test` (suíte verde) — **rodado pelo CI**
+   - `cd cleanos/tests && npm test` (hooks do PocketBase) — **NÃO é rodado pelo CI**. Rodar à
+     mão em todo PR que toque `cleanos/pb/`. Razão: sem isso a suíte apodrece em silêncio —
+     descoberto em 14/07/2026 com 3 testes de `fin_saldo` vermelhos na `main` havia semanas
+     (o lib passou a lançar `BadRequestError` e ninguém atualizou o teste). É a suíte que
+     protege o saldo; ela vermelha é pior que ausente.
+   - Nota: 10 testes do `anti-desvio.test.mjs` (ratings/dispatch/catálogo) falham na `main` por
+     dependerem de secrets e de contagem de seed. Dívida conhecida, **não** é regressão.
 4. Dev Flutter web local: `flutter run -d chrome --dart-define=PB_URL=http://127.0.0.1:8090 -t lib/main_painel.dart` (em `cleanos/flutter/`)
 5. Dev Android local: `flutter run -d <DEVICE> --dart-define=PB_URL=http://10.0.2.2:8090 -t lib/main_android.dart`
 
