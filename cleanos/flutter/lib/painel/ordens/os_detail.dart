@@ -80,7 +80,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         'status': _selectedProf.isEmpty
             ? OSStatus.agendada.wire
             : OSStatus.atribuida.wire,
-      }, expand: 'profissional');
+      }, expand: 'profissional,cliente');
       if (!mounted) return;
       setState(() {
         _os = novo;
@@ -164,7 +164,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
             children: [
               Expanded(
                 child: Text(
-                  'OS — ${_os.nomeCurto.isEmpty ? "Cliente" : _os.nomeCurto}',
+                  'OS — ${_os.clienteNomeExibicao.isEmpty ? "Cliente" : _os.clienteNomeExibicao}',
                   style: tt.titleMedium?.copyWith(
                     color: clx.ink,
                     fontWeight: FontWeight.w700,
@@ -190,7 +190,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _section(clx, 'Identificação', [
-                  _row(clx, 'Cliente', _os.nomeCurto),
+                  _row(clx, 'Cliente', _os.clienteNomeExibicao),
                   _row(clx, 'Bairro', _os.bairro),
                   _row(clx, 'Serviço', _os.tipoServicoNome ?? '—'),
                   _row(clx, 'Data / Hora', formatDateTime(_os.dataHora)),

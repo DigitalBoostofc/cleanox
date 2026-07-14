@@ -548,7 +548,7 @@ class _OrdemRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+                    os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.titleSmall?.copyWith(
@@ -735,7 +735,7 @@ class _OrdemCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${os.nomeCurto} · ${os.bairro}',
+                        '${os.clienteNomeExibicao} · ${os.bairro}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: tt.bodySmall?.copyWith(color: clx.ink3),
@@ -831,7 +831,7 @@ class _OrdemCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${os.nomeCurto} · ${os.bairro}',
+                      '${os.clienteNomeExibicao} · ${os.bairro}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: tt.bodyMedium?.copyWith(color: clx.ink3),

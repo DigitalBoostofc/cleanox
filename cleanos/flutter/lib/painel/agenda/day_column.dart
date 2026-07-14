@@ -632,7 +632,7 @@ class _BlocoOSState extends State<_BlocoOS> {
         children: [
           Text(
             curto
-                ? '$faixa ${os.nomeCurto.isEmpty ? '—' : os.nomeCurto}'
+                ? '$faixa ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}'
                 : faixa,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -644,7 +644,7 @@ class _BlocoOSState extends State<_BlocoOS> {
           if (!curto)
             Flexible(
               child: Text(
-                os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+                os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: tt.labelSmall?.copyWith(color: clx.ink2),

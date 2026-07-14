@@ -346,7 +346,7 @@ class _ReviewCard extends StatelessWidget {
             children: [
               _meta(context, clx, os.tipoServicoNome ?? '—', bold: true),
               _sep(context, clx),
-              _meta(context, clx, os.nomeCurto.isEmpty ? '—' : os.nomeCurto),
+              _meta(context, clx, os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao),
               _sep(context, clx),
               _meta(context, clx, formatDateTime(os.dataHora)),
             ],

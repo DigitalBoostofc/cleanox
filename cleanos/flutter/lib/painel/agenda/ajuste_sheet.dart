@@ -168,7 +168,7 @@ class _AjusteOsSheetState extends State<AjusteOsSheet> {
             ),
             const SizedBox(height: 2),
             Text(
-              os.nomeCurto.isEmpty ? 'Ordem de serviço' : os.nomeCurto,
+              os.clienteNomeExibicao.isEmpty ? 'Ordem de serviço' : os.clienteNomeExibicao,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: tt.bodyMedium?.copyWith(color: clx.ink3),
