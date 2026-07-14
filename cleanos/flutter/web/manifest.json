@@ -1,11 +1,11 @@
 {
-    "name": "cleanos",
-    "short_name": "cleanos",
+    "name": "OS Fácil",
+    "short_name": "OS Fácil",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "CleanOS — Painel Web + App Profissional (unificado Flutter)",
+    "theme_color": "#0F4C5C",
+    "description": "OS Fácil — Painel Web + App Profissional",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

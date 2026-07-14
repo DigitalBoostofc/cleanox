@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
@@ -259,6 +260,8 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
   }
 
   Widget _cardsView(OrdensState state) {
+    final easypay =
+        ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(ClxSpace.x4),
@@ -268,11 +271,15 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
         final os = state.items[i];
         return Padding(
           padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-          child: _OrdemCard(
-            os: os,
-            onTap: () => _abrirDetalhe(os),
-            onExecucao: () => _execucao(os),
-            onCancelar: () => _cancelar(os),
+          child: ClxFadeSlide(
+            delay: Duration(milliseconds: (i % 8) * 35),
+            child: _OrdemCard(
+              os: os,
+              easypay: easypay,
+              onTap: () => _abrirDetalhe(os),
+              onExecucao: () => _execucao(os),
+              onCancelar: () => _cancelar(os),
+            ),
           ),
         );
       },
@@ -651,12 +658,14 @@ class _OrdemCard extends StatelessWidget {
     required this.onTap,
     required this.onExecucao,
     required this.onCancelar,
+    this.easypay = false,
   });
 
   final OrdemServico os;
   final VoidCallback onTap;
   final VoidCallback onExecucao;
   final VoidCallback onCancelar;
+  final bool easypay;
 
   @override
   Widget build(BuildContext context) {
@@ -665,6 +674,142 @@ class _OrdemCard extends StatelessWidget {
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
     final tt = Theme.of(context).textTheme;
+    final valor = formatCurrency(os.valorTotal);
+
+    if (easypay) {
+      return Material(
+        color: clx.bg,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: clx.line),
+              boxShadow: [
+                BoxShadow(
+                  color: clx.ink.withValues(alpha: 0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                    gradient: LinearGradient(
+                      colors: [
+                        clx.statusColor(os.status),
+                        clx.primary.withValues(alpha: 0.5),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              os.tipoServicoNome ?? '—',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tt.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: clx.ink,
+                              ),
+                            ),
+                          ),
+                          StatusBadge(status: os.status, dense: true),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${os.nomeCurto} · ${os.bairro}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tt.bodySmall?.copyWith(color: clx.ink3),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule_rounded, size: 15, color: clx.ink3),
+                          const SizedBox(width: 4),
+                          Text(
+                            formatDateTime(os.dataHora),
+                            style: tt.bodySmall?.copyWith(color: clx.ink2),
+                          ),
+                          const Spacer(),
+                          Text(
+                            valor,
+                            style: tt.titleMedium?.copyWith(
+                              color: clx.accent,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (prof != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          prof.displayName,
+                          style: tt.labelMedium?.copyWith(color: clx.ink3),
+                        ),
+                      ],
+                      if (os.avaliacaoNota != null) ...[
+                        const SizedBox(height: 6),
+                        StarRating(value: os.avaliacaoNota!, size: 14),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          if (aberta)
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: onCancelar,
+                                icon: const Icon(Icons.close_rounded, size: 16),
+                                label: const Text('Cancelar'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: clx.error,
+                                  side: BorderSide(
+                                    color: clx.error.withValues(alpha: 0.35),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (aberta) const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: onExecucao,
+                              icon: const Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('Execução'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return ClxCard(
       onTap: onTap,
       child: Column(

@@ -9,6 +9,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/app_surface_provider.dart';
@@ -235,9 +236,8 @@ class _Body extends StatelessWidget {
       hint: 'Entradas − saídas',
     );
 
-    // Fintech Clean (APK): saldo geral sai da grade e vira o hero no topo
-    // (doc 12 §2.5) — os outros 3 KPIs seguem em cards hairline (2 colunas +
-    // "Saldo do mês" ocupando a linha inteira, como o mock).
+    // Easypay (APK): hero + mini KPIs + gráfico de fluxo animado.
+    final chartGroups = _fluxoUltimosMeses(lancs);
     final kpiSection = fintech
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,20 +251,56 @@ class _Body extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: entradasCard),
+                  Expanded(
+                    child: ClxFadeSlide(
+                      delay: const Duration(milliseconds: 40),
+                      child: entradasCard,
+                    ),
+                  ),
                   const SizedBox(width: ClxSpace.x3),
-                  Expanded(child: saidasCard),
+                  Expanded(
+                    child: ClxFadeSlide(
+                      delay: const Duration(milliseconds: 80),
+                      child: saidasCard,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: ClxSpace.x3),
-              FinKpiCard(
-                label: 'Saldo do mês',
-                value: formatCurrency(resumo.saldoMes),
-                color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
-                icon: Icons.equalizer_rounded,
-                hint: 'Entradas − saídas',
-                wide: true,
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 120),
+                child: FinKpiCard(
+                  label: 'Saldo do mês',
+                  value: formatCurrency(resumo.saldoMes),
+                  color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
+                  icon: Icons.equalizer_rounded,
+                  hint: 'Entradas − saídas',
+                  wide: true,
+                ),
               ),
+              if (chartGroups.isNotEmpty) ...[
+                const SizedBox(height: ClxSpace.x4),
+                ClxFadeSlide(
+                  delay: const Duration(milliseconds: 160),
+                  child: ClxCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Fluxo do período',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: clx.ink,
+                              ),
+                        ),
+                        const SizedBox(height: ClxSpace.x3),
+                        FinGroupedBarChart(groups: chartGroups, height: 180),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           )
         : FinKpiGrid(
@@ -282,13 +318,14 @@ class _Body extends StatelessWidget {
             ],
           );
 
+    // Desktop: grid denso em largura total (sem faixas vazias laterais).
+    // Mobile: coluna simples.
     return ListView(
-      padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x6),
+      padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x5),
       children: [
         ...leadingChildren,
         kpiSection,
-        const SizedBox(height: ClxSpace.x5),
-        // Ações rápidas.
+        const SizedBox(height: ClxSpace.x4),
         ClxCard(
           child: _QuickActions(
             onNovaReceita: onNovaReceita,
@@ -302,7 +339,7 @@ class _Body extends StatelessWidget {
           ),
         ),
         if (lancs.isEmpty) ...[
-          const SizedBox(height: ClxSpace.x5),
+          const SizedBox(height: ClxSpace.x4),
           const ClxCard(
             child: EmptyState(
               icon: Icons.insights_outlined,
@@ -313,10 +350,10 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: ClxSpace.x5),
-        // Bloco 1: a receber | a pagar | maiores gastos.
+        const SizedBox(height: ClxSpace.x4),
+        // Linha 1: a receber | a pagar | maiores gastos (3 colunas em desktop).
         _ResponsiveRow(
-          minColWidth: 300,
+          minColWidth: 260,
           children: [
             _PreviewCard(
               title: 'Contas a receber',
@@ -338,22 +375,92 @@ class _Body extends StatelessWidget {
           ],
         ),
         const SizedBox(height: ClxSpace.x4),
-        // Bloco 2: receitas por origem | limites.
+        // Linha 2: receitas por origem | limites | fluxo (preenche a largura).
         _ResponsiveRow(
-          minColWidth: 360,
+          minColWidth: 280,
           children: [
             _OrigemCard(lancs: lancs),
             _LimitesCard(lancs: lancs, limites: limites, cat: _cat),
+            if (!mobile && !fintech && chartGroups.isNotEmpty)
+              ClxCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fluxo do período',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: clx.ink,
+                      ),
+                    ),
+                    const SizedBox(height: ClxSpace.x3),
+                    FinGroupedBarChart(groups: chartGroups, height: 200),
+                  ],
+                ),
+              ),
           ],
         ),
+        // Mobile/fintech: fluxo já está no hero; desktop sem 3ª col acima ok.
+        if ((mobile || fintech) && chartGroups.isNotEmpty) ...[
+          const SizedBox(height: ClxSpace.x4),
+          ClxCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Fluxo do período',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.ink,
+                  ),
+                ),
+                const SizedBox(height: ClxSpace.x3),
+                FinGroupedBarChart(groups: chartGroups, height: 180),
+              ],
+            ),
+          ),
+        ],
+        // Respiro final menor — evita “mar” de branco sob o conteúdo.
+        const SizedBox(height: ClxSpace.x4),
       ],
     );
   }
 }
 
+/// Agrupa lançamentos do período em até 5 buckets por dia (label dd/MM)
+/// para o gráfico de barras Easypay. Se houver poucos dias, mostra o que tiver.
+List<FinBarGroup> _fluxoUltimosMeses(List<FinLancamento> lancs) {
+  if (lancs.isEmpty) return const [];
+  final byDay = <String, ({double rec, double desp})>{};
+  for (final l in lancs) {
+    final raw = l.data.isNotEmpty ? l.data : (l.created ?? '');
+    if (raw.length < 10) continue;
+    final key = raw.substring(0, 10);
+    final cur = byDay[key] ?? (rec: 0.0, desp: 0.0);
+    final v = l.valor;
+    if (l.tipo == TipoLancamento.receita) {
+      byDay[key] = (rec: cur.rec + v, desp: cur.desp);
+    } else if (l.tipo == TipoLancamento.despesa) {
+      byDay[key] = (rec: cur.rec, desp: cur.desp + v);
+    }
+  }
+  final keys = byDay.keys.toList()..sort();
+  final take = keys.length > 6 ? keys.sublist(keys.length - 6) : keys;
+  return [
+    for (final k in take)
+      FinBarGroup(
+        label: '${k.substring(8, 10)}/${k.substring(5, 7)}',
+        receitas: byDay[k]!.rec,
+        despesas: byDay[k]!.desp,
+        lucro: byDay[k]!.rec - byDay[k]!.desp,
+      ),
+  ];
+}
+
 /* ─────────────────────── layout responsivo ─────────────────────── */
 
 /// Linha que vira coluna em telas estreitas (mantém cada filho >= [minColWidth]).
+/// Em desktop, filhos [Expanded] ocupam a **largura total** (sem sobras laterais).
 class _ResponsiveRow extends StatelessWidget {
   const _ResponsiveRow({required this.children, required this.minColWidth});
 
@@ -364,9 +471,11 @@ class _ResponsiveRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        final cabe = c.maxWidth >= minColWidth * children.length;
+        final n = children.length;
+        final cabe = n > 0 && c.maxWidth >= minColWidth * n;
         if (!cabe) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 0; i < children.length; i++) ...[
                 if (i > 0) const SizedBox(height: ClxSpace.x4),
@@ -375,18 +484,103 @@ class _ResponsiveRow extends StatelessWidget {
             ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(width: ClxSpace.x4),
-              Expanded(child: children[i]),
-            ],
-          ],
-        );
+        // Colunas de mesma altura SEM IntrinsicHeight: os cards contêm
+        // LayoutBuilder (donut responsivo em fin_charts.dart), e o Flutter
+        // proíbe consultar intrínsecos de um LayoutBuilder (crash em debug,
+        // altura 0 em release). O layout custom mede as colunas e estica
+        // todas para a mais alta, sem intrínsecos.
+        return _EqualHeightRow(gap: ClxSpace.x4, children: children);
       },
     );
   }
+}
+
+/// Linha de colunas de LARGURA igual esticadas para a altura da mais alta.
+/// Substitui `IntrinsicHeight(Row(stretch))`, que não suporta filhos com
+/// `LayoutBuilder`. Dois passes: mede a altura natural de cada coluna na
+/// largura final e relayouta com a altura máxima (tight).
+class _EqualHeightRow extends MultiChildRenderObjectWidget {
+  const _EqualHeightRow({required this.gap, required super.children});
+
+  final double gap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderEqualHeightRow(gap);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderEqualHeightRow renderObject,
+  ) {
+    renderObject.gap = gap;
+  }
+}
+
+class _EqualHeightRowParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderEqualHeightRow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _EqualHeightRowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _EqualHeightRowParentData> {
+  _RenderEqualHeightRow(this._gap);
+
+  double _gap;
+  set gap(double v) {
+    if (v == _gap) return;
+    _gap = v;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _EqualHeightRowParentData) {
+      child.parentData = _EqualHeightRowParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final n = childCount;
+    if (n == 0) {
+      size = constraints.smallest;
+      return;
+    }
+    final colW = (constraints.maxWidth - _gap * (n - 1)) / n;
+    final colConstraints = BoxConstraints(minWidth: colW, maxWidth: colW);
+
+    // 1º passe: altura natural de cada coluna na largura final.
+    var maxH = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      child.layout(colConstraints, parentUsesSize: true);
+      if (child.size.height > maxH) maxH = child.size.height;
+      child = (child.parentData! as _EqualHeightRowParentData).nextSibling;
+    }
+    maxH = constraints.constrainHeight(maxH);
+
+    // 2º passe: estica todas para a altura da mais alta e posiciona.
+    var x = 0.0;
+    child = firstChild;
+    while (child != null) {
+      child.layout(
+        BoxConstraints.tightFor(width: colW, height: maxH),
+        parentUsesSize: true,
+      );
+      (child.parentData! as _EqualHeightRowParentData).offset = Offset(x, 0);
+      x += colW + _gap;
+      child = (child.parentData! as _EqualHeightRowParentData).nextSibling;
+    }
+    size = Size(constraints.maxWidth, maxH);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 /* ─────────────────────── ações rápidas ─────────────────────── */
@@ -436,7 +630,7 @@ class _QuickActions extends StatelessWidget {
       onTap: onImportar,
     );
 
-    // Mobile: grade fixa 2x2 (em vez do Wrap 3+1 que sobra "Importar" sozinho).
+    // Mobile / Easypay: grade fixa 2x2.
     if (finIsMobile(context)) {
       return Column(
         children: [

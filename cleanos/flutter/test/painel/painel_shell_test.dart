@@ -28,6 +28,14 @@ void main() {
         repo: FakePainelOrdens.empty(),
       );
 
+      // Rail de ícones começa RECOLHIDO (tooltip = rótulo); expande para
+      // ver os nomes como texto.
+      expect(find.byTooltip('WhatsApp'), findsOneWidget);
+      await tester.tap(find.byTooltip('Expandir menu'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
       expect(find.text('WhatsApp'), findsOneWidget);
       expect(find.text('Clientes'), findsOneWidget);
       expect(find.text('Avaliações'), findsOneWidget);
@@ -39,6 +47,12 @@ void main() {
         user: painelUser(role: Role.gerente),
         repo: FakePainelOrdens.empty(),
       );
+
+      expect(find.byTooltip('WhatsApp'), findsNothing);
+      await tester.tap(find.byTooltip('Expandir menu'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
 
       expect(find.text('WhatsApp'), findsNothing);
       expect(find.text('Clientes'), findsOneWidget);
@@ -77,7 +91,8 @@ void main() {
         repo: FakePainelOrdens.empty(),
       );
 
-      await tester.tap(find.text('Avaliações'));
+      // Rail recolhido: o item é o ícone com tooltip do rótulo.
+      await tester.tap(find.byTooltip('Avaliações'));
       for (var i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 12));
       }
@@ -101,7 +116,8 @@ void main() {
         repo: FakePainelOrdens.empty(),
       );
 
-      await tester.tap(find.text('Ana Admin'));
+      // Rodapé do rail recolhido: avatar com tooltip = nome do usuário.
+      await tester.tap(find.byTooltip('Ana Admin'));
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 12));
       }

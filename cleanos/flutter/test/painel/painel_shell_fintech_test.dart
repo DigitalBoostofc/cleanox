@@ -1,25 +1,16 @@
-/// painel_shell_fintech_test.dart — Bifurcação Fintech Clean do APK (doc 12,
-/// Onda 1): tema aplicado por `AppSurface`, bottom nav de 5 itens (Clientes ·
-/// Ordens de Serviço · Agenda · Financeiro · Mais — Dashboard mudou pro topo
-/// do "Mais", feedback do dono/QA-F6) e a lista "Mais" com guard de papel.
-/// Sobe o `CleanosApp` de verdade (não só `PainelShell` isolado) pra provar a
-/// bifurcação de `app.dart` ponta a ponta.
-///
-/// Não-regressão: `AppSurface.painel` continua com o `ThemeData` clássico e a
-/// sidebar/rail — os 52 arquivos de teste pré-existentes (que montam
-/// `MaterialApp.router` direto, sem passar por `CleanosApp`) provam isso pro
-/// resto do Painel; este arquivo cobre especificamente a bifurcação nova.
+/// painel_shell_fintech_test.dart — Casco Easypay do APK: tema + bottom nav
+/// Início · Clientes · FAB · OS · Carteira, hamburger no header com foto no Menu.
 library;
 
 import 'package:cleanos/app.dart';
 import 'package:cleanos/core/auth/auth_providers.dart';
 import 'package:cleanos/core/design/cleanox_colors.dart';
 import 'package:cleanos/core/design/theme.dart';
+import 'package:cleanos/core/design/widgets/user_avatar.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/core/repositories/ordens_repository.dart';
 import 'package:cleanos/core/router/app_router.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -29,8 +20,6 @@ import '../profissional/fakes.dart';
 import 'fakes_painel.dart';
 import 'painel_test_helpers.dart';
 
-/// Sobe o `CleanosApp` real (com `surface`) autenticado como [user], igual ao
-/// que os três `main_*.dart` fazem — sem tocar rede (PB/auth/storage fakes).
 Future<GoRouter> _pumpCleanosApp(
   WidgetTester tester, {
   required AppSurface surface,
@@ -59,7 +48,6 @@ Future<GoRouter> _pumpCleanosApp(
       child: CleanosApp(surface: surface),
     ),
   );
-  // redirect: /login → /painel → /painel/dashboard + libs deferred.
   for (var i = 0; i < 8; i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 30)),
@@ -69,10 +57,18 @@ Future<GoRouter> _pumpCleanosApp(
   return container.read(routerProvider);
 }
 
-/// `CleanoxColors` (extensão de tema) do primeiro `MaterialApp` encontrado.
 CleanoxColors _clxOf(WidgetTester tester) => Theme.of(
   tester.element(find.byType(Scaffold).first),
 ).extension<CleanoxColors>()!;
+
+Future<void> _settleNav(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+    await tester.pump(const Duration(milliseconds: 12));
+  }
+}
 
 void main() {
   group('bifurcação de tema (app.dart)', () {
@@ -106,18 +102,18 @@ void main() {
         final clx = _clxOf(tester);
         expect(clx.primary, CleanoxColors.light.primary);
         expect(clx.primary, isNot(CleanoxColors.fintechLight.primary));
-        // Web mantém a sidebar (marca "CleanOS"), não a bottom nav fintech.
-        expect(find.text('CleanOS'), findsOneWidget);
-        expect(find.byType(NavigationBar), findsNothing);
+        // Desktop shell Shakuro: título da seção no top bar (marca só no ícone).
+        expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Início'), findsNothing);
       },
     );
   });
 
-  group('bottom nav fintech (5 itens)', () {
+  group('bottom nav Easypay (Início · Clientes · FAB · OS · Carteira)', () {
     testWidgets(
-      'renderiza Clientes/OS/Agenda/Financeiro/Mais (Dashboard saiu da '
-      'barra, QA-F6) e navega pelos diretos',
+      'renderiza Início/Clientes/OS/Carteira + FAB e navega para Carteira',
       (tester) async {
+        final handle = tester.ensureSemantics();
         final router = await _pumpCleanosApp(
           tester,
           surface: AppSurface.android,
@@ -125,31 +121,46 @@ void main() {
           repo: FakePainelOrdens.empty(),
         );
 
-        expect(find.byType(NavigationBar), findsOneWidget);
-        expect(find.text('Dashboard'), findsNothing);
-        expect(find.text('Clientes'), findsOneWidget);
-        expect(find.text('OS'), findsOneWidget);
-        expect(find.text('Agenda'), findsOneWidget);
-        expect(find.text('Financeiro'), findsOneWidget);
-        expect(find.text('Mais'), findsOneWidget);
+        expect(find.byKey(const ValueKey('nav-inicio')), findsOneWidget);
+        expect(find.byKey(const ValueKey('nav-clientes')), findsOneWidget);
+        expect(find.byKey(const ValueKey('nav-os')), findsOneWidget);
+        expect(find.byKey(const ValueKey('nav-carteira')), findsOneWidget);
+        expect(find.byKey(const ValueKey('nav-menu-header')), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsWidgets);
 
-        // Financeiro (não Agenda): já tem os fixes de overflow mobile
-        // (bda7b11/7744973); Agenda/Avaliações ainda não foram adaptadas pra
-        // largura de telefone — reskin de conteúdo é escopo da Onda 3, não
-        // desta fundação (doc 12 §4).
-        await tester.tap(find.text('Financeiro'));
-        for (var i = 0; i < 8; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 30)),
-          );
-          await tester.pump(const Duration(milliseconds: 12));
-        }
+        // Menu saiu da barra (foi pro hamburger no header).
+        expect(find.byKey(const ValueKey('nav-menu')), findsNothing);
+        expect(find.byKey(const ValueKey('nav-agenda')), findsNothing);
+
+        await tester.tap(find.byKey(const ValueKey('nav-carteira')));
+        await _settleNav(tester);
 
         expect(currentLocation(router), '/painel/financeiro/visao-geral');
+        handle.dispose();
       },
     );
 
-    testWidgets('bottom nav também no tamanho tablet (P-2: sem NavigationRail no APK)', (
+    testWidgets('FAB abre sheet de criação com Nova OS', (tester) async {
+      await _pumpCleanosApp(
+        tester,
+        surface: AppSurface.android,
+        user: painelUser(role: Role.admin),
+        repo: FakePainelOrdens.empty(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('nav-fab')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('O que você quer fazer?'), findsOneWidget);
+      expect(find.text('Novo cliente'), findsOneWidget);
+      expect(find.text('Nova receita'), findsOneWidget);
+      expect(find.text('Nova despesa'), findsOneWidget);
+      // "Nova OS" também existe no hub — no sheet basta o subtítulo.
+      expect(find.textContaining('Agendar atendimento'), findsOneWidget);
+    });
+
+    testWidgets('bottom nav também no tamanho tablet (sem NavigationRail)', (
       tester,
     ) async {
       await _pumpCleanosApp(
@@ -160,15 +171,14 @@ void main() {
         size: const Size(900, 1200),
       );
 
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Início'), findsOneWidget);
       expect(find.byType(NavigationRail), findsNothing);
     });
   });
 
-  group('tela "Mais"', () {
+  group('tela Menu (hamburger no header)', () {
     testWidgets(
-      'admin vê Dashboard (primeiro item, QA-F6)/Serviços/Avaliações/'
-      'Usuários/WhatsApp/Conta',
+      'admin vê foto + Agenda/Serviços/Avaliações/Usuários/WhatsApp (sem Conta duplicada)',
       (tester) async {
         await _pumpCleanosApp(
           tester,
@@ -177,26 +187,28 @@ void main() {
           repo: FakePainelOrdens.empty(),
         );
 
-        await tester.tap(find.text('Mais'));
+        await tester.tap(find.byKey(const ValueKey('nav-menu-header')));
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
-        expect(find.text('Dashboard'), findsOneWidget);
+        // Foto/avatar do usuário no menu (não no header).
+        expect(find.byType(UserAvatar), findsWidgets);
+        // "Minha conta" só no card da foto (não na lista como item).
+        expect(find.text('Minha conta'), findsOneWidget);
+        expect(find.text('Minha Conta'), findsNothing);
+        expect(find.text('Agenda'), findsOneWidget);
         expect(find.text('Serviços'), findsOneWidget);
         expect(find.text('Avaliações'), findsOneWidget);
         expect(find.text('Usuários'), findsOneWidget);
         expect(find.text('WhatsApp'), findsOneWidget);
-        expect(find.text('Minha Conta'), findsOneWidget);
-
-        // Dashboard é o PRIMEIRO item da lista (acima de Serviços).
-        final dashboardTop = tester.getTopLeft(find.text('Dashboard')).dy;
-        final servicosTop = tester.getTopLeft(find.text('Serviços')).dy;
-        expect(dashboardTop, lessThan(servicosTop));
+        // Clientes e OS saíram do menu (estão na barra).
+        expect(find.text('Ordens de Serviço'), findsNothing);
+        expect(find.text('Dashboard'), findsNothing);
+        expect(find.text('Sair da conta'), findsOneWidget);
       },
     );
 
-    testWidgets('gerente NÃO vê WhatsApp na lista "Mais" (guard de papel)', (
-      tester,
-    ) async {
+    testWidgets('gerente NÃO vê WhatsApp no Menu', (tester) async {
       await _pumpCleanosApp(
         tester,
         surface: AppSurface.android,
@@ -204,14 +216,15 @@ void main() {
         repo: FakePainelOrdens.empty(),
       );
 
-      await tester.tap(find.text('Mais'));
+      await tester.tap(find.byKey(const ValueKey('nav-menu-header')));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('Serviços'), findsOneWidget);
       expect(find.text('WhatsApp'), findsNothing);
     });
 
-    testWidgets('tocar num item da lista navega e volta a mostrar o conteúdo', (
+    testWidgets('tocar num item do Menu navega e fecha a lista', (
       tester,
     ) async {
       final router = await _pumpCleanosApp(
@@ -221,164 +234,61 @@ void main() {
         repo: FakePainelOrdens.empty(),
       );
 
-      await tester.tap(find.text('Mais'));
+      await tester.tap(find.byKey(const ValueKey('nav-menu-header')));
       await tester.pump();
-      // Usuários: já tem breakpoint mobile (cards <720px) — Avaliações
-      // (accordion) ainda não foi adaptada pra largura de telefone (Onda 3).
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.ensureVisible(find.text('Usuários'));
       await tester.tap(find.text('Usuários'));
-      for (var i = 0; i < 8; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 30)),
-        );
-        await tester.pump(const Duration(milliseconds: 12));
-      }
+      await _settleNav(tester);
 
       expect(currentLocation(router), '/painel/usuarios');
-      // Voltou a mostrar o conteúdo real (não a lista "Mais" de novo).
-      expect(find.text('Minha Conta'), findsNothing);
     });
 
-    testWidgets(
-      'QA-F2: tela "Mais" tem o toggle de tema claro/escuro (único no '
-      'casco fintech — o _TopBar com o botão de tema não é montado aqui)',
-      (tester) async {
-        await _pumpCleanosApp(
-          tester,
-          surface: AppSurface.android,
-          user: painelUser(role: Role.admin),
-          repo: FakePainelOrdens.empty(),
-        );
+    testWidgets('Menu tem toggle de tema claro/escuro (QA-F2)', (
+      tester,
+    ) async {
+      await _pumpCleanosApp(
+        tester,
+        surface: AppSurface.android,
+        user: painelUser(role: Role.admin),
+        repo: FakePainelOrdens.empty(),
+      );
 
-        await tester.tap(find.text('Mais'));
-        await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('nav-menu-header')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-        expect(find.text('Tema escuro'), findsOneWidget);
+      expect(find.text('Tema escuro'), findsOneWidget);
 
-        await tester.tap(find.text('Tema escuro'));
-        // MaterialApp anima claro↔escuro (`themeAnimationDuration`, 300ms —
-        // ClxMotion.standardDuration); pumpAndSettle espera a AnimatedTheme
-        // terminar antes de checar o brightness resultante.
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Tema escuro'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-        expect(
-          Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
-          Brightness.dark,
-        );
-        expect(find.text('Tema claro'), findsOneWidget);
-      },
-    );
+      expect(
+        Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
+        Brightness.dark,
+      );
+      expect(find.text('Tema claro'), findsOneWidget);
+    });
   });
 
-  group('QA-F6: Dashboard sem destino direto → barra sem seleção', () {
-    /// Cor resolvida (via `IconTheme` ambiente) de cada ícone de destino da
-    /// `NavigationBar`, na mesma ordem em que aparecem na barra.
-    List<Color?> destinationIconColors(WidgetTester tester) {
-      final iconFinder = find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.byType(Icon),
+  group('Início selecionado na abertura', () {
+    testWidgets('abrir o app deixa rota no Dashboard e Carteira navega', (
+      tester,
+    ) async {
+      final router = await _pumpCleanosApp(
+        tester,
+        surface: AppSurface.android,
+        user: painelUser(role: Role.admin),
+        repo: FakePainelOrdens.empty(),
       );
-      return [
-        for (var i = 0; i < iconFinder.evaluate().length; i++)
-          IconTheme.of(tester.element(iconFinder.at(i))).color,
-      ];
-    }
 
-    testWidgets(
-      'abrir o app mostra Dashboard com NENHUM item da barra selecionado',
-      (tester) async {
-        await _pumpCleanosApp(
-          tester,
-          surface: AppSurface.android,
-          user: painelUser(role: Role.admin),
-          repo: FakePainelOrdens.empty(),
-        );
+      expect(currentLocation(router), '/painel/dashboard');
 
-        // Cai no Dashboard (rota inicial inalterada) — Dashboard não está
-        // mais na barra, e nem "Mais" está marcado.
-        final colors = destinationIconColors(tester);
-        final clx = _clxOf(tester);
-        // Todos os ícones (incl. "Mais") na MESMA cor "não selecionada" —
-        // nenhum item aparenta estar ativo.
-        expect(colors.toSet(), {clx.ink3});
-      },
-    );
+      await tester.tap(find.byKey(const ValueKey('nav-carteira')));
+      await _settleNav(tester);
 
-    testWidgets(
-      'Mais > Dashboard também deixa a barra sem seleção',
-      (tester) async {
-        await _pumpCleanosApp(
-          tester,
-          surface: AppSurface.android,
-          user: painelUser(role: Role.admin),
-          repo: FakePainelOrdens.empty(),
-        );
-
-        // Navega pra outra seção primeiro (Financeiro, direta) — prova que
-        // dá pra SAIR do estado "sem seleção" e...
-        await tester.tap(find.text('Financeiro'));
-        for (var i = 0; i < 8; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 30)),
-          );
-          await tester.pump(const Duration(milliseconds: 12));
-        }
-        final clx = _clxOf(tester);
-        expect(
-          destinationIconColors(tester).toSet().contains(clx.primary),
-          isTrue,
-          reason: 'Financeiro precisa aparecer selecionado antes do teste',
-        );
-
-        // ...voltar pra Dashboard via Mais > Dashboard restaura "sem seleção".
-        await tester.tap(find.text('Mais'));
-        await tester.pump();
-        await tester.tap(find.text('Dashboard'));
-        for (var i = 0; i < 8; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 30)),
-          );
-          await tester.pump(const Duration(milliseconds: 12));
-        }
-
-        expect(destinationIconColors(tester).toSet(), {clx.ink3});
-      },
-    );
-
-    testWidgets(
-      'review: nenhuma aba é anunciada como selecionada (semântica, não só '
-      'visual) quando a barra está sem seleção; a seção ativa continua '
-      'anunciada corretamente',
-      (tester) async {
-        final handle = tester.ensureSemantics();
-
-        await _pumpCleanosApp(
-          tester,
-          surface: AppSurface.android,
-          user: painelUser(role: Role.admin),
-          repo: FakePainelOrdens.empty(),
-        );
-
-        // Dashboard (sem seleção, QA-F6): nenhum nó de semântica em toda a
-        // árvore tem a flag `isSelected` — nem o índice fixo (0, Clientes)
-        // que a `NavigationBar` interna usa só pra satisfazer seu assert.
-        expect(find.semantics.byFlag(SemanticsFlag.isSelected), findsNothing);
-
-        // Financeiro (seção ativa): o nó correto continua anunciado como
-        // selecionado normalmente — a barra "sem seleção" não regrediu isso.
-        await tester.tap(find.text('Financeiro'));
-        for (var i = 0; i < 8; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 30)),
-          );
-          await tester.pump(const Duration(milliseconds: 12));
-        }
-        expect(
-          tester.getSemantics(find.text('Financeiro')),
-          containsSemantics(isSelected: true, isButton: true),
-        );
-
-        handle.dispose();
-      },
-    );
+      expect(currentLocation(router), '/painel/financeiro/visao-geral');
+    });
   });
 }

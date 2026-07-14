@@ -156,7 +156,7 @@ class NotFoundScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'CleanOS',
+                    kAppDisplayName,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       color: clx.accent,

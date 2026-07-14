@@ -1,110 +1,59 @@
-/// fintech_painel_shell.dart — Casco fintech do Painel (APK, doc 12 §3).
+/// fintech_painel_shell.dart — Casco Easypay do Painel (APK + web estreita).
 ///
-/// Bottom nav de 5 itens: Clientes · Ordens de Serviço · Agenda · Financeiro
-/// têm destino direto; "Mais" abre uma tela local (não é uma rota/branch
-/// nova) listando as demais seções — Dashboard (primeiro item, feedback do
-/// dono testando o APK), Serviços, Avaliações, Usuários, WhatsApp
-/// (admin-only) e Conta — reaproveitando os MESMOS
-/// `PainelNavItem`/`painelPath()` de `painel_nav.dart`. Nenhuma tela ou rota
-/// nova: é uma segunda casca em cima do MESMO `StatefulShellRoute.indexedStack`
-/// que a sidebar/rail da Web já usa.
+/// Bottom nav: **Início · Clientes · ⊕ · OS · Carteira**
+/// - Header: título + hamburger (☰) abre o Menu
+/// - Menu: foto do usuário + Agenda, Serviços, Usuários, etc.
+/// - FAB: sheet com Nova OS / Cliente / Receita / Despesa — cada um abre a
+///   tela correspondente **já com o formulário flutuante aberto**.
 ///
-/// A rota inicial continua sendo Dashboard (inalterada), mas como ele não tem
-/// mais destino direto, abrir o app deixa a barra SEM nenhum item marcado —
-/// ver `noneSelected` em `_FintechPainelScaffoldState.build`.
-///
-/// Navegação pelos itens diretos usa `context.go(painelPath(section))` — o
-/// mesmo padrão que `_Sidebar`/`_NavRail` (painel_shell.dart) já usam, em vez
-/// de `navigationShell.goBranch`; o go_router resolve a troca de branch do
-/// `indexedStack` de qualquer forma.
+/// Mesmo `StatefulShellRoute.indexedStack` da Web — só a casca muda.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/design/design.dart';
-import '../../../core/models/collections.dart';
+import '../../../core/formatters/formatters.dart';
+import '../../../core/models/financeiro.dart';
+import '../../../core/models/user.dart';
+import '../../clientes/cliente_form.dart';
+import '../../clientes/clientes_controller.dart';
+import '../../financeiro/lancamentos/fin_lancamentos_controller.dart';
+import '../../financeiro/lancamentos/lancamento_form.dart';
+import '../../ordens/ordens_controller.dart';
+import '../../ordens/os_form.dart';
 import '../painel_nav.dart';
 
-/// Seções com destino direto na bottom nav (ordem revisada, feedback do dono
-/// testando o APK: Dashboard sai da barra e vira o topo do "Mais" — ver
-/// [kFintechMaisSections]).
+/// Destinos na barra inferior (ordem: Início · Clientes · [FAB] · OS · Carteira).
 const List<PainelSection> kFintechDirectSections = [
+  PainelSection.dashboard,
   PainelSection.clientes,
   PainelSection.ordens,
-  PainelSection.agenda,
   PainelSection.financeiro,
 ];
 
-/// Agrupamento de "Mais" (ordem revisada, feedback do dono: Dashboard entra
-/// como primeiro item, acima de Serviços). WhatsApp é filtrado por papel na
-/// hora de montar a lista (mesmo guard do menu da Web).
+/// Itens do Menu (hamburger) — o que não está na barra inferior.
+/// Conta fica só no card da foto no topo (evita "Minha Conta" em duplicata).
 const List<PainelSection> kFintechMaisSections = [
-  PainelSection.dashboard,
+  PainelSection.agenda,
   PainelSection.servicos,
   PainelSection.avaliacoes,
   PainelSection.usuarios,
   PainelSection.whatsapp,
-  PainelSection.conta,
 ];
 
-/// Ícone de uma seção (reaproveita `kPainelNavItems`; "Conta" não está lá —
-/// espelha o ícone que a sidebar já usa no rodapé de usuário).
 IconData fintechIconFor(PainelSection s) {
   if (s == PainelSection.conta) return Icons.person_outline_rounded;
+  if (s == PainelSection.dashboard) return Icons.home_rounded;
+  if (s == PainelSection.financeiro) return Icons.account_balance_wallet_rounded;
+  if (s == PainelSection.clientes) return Icons.people_alt_rounded;
+  if (s == PainelSection.ordens) return Icons.receipt_long_rounded;
   return kPainelNavItems.firstWhere((i) => i.section == s).icon;
 }
 
-/// Label curto da bottom nav (feedback do dono: "Ordens de Serviço" quebra em
-/// 2 linhas e polui a barra). Só afeta o texto visível do item da barra — o
-/// tooltip do destino e as demais menções à seção (tela "Mais", topbar) usam
-/// `painelTitle` cheio normalmente.
-String _fintechNavLabel(PainelSection s) =>
-    s == PainelSection.ordens ? 'OS' : painelTitle(s);
-
-/// Semântica de substituição da bottom nav quando NENHUM item está
-/// selecionado (QA-F6, Dashboard). Reconstrói os mesmos botões/labels dos
-/// destinos diretos + "Mais", todos com `selected: false` explícito — a
-/// barra real fica com a semântica excluída (ver `noneSelected` acima) e este
-/// widget é sobreposto no lugar dela, do mesmo tamanho.
-class _FintechNavBarNoSelectionSemantics extends StatelessWidget {
-  const _FintechNavBarNoSelectionSemantics({required this.sections, required this.onSelect});
-
-  final List<PainelSection> sections;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < sections.length; i++)
-          Expanded(
-            child: Semantics(
-              button: true,
-              selected: false,
-              label: painelTitle(sections[i]),
-              onTap: () => onSelect(i),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        Expanded(
-          child: Semantics(
-            button: true,
-            selected: false,
-            label: 'Mais',
-            onTap: () => onSelect(sections.length),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Casco fintech: `NavigationBar` de 5 itens sobre o mesmo
-/// `StatefulNavigationShell` que a Web usa (sidebar/rail/drawer).
-class FintechPainelScaffold extends StatefulWidget {
+class FintechPainelScaffold extends ConsumerStatefulWidget {
   const FintechPainelScaffold({
     super.key,
     required this.navigationShell,
@@ -113,143 +62,713 @@ class FintechPainelScaffold extends StatefulWidget {
   });
 
   final StatefulNavigationShell navigationShell;
-
-  /// Seção ativa, derivada da rota atual ([painelSectionForLocation]).
   final PainelSection section;
   final Role? role;
 
   @override
-  State<FintechPainelScaffold> createState() => _FintechPainelScaffoldState();
+  ConsumerState<FintechPainelScaffold> createState() =>
+      _FintechPainelScaffoldState();
 }
 
-class _FintechPainelScaffoldState extends State<FintechPainelScaffold> {
-  /// true = mostra a lista "Mais" no lugar do conteúdo da seção.
+class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
   bool _showMais = false;
 
   @override
   void didUpdateWidget(covariant FintechPainelScaffold oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Deep-link/voltar do navegador pra uma seção direta fecha a lista "Mais"
-    // se estiver aberta (evita ficar preso na lista depois de um deep-link).
     if (widget.section != oldWidget.section &&
         kFintechDirectSections.contains(widget.section)) {
       _showMais = false;
     }
   }
 
-  void _onDestinationSelected(int index) {
-    if (index == kFintechDirectSections.length) {
-      setState(() => _showMais = true);
-      return;
-    }
+  void _goDirect(PainelSection section) {
     setState(() => _showMais = false);
-    context.go(painelPath(kFintechDirectSections[index]));
+    context.go(painelPath(section));
   }
+
+  void _openMenu() => setState(() => _showMais = true);
 
   void _openFromMais(PainelSection section) {
     setState(() => _showMais = false);
     context.go(painelPath(section));
   }
 
+  /// Navega para a seção e abre o formulário flutuante em seguida.
+  Future<void> _goAndOpenForm({
+    required String path,
+    required Future<bool?> Function() openForm,
+    Future<void> Function()? onSaved,
+  }) async {
+    setState(() => _showMais = false);
+    context.go(path);
+    // Aguarda a rota montar o branch antes do dialog.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) return;
+    final saved = await openForm();
+    if (saved == true && mounted) {
+      await onSaved?.call();
+    }
+  }
+
+  Future<void> _openCreateSheet() async {
+    final clx = context.clx;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: clx.ink.withValues(alpha: 0.45),
+      builder: (ctx) {
+        return _CreateSheet(
+          onNovaOs: () {
+            Navigator.pop(ctx);
+            _goAndOpenForm(
+              path: painelPath(PainelSection.ordens),
+              openForm: () => showOSForm(context),
+              onSaved: () async {
+                await ref.read(ordensControllerProvider.notifier).refresh();
+                ref.invalidate(ordensCountsProvider);
+                if (mounted) {
+                  showClxToast(context, 'OS criada.', type: ToastType.success);
+                }
+              },
+            );
+          },
+          onNovoCliente: () {
+            Navigator.pop(ctx);
+            _goAndOpenForm(
+              path: painelPath(PainelSection.clientes),
+              openForm: () => showClienteForm(context),
+              onSaved: () async {
+                await ref.read(clientesControllerProvider.notifier).refresh();
+                if (mounted) {
+                  showClxToast(
+                    context,
+                    'Cliente criado.',
+                    type: ToastType.success,
+                  );
+                }
+              },
+            );
+          },
+          onReceita: () {
+            Navigator.pop(ctx);
+            _goAndOpenForm(
+              path: '${painelPath(PainelSection.financeiro)}/lancamentos',
+              openForm: () => showLancamentoForm(
+                context,
+                initialTipo: TipoLancamento.receita,
+              ),
+              onSaved: () async {
+                await ref
+                    .read(finLancControllerProvider.notifier)
+                    .refresh();
+                if (mounted) {
+                  showClxToast(
+                    context,
+                    'Receita lançada.',
+                    type: ToastType.success,
+                  );
+                }
+              },
+            );
+          },
+          onDespesa: () {
+            Navigator.pop(ctx);
+            _goAndOpenForm(
+              path: '${painelPath(PainelSection.financeiro)}/lancamentos',
+              openForm: () => showLancamentoForm(
+                context,
+                initialTipo: TipoLancamento.despesa,
+              ),
+              onSaved: () async {
+                await ref
+                    .read(finLancControllerProvider.notifier)
+                    .refresh();
+                if (mounted) {
+                  showClxToast(
+                    context,
+                    'Despesa lançada.',
+                    type: ToastType.success,
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _headerTitle() {
+    if (_showMais) return 'Menu';
+    final user = ref.read(currentUserProvider);
+    if (widget.section == PainelSection.dashboard) {
+      final raw = (user?.nome ?? user?.name ?? '').trim();
+      final first = raw.isEmpty ? '' : raw.split(RegExp(r'\s+')).first;
+      return first.isEmpty ? 'Olá 👋' : 'Olá, $first 👋';
+    }
+    return switch (widget.section) {
+      PainelSection.financeiro => 'Carteira',
+      PainelSection.ordens => 'Ordens',
+      PainelSection.agenda => 'Agenda',
+      PainelSection.clientes => 'Clientes',
+      PainelSection.servicos => 'Serviços',
+      PainelSection.usuarios => 'Usuários',
+      PainelSection.avaliacoes => 'Avaliações',
+      PainelSection.whatsapp => 'WhatsApp',
+      PainelSection.conta => 'Minha Conta',
+      PainelSection.dashboard => 'Início',
+    };
+  }
+
+  String _headerSubtitle() {
+    if (_showMais) return 'Cadastros, equipe e ajustes';
+    if (widget.section == PainelSection.dashboard) {
+      return _longDatePtBrHeader();
+    }
+    return switch (widget.section) {
+      PainelSection.agenda => 'Horários marcados',
+      PainelSection.financeiro => 'Saldo e lançamentos',
+      PainelSection.clientes => 'Sua base de clientes',
+      PainelSection.ordens => 'Ordens de serviço',
+      PainelSection.servicos => 'Catálogo de serviços',
+      PainelSection.usuarios => 'Equipe e acessos',
+      PainelSection.avaliacoes => 'Feedback dos clientes',
+      PainelSection.whatsapp => 'Conexão e templates',
+      PainelSection.conta => 'Seus dados e senha',
+      PainelSection.dashboard => _longDatePtBrHeader(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final directIndex = kFintechDirectSections.indexOf(widget.section);
-    // Dashboard não tem destino direto (feedback do dono): abrir o app (ou
-    // navegar Mais > Dashboard) precisa mostrar a tela SEM nenhum item da
-    // barra selecionado — nem Dashboard (não está mais na barra) nem "Mais"
-    // (a lista já fechou). As demais seções fora da barra (Serviços,
-    // Avaliações, Usuários, WhatsApp, Conta) continuam realçando "Mais".
-    final noneSelected = !_showMais && widget.section == PainelSection.dashboard;
-    final int selectedIndex;
-    if (_showMais) {
-      selectedIndex = kFintechDirectSections.length;
-    } else if (noneSelected) {
-      // Índice fixo (0, Clientes) só pra satisfazer o assert do
-      // `NavigationBar` M3 (exige 0 <= selectedIndex < length — não aceita
-      // -1/fora do range). O visual "selecionado" desse índice é
-      // neutralizado logo abaixo via `NavigationBarTheme` local, que faz o
-      // ícone de QUALQUER destino renderizar sempre na cor "não selecionado"
-      // (indicatorColor já é transparente no tema fintech) — ou seja,
-      // nenhum item aparenta estar ativo.
-      selectedIndex = 0;
-    } else if (directIndex >= 0) {
-      selectedIndex = directIndex;
-    } else {
-      // Outras seções fora da barra (Serviços, Avaliações, Usuários,
-      // WhatsApp, Conta) continuam realçando "Mais".
-      selectedIndex = kFintechDirectSections.length;
-    }
-
-    Widget navBar = NavigationBar(
-      selectedIndex: selectedIndex,
-      onDestinationSelected: _onDestinationSelected,
-      destinations: [
-        for (final s in kFintechDirectSections)
-          NavigationDestination(
-            icon: Icon(fintechIconFor(s)),
-            label: _fintechNavLabel(s),
-            tooltip: painelTitle(s),
-          ),
-        const NavigationDestination(
-          icon: Icon(Icons.more_horiz_rounded),
-          label: 'Mais',
-        ),
-      ],
-    );
-    if (noneSelected) {
-      // `selectedIndex` acima é um índice fixo (0) só pra satisfazer o assert
-      // do `NavigationBar` — internamente ele sempre marca ESSE destino como
-      // `Semantics(selected: true)` (a flag nunca pode ser "desfeita" por um
-      // `Semantics(selected: false)` descendente: flags booleanas fazem OR no
-      // merge, então `true` sempre vence). Por isso o visual é neutralizado
-      // acima (ícones sempre na cor "não selecionado") e AQUI escondemos a
-      // árvore de semântica inteira da barra (`ExcludeSemantics`) e a
-      // reconstruímos do zero por cima, com os mesmos botões/labels mas SEM
-      // nenhum marcado como selecionado — do contrário um leitor de tela
-      // (TalkBack) anunciaria "Clientes, aba, selecionada" ao abrir o app no
-      // Dashboard, o que é falso.
-      navBar = Stack(
-        children: [
-          ExcludeSemantics(
-            child: NavigationBarTheme(
-              data: NavigationBarTheme.of(
-                context,
-              ).copyWith(iconTheme: WidgetStatePropertyAll(IconThemeData(color: clx.ink3))),
-              child: navBar,
-            ),
-          ),
-          Positioned.fill(
-            child: _FintechNavBarNoSelectionSemantics(
-              sections: kFintechDirectSections,
-              onSelect: _onDestinationSelected,
-            ),
-          ),
-        ],
-      );
-    }
+    final user = ref.watch(currentUserProvider);
+    final onDirect = kFintechDirectSections.contains(widget.section);
+    final selected = _showMais
+        ? null
+        : onDirect
+            ? widget.section
+            : null;
 
     return Scaffold(
       backgroundColor: clx.bg2,
       body: SafeArea(
         bottom: false,
-        child: _showMais
-            ? _MaisScreen(role: widget.role, onSelect: _openFromMais)
-            : widget.navigationShell,
+        child: Column(
+          children: [
+            _EasypayTopBar(
+              title: _headerTitle(),
+              subtitle: _headerSubtitle(),
+              menuOpen: _showMais,
+              onMenuTap: () {
+                if (_showMais) {
+                  setState(() => _showMais = false);
+                } else {
+                  _openMenu();
+                }
+              },
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: ClxMotion.standardDuration,
+                switchInCurve: ClxMotion.emphasized,
+                switchOutCurve: Curves.easeIn,
+                child: _showMais
+                    ? _MaisScreen(
+                        key: const ValueKey('mais'),
+                        role: widget.role,
+                        user: user,
+                        onSelect: _openFromMais,
+                        compactHeader: true,
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey('shell'),
+                        child: widget.navigationShell,
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
-      bottomNavigationBar: navBar,
+      bottomNavigationBar: _EasypayBottomBar(
+        selected: selected,
+        onInicio: () => _goDirect(PainelSection.dashboard),
+        onClientes: () => _goDirect(PainelSection.clientes),
+        onOs: () => _goDirect(PainelSection.ordens),
+        onCarteira: () => _goDirect(PainelSection.financeiro),
+        onFab: _openCreateSheet,
+      ),
     );
   }
 }
 
-/// Lista da aba "Mais": as seções que não couberam na bottom nav direta + o
-/// toggle de tema claro/escuro (único lugar do casco fintech pra alternar —
-/// o `_TopBar` com o botão de tema não é montado neste surface, QA-F2).
+/// Cabeçalho fixo: título + hamburger (abre Menu). Foto fica dentro do Menu.
+class _EasypayTopBar extends StatelessWidget {
+  const _EasypayTopBar({
+    required this.title,
+    required this.subtitle,
+    required this.menuOpen,
+    required this.onMenuTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool menuOpen;
+  final VoidCallback onMenuTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Material(
+      color: clx.bg2,
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedSwitcher(
+                    duration: ClxMotion.shortDuration,
+                    child: Text(
+                      title,
+                      key: ValueKey(title),
+                      style: tt.titleLarge?.copyWith(
+                        color: clx.ink,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  AnimatedSwitcher(
+                    duration: ClxMotion.shortDuration,
+                    child: Text(
+                      subtitle,
+                      key: ValueKey(subtitle),
+                      style: tt.bodySmall?.copyWith(color: clx.ink3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Semantics(
+              button: true,
+              label: menuOpen ? 'Fechar menu' : 'Abrir menu',
+              child: IconButton(
+                key: const ValueKey('nav-menu-header'),
+                tooltip: menuOpen ? 'Fechar menu' : 'Menu',
+                onPressed: onMenuTap,
+                icon: AnimatedSwitcher(
+                  duration: ClxMotion.shortDuration,
+                  child: Icon(
+                    menuOpen ? Icons.close_rounded : Icons.menu_rounded,
+                    key: ValueKey(menuOpen),
+                    color: clx.ink,
+                    size: 26,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _longDatePtBrHeader() {
+  final brt = DateTime.now().toUtc().subtract(kBrtOffset);
+  const semana = [
+    'segunda-feira',
+    'terça-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sábado',
+    'domingo',
+  ];
+  const meses = [
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
+  ];
+  final dia = brt.day.toString().padLeft(2, '0');
+  return '${semana[brt.weekday - 1]}, $dia de ${meses[brt.month - 1]}';
+}
+
+/// Barra: Início · Clientes · ⊕ · OS · Carteira
+class _EasypayBottomBar extends StatelessWidget {
+  const _EasypayBottomBar({
+    required this.selected,
+    required this.onInicio,
+    required this.onClientes,
+    required this.onOs,
+    required this.onCarteira,
+    required this.onFab,
+  });
+
+  final PainelSection? selected;
+  final VoidCallback onInicio;
+  final VoidCallback onClientes;
+  final VoidCallback onOs;
+  final VoidCallback onCarteira;
+  final VoidCallback onFab;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return Material(
+      elevation: 12,
+      shadowColor: clx.ink.withValues(alpha: 0.12),
+      color: clx.bg.withValues(alpha: 0.96),
+      child: SizedBox(
+        height: 72 + bottom,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottom),
+          child: Row(
+            children: [
+              Expanded(
+                child: _NavItem(
+                  key: const ValueKey('nav-inicio'),
+                  icon: Icons.home_rounded,
+                  label: 'Início',
+                  selected: selected == PainelSection.dashboard,
+                  onTap: onInicio,
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  key: const ValueKey('nav-clientes'),
+                  icon: Icons.people_alt_rounded,
+                  label: 'Clientes',
+                  selected: selected == PainelSection.clientes,
+                  onTap: onClientes,
+                ),
+              ),
+              SizedBox(
+                width: 72,
+                child: Center(
+                  child: Transform.translate(
+                    offset: const Offset(0, -12),
+                    child: Semantics(
+                      button: true,
+                      label: 'Criar',
+                      child: ClxPressScale(
+                        key: const ValueKey('nav-fab'),
+                        onTap: onFab,
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [clx.primary, clx.primary2],
+                            ),
+                            border: Border.all(color: clx.bg, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: clx.primary.withValues(alpha: 0.42),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.add_rounded,
+                            color: clx.onPrimary,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  key: const ValueKey('nav-os'),
+                  icon: Icons.receipt_long_rounded,
+                  label: 'OS',
+                  selected: selected == PainelSection.ordens,
+                  onTap: onOs,
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  key: const ValueKey('nav-carteira'),
+                  icon: Icons.account_balance_wallet_rounded,
+                  label: 'Carteira',
+                  selected: selected == PainelSection.financeiro,
+                  onTap: onCarteira,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final color = selected ? clx.primary : clx.ink3;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: ClxMotion.shortDuration,
+              curve: ClxMotion.standard,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: selected
+                    ? clx.primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 22, color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+            AnimatedContainer(
+              duration: ClxMotion.shortDuration,
+              margin: const EdgeInsets.only(top: 3),
+              width: selected ? 4 : 0,
+              height: 4,
+              decoration: BoxDecoration(
+                color: clx.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateSheet extends StatelessWidget {
+  const _CreateSheet({
+    required this.onNovaOs,
+    required this.onNovoCliente,
+    required this.onReceita,
+    required this.onDespesa,
+  });
+
+  final VoidCallback onNovaOs;
+  final VoidCallback onNovoCliente;
+  final VoidCallback onReceita;
+  final VoidCallback onDespesa;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return ClxFadeSlide(
+      child: Container(
+        decoration: BoxDecoration(
+          color: clx.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 10, 20, 20 + bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: clx.line2,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'O que você quer fazer?',
+              style: tt.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: clx.ink,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SheetAction(
+              icon: Icons.add_rounded,
+              iconBg: clx.primary,
+              iconColor: clx.onPrimary,
+              title: 'Nova OS',
+              subtitle: 'Agendar atendimento para um cliente',
+              onTap: onNovaOs,
+            ),
+            _SheetAction(
+              icon: Icons.person_add_alt_1_rounded,
+              iconBg: clx.infoBg,
+              iconColor: clx.info,
+              title: 'Novo cliente',
+              subtitle: 'Cadastro rápido com endereço',
+              onTap: onNovoCliente,
+            ),
+            _SheetAction(
+              icon: Icons.south_west_rounded,
+              iconBg: clx.successBg,
+              iconColor: clx.success,
+              title: 'Nova receita',
+              subtitle: 'Lançar entrada no financeiro',
+              onTap: onReceita,
+            ),
+            _SheetAction(
+              icon: Icons.north_east_rounded,
+              iconBg: clx.errorBg,
+              iconColor: clx.error,
+              title: 'Nova despesa',
+              subtitle: 'Registrar saída do caixa',
+              onTap: onDespesa,
+              last: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetAction extends StatelessWidget {
+  const _SheetAction({
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.last = false,
+  });
+
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return ClxPressScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: last
+              ? null
+              : Border(bottom: BorderSide(color: clx.line)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: tt.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: clx.ink,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: tt.bodySmall?.copyWith(color: clx.ink3),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: clx.ink3),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MaisScreen extends ConsumerWidget {
-  const _MaisScreen({required this.role, required this.onSelect});
+  const _MaisScreen({
+    required this.role,
+    required this.onSelect,
+    this.user,
+    this.compactHeader = false,
+    super.key,
+  });
 
   final Role? role;
+  final User? user;
   final ValueChanged<PainelSection> onSelect;
+
+  /// Quando true, o título "Menu" já está no top bar global.
+  final bool compactHeader;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -260,64 +779,205 @@ class _MaisScreen extends ConsumerWidget {
         .toList();
     final mode = ref.watch(themeModeControllerProvider);
     final isDark = mode == ThemeMode.dark;
+    final u = user;
+    final dn = u?.displayName ?? 'Usuário';
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Foto do usuário (substituiu o avatar do header).
         Padding(
           padding: const EdgeInsets.fromLTRB(
             ClxSpace.x4,
-            ClxSpace.x4,
-            ClxSpace.x4,
             ClxSpace.x2,
+            ClxSpace.x4,
+            ClxSpace.x3,
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Mais',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(color: clx.ink),
+          child: ClxFadeSlide(
+            child: Material(
+              color: clx.bg,
+              borderRadius: ClxRadii.rLg,
+              child: InkWell(
+                borderRadius: ClxRadii.rLg,
+                onTap: () => onSelect(PainelSection.conta),
+                child: Container(
+                  padding: const EdgeInsets.all(ClxSpace.x4),
+                  decoration: BoxDecoration(
+                    borderRadius: ClxRadii.rLg,
+                    border: Border.all(color: clx.line),
+                  ),
+                  child: Row(
+                    children: [
+                      UserAvatar(user: u, radius: 28),
+                      const SizedBox(width: ClxSpace.x3),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              dn != '—' ? dn : 'Usuário',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: clx.ink,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                            if ((u?.email ?? '').isNotEmpty)
+                              Text(
+                                u!.email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: clx.ink3),
+                              ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Minha conta',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: clx.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, color: clx.ink3),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
+        if (!compactHeader)
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+              ClxSpace.x5,
+              ClxSpace.x2,
+              ClxSpace.x5,
+              ClxSpace.x3,
+            ),
+            child: Text(
+              'Menu',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: clx.ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x2),
-            itemCount: items.length + 1,
-            separatorBuilder: (context, i) => Divider(height: 1, color: clx.line),
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(
+              ClxSpace.x3,
+              0,
+              ClxSpace.x3,
+              ClxSpace.x8,
+            ),
+            // itens + tema + sair
+            itemCount: items.length + 2,
             itemBuilder: (context, i) {
               if (i == items.length) {
-                return ListTile(
-                  leading: Icon(
-                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                    color: clx.ink2,
+                return ClxFadeSlide(
+                  delay: Duration(milliseconds: 40 * i),
+                  child: _MenuTile(
+                    icon: isDark
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
+                    iconBg: clx.bg3,
+                    title: isDark ? 'Tema claro' : 'Tema escuro',
+                    onTap: () =>
+                        ref.read(themeModeControllerProvider.notifier).toggle(),
                   ),
-                  title: Text(
-                    isDark ? 'Tema claro' : 'Tema escuro',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(color: clx.ink),
+                );
+              }
+              if (i == items.length + 1) {
+                return ClxFadeSlide(
+                  delay: Duration(milliseconds: 40 * i),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: ClxSpace.x2),
+                    child: _MenuTile(
+                      icon: Icons.logout_rounded,
+                      iconBg: clx.errorBg,
+                      title: 'Sair da conta',
+                      onTap: () => ref.read(authServiceProvider).logout(),
+                    ),
                   ),
-                  onTap: () =>
-                      ref.read(themeModeControllerProvider.notifier).toggle(),
                 );
               }
               final s = items[i];
-              return ListTile(
-                leading: Icon(fintechIconFor(s), color: clx.ink2),
-                title: Text(
-                  painelTitle(s),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: clx.ink),
+              return ClxFadeSlide(
+                delay: Duration(milliseconds: 40 * i),
+                child: _MenuTile(
+                  icon: fintechIconFor(s),
+                  iconBg: clx.primary.withValues(alpha: 0.12),
+                  title: painelTitle(s),
+                  onTap: () => onSelect(s),
                 ),
-                trailing: Icon(Icons.chevron_right_rounded, color: clx.ink3),
-                onTap: () => onSelect(s),
               );
             },
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  const _MenuTile({
+    required this.icon,
+    required this.iconBg,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconBg;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+      child: Material(
+        color: clx.bg,
+        borderRadius: ClxRadii.rLg,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: ClxRadii.rLg,
+            side: BorderSide(color: clx.line),
+          ),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: clx.ink2, size: 20),
+          ),
+          title: Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: clx.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, color: clx.ink3),
+          onTap: onTap,
+        ),
+      ),
     );
   }
 }

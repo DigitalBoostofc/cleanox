@@ -63,21 +63,30 @@ class FinDonutChart extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          PieChart(
-            PieChartData(
-              sectionsSpace: 2,
-              centerSpaceRadius: size * 0.28,
-              startDegreeOffset: -90,
-              sections: [
-                for (final s in positivas)
-                  PieChartSectionData(
-                    value: s.value,
-                    color: s.color,
-                    radius: size * 0.20,
-                    showTitle: false,
-                  ),
-              ],
-            ),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: ClxMotion.emphasizedDuration,
+            curve: ClxMotion.emphasized,
+            builder: (context, t, _) {
+              return PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: size * 0.28,
+                  startDegreeOffset: -90,
+                  sections: [
+                    for (final s in positivas)
+                      PieChartSectionData(
+                        value: s.value,
+                        color: s.color,
+                        radius: size * 0.20 * (0.55 + 0.45 * t),
+                        showTitle: false,
+                      ),
+                  ],
+                ),
+                duration: ClxMotion.emphasizedDuration,
+                curve: ClxMotion.emphasized,
+              );
+            },
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -233,75 +242,86 @@ class FinGroupedBarChart extends StatelessWidget {
       children: [
         SizedBox(
           height: height,
-          child: BarChart(
-            BarChartData(
-              alignment: BarChartAlignment.spaceAround,
-              maxY: maxY,
-              minY: minY,
-              groupsSpace: 14,
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => clx.accent,
-                  getTooltipItem: (group, _, rod, __) => BarTooltipItem(
-                    formatCurrency(rod.toY),
-                    tt.labelMedium!.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: ClxMotion.emphasizedDuration,
+            curve: ClxMotion.emphasized,
+            builder: (context, t, _) {
+              return BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxY,
+                  minY: minY,
+                  groupsSpace: 14,
+                  barTouchData: BarTouchData(
+                    enabled: t > 0.9,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) => clx.accent,
+                      getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                        formatCurrency(rod.toY),
+                        tt.labelMedium!.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              titlesData: FlTitlesData(
-                leftTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    getTitlesWidget: (value, meta) {
-                      final i = value.toInt();
-                      if (i < 0 || i >= groups.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(top: ClxSpace.x1),
-                        child: Text(
-                          groups[i].label,
-                          style: tt.labelSmall?.copyWith(color: clx.ink3),
-                        ),
-                      );
-                    },
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt();
+                          if (i < 0 || i >= groups.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: ClxSpace.x1),
+                            child: Text(
+                              groups[i].label,
+                              style: tt.labelSmall?.copyWith(color: clx.ink3),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: (maxY - minY) / 4,
-                getDrawingHorizontalLine: (_) =>
-                    FlLine(color: clx.line, strokeWidth: 1),
-              ),
-              borderData: FlBorderData(show: false),
-              barGroups: [
-                for (var i = 0; i < groups.length; i++)
-                  BarChartGroupData(
-                    x: i,
-                    barsSpace: 3,
-                    barRods: [
-                      rod(groups[i].receitas, clx.finIncome),
-                      rod(groups[i].despesas, clx.finExpense),
-                      if (hasLucro) rod(groups[i].lucro ?? 0, clx.info),
-                    ],
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: (maxY - minY) / 4,
+                    getDrawingHorizontalLine: (_) =>
+                        FlLine(color: clx.line, strokeWidth: 1),
                   ),
-              ],
-            ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: [
+                    for (var i = 0; i < groups.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barsSpace: 3,
+                        barRods: [
+                          rod(groups[i].receitas * t, clx.finIncome),
+                          rod(groups[i].despesas * t, clx.finExpense),
+                          if (hasLucro)
+                            rod((groups[i].lucro ?? 0) * t, clx.info),
+                        ],
+                      ),
+                  ],
+                ),
+                duration: ClxMotion.emphasizedDuration,
+                curve: ClxMotion.emphasized,
+              );
+            },
           ),
         ),
         const SizedBox(height: ClxSpace.x3),

@@ -58,80 +58,46 @@ class MapaScreen extends ConsumerWidget {
     final clx = context.clx;
     final async = ref.watch(activeOSProvider);
 
-    return Column(
-      children: [
-        _Header(),
-        Expanded(
-          child: RefreshIndicator(
-            color: clx.primary,
-            onRefresh: () => ref.refresh(activeOSProvider.future),
-            child: async.when(
-              loading: () => ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Spinner(size: 24)),
-                ],
-              ),
-              error: (_, __) => ListView(
-                padding: const EdgeInsets.all(ClxSpace.x4),
-                children: [
-                  ErrorBanner(
-                    message: 'Não foi possível carregar o mapa.',
-                    onRetry: () => ref.invalidate(activeOSProvider),
-                  ),
-                ],
-              ),
-              data: (os) {
-                if (os == null || (os.enderecoLiberado ?? '').isEmpty) {
-                  return ListView(
-                    children: [
-                      const SizedBox(height: 80),
-                      EmptyState(
-                        icon: Icons.map_outlined,
-                        title: 'Nenhum serviço ativo',
-                        message:
-                            'O mapa é liberado quando você toca em "Iniciar '
-                            'serviço" na aba Serviços.',
-                      ),
-                    ],
-                  );
-                }
-                return _ActiveCard(
-                  os: os,
-                  onOpenMaps: () => _abrirMaps(context, os.enderecoLiberado!),
-                );
-              },
+    // Título "Mapa" + avatar ficam no cabeçalho fixo do [ProfShell].
+    return RefreshIndicator(
+      color: clx.primary,
+      onRefresh: () => ref.refresh(activeOSProvider.future),
+      child: async.when(
+        loading: () => ListView(
+          children: const [
+            SizedBox(height: 120),
+            Center(child: Spinner(size: 24)),
+          ],
+        ),
+        error: (_, __) => ListView(
+          padding: const EdgeInsets.all(ClxSpace.x4),
+          children: [
+            ErrorBanner(
+              message: 'Não foi possível carregar o mapa.',
+              onRetry: () => ref.invalidate(activeOSProvider),
             ),
-          ),
+          ],
         ),
-      ],
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x4,
-        ClxSpace.x3,
-        ClxSpace.x4,
-        ClxSpace.x3,
-      ),
-      decoration: BoxDecoration(
-        color: clx.bg,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Text(
-        'Mapa',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: clx.ink,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.4,
-        ),
+        data: (os) {
+          if (os == null || (os.enderecoLiberado ?? '').isEmpty) {
+            return ListView(
+              children: [
+                const SizedBox(height: 80),
+                EmptyState(
+                  icon: Icons.map_outlined,
+                  title: 'Nenhum serviço ativo',
+                  message:
+                      'O mapa é liberado quando você toca em "Iniciar '
+                      'serviço" na aba Serviços.',
+                ),
+              ],
+            );
+          }
+          return _ActiveCard(
+            os: os,
+            onOpenMaps: () => _abrirMaps(context, os.enderecoLiberado!),
+          );
+        },
       ),
     );
   }

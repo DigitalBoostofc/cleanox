@@ -70,20 +70,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isFintechClean = ref.watch(isFintechCleanProvider);
-    // isNarrowWeb: browser + largura < 600dp → mesmo visual fintech do APK.
-    // isWebPlatformProvider é sobreponível em testes para cobrir este path.
-    final isNarrow = ref.watch(isWebPlatformProvider) &&
-        MediaQuery.sizeOf(context).width < ClxLayout.narrowBreakpoint;
+    // Web mobile (< 600dp): mesmo visual fintech do APK.
+    // - isNarrowWebProvider: setado pelo builder do MaterialApp (app.dart)
+    // - fallback: isWeb + largura (testes e paths sem o builder)
+    final isNarrow = ref.watch(isNarrowWebProvider) ||
+        (ref.watch(isWebPlatformProvider) &&
+            MediaQuery.sizeOf(context).width < ClxLayout.narrowBreakpoint);
     final isFintech = isFintechClean || isNarrow;
 
     // Narrow web precisa do ThemeData fintech que o APK recebe via MaterialApp.
-    // (isFintechClean=true já tem o tema de fora — sem duplo wrapper.)
+    // (isFintechClean=true ou builder do app já pode ter o tema — reaplicar é ok.)
     if (isNarrow && !isFintechClean) {
-      final themeMode = ref.watch(themeModeControllerProvider);
+      final dark = Theme.of(context).brightness == Brightness.dark;
       return Theme(
-        data: themeMode == ThemeMode.dark
-            ? buildFintechDarkTheme()
-            : buildFintechLightTheme(),
+        data: dark ? buildFintechDarkTheme() : buildFintechLightTheme(),
         child: Builder(builder: (ctx) => _buildScaffold(ctx, isFintech: true)),
       );
     }
@@ -92,15 +92,125 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildScaffold(BuildContext context, {required bool isFintech}) {
     final clx = context.clx;
+    if (isFintech) {
+      return Scaffold(
+        backgroundColor: clx.bg2,
+        body: Column(
+          children: [
+            Expanded(
+              flex: 4,
+              child: ClxFadeSlide(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        clx.accent,
+                        Color.lerp(clx.accent, clx.primary, 0.45)!,
+                        clx.primary,
+                      ],
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.35),
+                                Colors.white.withValues(alpha: 0.12),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.35),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.18),
+                                blurRadius: 24,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.cleaning_services_rounded,
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          kAppDisplayName,
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.6,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Gestão limpa. Operação em dia.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 6,
+              child: Transform.translate(
+                offset: const Offset(0, -20),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: clx.bg2,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: _buildFintech(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // Canvas cinza + card branco flutuante (paridade com casco desktop).
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: clx.bg2,
+      backgroundColor:
+          isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE6EAEE),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(ClxSpace.x6),
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isFintech ? 340 : 400),
-              child: isFintech ? _buildFintech(context) : _buildClassic(context),
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: _buildClassic(context),
             ),
           ),
         ),
@@ -108,60 +218,116 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  /// Layout clássico (`ClxCard` elevado) — inalterado, ainda usado pela Web
-  /// (`AppSurface.painel`) e por quem monta esta tela sem `isFintechClean`.
+  /// Layout web desktop: card elevado no canvas (marca verde + branco).
   Widget _buildClassic(BuildContext context) {
     final clx = context.clx;
-    return ClxCard(
-      elevated: true,
-      padding: const EdgeInsets.all(ClxSpace.x6),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'CleanOS',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                color: clx.accent,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x2),
-            Text(
-              'Entre para continuar',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
-            ),
-            const SizedBox(height: ClxSpace.x6),
-            if (_error != null) ...[
-              ErrorBanner(message: _error!),
-              const SizedBox(height: ClxSpace.x4),
-            ],
-            _emailField(),
-            const SizedBox(height: ClxSpace.x4),
-            _passwordField(),
-            const SizedBox(height: ClxSpace.x6),
-            ClxButton(
-              label: 'Entrar',
-              loading: _loading,
-              expand: true,
-              onPressed: _submit,
+    return ClxScaleFade(
+      beginScale: 0.9,
+      duration: ClxMotion.emphasizedDuration,
+      child: Container(
+        decoration: BoxDecoration(
+          color: clx.bg,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 40,
+              offset: const Offset(0, 16),
             ),
           ],
+        ),
+        padding: const EdgeInsets.fromLTRB(32, 36, 32, 32),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: ClxPulse(
+                  minScale: 0.96,
+                  maxScale: 1.06,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: clx.primary,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: clx.primary.withValues(alpha: 0.4),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.cleaning_services_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 60),
+                child: Text(
+                  kAppDisplayName,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x2),
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 100),
+                child: Text(
+                  'Entre para continuar',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: clx.ink3),
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x6),
+              if (_error != null) ...[
+                ErrorBanner(message: _error!),
+                const SizedBox(height: ClxSpace.x4),
+              ],
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 140),
+                child: _emailField(),
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 180),
+                child: _passwordField(),
+              ),
+              const SizedBox(height: ClxSpace.x6),
+              ClxFadeSlide(
+                delay: const Duration(milliseconds: 220),
+                child: ClxPressScale(
+                  onTap: _loading ? null : _submit,
+                  child: ClxButton(
+                    label: 'Entrar',
+                    loading: _loading,
+                    expand: true,
+                    onPressed: _submit,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Layout "Fintech Clean" (Opção B, doc 12, tela 1): sem card — logo +
-  /// campos + CTA pill direto sobre o fundo, bloco centralizado na tela (a
-  /// mesma posição que já coloca o CTA na zona natural do polegar).
+  /// Layout Easypay: form no sheet inferior (logo/hero fica no scaffold).
   Widget _buildFintech(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
@@ -171,51 +337,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: Container(
-              width: 56,
-              height: 56,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: clx.primary,
-                borderRadius: ClxRadii.rXl,
-              ),
-              child: Icon(
-                Icons.cleaning_services_rounded,
-                color: clx.onPrimary,
-                size: 26,
-              ),
-            ),
-          ),
-          const SizedBox(height: ClxSpace.x4),
           Text(
-            'CleanOS',
-            textAlign: TextAlign.center,
-            style: tt.headlineSmall?.copyWith(
+            'Bem-vindo de volta',
+            style: tt.titleLarge?.copyWith(
               color: clx.ink,
-              letterSpacing: -0.6,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: ClxSpace.x1),
+          const SizedBox(height: 4),
           Text(
             'Entre para continuar',
-            textAlign: TextAlign.center,
-            style: tt.bodyLarge?.copyWith(color: clx.ink3),
+            style: tt.bodyMedium?.copyWith(color: clx.ink3),
           ),
-          const SizedBox(height: ClxSpace.x8),
+          const SizedBox(height: ClxSpace.x5),
           if (_error != null) ...[
             ErrorBanner(message: _error!),
             const SizedBox(height: ClxSpace.x4),
           ],
-          _emailField(),
-          const SizedBox(height: ClxSpace.x5),
-          _passwordField(),
+          ClxFadeSlide(
+            delay: const Duration(milliseconds: 40),
+            child: _emailField(),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+          ClxFadeSlide(
+            delay: const Duration(milliseconds: 80),
+            child: _passwordField(),
+          ),
           const SizedBox(height: ClxSpace.x6),
-          ClxButton(
-            label: 'Entrar',
-            loading: _loading,
-            expand: true,
-            onPressed: _submit,
+          ClxFadeSlide(
+            delay: const Duration(milliseconds: 120),
+            child: ClxPressScale(
+              onTap: _loading ? null : _submit,
+              child: ClxButton(
+                label: 'Entrar',
+                loading: _loading,
+                expand: true,
+                onPressed: _submit,
+              ),
+            ),
           ),
           const SizedBox(height: ClxSpace.x5),
           Text(

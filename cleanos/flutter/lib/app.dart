@@ -3,6 +3,9 @@
 /// Locale fixo pt_BR (blueprint §2). Tema claro/escuro via ThemeMode persistido.
 /// O `surface` (painel vs profissional) é decidido pelo go_router + redirect por
 /// papel — o mesmo binário serve as duas, o entrypoint só muda o alvo/plataforma.
+///
+/// **Web estreita (&lt; 600dp):** mesmo tema + UX fintech do APK (login, casco,
+/// listas em card). Desktop web (≥ 600dp) permanece clássico (sidebar/rail).
 library;
 
 import 'package:flutter/material.dart';
@@ -47,12 +50,14 @@ class _CleanosAppView extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeControllerProvider);
     // Tema base: APKs → Fintech Clean. Web (`painel`) → clássico no
-    // MaterialApp; em viewport &lt;600dp o PainelShell/Login aplicam o tema
-    // fintech localmente (paridade com o APK — ver isNarrowWebProvider).
+    // MaterialApp; em viewport &lt;600dp o [builder] aplica fintech +
+    // [isNarrowWebProvider] (paridade com o APK).
     final isWeb = surface == AppSurface.painel;
 
     return MaterialApp.router(
-      title: surface == AppSurface.painel ? 'CleanOS · Painel' : 'CleanOS',
+      title: surface == AppSurface.painel
+          ? '$kAppDisplayName · Painel'
+          : kAppDisplayName,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: isWeb ? buildLightTheme() : buildFintechLightTheme(),
@@ -68,6 +73,28 @@ class _CleanosAppView extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Web mobile: força tema + flag fintech em toda a árvore (login incluso).
+      // Desktop web: não toca — layout clássico.
+      builder: isWeb
+          ? (context, child) {
+              final content = child ?? const SizedBox.shrink();
+              final width = MediaQuery.sizeOf(context).width;
+              if (width >= ClxLayout.narrowBreakpoint) return content;
+
+              final dark = Theme.of(context).brightness == Brightness.dark;
+              return ProviderScope(
+                overrides: [
+                  isNarrowWebProvider.overrideWithValue(true),
+                ],
+                child: Theme(
+                  data: dark
+                      ? buildFintechDarkTheme()
+                      : buildFintechLightTheme(),
+                  child: content,
+                ),
+              );
+            }
+          : null,
     );
   }
 }
