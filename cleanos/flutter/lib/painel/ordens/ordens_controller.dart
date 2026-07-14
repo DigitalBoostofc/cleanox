@@ -22,7 +22,7 @@ const int kOrdensPerPage = 30;
 
 /// Expand da lista do Painel (mostra o nome do profissional). NÃO precisa de
 /// `cliente` — `nome_curto`/`bairro` já vêm denormalizados na OS.
-const String _kListExpand = 'profissional';
+const String _kListExpand = 'profissional,cliente';
 
 /// Filtro ativo da lista: um status (ou `null` = todas) + profissional opcional.
 class OrdensFilter {

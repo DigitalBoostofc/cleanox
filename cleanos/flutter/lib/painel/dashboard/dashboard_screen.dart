@@ -656,7 +656,7 @@ class _TxCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${os.nomeCurto} — ${os.bairro}',
+                      '${os.clienteNomeExibicao} — ${os.bairro}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: tt.titleSmall?.copyWith(
@@ -1014,7 +1014,7 @@ class _UpcomingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${os.nomeCurto} — ${os.bairro}',
+                  '${os.clienteNomeExibicao} — ${os.bairro}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: tt.titleSmall?.copyWith(color: clx.ink),

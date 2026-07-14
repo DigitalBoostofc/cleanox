@@ -170,7 +170,7 @@ class _OSFormState extends ConsumerState<OSForm> {
     final os = widget.editing;
     if (os != null) {
       _clienteId = os.cliente;
-      _clienteLabel = os.nomeCurto;
+      _clienteLabel = os.clienteNomeExibicao;
       _servicoId = os.servico ?? '';
       _tipoServico.text = os.tipoServicoNome ?? '';
       _valor.text = os.valorServico == null ? '' : _numText(os.valorServico!);

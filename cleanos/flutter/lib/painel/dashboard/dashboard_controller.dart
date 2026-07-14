@@ -78,7 +78,7 @@ final dashboardDataProvider = FutureProvider.autoDispose<DashboardData>((
     repo.list(
       perPage: 20,
       sort: 'data_hora',
-      expand: 'profissional',
+      expand: 'profissional,cliente',
       filter:
           'status != $concluida && status != $cancelada '
           '&& data_hora >= $todayStart',

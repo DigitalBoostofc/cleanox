@@ -81,4 +81,12 @@ class Cliente with _$Cliente {
     if (s.isEmpty) return n;
     return '$n ${s[0].toUpperCase()}.';
   }
+
+  /// "Carlos", "Silva" → "Carlos Silva". Só existe onde o cofre foi expandido,
+  /// ou seja no Painel — o app do profissional nunca recebe este objeto.
+  String get nomeCompleto {
+    final n = nome.trim();
+    final s = (sobrenome ?? '').trim();
+    return s.isEmpty ? n : '$n $s';
+  }
 }

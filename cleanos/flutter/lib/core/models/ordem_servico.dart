@@ -159,6 +159,19 @@ class OrdemServico with _$OrdemServico {
   bool get temItensObrigatoriosPendentes => checklistExec.any(
     (i) => i.obrigatorio && i.status != ChecklistExecStatus.concluido,
   );
+
+  /// Nome do cliente para EXIBIR — nome inteiro quando o cofre veio expandido
+  /// (só o Painel expande `cliente`), abreviado caso contrário.
+  ///
+  /// 🔒 É este fallback que mantém a fronteira de privacidade: o app do
+  /// profissional nunca pede `expand=cliente`, então [expand] vem sem cliente e
+  /// ele continua vendo "Carlos S." — sem nenhum `if (isPainel)` espalhado pela
+  /// UI. Use SEMPRE este getter na UI; `nomeCurto` cru só onde o abreviado é o
+  /// objetivo.
+  String get clienteNomeExibicao {
+    final completo = expand?.cliente?.nomeCompleto.trim() ?? '';
+    return completo.isNotEmpty ? completo : nomeCurto;
+  }
 }
 
 /// `duracao_min` do PB → minutos, ou `null` quando "sem duração própria".

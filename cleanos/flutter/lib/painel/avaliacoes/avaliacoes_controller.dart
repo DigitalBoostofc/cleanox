@@ -220,6 +220,7 @@ class AvaliacoesController extends StateNotifier<AvaliacoesState> {
             filter:
                 'profissional = ${pbStringLiteral(profId)} && avaliacao_nota >= 1',
             sort: '-avaliacao_em',
+            expand: 'cliente',
           );
       // Descarta se o usuário trocou de profissional durante a carga.
       if (token != _reviewsToken || state.openId != profId) return;

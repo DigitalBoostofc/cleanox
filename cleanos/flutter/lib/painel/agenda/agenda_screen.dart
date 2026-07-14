@@ -614,7 +614,7 @@ class _EventChip extends StatelessWidget {
           ),
         ),
         child: Text(
-          '${formatTime(os.dataHora)} ${os.nomeCurto.isEmpty ? '—' : os.nomeCurto}',
+          '${formatTime(os.dataHora)} ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -944,7 +944,7 @@ class _AgendaMiniCard extends StatelessWidget {
                 ),
               ),
             ),
-            title: os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+            title: os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
             subtitle:
                 '$faixa · ${os.tipoServicoNome ?? '—'}'
                 '${prof != null && prof != '—' ? ' · $prof' : ''}',
@@ -986,7 +986,7 @@ class _AgendaMiniCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+                    os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.titleSmall?.copyWith(
@@ -1371,7 +1371,7 @@ class _OSDetailDialog extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              os.nomeCurto.isEmpty ? 'Ordem de serviço' : os.nomeCurto,
+              os.clienteNomeExibicao.isEmpty ? 'Ordem de serviço' : os.clienteNomeExibicao,
               style: tt.titleMedium?.copyWith(
                 color: clx.ink,
                 fontWeight: FontWeight.w700,

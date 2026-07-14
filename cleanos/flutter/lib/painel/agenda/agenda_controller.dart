@@ -462,7 +462,7 @@ class AgendaController extends StateNotifier<AgendaState> {
               dataFim: range.end,
             ),
             sort: 'data_hora',
-            expand: 'profissional',
+            expand: 'profissional,cliente',
           );
       // Resposta ATRASADA de um load antigo (troca rápida de período/visão, ou
       // um drop que já reescreveu a lista): descarta — nunca sobrescreve o novo.
@@ -692,7 +692,7 @@ class AgendaController extends StateNotifier<AgendaState> {
     try {
       final confirmado = await _ref
           .read(ordensRepositoryProvider)
-          .update(os.id, body, expand: 'profissional');
+          .update(os.id, body, expand: 'profissional,cliente');
       _pendingDrag.remove(os.id);
       if (!mounted) return;
       state = state.copyWith(

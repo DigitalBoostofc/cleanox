@@ -107,7 +107,7 @@ class _BodyState extends ConsumerState<_Body> {
     if (snap == null) return null;
     final cliente = _os.expand?.cliente;
     final clienteNome = cliente == null
-        ? (_os.nomeCurto.isEmpty ? 'Cliente' : _os.nomeCurto)
+        ? (_os.clienteNomeExibicao.isEmpty ? 'Cliente' : _os.clienteNomeExibicao)
         : [
             cliente.nome,
             cliente.sobrenome,
@@ -358,7 +358,7 @@ class _BodyState extends ConsumerState<_Body> {
         children: [
           Text(
             cliente == null
-                ? (os.nomeCurto.isEmpty ? 'Cliente' : os.nomeCurto)
+                ? (os.clienteNomeExibicao.isEmpty ? 'Cliente' : os.clienteNomeExibicao)
                 : [
                     cliente.nome,
                     cliente.sobrenome,
