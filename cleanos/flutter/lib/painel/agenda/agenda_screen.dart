@@ -11,6 +11,7 @@
 /// eventos, alvos de toque ≥ 48dp. PT-BR, BRT (UTC-3).
 library;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +21,7 @@ import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import '../usuarios/disponibilidade_editor.dart';
@@ -29,14 +31,66 @@ import 'day_column.dart';
 /// Abaixo disto, usa as variantes mobile (listas/compacto).
 const double _kMobileBreakpoint = 760;
 
-class AgendaScreen extends ConsumerWidget {
+class AgendaScreen extends ConsumerStatefulWidget {
   const AgendaScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AgendaScreen> createState() => _AgendaScreenState();
+}
+
+class _AgendaScreenState extends ConsumerState<AgendaScreen> {
+  /// REFRESH-ON-FOCUS (spec §9 / R-M7). O `StatefulShellRoute.indexedStack`
+  /// mantém esta tela VIVA para sempre (o branch fica offstage, não é destruído),
+  /// então sem isto a agenda ficaria congelada no dia/estado de quando foi aberta
+  /// — inclusive "hoje", depois da meia-noite.
+  ///
+  /// O go_router embrulha cada branch num `TickerMode(enabled: isActive)`; o
+  /// notifier dele é o sinal de foco mais barato e confiável que existe aqui.
+  ValueListenable<bool>? _foco;
+  bool _visivel = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final n = TickerMode.getNotifier(context);
+    if (n != _foco) {
+      _foco?.removeListener(_onFoco);
+      _foco = n..addListener(_onFoco);
+      _visivel = n.value;
+    }
+  }
+
+  void _onFoco() {
+    final visivel = _foco?.value ?? true;
+    final voltou = visivel && !_visivel;
+    _visivel = visivel;
+    if (voltou && mounted) {
+      ref.read(agendaControllerProvider.notifier).refreshOnFocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _foco?.removeListener(_onFoco);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(agendaControllerProvider);
     final easypay =
         ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
+
+    // Falha no drop: avisa e devolve o bloco ao lugar (o rollback já rodou).
+    ref.listen<AgendaState>(agendaControllerProvider, (prev, next) {
+      final msg = next.dragError;
+      if (msg == null || msg == prev?.dragError) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger == null) return;
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+      ref.read(agendaControllerProvider.notifier).limparDragError();
+    });
+
     return Column(
       children: [
         if (easypay) const _EasypayToolbar() else const _Toolbar(),
@@ -294,11 +348,16 @@ class _Body extends ConsumerWidget {
 
     void openOS(OrdemServico os) => showDialog<void>(
       context: context,
-      builder: (_) => _OSDetailDialog(os: os),
+      builder: (_) => _OSDetailDialog(
+        os: os,
+        disp: state.dispByProf[os.profissional ?? ''],
+      ),
     );
 
     final notifier = ref.read(agendaControllerProvider.notifier);
-    final today = _todayDate();
+    // "Hoje" vem do estado (recalculado no refresh-on-focus — R-M7), não de um
+    // `DateTime.now()` solto: é o piso do arraste (D7) e o realce da coluna.
+    final today = state.hoje;
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -315,7 +374,12 @@ class _Body extends ConsumerWidget {
                     onSelectDay: notifier.setSelectedDay,
                     onWindowStart: (d) => notifier.setWeekWindowStart(d),
                   )
-                : _WeekView(state: state, today: today, onTap: openOS);
+                : _WeekView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    notifier: notifier,
+                  );
           case AgendaView.mes:
             return mobile
                 ? _MobileMonthView(
@@ -338,25 +402,31 @@ class _Body extends ConsumerWidget {
                     onTap: openOS,
                     easypay: easypay,
                   )
-                : _DayView(state: state, today: today, onTap: openOS);
+                : _DayView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    notifier: notifier,
+                  );
         }
       },
     );
   }
 }
 
-DateTime _todayDate() {
-  final d = DateTime.tryParse(todayLocalDate()) ?? DateTime.now();
-  return DateTime(d.year, d.month, d.day);
-}
-
 /* ─────────────────────────── Semana (desktop) ─────────────────────────── */
 
 class _WeekView extends StatelessWidget {
-  const _WeekView({required this.state, required this.today, required this.onTap});
+  const _WeekView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.notifier,
+  });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final AgendaController notifier;
 
   @override
   Widget build(BuildContext context) {
@@ -368,7 +438,10 @@ class _WeekView extends StatelessWidget {
     // as colunas (um evento às 5h num dia deslocaria só aquela coluna).
     final janela = janelaCompartilhada([
       for (final eventos in eventosPorDia)
-        [for (final os in eventos) intervaloDaOs(os)],
+        [
+          for (final os in eventos)
+            intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+        ],
     ]);
 
     return Column(
@@ -402,6 +475,15 @@ class _WeekView extends StatelessWidget {
                       onTap: onTap,
                       dayStart: janela.inicio,
                       dayEnd: janela.fim,
+                      dispByProf: state.dispByProf,
+                      // Semana desktop: arrasta e MUDA DE DIA (D8).
+                      editable: true,
+                      permiteCrossDay: true,
+                      hoje: today,
+                      pendentes: state.pendentes,
+                      onMover: (os, dia, startMin) =>
+                          notifier.moverOs(os, dia: dia, startMin: startMin),
+                      onRedimensionar: notifier.redimensionarOs,
                     ),
                   ),
               ],
@@ -645,10 +727,16 @@ class _MonthDayCell extends StatelessWidget {
 /* ─────────────────────────── Dia (desktop) ─────────────────────────── */
 
 class _DayView extends StatelessWidget {
-  const _DayView({required this.state, required this.today, required this.onTap});
+  const _DayView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.notifier,
+  });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final AgendaController notifier;
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +745,10 @@ class _DayView extends StatelessWidget {
     final isToday = sameDay(day, today);
     final events = state.eventsForDay(day);
     final janela = janelaCompartilhada([
-      [for (final os in events) intervaloDaOs(os)],
+      [
+        for (final os in events)
+          intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+      ],
     ]);
 
     return Column(
@@ -694,6 +785,15 @@ class _DayView extends StatelessWidget {
                     onTap: onTap,
                     dayStart: janela.inicio,
                     dayEnd: janela.fim,
+                    dispByProf: state.dispByProf,
+                    // Visão dia: arrasta no tempo, mas não há coluna vizinha —
+                    // sem cross-day (o arraste horizontal é ignorado).
+                    editable: true,
+                    hoje: today,
+                    pendentes: state.pendentes,
+                    onMover: (os, dia, startMin) =>
+                        notifier.moverOs(os, dia: dia, startMin: startMin),
+                    onRedimensionar: notifier.redimensionarOs,
                   ),
                 ),
               ],
@@ -712,10 +812,14 @@ class _AgendaMiniCard extends StatelessWidget {
   const _AgendaMiniCard({
     required this.os,
     required this.onTap,
+    this.disp,
     this.easypay = false,
   });
   final OrdemServico os;
   final ValueChanged<OrdemServico> onTap;
+
+  /// Disponibilidade do profissional — 2º degrau do fallback de duração (D9).
+  final Disponibilidade? disp;
   final bool easypay;
 
   @override
@@ -724,7 +828,7 @@ class _AgendaMiniCard extends StatelessWidget {
     final prof = os.expand?.profissional?.displayName;
     // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
     // tabela — R4.
-    final faixa = faixaHorariaDaOs(os);
+    final faixa = faixaHorariaDaOs(os, disp);
     if (easypay) {
       return Padding(
         padding: const EdgeInsets.only(bottom: ClxSpace.x2),
@@ -855,7 +959,12 @@ class _MobileDayView extends StatelessWidget {
           const _EmptyDay()
         else
           for (final os in events)
-            _AgendaMiniCard(os: os, onTap: onTap, easypay: easypay),
+            _AgendaMiniCard(
+              os: os,
+              onTap: onTap,
+              easypay: easypay,
+              disp: state.dispByProf[os.profissional ?? ''],
+            ),
       ],
     );
   }
@@ -925,6 +1034,8 @@ class _MobileWeekView extends StatelessWidget {
                         os: dayEvents[i],
                         onTap: onTap,
                         easypay: true,
+                        disp:
+                            state.dispByProf[dayEvents[i].profissional ?? ''],
                       ),
                     ),
             ),
@@ -972,7 +1083,11 @@ class _MobileWeekView extends StatelessWidget {
             ),
             for (final os in state.eventsForDay(d)
               ..sort((a, b) => a.dataHora.compareTo(b.dataHora)))
-              _AgendaMiniCard(os: os, onTap: onTap),
+              _AgendaMiniCard(
+                os: os,
+                onTap: onTap,
+                disp: state.dispByProf[os.profissional ?? ''],
+              ),
             const SizedBox(height: ClxSpace.x3),
           ],
       ],
@@ -1046,7 +1161,12 @@ class _MobileMonthView extends StatelessWidget {
         if (selectedEvents.isEmpty)
           const _EmptyDay()
         else
-          for (final os in selectedEvents) _AgendaMiniCard(os: os, onTap: onTap),
+          for (final os in selectedEvents)
+            _AgendaMiniCard(
+              os: os,
+              onTap: onTap,
+              disp: state.dispByProf[os.profissional ?? ''],
+            ),
       ],
     );
   }
@@ -1138,8 +1258,9 @@ class _EmptyDay extends StatelessWidget {
 /* ─────────────────────────── Detalhe da OS ─────────────────────────── */
 
 class _OSDetailDialog extends StatelessWidget {
-  const _OSDetailDialog({required this.os});
+  const _OSDetailDialog({required this.os, this.disp});
   final OrdemServico os;
+  final Disponibilidade? disp;
 
   @override
   Widget build(BuildContext context) {
@@ -1174,7 +1295,8 @@ class _OSDetailDialog extends StatelessWidget {
             clx,
             tt,
             'Duração',
-            '${duracaoEfetivaMin(os)} min (${faixaHorariaDaOs(os)})',
+            '${duracaoEfetivaMin(os, disp)} min '
+            '(${faixaHorariaDaOs(os, disp)})',
           ),
           _row(clx, tt, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
           if (os.status == OSStatus.concluida) ...[
