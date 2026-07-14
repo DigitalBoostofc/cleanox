@@ -13,6 +13,7 @@ library;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/agenda/agenda_layout.dart';
@@ -26,6 +27,7 @@ import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import '../usuarios/disponibilidade_editor.dart';
 import 'agenda_controller.dart';
+import 'ajuste_sheet.dart';
 import 'day_column.dart';
 
 /// Abaixo disto, usa as variantes mobile (listas/compacto).
@@ -355,6 +357,33 @@ class _Body extends ConsumerWidget {
     );
 
     final notifier = ref.read(agendaControllerProvider.notifier);
+
+    /// FASE 3 (APK / web estreita): long-press no card → sheet de ajuste (D3).
+    /// Sem grade nem arraste no celular (R4) — os steppers de ±15 fazem o papel.
+    void ajustarOS(OrdemServico os) {
+      final brt = agendaEventBrt(os);
+      // D6 + drop em voo: sem sheet (o card nem chama, mas a guarda fica aqui
+      // também — é o único caminho de escrita da agenda no celular).
+      if (brt == null || !osAjustavel(os) || state.pendentes.contains(os.id)) {
+        return;
+      }
+      final dia = DateTime(brt.year, brt.month, brt.day);
+      showAjusteOsSheet(
+        context,
+        os: os,
+        dia: dia,
+        hoje: state.hoje,
+        disp: state.dispByProf[os.profissional ?? ''],
+        ocupados: _ocupadosDoDia(state, os, dia),
+        onSalvar: (d, startMin, duracaoMin) => notifier.ajustarOs(
+          os,
+          dia: d,
+          startMin: startMin,
+          duracaoMin: duracaoMin,
+        ),
+      );
+    }
+
     // "Hoje" vem do estado (recalculado no refresh-on-focus — R-M7), não de um
     // `DateTime.now()` solto: é o piso do arraste (D7) e o realce da coluna.
     final today = state.hoje;
@@ -369,6 +398,7 @@ class _Body extends ConsumerWidget {
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onAjustar: ajustarOS,
                     easypay: easypay,
                     // Toque só seleciona o dia; arraste da faixa muda o período.
                     onSelectDay: notifier.setSelectedDay,
@@ -386,6 +416,7 @@ class _Body extends ConsumerWidget {
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onAjustar: ajustarOS,
                     onSelectDay: notifier.setSelectedDay,
                   )
                 : _MonthView(
@@ -400,6 +431,7 @@ class _Body extends ConsumerWidget {
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onAjustar: ajustarOS,
                     easypay: easypay,
                   )
                 : _DayView(
@@ -412,6 +444,33 @@ class _Body extends ConsumerWidget {
       },
     );
   }
+}
+
+/// OS que OCUPAM a agenda do MESMO profissional no [dia] — base do aviso de
+/// sobreposição do sheet (D11, a mesma regra do formulário): fora `concluida` e
+/// `cancelada` (reagendar no mesmo dia não pode gerar aviso fantasma) e fora a
+/// própria [os].
+///
+/// Sai do estado JÁ carregado (nenhuma ida ao servidor) e ignora o filtro de
+/// profissional da tela — filtrar a VISTA não pode esconder um conflito real.
+/// OS sem profissional não tem agenda a colidir: sem aviso (idem formulário).
+List<Intervalo> _ocupadosDoDia(
+  AgendaState state,
+  OrdemServico os,
+  DateTime dia,
+) {
+  final prof = os.profissional ?? '';
+  if (prof.isEmpty) return const [];
+  final disp = state.dispByProf[prof];
+  return [
+    for (final o in state.osList)
+      if (o.id != os.id &&
+          (o.profissional ?? '') == prof &&
+          o.status != OSStatus.concluida &&
+          o.status != OSStatus.cancelada)
+        if (agendaEventBrt(o) case final brt? when sameDay(brt, dia))
+          intervaloDaOs(o, disp),
+  ];
 }
 
 /* ─────────────────────────── Semana (desktop) ─────────────────────────── */
@@ -808,15 +867,23 @@ class _DayView extends StatelessWidget {
 /* ─────────────────────────── Mobile ─────────────────────────── */
 
 /// Mini-card usado nas visões mobile (dia/semana/mês).
+///
+/// **Toque** abre o detalhe; **long-press** abre o sheet de ajuste (Fase 3/D3) —
+/// só nas OS `agendada`/`atribuida` (D6): nas demais o gesto simplesmente não
+/// existe, e nenhum enfeite promete o que a OS não pode fazer.
 class _AgendaMiniCard extends StatelessWidget {
   const _AgendaMiniCard({
     required this.os,
     required this.onTap,
+    this.onAjustar,
     this.disp,
     this.easypay = false,
   });
   final OrdemServico os;
   final ValueChanged<OrdemServico> onTap;
+
+  /// Long-press → ajuste por sheet. Null (ou status travado) = sem gesto.
+  final ValueChanged<OrdemServico>? onAjustar;
 
   /// Disponibilidade do profissional — 2º degrau do fallback de duração (D9).
   final Disponibilidade? disp;
@@ -824,6 +891,26 @@ class _AgendaMiniCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final card = KeyedSubtree(
+      key: ValueKey('agenda-card-${os.id}'),
+      child: _card(context),
+    );
+    final ajustar = onAjustar;
+    if (ajustar == null || !osAjustavel(os)) return card;
+    return GestureDetector(
+      // Presente SÓ nas OS ajustáveis (D6) — é a afordância do long-press.
+      key: ValueKey('agenda-card-lp-${os.id}'),
+      // O toque continua chegando no InkWell do card (a arena dá o tap pra ele e
+      // o long-press pra este detector, como num ListTile).
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        ajustar(os);
+      },
+      child: card,
+    );
+  }
+
+  Widget _card(BuildContext context) {
     final clx = context.clx;
     final prof = os.expand?.profissional?.displayName;
     // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
@@ -931,11 +1018,13 @@ class _MobileDayView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    this.onAjustar,
     this.easypay = false,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
   final bool easypay;
 
   @override
@@ -962,6 +1051,7 @@ class _MobileDayView extends StatelessWidget {
             _AgendaMiniCard(
               os: os,
               onTap: onTap,
+              onAjustar: onAjustar,
               easypay: easypay,
               disp: state.dispByProf[os.profissional ?? ''],
             ),
@@ -975,6 +1065,7 @@ class _MobileWeekView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    this.onAjustar,
     this.easypay = false,
     this.onSelectDay,
     this.onWindowStart,
@@ -982,6 +1073,7 @@ class _MobileWeekView extends StatelessWidget {
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
   final bool easypay;
   final ValueChanged<DateTime>? onSelectDay;
   final ValueChanged<DateTime>? onWindowStart;
@@ -1033,6 +1125,7 @@ class _MobileWeekView extends StatelessWidget {
                       itemBuilder: (context, i) => _AgendaMiniCard(
                         os: dayEvents[i],
                         onTap: onTap,
+                        onAjustar: onAjustar,
                         easypay: true,
                         disp:
                             state.dispByProf[dayEvents[i].profissional ?? ''],
@@ -1086,6 +1179,7 @@ class _MobileWeekView extends StatelessWidget {
               _AgendaMiniCard(
                 os: os,
                 onTap: onTap,
+                onAjustar: onAjustar,
                 disp: state.dispByProf[os.profissional ?? ''],
               ),
             const SizedBox(height: ClxSpace.x3),
@@ -1101,10 +1195,12 @@ class _MobileMonthView extends StatelessWidget {
     required this.today,
     required this.onTap,
     required this.onSelectDay,
+    this.onAjustar,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
   final ValueChanged<DateTime> onSelectDay;
 
   @override
@@ -1165,6 +1261,7 @@ class _MobileMonthView extends StatelessWidget {
             _AgendaMiniCard(
               os: os,
               onTap: onTap,
+              onAjustar: onAjustar,
               disp: state.dispByProf[os.profissional ?? ''],
             ),
       ],

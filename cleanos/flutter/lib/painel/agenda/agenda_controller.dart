@@ -640,6 +640,37 @@ class AgendaController extends StateNotifier<AgendaState> {
     );
   }
 
+  /// Ajuste pelo SHEET do APK / web estreita (Fase 3): início e duração podem
+  /// mudar juntos → **um único PATCH** (dois seriam duas idas ao servidor e um
+  /// estado intermediário visível). Mesma persistência do drop (R-A3): otimista,
+  /// record confirmado por cima, rollback cirúrgico.
+  ///
+  /// Só os campos que REALMENTE mudaram entram no corpo; nada mudou → sem PATCH.
+  /// Uma OS antiga (sem `duracao_min`) grava a duração efetiva que o sheet
+  /// mostrou — o que o usuário viu é o que fica salvo.
+  Future<void> ajustarOs(
+    OrdemServico os, {
+    required DateTime dia,
+    required int startMin,
+    required int duracaoMin,
+  }) {
+    final body = <String, dynamic>{};
+    var otimista = os;
+
+    final novaData = dataHoraPbDe(dia, startMin);
+    if (novaData.isNotEmpty && novaData != os.dataHora) {
+      body['data_hora'] = novaData;
+      otimista = otimista.copyWith(dataHora: novaData);
+    }
+    if (duracaoMin > 0 && duracaoMin != os.duracaoMin) {
+      body['duracao_min'] = duracaoMin;
+      otimista = otimista.copyWith(duracaoMin: duracaoMin);
+    }
+    if (body.isEmpty) return Future<void>.value();
+
+    return _persistirDrop(os, body: body, otimista: otimista);
+  }
+
   /// PATCH do drop: otimista na tela → **record confirmado pelo servidor** por
   /// cima da lista (nunca um `load()` da janela inteira, que traria 500 OS e
   /// piscaria a grade). Falhou: desfaz **só** a entrada daquela OS.

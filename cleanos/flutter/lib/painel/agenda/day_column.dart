@@ -31,7 +31,6 @@ import 'package:flutter/material.dart';
 import '../../core/agenda/agenda_drag.dart';
 import '../../core/agenda/agenda_layout.dart';
 import '../../core/design/design.dart';
-import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 
@@ -49,12 +48,6 @@ const double kAgendaReguaW = 56;
 
 /// Altura da alça de redimensionar (borda inferior do bloco).
 const double kAgendaAlcaPx = 8;
-
-/// Só `agendada` e `atribuida` são arrastáveis (D6) — as demais renderizam sem
-/// alça mesmo com a grade editável, e o servidor (`os_logic.js`) ainda barra
-/// `data_hora`/`duracao_min` em `concluida`/`cancelada`.
-bool osArrastavel(OrdemServico os) =>
-    os.status == OSStatus.agendada || os.status == OSStatus.atribuida;
 
 /// Pan do bloco, com dois desvios do padrão — ambos necessários:
 ///
@@ -243,7 +236,8 @@ class _DayColumnState extends State<DayColumn> {
   bool _arrastavel(OrdemServico os) =>
       widget.editable &&
       widget.hoje != null &&
-      osArrastavel(os) &&
+      // Só `agendada`/`atribuida` (D6) — a MESMA regra do sheet do APK.
+      osAjustavel(os) &&
       !widget.pendentes.contains(os.id);
 
   void _mostrarFantasma() {
@@ -440,8 +434,7 @@ class _FantasmaDrag extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final p = preview.proposta;
-    final faixa =
-        '${hhmmDeMinutos(p.startMin)}–${hhmmDeMinutos(p.startMin + p.duracaoMin)}';
+    final faixa = faixaHoraria(p.startMin, p.duracaoMin);
     final dia = p.deltaDias == 0
         ? ''
         : '${kDowShortDrag[p.dia.weekday % 7]} ${p.dia.day} · ';
@@ -617,7 +610,7 @@ class _BlocoOSState extends State<_BlocoOS> {
     final tt = Theme.of(context).textTheme;
     final p = widget.posicao;
     final os = widget.os;
-    final faixa = '${hhmmDeMinutos(p.startMin)}–${hhmmDeMinutos(p.endMin)}';
+    final faixa = faixaHoraria(p.startMin, p.duracaoMin);
     final curto = p.duracaoMin < 45;
 
     final conteudo = Container(
