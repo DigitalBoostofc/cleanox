@@ -26,6 +26,7 @@ import '../../core/models/cliente.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/config_atuacao.dart';
 import '../data/painel_providers.dart';
+import '../ordens/ordens_controller.dart';
 import 'os_inline_section.dart';
 
 /// Abre o formulário de cliente. [editing] nulo = criar. Resolve `true` se salvou.
@@ -314,6 +315,11 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
             }
             return;
           }
+          // OS criada por aqui não passa pelo controller da lista de OS, e o
+          // shell mantém aquela aba viva (IndexedStack) com estado velho —
+          // então avisamos a lista/contadores pra refletir sem refresh manual.
+          ref.read(ordensControllerProvider.notifier).refresh();
+          ref.invalidate(ordensCountsProvider);
         }
       }
       if (mounted) Navigator.of(context).pop(true);
