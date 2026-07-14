@@ -309,18 +309,43 @@ class _DisponibilidadeEditorState extends ConsumerState<DisponibilidadeEditor> {
             ),
             const SizedBox(height: ClxSpace.x4),
           ],
-          // Duração do slot.
+          // Duração PADRÃO do serviço deste profissional.
+          //
+          // O rótulo antigo era "Duração do serviço (slot)" — herança da agenda
+          // velha, em que este número GERAVA os horários fixos de um dropdown.
+          // Esses slots não existem mais (a hora agora é digitada livremente),
+          // então "slot" descrevia uma mecânica morta e confundia o dono.
+          //
+          // O campo continua valendo, por dois motivos (ver `duracaoEfetivaMin`):
+          //   1. prefila a Duração de toda OS nova deste profissional (D9);
+          //   2. é o FALLBACK da agenda para OS sem duração própria — ou seja,
+          //      toda OS anterior à migration 27. Zerar isso encolheria essas
+          //      OS pra 60 min na grade.
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Duração do serviço (slot)',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: clx.ink2,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Duração padrão do serviço',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: clx.ink2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: ClxSpace.x1),
+                    Text(
+                      'Preenche a duração das novas OS deste profissional. '
+                      'Dá pra alterar em cada OS.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: ClxSpace.x3),
               SizedBox(
                 width: 130,
                 child: TextField(
