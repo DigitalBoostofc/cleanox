@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --test-reporter=spec 'integration/*.test.mjs'"
+    "test": "node --test --test-reporter=spec 'integration/*.test.mjs'",
+    "test:unit": "node --test --test-reporter=spec 'integration/*.unit.test.mjs'",
+    "test:integration": "node --test --test-reporter=spec 'integration/anti-desvio.test.mjs'"
   }
 }

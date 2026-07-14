@@ -1,0 +1,55 @@
+# Gate dos hooks do PocketBase — a suíte que protege o caminho do DINHEIRO.
+#
+# Por que um workflow separado do android-release-profissional.yml:
+#
+#   1. Lá o gate (`flutter analyze` + `flutter test`) vive DENTRO do job
+#      `build-and-release`, que só roda quando `cleanos/flutter/**` muda
+#      (dorny/paths-filter no job `setup`). Um PR só de backend pula o job
+#      inteiro — os testes de hook nunca rodariam.
+#   2. Aqui não precisa de Flutter, JDK nem keystore: é Node puro, ~30s.
+#      Botar isso no pipeline do APK só o deixaria mais lento e mais frágil.
+#
+# Contexto (14/07/2026): 3 testes de `fin_saldo` ficaram VERMELHOS na `main` por
+# semanas sem ninguém ver, porque nada rodava esta suíte no CI. O
+# `fin_saldo_lib.js` passou a lançar `BadRequestError` no saldo órfão (correto) e
+# o teste nunca foi atualizado. Suíte vermelha em silêncio é pior que ausente:
+# dá sensação de cobertura que não existe — e o que ela cobre é o saldo (R1).
+
+name: Hooks PocketBase (gate)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cleanos/pb/**"
+      - "cleanos/tests/**"
+      - ".github/workflows/hooks-tests.yml"
+  pull_request:
+    paths:
+      - "cleanos/pb/**"
+      - "cleanos/tests/**"
+      - ".github/workflows/hooks-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: Unitários dos hooks (sem PocketBase)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cleanos/tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Só os *.unit.test.mjs. O `anti-desvio.test.mjs` NÃO entra: ele exige um
+      # PocketBase vivo em $PB_URL, com secrets do WhatsApp em `app_config` e a
+      # contagem de serviços do seed de dev. Hoje ele falha 10/126 até na `main`
+      # (medido contra um PB limpo com o `pb/` da própria main) — dívida
+      # conhecida, não regressão. Colocá-lo aqui só ensinaria o time a ignorar
+      # CI vermelho, que é exatamente como esta suíte apodreceu.
+      - name: Gate — testes unitários dos hooks
+        run: npm run test:unit
