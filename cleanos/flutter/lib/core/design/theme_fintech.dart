@@ -170,6 +170,7 @@ TextTheme _textThemeFintech() {
 }
 
 ThemeData _buildFintech(Brightness brightness, CleanoxColors clx) {
+  final isDark = brightness == Brightness.dark;
   final scheme = _schemeFintech(brightness, clx);
   final textTheme = _textThemeFintech();
 
@@ -178,7 +179,10 @@ ThemeData _buildFintech(Brightness brightness, CleanoxColors clx) {
     brightness: brightness,
     colorScheme: scheme,
     fontFamily: kFontFamily,
-    textTheme: textTheme,
+    // Texto em `ink` (tinta forte). Sem o apply, o Material usa black87/white70
+    // e o DIGITADO fica mais fraco que a tinta do design system — o que somava
+    // com o hint forte e fazia campo vazio parecer preenchido.
+    textTheme: textTheme.apply(bodyColor: clx.ink, displayColor: clx.ink),
     scaffoldBackgroundColor: clx.bg2,
     canvasColor: clx.bg,
     dividerColor: clx.line,
@@ -262,9 +266,7 @@ ThemeData _buildFintech(Brightness brightness, CleanoxColors clx) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: false,
-      // Hint em cinza "muted" (ink3): deixa claro que é só um exemplo, não o
-      // dado digitado (que usa `ink`). Sem isso o placeholder confunde.
-      hintStyle: textTheme.bodyLarge?.copyWith(color: clx.ink3),
+      hintStyle: textTheme.bodyLarge?.copyWith(color: clxHintColor(isDark)),
       contentPadding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
       border: UnderlineInputBorder(
         borderSide: BorderSide(color: clx.line2, width: 1.5),
