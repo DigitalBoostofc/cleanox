@@ -117,10 +117,22 @@ escrever qualquer hook.** Razão: descoberto em 14/07/2026, a um comando de queb
 financeiro em produção. Consertar de verdade = trazer os hooks do Meta CAPI para a linha
 principal (hoje em `wip/meta-capi`).
 
-**R12 — Merge na `main` PUBLICA APK na Play Store. Merge ≠ neutro.**
-`.github/workflows/android-release-profissional.yml` dispara em `push: branches: [main]` →
-build assinado + auto-bump + publicação no track `internal`. Mergear um PR não é só integrar
-código: **distribui app pros usuários**. Precisa de decisão explícita do dono, igual deploy (R5).
+**R12 — Merge na `main` dispara a CI de release. Hoje ela NÃO publica na Play; quando o secret entrar, passa a publicar.**
+`.github/workflows/android-release-profissional.yml` dispara em `push: branches: [main]`
+(**sem filtro de path** — até PR só de backend dispara) → gate (`analyze --fatal-infos` +
+`test`) → auto-bump do `pubspec` → build **assinado** (.aab + .apk) → artefato na CI.
+
+O passo `Publish to Google Play` fica **`skipped`** enquanto `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+não existir nos secrets. **Verificado empiricamente** no run `29305301608` (14/07/2026) —
+não inferido do YAML. Ou seja: **merge hoje NÃO distribui app pra ninguém.**
+
+⚠️ **No dia em que o dono configurar esse secret, esta regra inverte:** merge na `main` passa
+a publicar no track `internal` automaticamente, e aí merge ≠ neutro — exige decisão explícita,
+igual deploy (R5).
+
+**Antes de afirmar que um merge publica (ou não publica), checar o estado real do secret**
+(`gh run view <id> --log | grep 'Publish to Google Play'`), nunca só o gatilho do workflow.
+Razão: afirmei o contrário lendo só o `on: push` e segurei merges por um risco inexistente.
 
 ---
 
