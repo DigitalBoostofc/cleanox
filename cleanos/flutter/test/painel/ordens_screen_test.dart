@@ -6,8 +6,10 @@ import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/servico.dart';
 import 'package:cleanos/core/models/user.dart';
+import 'package:cleanos/core/repositories/repo_types.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
 import 'package:cleanos/painel/ordens/ordens_screen.dart';
+import 'package:cleanos/painel/ordens/os_detail.dart';
 import 'package:cleanos/painel/ordens/os_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,5 +154,102 @@ void main() {
       expect(ordens.createCount, 1);
       expect(ordens.lastCreate?['cliente'], 'c1');
     });
+
+    testWidgets('Atribuir na aba Agendada: lista recarrega e vai pra Atribuída', (
+      tester,
+    ) async {
+      final ordens = _FakeOrdensStatusFilter(seed: [_os('a')]);
+      final usuarios = FakeUsuarios(
+        profissionais: const [
+          User(id: 'p1', name: 'Pedro', role: Role.profissional),
+        ],
+      );
+      await pumpPainel(
+        tester,
+        const OrdensScreen(),
+        overrides: overridesFor(ordens: ordens, usuarios: usuarios),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Vai pra aba Agendada (tabs vêm antes da lista na árvore).
+      await tester.tap(find.text('Agendada').first);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Higienização'), findsWidgets);
+
+      // Abre o detalhe pela linha e atribui o Pedro.
+      await tester.tap(find.text('Carlos S.').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(OSDetail), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(OSDetail),
+          matching: find.byType(DropdownButtonFormField<String>),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pedro').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Atribuir'));
+      await tester.pump();
+      await tester.pump();
+      // Anima o fechamento do dialog (pump sem duração não avança a rota).
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Modal fechou sozinho e a lista mudou pra aba Atribuída, onde a OS
+      // aparece (o fake honra o filtro de status: se ainda estivesse na aba
+      // Agendada, a lista estaria vazia).
+      expect(find.byType(OSDetail), findsNothing);
+      expect(ordens.updateCount, 1);
+      expect(find.text('Nenhuma ordem de serviço'), findsNothing);
+      expect(find.text('Higienização'), findsWidgets);
+    });
   });
+}
+
+/// FakeOrdens que HONRA o filtro de status do servidor — necessário pra provar
+/// que a lista trocou de aba após a reatribuição (agendada → atribuida).
+class _FakeOrdensStatusFilter extends FakeOrdens {
+  _FakeOrdensStatusFilter({super.seed});
+
+  @override
+  Future<PageResult<OrdemServico>> list({
+    int page = 1,
+    int perPage = 30,
+    String? filter,
+    String sort = '-data_hora',
+    String? expand,
+  }) async {
+    final items = seed
+        .where((o) => filter == null || filter.contains(o.status.wire))
+        .toList();
+    return PageResult<OrdemServico>(
+      items: items,
+      page: 1,
+      perPage: perPage,
+      totalItems: items.length,
+      totalPages: 1,
+    );
+  }
+
+  @override
+  Future<OrdemServico> update(
+    String osId,
+    Map<String, dynamic> data, {
+    String? expand,
+  }) async {
+    updateCount++;
+    final atualizado = seed
+        .firstWhere((o) => o.id == osId)
+        .copyWith(
+          status: OSStatus.atribuida,
+          profissional: data['profissional'] as String?,
+        );
+    seed = [
+      for (final o in seed)
+        if (o.id == osId) atualizado else o,
+    ];
+    return atualizado;
+  }
 }

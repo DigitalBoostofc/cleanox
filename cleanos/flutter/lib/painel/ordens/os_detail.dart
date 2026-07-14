@@ -74,20 +74,17 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       _reatribuindo = true;
       _reatribuirError = null;
     });
+    final OrdemServico novo;
     try {
-      final novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
+      // `cliente` no expand junto do `profissional`: o registro que volta daqui
+      // substitui `_os`, e sem o cofre expandido o título do detalhe cairia de
+      // "Carlos Silva" pra "Carlos S." logo depois de reatribuir.
+      novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
         'profissional': _selectedProf.isEmpty ? null : _selectedProf,
         'status': _selectedProf.isEmpty
             ? OSStatus.agendada.wire
             : OSStatus.atribuida.wire,
       }, expand: 'profissional,cliente');
-      if (!mounted) return;
-      setState(() {
-        _os = novo;
-        _selectedProf = novo.profissional ?? '';
-        _reatribuindo = false;
-        _changed = true;
-      });
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -95,6 +92,36 @@ class _OSDetailState extends ConsumerState<OSDetail> {
           _reatribuirError = 'Não foi possível reatribuir. Tente novamente.';
         });
       }
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _os = novo;
+      _selectedProf = novo.profissional ?? '';
+      _reatribuindo = false;
+      _changed = true;
+    });
+    // Atualiza lista/contadores AQUI, no sucesso da ação — o refresh não pode
+    // depender do resultado do dialog, porque fechar pelo barrier devolve null.
+    ref.invalidate(ordensCountsProvider);
+    showClxToast(
+      context,
+      novo.profissional == null
+          ? 'Profissional removido — OS voltou para Agendada.'
+          : 'Profissional atribuído.',
+      type: ToastType.success,
+    );
+    final notifier = ref.read(ordensControllerProvider.notifier);
+    final filtroAtivo = ref.read(ordensControllerProvider).filter.status;
+    if (filtroAtivo != null && filtroAtivo != novo.status) {
+      // A OS saiu da aba ativa (ex.: Agendada → Atribuída): leva a lista para
+      // a aba onde ela está agora e fecha o detalhe.
+      await notifier.setStatus(novo.status);
+      if (!mounted) return;
+      Navigator.of(context).pop(const OSDetailResult());
+    } else {
+      await notifier.refresh();
+      _changed = false; // lista já recarregada; sem refresh duplicado no fechar
     }
   }
 
