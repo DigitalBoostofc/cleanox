@@ -172,14 +172,14 @@ class FakeUsuariosFull implements UsuariosRepository {
       seed.firstWhere((u) => u.id == id, orElse: () => fakeUser(id: id));
 
   @override
-  Future<User> create(Map<String, dynamic> data) async {
+  Future<User> create(Map<String, dynamic> data, {AvatarUpload? avatar}) async {
     createCount++;
     lastCreate = data;
     return fakeUser(id: 'novo', name: (data['name'] as String?) ?? 'Novo');
   }
 
   @override
-  Future<User> update(String id, Map<String, dynamic> data) async {
+  Future<User> update(String id, Map<String, dynamic> data, {AvatarUpload? avatar}) async {
     updateCount++;
     lastUpdate = data;
     return fakeUser(id: id, name: (data['name'] as String?) ?? 'Nome');

@@ -3,11 +3,22 @@ library;
 
 import '../models/user.dart';
 
+/// Bytes + nome de arquivo para upload de avatar (multipart).
+class AvatarUpload {
+  const AvatarUpload({required this.bytes, required this.filename});
+  final List<int> bytes;
+  final String filename;
+}
+
 abstract class UsuariosRepository {
   Future<List<User>> list({String? filter, String sort});
   Future<User> getOne(String id);
-  Future<User> create(Map<String, dynamic> data);
-  Future<User> update(String id, Map<String, dynamic> data);
+  Future<User> create(Map<String, dynamic> data, {AvatarUpload? avatar});
+  Future<User> update(
+    String id,
+    Map<String, dynamic> data, {
+    AvatarUpload? avatar,
+  });
   Future<void> delete(String id);
 }
 
@@ -23,9 +34,15 @@ class UnimplementedUsuariosRepository implements UsuariosRepository {
   @override
   Future<User> getOne(String id) => _todo();
   @override
-  Future<User> create(Map<String, dynamic> data) => _todo();
+  Future<User> create(Map<String, dynamic> data, {AvatarUpload? avatar}) =>
+      _todo();
   @override
-  Future<User> update(String id, Map<String, dynamic> data) => _todo();
+  Future<User> update(
+    String id,
+    Map<String, dynamic> data, {
+    AvatarUpload? avatar,
+  }) =>
+      _todo();
   @override
   Future<void> delete(String id) => _todo();
 }

@@ -41,6 +41,9 @@ mixin _$User {
   /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
   @JsonKey(name: 'comissao_valor')
   double get comissaoValor => throw _privateConstructorUsedError;
+
+  /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
+  String get avatar => throw _privateConstructorUsedError;
   bool get verified => throw _privateConstructorUsedError;
   @JsonKey(name: 'emailVisibility')
   bool get emailVisibility => throw _privateConstructorUsedError;
@@ -71,6 +74,7 @@ abstract class $UserCopyWith<$Res> {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
+    String avatar,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -101,6 +105,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
+    Object? avatar = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -140,6 +145,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.comissaoValor
                 : comissaoValor // ignore: cast_nullable_to_non_nullable
                       as double,
+            avatar: null == avatar
+                ? _value.avatar
+                : avatar // ignore: cast_nullable_to_non_nullable
+                      as String,
             verified: null == verified
                 ? _value.verified
                 : verified // ignore: cast_nullable_to_non_nullable
@@ -180,6 +189,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
+    String avatar,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -207,6 +217,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
+    Object? avatar = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -246,6 +257,10 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.comissaoValor
             : comissaoValor // ignore: cast_nullable_to_non_nullable
                   as double,
+        avatar: null == avatar
+            ? _value.avatar
+            : avatar // ignore: cast_nullable_to_non_nullable
+                  as String,
         verified: null == verified
             ? _value.verified
             : verified // ignore: cast_nullable_to_non_nullable
@@ -280,6 +295,7 @@ class _$UserImpl extends _User {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     this.comissaoTipo = ComissaoTipo.nenhuma,
     @JsonKey(name: 'comissao_valor') this.comissaoValor = 0,
+    this.avatar = '',
     this.verified = false,
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
@@ -319,6 +335,11 @@ class _$UserImpl extends _User {
   @override
   @JsonKey(name: 'comissao_valor')
   final double comissaoValor;
+
+  /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
+  @override
+  @JsonKey()
+  final String avatar;
   @override
   @JsonKey()
   final bool verified;
@@ -332,7 +353,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, avatar: $avatar, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -351,6 +372,7 @@ class _$UserImpl extends _User {
                 other.comissaoTipo == comissaoTipo) &&
             (identical(other.comissaoValor, comissaoValor) ||
                 other.comissaoValor == comissaoValor) &&
+            (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.verified, verified) ||
                 other.verified == verified) &&
             (identical(other.emailVisibility, emailVisibility) ||
@@ -371,6 +393,7 @@ class _$UserImpl extends _User {
     whatsapp,
     comissaoTipo,
     comissaoValor,
+    avatar,
     verified,
     emailVisibility,
     created,
@@ -402,6 +425,7 @@ abstract class _User extends User {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     final ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') final double comissaoValor,
+    final String avatar,
     final bool verified,
     @JsonKey(name: 'emailVisibility') final bool emailVisibility,
     final String? created,
@@ -439,6 +463,10 @@ abstract class _User extends User {
   @override
   @JsonKey(name: 'comissao_valor')
   double get comissaoValor;
+
+  /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
+  @override
+  String get avatar;
   @override
   bool get verified;
   @override

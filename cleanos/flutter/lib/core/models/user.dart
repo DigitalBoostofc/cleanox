@@ -40,6 +40,9 @@ class User with _$User {
     /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
     @JsonKey(name: 'comissao_valor') @Default(0) double comissaoValor,
 
+    /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
+    @Default('') String avatar,
+
     @Default(false) bool verified,
     @JsonKey(name: 'emailVisibility') @Default(false) bool emailVisibility,
     String? created,
@@ -58,6 +61,7 @@ class User with _$User {
     if (tipo == null || tipo == '') j['comissao_tipo'] = 'nenhuma';
     final val = j['comissao_valor'];
     if (val == null || val == '') j['comissao_valor'] = 0;
+    if (j['avatar'] == null) j['avatar'] = '';
     return User.fromJson(j);
   }
 
@@ -68,6 +72,25 @@ class User with _$User {
     if (n != null && n.isNotEmpty) return n;
     if (name.trim().isNotEmpty) return name;
     return '—';
+  }
+
+  bool get hasAvatar => avatar.trim().isNotEmpty;
+
+  /// URL pública do avatar. [baseUrl] = PB_URL sem barra final.
+  String? avatarUrl(String baseUrl, {String thumb = '100x100'}) {
+    if (!hasAvatar) return null;
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final q = thumb.isEmpty ? '' : '?thumb=$thumb';
+    return '$base/api/files/users/$id/$avatar$q';
+  }
+
+  /// Inicial (1 letra) para fallback visual.
+  String get initials {
+    final dn = displayName.trim();
+    if (dn.isEmpty || dn == '—') return 'U';
+    return dn.substring(0, 1).toUpperCase();
   }
 
   /// Profissional com comissão ativa (aba Financeiro no APK).

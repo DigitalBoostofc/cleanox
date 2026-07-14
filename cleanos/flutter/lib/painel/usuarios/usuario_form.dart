@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/models/user.dart';
+import '../../core/repositories/usuarios_repository.dart';
 import '../data/painel_providers.dart';
 
 String roleLabel(Role r) => switch (r) {
@@ -67,6 +68,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   bool _saving = false;
   String? _saveError;
   final Map<String, String> _errs = {};
+  List<int>? _avatarBytes;
+  String? _avatarFilename;
 
   bool get _isEdit => widget.editing != null;
 
@@ -94,6 +97,17 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
 
   bool _isSelf(String? myId) =>
       _isEdit && myId != null && widget.editing!.id == myId;
+
+  Future<void> _pickAvatar() async {
+    final file = await pickImageWithSource(context);
+    if (file == null || !mounted) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _avatarBytes = bytes;
+      _avatarFilename = file.name.isNotEmpty ? file.name : 'avatar.jpg';
+    });
+  }
 
   Map<String, String> _validate() {
     final errs = <String, String>{};
@@ -143,22 +157,32 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     });
     try {
       final repo = ref.read(usuariosRepositoryProvider);
+      final avatar = (_avatarBytes != null && _avatarFilename != null)
+          ? AvatarUpload(bytes: _avatarBytes!, filename: _avatarFilename!)
+          : null;
       if (_isEdit) {
-        await repo.update(widget.editing!.id, {
-          'name': _nome.text.trim(),
-          'role': _role.wire,
-          'whatsapp': _whatsapp.text.trim(),
-        });
+        await repo.update(
+          widget.editing!.id,
+          {
+            'name': _nome.text.trim(),
+            'role': _role.wire,
+            'whatsapp': _whatsapp.text.trim(),
+          },
+          avatar: avatar,
+        );
       } else {
-        await repo.create({
-          'name': _nome.text.trim(),
-          'email': _email.text.trim(),
-          'role': _role.wire,
-          'whatsapp': _whatsapp.text.trim(),
-          'password': _senha.text,
-          'passwordConfirm': _senhaConfirm.text,
-          'emailVisibility': true,
-        });
+        await repo.create(
+          {
+            'name': _nome.text.trim(),
+            'email': _email.text.trim(),
+            'role': _role.wire,
+            'whatsapp': _whatsapp.text.trim(),
+            'password': _senha.text,
+            'passwordConfirm': _senhaConfirm.text,
+            'emailVisibility': true,
+          },
+          avatar: avatar,
+        );
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
@@ -222,6 +246,78 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                   ErrorBanner(message: _saveError!),
                   const SizedBox(height: ClxSpace.x4),
                 ],
+                // Foto (criar e editar) — desktop web e mobile.
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Foto do usuário',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: clx.ink2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: ClxSpace.x2),
+                      GestureDetector(
+                        onTap: _saving ? null : _pickAvatar,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            if (_avatarBytes != null)
+                              UserAvatarBytes(
+                                bytes: _avatarBytes,
+                                radius: 44,
+                                fallbackInitial: _nome.text.isNotEmpty
+                                    ? _nome.text[0].toUpperCase()
+                                    : 'U',
+                              )
+                            else if (widget.editing != null)
+                              UserAvatar(user: widget.editing, radius: 44)
+                            else
+                              UserAvatarBytes(
+                                bytes: null,
+                                radius: 44,
+                                fallbackInitial: _nome.text.isNotEmpty
+                                    ? _nome.text[0].toUpperCase()
+                                    : 'U',
+                              ),
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: clx.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: clx.bg, width: 2),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt_rounded,
+                                size: 15,
+                                color: clx.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _saving ? null : _pickAvatar,
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: Text(
+                          _avatarBytes != null ||
+                                  (widget.editing?.hasAvatar ?? false)
+                              ? 'Trocar foto'
+                              : 'Adicionar foto',
+                        ),
+                      ),
+                      Text(
+                        'JPG ou PNG · opcional',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: clx.ink3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: ClxSpace.x4),
                 _field(
                   label: 'Nome',
                   required: true,
