@@ -249,3 +249,74 @@ class FakeWhatsApp implements WhatsAppRepository {
   @override
   Future<void> disconnect() => _unused();
 }
+
+/// FakeOrdens com a semântica REAL de PATCH do PocketBase: `update` aplica só as
+/// chaves PRESENTES no payload; o que não vem no body permanece como está no
+/// "banco". Também honra o filtro de status do servidor (`list`).
+///
+/// É o que dá para provar os bugs de estado do QA E2E: um fake que devolvesse o
+/// payload como se fosse o registro inteiro esconderia justamente o F-234, em que
+/// o `status` NÃO ia no body e o valor antigo (`atribuida`) sobrevivia no banco
+/// ao lado de `profissional=""`.
+class FakeOrdensPatch extends FakeOrdens {
+  FakeOrdensPatch({required List<OrdemServico> seed}) : super(seed: seed);
+
+  /// Todos os payloads que chegaram ao "servidor", na ordem.
+  final List<Map<String, dynamic>> payloads = [];
+
+  /// Quantas vezes a lista foi buscada — mede se a tela RECARREGOU (F-233).
+  int listCount = 0;
+
+  OrdemServico get registro => seed.first;
+
+  /// O estado que o domínio proíbe: atribuída, mas sem ninguém atribuído.
+  /// Espelha o `profissional=""` do PB (R2: relation opcional vazia é `""`).
+  bool get estadoImpossivel =>
+      registro.status == OSStatus.atribuida &&
+      (registro.profissional ?? '').isEmpty;
+
+  @override
+  Future<PageResult<OrdemServico>> list({
+    int page = 1,
+    int perPage = 30,
+    String? filter,
+    String sort = '-data_hora',
+    String? expand,
+  }) async {
+    listCount++;
+    final items = seed
+        .where((o) => filter == null || filter.contains(o.status.wire))
+        .toList();
+    return PageResult<OrdemServico>(
+      items: items,
+      page: 1,
+      perPage: perPage,
+      totalItems: items.length,
+      totalPages: 1,
+    );
+  }
+
+  @override
+  Future<OrdemServico> update(
+    String osId,
+    Map<String, dynamic> data, {
+    String? expand,
+  }) async {
+    updateCount++;
+    payloads.add(Map<String, dynamic>.from(data));
+    final atual = seed.firstWhere((o) => o.id == osId);
+    final atualizado = atual.copyWith(
+      status: data.containsKey('status')
+          ? OSStatus.values.firstWhere((s) => s.wire == data['status'])
+          : atual.status,
+      profissional: data.containsKey('profissional')
+          ? (data['profissional'] as String?) ?? ''
+          : atual.profissional,
+    );
+    seed = [
+      for (final o in seed)
+        if (o.id == osId) atualizado else o,
+    ];
+    return atualizado;
+  }
+}
