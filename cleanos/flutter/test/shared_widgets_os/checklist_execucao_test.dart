@@ -95,7 +95,15 @@ void main() {
 
       expect(find.byType(Checkbox), findsNothing);
       expect(find.byKey(const ValueKey('checklist-toggle-c1')), findsOneWidget);
-      expect(find.byType(AnimatedContainer), findsOneWidget);
+      // Escopado ao alvo de toque: o casco (ClxCard com press-scale) também
+      // usa AnimatedContainer, então o byType global seria ambíguo.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('checklist-toggle-c1')),
+          matching: find.byType(AnimatedContainer),
+        ),
+        findsOneWidget,
+      );
     },
   );
 }

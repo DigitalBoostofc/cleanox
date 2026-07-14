@@ -36,14 +36,16 @@ final isFintechCleanProvider = Provider<bool>(
 /// Expõe se o app roda no browser. Sobreponível em testes para simular web.
 final isWebPlatformProvider = Provider<bool>((ref) => kIsWeb);
 
-/// true quando rodando no browser E a largura da janela < [ClxLayout.narrowBreakpoint].
+/// true quando a Web está em viewport estreita (&lt; [ClxLayout.narrowBreakpoint]).
 ///
-/// Telas dentro de [PainelShell]: o shell sobrepõe este provider via
-/// `ProviderScope` aninhado derivado do [LayoutBuilder] (sincronicamente,
-/// sem atraso de frame). Telas fora do shell (ex.: [LoginScreen]): usam
-/// [isWebPlatformProvider] + [MediaQuery] diretamente, pois o shell não está
-/// na árvore quando o login é exibido.
+/// Quem sobrescreve:
+/// - [CleanosApp] `MaterialApp.builder` — em `AppSurface.painel` + largura
+///   &lt; 600dp (cobre login e todo o painel);
+/// - [PainelShell] — rede de segurança com `kIsWeb` + [LayoutBuilder].
 ///
-/// Default [false]: desktop/tablet web, todos os paths de APK e testes
-/// permanecem no layout clássico sem nenhuma sobrescrita necessária.
+/// Consumidores (dashboard, agenda, empty states, etc.) leem
+/// `isFintechCleanProvider || isNarrowWebProvider` para o UX Easypay do APK.
+///
+/// Default [false]: desktop web (≥ 600dp), APK e testes clássicos — sem
+/// sobrescrita necessária. **Não alterar o desktop.**
 final isNarrowWebProvider = Provider<bool>((ref) => false);
