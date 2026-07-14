@@ -34,23 +34,26 @@ int novoInicioMovendo({
   required double pxPorMin,
 }) => snap15(startMin + minutosDoDeltaY(dyPx, pxPorMin));
 
+/// Duração VÁLIDA a partir de um valor [bruto] (px arrastados no desktop, passos
+/// de ±15 no sheet do APK): snap de 15, mínimo [kDuracaoMinimaMin] e teto na
+/// meia-noite do dia de início (esticar sem fim vazaria pro dia seguinte).
+int duracaoValida(int bruto, {required int startMin}) {
+  var snap = (bruto / kSnapMin).round() * kSnapMin;
+  if (snap < kDuracaoMinimaMin) snap = kDuracaoMinimaMin;
+  final teto = kMinutosNoDia - startMin;
+  return snap > teto ? teto : snap;
+}
+
 /// Nova duração ao **redimensionar** pela borda inferior (arrastar [dyPx] px).
-///
-/// Snap de 15, mínimo [kDuracaoMinimaMin] e teto na meia-noite do dia de início
-/// (esticar sem fim viraria um bloco maior que a grade).
 int novaDuracaoRedimensionando({
   required int startMin,
   required int duracaoMin,
   required double dyPx,
   required double pxPorMin,
-}) {
-  final bruto = duracaoMin + minutosDoDeltaY(dyPx, pxPorMin);
-  var snap = (bruto / kSnapMin).round() * kSnapMin;
-  if (snap < kDuracaoMinimaMin) snap = kDuracaoMinimaMin;
-  final teto = kMinutosNoDia - startMin;
-  if (snap > teto) snap = teto;
-  return snap;
-}
+}) => duracaoValida(
+  duracaoMin + minutosDoDeltaY(dyPx, pxPorMin),
+  startMin: startMin,
+);
 
 /// Quantos DIAS o arraste horizontal atravessou (visão semana — D8):
 /// coluna destino = deslocamento / largura da coluna.

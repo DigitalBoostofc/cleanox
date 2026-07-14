@@ -12,6 +12,7 @@
 library;
 
 import '../formatters/formatters.dart';
+import '../models/collections.dart';
 import '../models/disponibilidade.dart';
 import '../models/ordem_servico.dart';
 
@@ -403,11 +404,23 @@ String labelDuracao(int min) {
   return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
 }
 
+/// Faixa "08:00–10:00" a partir de minutos-BRT — rótulo ÚNICO de faixa (grade,
+/// fantasma do arraste, cards e sheet dizem a mesma coisa do mesmo jeito).
+String faixaHoraria(int startMin, int duracaoMin) =>
+    '${hhmmDeMinutos(startMin)}–${hhmmDeMinutos(startMin + duracaoMin)}';
+
 /// Faixa "08:00–10:00" de uma OS (cards do APK / web estreita — R4).
 String faixaHorariaDaOs(OrdemServico os, [Disponibilidade? dispProf]) {
   final i = intervaloBrtMin(os, dispProf);
-  return '${hhmmDeMinutos(i.startMin)}–${hhmmDeMinutos(i.endMin)}';
+  return faixaHoraria(i.startMin, i.endMin - i.startMin);
 }
+
+/// Só `agendada`/`atribuida` podem ter horário/duração mexidos NA AGENDA (D6):
+/// arraste no desktop (`day_column.dart`) e sheet no APK (`ajuste_sheet.dart`)
+/// usam a MESMA regra — e o servidor (`os_logic.js`) ainda barra `data_hora` /
+/// `duracao_min` em `concluida`/`cancelada`.
+bool osAjustavel(OrdemServico os) =>
+    os.status == OSStatus.agendada || os.status == OSStatus.atribuida;
 
 class _Normalizado {
   const _Normalizado({
