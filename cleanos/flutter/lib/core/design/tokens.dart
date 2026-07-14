@@ -15,10 +15,10 @@ const String kFontFamily = 'Sora';
 /// Raios de borda (--clx-r-*).
 class ClxRadii {
   const ClxRadii._();
-  static const double sm = 6;
-  static const double md = 10;
-  static const double lg = 14;
-  static const double xl = 20;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
   static const double pill = 100;
 
   static const BorderRadius rSm = BorderRadius.all(Radius.circular(sm));
@@ -58,6 +58,10 @@ class ClxLayout {
   static const double narrowBreakpoint = 600;
 }
 
+/// Nome de exibição do produto na UI (login, sidebar, título do app).
+/// Package/API/IDs técnicos continuam `cleanos` — só a marca visível muda.
+const String kAppDisplayName = 'OS Fácil';
+
 /// Cores de marca fixas (independem de tema).
 class ClxBrand {
   const ClxBrand._();
@@ -82,9 +86,14 @@ class ClxShadows {
   ];
   static const List<BoxShadow> md = [
     BoxShadow(
-      color: Color(0x1F0F4C5C), // rgba(15,76,92,0.12)
-      blurRadius: 24,
-      offset: Offset(0, 8),
+      color: Color(0x1A0F4C5C), // rgba(15,76,92,0.10)
+      blurRadius: 28,
+      offset: Offset(0, 10),
+    ),
+    BoxShadow(
+      color: Color(0x0A0F4C5C),
+      blurRadius: 8,
+      offset: Offset(0, 2),
     ),
   ];
   static const List<BoxShadow> lg = [
@@ -92,6 +101,20 @@ class ClxShadows {
       color: Color(0x290F4C5C), // rgba(15,76,92,0.16)
       blurRadius: 60,
       offset: Offset(0, 24),
+    ),
+  ];
+
+  /// Card de página / painel flutuando no canvas.
+  static const List<BoxShadow> float = [
+    BoxShadow(
+      color: Color(0x14000000),
+      blurRadius: 28,
+      offset: Offset(0, 12),
+    ),
+    BoxShadow(
+      color: Color(0x0A00C2B8),
+      blurRadius: 40,
+      offset: Offset(0, 4),
     ),
   ];
 }

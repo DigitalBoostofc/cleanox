@@ -117,10 +117,11 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
   };
 
   static const CleanoxColors light = CleanoxColors(
+    // Shell/cards brancos; canvas externo fica no Scaffold do desktop.
     bg: Color(0xFFFFFFFF),
-    bg2: Color(0xFFF7F9FB),
-    bg3: Color(0xFFEEF3F7),
-    bgSidebar: Color(0xFFF7F9FB),
+    bg2: Color(0xFFF0F3F6),
+    bg3: Color(0xFFE6EBEF),
+    bgSidebar: Color(0xFFF0F3F6),
     ink: Color(0xFF0B1F2A),
     ink2: Color(0xFF3A4A55),
     // Tons de texto/feedback ajustados p/ WCAG ≥ 4.5:1 sobre bg/bg2/bg3
@@ -131,8 +132,8 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     onPrimary: Color(0xFF04201E), // == ClxBrand.onPrimary (paridade)
     accent: Color(0xFF0F4C5C),
     accent2: Color(0xFF1B6B7A),
-    line: Color(0x1A0F4C5C), // rgba(15,76,92,0.10)
-    line2: Color(0x2E0F4C5C), // rgba(15,76,92,0.18)
+    line: Color(0x140F4C5C), // rgba(15,76,92,0.08) — mais suave (Shakuro)
+    line2: Color(0x240F4C5C), // rgba(15,76,92,0.14)
     error: Color(0xFFDC2626),
     success: Color(0xFF15803D),
     warning: Color(0xFFB45309),
