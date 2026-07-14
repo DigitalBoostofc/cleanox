@@ -117,22 +117,32 @@ escrever qualquer hook.** Razão: descoberto em 14/07/2026, a um comando de queb
 financeiro em produção. Consertar de verdade = trazer os hooks do Meta CAPI para a linha
 principal (hoje em `wip/meta-capi`).
 
-**R12 — Merge na `main` dispara a CI de release. Hoje ela NÃO publica na Play; quando o secret entrar, passa a publicar.**
-`.github/workflows/android-release-profissional.yml` dispara em `push: branches: [main]`
-(**sem filtro de path** — até PR só de backend dispara) → gate (`analyze --fatal-infos` +
-`test`) → auto-bump do `pubspec` → build **assinado** (.aab + .apk) → artefato na CI.
+**R12 — Nunca deduzir o que a CI faz lendo o `on:` do workflow. Conferir o run.**
 
-O passo `Publish to Google Play` fica **`skipped`** enquanto `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-não existir nos secrets. **Verificado empiricamente** no run `29305301608` (14/07/2026) —
-não inferido do YAML. Ou seja: **merge hoje NÃO distribui app pra ninguém.**
+O que `android-release-profissional.yml` faz **de verdade hoje** (medido, não inferido):
 
-⚠️ **No dia em que o dono configurar esse secret, esta regra inverte:** merge na `main` passa
-a publicar no track `internal` automaticamente, e aí merge ≠ neutro — exige decisão explícita,
-igual deploy (R5).
+| push na `main` que toca… | job `build-and-release` | auto-bump | publica na Play |
+|---|---|---|---|
+| `cleanos/flutter/**` ou o próprio workflow | roda (gate → build assinado) | sim | **NÃO** (`skipped`) |
+| só backend / docs / `cleanos/pb/**` | **`skipped`** | não | não |
 
-**Antes de afirmar que um merge publica (ou não publica), checar o estado real do secret**
-(`gh run view <id> --log | grep 'Publish to Google Play'`), nunca só o gatilho do workflow.
-Razão: afirmei o contrário lendo só o `on: push` e segurei merges por um risco inexistente.
+- **Filtro de path existe**, mas num passo `dorny/paths-filter` (job `setup`), **não** no `on:`.
+  Run `29306385979` (PR só de hooks): `build-and-release` = `skipped`, `pubspec` intacto.
+- **`Publish to Google Play` sai `skipped`** enquanto o secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+  não existir. Run `29305301608`: gate + auto-bump + build assinado rodaram; publicação não.
+  Ou seja: **merge hoje NÃO distribui app pra ninguém.**
+
+⚠️ **No dia em que o dono configurar esse secret, isto inverte:** merge que toque em
+`cleanos/flutter/**` passa a publicar sozinho no track `internal` — e aí merge ≠ neutro,
+exige decisão explícita igual deploy (R5).
+
+**Como checar (30s, sempre antes de afirmar qualquer coisa):**
+```
+gh run view <id> --json jobs -q '.jobs[].steps[] | "\(.name): \(.conclusion)"'
+```
+Razão desta regra: eu afirmei duas vezes coisas falsas sobre esta CI lendo só o gatilho do
+workflow — que merge publicava na Play (não publica) e que não havia filtro de path (há) —
+e usei a primeira pra segurar merges do dono por um risco que não existia.
 
 ---
 
