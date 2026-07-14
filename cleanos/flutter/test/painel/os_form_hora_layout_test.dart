@@ -81,16 +81,16 @@ bool _clipped(WidgetTester tester, String label) {
 
 void main() {
   testWidgets(
-    'F-602: em tela de celular a hora de 2 dígitos não é cortada',
+    'F-602: em tela de celular os campos de hora/duração não são cortados',
     (tester) async {
-      // Janela 10:00–18:00, 60min → slots com horas de 2 dígitos (10h..17h).
+      // Duração de 90min → o rótulo "1h30" é dos mais largos do seletor.
       final disp = _FakeDispFiltrada([
         fakeDisponibilidade(
           id: 'd1',
           profissional: 'p1',
           inicio: '10:00',
           fim: '18:00',
-          duracaoMin: 60,
+          duracaoMin: 90,
         ),
       ]);
       await pumpPainel(
@@ -119,7 +119,7 @@ void main() {
       );
       await _settle(tester);
 
-      // Escolhe hoje e o profissional → modo slot com horas de 2 dígitos.
+      // Escolhe hoje e o profissional → a Duração é prefilada com a dele (1h30).
       await tester.tap(find.byIcon(Icons.calendar_month_outlined));
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
@@ -129,11 +129,19 @@ void main() {
       await tester.tap(find.text('Pedro').last);
       await _settle(tester);
 
-      expect(find.byKey(const ValueKey('os-hora-slots')), findsOneWidget);
+      // Hora virou entrada livre 'HH:MM' (o dropdown de slots foi aposentado).
+      // Num TextField o texto rola em vez de "cortar", então o que importa é o
+      // campo ter largura suficiente para 'HH:MM' — e o rótulo da duração
+      // (o mais largo: "1h30") não ser cortado.
+      await tester.enterText(
+        find.byKey(const ValueKey('os-hora-input')),
+        '10:30',
+      );
+      await tester.pump();
 
-      // Hora de 2 dígitos ("10h") e minuto ("00") inteiros, sem clipping.
-      expect(_clipped(tester, '10h'), isFalse, reason: 'hora "10h" cortada');
-      expect(_clipped(tester, '00'), isFalse, reason: 'minuto "00" cortado');
+      final hora = tester.getRect(find.byKey(const ValueKey('os-hora-input')));
+      expect(hora.width, greaterThan(88), reason: 'campo de hora espremido');
+      expect(_clipped(tester, '1h30'), isFalse, reason: 'duração cortada');
 
       // Sem overflow de layout (RenderFlex) na tela.
       expect(tester.takeException(), isNull);

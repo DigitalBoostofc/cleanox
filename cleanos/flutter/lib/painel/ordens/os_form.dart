@@ -1,9 +1,18 @@
 /// os_form.dart — Formulário de criar/editar Ordem de Serviço (Painel).
 ///
-/// Espelha `OrdensServico.tsx` + `OSFormSection.tsx`: seleção de cliente (busca NO
-/// SERVIDOR — sem `getFullList`), serviço (prefila nome+valor), profissional
-/// (define status atribuída/agendada), data + slot de horário (HH:MM), valor e
-/// observações. Cria/atribui via `OrdensRepository.create`/`update`.
+/// Seleção de cliente (busca NO SERVIDOR — sem `getFullList`), serviço (prefila
+/// nome+valor), profissional (define status atribuída/agendada), data, **hora
+/// livre HH:MM**, **duração** e valor. Cria/atribui via
+/// `OrdensRepository.create`/`update`.
+///
+/// ⭐ Agenda estilo Google (spec §8): **sobrepor é permitido**. O horário deixou
+/// de ser um dropdown de slots "livres" (que escondia encaixes legítimos) e virou
+/// entrada livre com snap de 15 min; a colisão vira um **aviso amarelo que não
+/// bloqueia o salvar** (D2/D10/D11), calculado pela MESMA função `sobreposicoes`
+/// que a grade usa para desenhar — aviso e desenho nunca se contradizem.
+///
+/// A Duração vem **prefilada visível** com a duração do profissional (D9): o
+/// usuário vê de onde veio e pode mudar. Nada de herança invisível no servidor.
 ///
 /// Mostrado via [showOSForm] — Dialog centrado (Painel desktop-first). Resolve
 /// `true` quando salvou (o caller recarrega a lista).
@@ -12,8 +21,10 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_layout.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -43,7 +54,9 @@ Future<bool?> showOSForm(BuildContext context, {OrdemServico? editing}) {
   );
 }
 
-const List<String> _kMinutes = ['00', '15', '30', '45'];
+/// Opções do seletor de Duração (min). A duração do profissional entra na lista
+/// se não estiver aqui (a prefilagem tem que ser SEMPRE visível — D9).
+const List<int> kDuracaoOpcoes = [15, 30, 45, 60, 90, 120, 150, 180, 240];
 
 /// Abaixo desta largura de viewport os campos Data + Hora deixam de dividir a
 /// linha e passam a empilhar (cada um ocupa a largura toda). Espelha o
@@ -56,13 +69,6 @@ const List<String> _kMinutes = ['00', '15', '30', '45'];
 /// os dois dropdowns (hora + minuto) não cabiam — o "10" era cortado p/ "1"
 /// pela seta + padding do dropdown. (F-602)
 const double _kStackFieldsBelow = 640;
-
-/// Largura do dropdown de minutos. A "chrome" do DropdownButton (seta + padding)
-/// come ~60px; com 80px o "00" (~32px) ainda era cortado. 96px dá folga. (F-602)
-const double _kMinuteFieldWidth = 96;
-
-/// Estágio da busca de disponibilidade do profissional selecionado.
-enum _DispState { idle, loading, loaded, error }
 
 /// Resultado PURO do cruzamento disponibilidade × ocupação para um dia.
 /// Espelha o cálculo de `OSFormSection.tsx`: se o profissional atende no dia,
@@ -114,13 +120,22 @@ class _OSFormState extends ConsumerState<OSForm> {
   final TextEditingController _valor = TextEditingController();
   final TextEditingController _observacoes = TextEditingController();
 
+  /// Hora de início — entrada LIVRE 'HH:MM' (snap de 15 min ao sair do campo).
+  final TextEditingController _hora = TextEditingController(text: '08:00');
+  final FocusNode _horaFocus = FocusNode();
+
   String _clienteId = '';
   String _clienteLabel = '';
   String _servicoId = '';
   String _profissionalId = '';
   String _dataDate = ''; // yyyy-MM-dd (BRT)
-  String _horaH = '08';
-  String _horaM = '00';
+
+  /// Duração da OS (min). `null` = ainda não decidida → prefilada, VISÍVEL, com a
+  /// duração do profissional quando ele é escolhido (D9).
+  int? _duracaoMin;
+
+  /// O usuário mexeu na duração à mão → a prefilagem não sobrescreve mais.
+  bool _duracaoTocada = false;
 
   // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx): os
   // serviços do catálogo são filtrados pela categoria/grupo configurados neles.
@@ -132,10 +147,16 @@ class _OSFormState extends ConsumerState<OSForm> {
   String? _saveError;
   final Map<String, String> _errs = {};
 
-  // Disponibilidade real do profissional selecionado (seletor de slot).
+  // Disponibilidade real do profissional selecionado (prefila a Duração).
   Disponibilidade? _disp;
-  _DispState _dispState = _DispState.idle;
-  List<String> _ocupados = const [];
+
+  /// Agenda OCUPADA do profissional no dia — base do aviso de sobreposição. Só o
+  /// que de fato ocupa: `agendada`/`atribuida`/`em_andamento` (D11 — `cancelada` e
+  /// `concluida` ficam de fora, senão reagendar no mesmo dia vira ruído).
+  ///
+  /// Guarda as OS (não os intervalos): a duração efetiva de cada uma depende da
+  /// disponibilidade do profissional, que pode chegar DEPOIS desta lista.
+  List<OrdemServico> _ocupados = const [];
   bool _ocupadosLoading = false;
   // Tokens monotônicos p/ descartar respostas obsoletas (troca rápida de prof/data).
   int _dispSeq = 0;
@@ -155,13 +176,16 @@ class _OSFormState extends ConsumerState<OSForm> {
       _valor.text = os.valorServico == null ? '' : _numText(os.valorServico!);
       _profissionalId = os.profissional ?? '';
       _observacoes.text = os.observacoes ?? '';
+      // OS já tem duração própria → é ela que manda (e não é sobrescrita).
+      if (os.duracaoMin != null) {
+        _duracaoMin = os.duracaoMin;
+        _duracaoTocada = true;
+      }
       final local = pbDateToLocalInput(os.dataHora); // yyyy-MM-ddTHH:mm
       if (local.isNotEmpty) {
         final parts = local.split('T');
         _dataDate = parts[0];
-        final hm = parts[1].split(':');
-        _horaH = hm[0].padLeft(2, '0');
-        _horaM = _snapMinute(hm.length > 1 ? hm[1] : '00');
+        _hora.text = parts[1];
       }
       // Já editando com profissional atribuído → carrega disponibilidade + ocupação.
       if (_profissionalId.isNotEmpty) {
@@ -169,6 +193,10 @@ class _OSFormState extends ConsumerState<OSForm> {
         _fetchOcupados();
       }
     }
+    // Snap de 15 min ao SAIR do campo de hora (digitar 08:07 → 08:00).
+    _horaFocus.addListener(() {
+      if (!_horaFocus.hasFocus) _normalizarHora();
+    });
   }
 
   @override
@@ -176,16 +204,46 @@ class _OSFormState extends ConsumerState<OSForm> {
     _tipoServico.dispose();
     _valor.dispose();
     _observacoes.dispose();
+    _hora.dispose();
+    _horaFocus.dispose();
     super.dispose();
   }
 
   static String _numText(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
-  static String _snapMinute(String raw) {
-    final m = int.tryParse(raw) ?? 0;
-    final snapped = (m / 15).round() * 15;
-    return (snapped == 60 ? 0 : snapped).toString().padLeft(2, '0');
+  /// Minutos-BRT do texto de hora, ou `null` se ainda não é um 'HH:MM' válido.
+  int? get _horaMin => parseHoraLivre(_hora.text);
+
+  /// Duração efetiva escolhida: OS > profissional > 60 (mesma regra do render).
+  int get _duracaoEfetiva {
+    if ((_duracaoMin ?? 0) > 0) return _duracaoMin!;
+    final doProf = _disp?.duracaoMin ?? 0;
+    return doProf > 0 ? doProf : kDuracaoPadraoMin;
+  }
+
+  /// Normaliza o campo de hora: completa, valida e faz o snap de 15 min.
+  void _normalizarHora() {
+    final min = parseHoraLivre(_hora.text);
+    if (min == null) {
+      setState(() => _errs['hora'] = 'Horário inválido (HH:MM)');
+      return;
+    }
+    final snapped = snap15(min);
+    setState(() {
+      _errs.remove('hora');
+      _hora.text = hhmmDeMinutos(snapped);
+    });
+  }
+
+  /// Prefila a Duração com a do profissional — VISÍVEL no campo (D9). Só age
+  /// enquanto o usuário não escolheu uma duração à mão.
+  void _prefillDuracao() {
+    if (_duracaoTocada) return;
+    final doProf = _disp?.duracaoMin ?? 0;
+    final nova = doProf > 0 ? doProf : null;
+    if (nova == _duracaoMin) return;
+    setState(() => _duracaoMin = nova);
   }
 
   void _onServico(String? id, List<ServicoPB> servicos) {
@@ -273,19 +331,19 @@ class _OSFormState extends ConsumerState<OSForm> {
     return (start: start, end: localInputToPBDate('${nextDate}T00:00'));
   }
 
-  /// Busca a disponibilidade semanal do profissional selecionado.
+  /// Busca a disponibilidade semanal do profissional selecionado — hoje ela serve
+  /// para PREFILAR a Duração (D9) e para estimar a duração das OS já ocupadas.
   Future<void> _fetchDisp() async {
     final prof = _profissionalId;
     if (prof.isEmpty) {
       setState(() {
         _disp = null;
-        _dispState = _DispState.idle;
         _ocupados = const [];
       });
+      _prefillDuracao();
       return;
     }
     final seq = ++_dispSeq;
-    setState(() => _dispState = _DispState.loading);
     try {
       final res = await ref
           .read(disponibilidadeRepositoryProvider)
@@ -295,21 +353,18 @@ class _OSFormState extends ConsumerState<OSForm> {
             filter: disponibilidadeDoProfissionalFilter(prof),
           );
       if (!mounted || seq != _dispSeq) return;
-      setState(() {
-        _disp = res.items.isEmpty ? null : res.items.first;
-        _dispState = _DispState.loaded;
-      });
-      _autoSelectSlot();
+      setState(() => _disp = res.items.isEmpty ? null : res.items.first);
+      _prefillDuracao();
     } catch (_) {
+      // Sem disponibilidade (rede/registro ausente) a Duração cai no padrão de 60.
       if (!mounted || seq != _dispSeq) return;
-      setState(() {
-        _disp = null;
-        _dispState = _DispState.error;
-      });
+      setState(() => _disp = null);
+      _prefillDuracao();
     }
   }
 
-  /// Busca as OS que ocupam a agenda do profissional no dia selecionado.
+  /// Busca as OS que OCUPAM a agenda do profissional no dia selecionado — base do
+  /// aviso de sobreposição (não bloqueia nada: encaixar é permitido).
   Future<void> _fetchOcupados() async {
     final prof = _profissionalId;
     final date = _dataDate;
@@ -338,15 +393,20 @@ class _OSFormState extends ConsumerState<OSForm> {
           );
       if (!mounted || seq != _ocupSeq) return;
       final editingId = widget.editing?.id;
-      final times = <String>[
+      final ocupados = <OrdemServico>[
         for (final o in res.items)
-          if (o.id != editingId) formatTime(o.dataHora),
-      ]..removeWhere((t) => t == '—');
+          // D11: só o que de fato ocupa a agenda. `concluida`/`cancelada` ficam
+          // de fora (reagendar no mesmo dia não deve gerar aviso fantasma), e a
+          // própria OS em edição também.
+          if (o.id != editingId &&
+              o.status != OSStatus.concluida &&
+              o.status != OSStatus.cancelada)
+            o,
+      ];
       setState(() {
-        _ocupados = times;
+        _ocupados = ocupados;
         _ocupadosLoading = false;
       });
-      _autoSelectSlot();
     } catch (_) {
       if (!mounted || seq != _ocupSeq) return;
       setState(() {
@@ -356,51 +416,16 @@ class _OSFormState extends ConsumerState<OSForm> {
     }
   }
 
-  /// Estado do seletor de horário derivado (espelha OSFormSection.tsx).
-  ({bool loading, bool slotMode, bool diaAtende, List<String> slots})
-  _slotState() {
-    final attempt = _profissionalId.isNotEmpty;
-    final loading =
-        attempt &&
-        (_dispState == _DispState.loading ||
-            (_dispState == _DispState.loaded &&
-                _disp != null &&
-                _ocupadosLoading));
-    final slotMode =
-        attempt && _dispState == _DispState.loaded && _disp != null;
-    if (!slotMode) {
-      return (
-        loading: loading,
-        slotMode: false,
-        diaAtende: true,
-        slots: const [],
-      );
-    }
-    final day = computeOSDaySlots(
-      disp: _disp!,
-      date: _dataDate,
-      ocupados: _ocupados,
+  /// OS do dia que a escolha atual SOBREPÕE (mesma função que a grade usa para
+  /// desenhar as colunas — aviso e desenho nunca divergem).
+  List<Intervalo> get _colisoes {
+    final inicio = _horaMin;
+    if (inicio == null || _ocupados.isEmpty) return const [];
+    return sobreposicoes(
+      [for (final o in _ocupados) intervaloDaOs(o, _disp)],
+      inicio,
+      _duracaoEfetiva,
     );
-    return (
-      loading: loading,
-      slotMode: true,
-      diaAtende: day.diaAtende,
-      slots: day.slots,
-    );
-  }
-
-  /// Ao (re)calcular slots, se o horário atual não é mais válido, seleciona o
-  /// primeiro slot livre (espelha o auto-select do React).
-  void _autoSelectSlot() {
-    final s = _slotState();
-    if (!s.slotMode || s.loading || s.slots.isEmpty) return;
-    final current = '$_horaH:$_horaM';
-    if (s.slots.contains(current)) return;
-    final first = s.slots.first.split(':');
-    setState(() {
-      _horaH = first[0];
-      _horaM = first[1];
-    });
   }
 
   Map<String, String> _validate() {
@@ -411,6 +436,7 @@ class _OSFormState extends ConsumerState<OSForm> {
     } else if (_dataDate.compareTo(todayLocalDate()) < 0) {
       errs['data'] = 'A data não pode ser no passado';
     }
+    if (_horaMin == null) errs['hora'] = 'Horário inválido (HH:MM)';
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
     if (valor == null || valor <= 0) errs['valor'] = 'Informe o valor';
     return errs;
@@ -434,11 +460,15 @@ class _OSFormState extends ConsumerState<OSForm> {
 
     final hasProf = _profissionalId.isNotEmpty;
     final valor = double.parse(_valor.text.trim().replaceAll(',', '.'));
+    final hora = hhmmDeMinutos(snap15(_horaMin!));
     final payload = <String, dynamic>{
       'cliente': _clienteId,
       'servico': _servicoId.isEmpty ? null : _servicoId,
       'tipo_servico_nome': _tipoServico.text.trim(),
-      'data_hora': localInputToPBDate('${_dataDate}T$_horaH:$_horaM'),
+      'data_hora': localInputToPBDate('${_dataDate}T$hora'),
+      // Duração PRÓPRIA da OS: grava o que está VISÍVEL no campo (prefilado com a
+      // do profissional). Nada de herança invisível no servidor (D9).
+      'duracao_min': _duracaoEfetiva,
       'valor_servico': valor,
       'profissional': hasProf ? _profissionalId : null,
       'observacoes': _observacoes.text.trim(),
@@ -743,23 +773,28 @@ class _OSFormState extends ConsumerState<OSForm> {
           ),
           const SizedBox(height: ClxSpace.x4),
 
-          // Data + horário: lado a lado em telas largas; empilhados no mobile
-          // (espelha o colapso do `.form-grid-2` do React em ≤640px). Sem o
-          // empilhamento, a Hora ficava espremida em metade da linha e o "10"
-          // era cortado. (F-602)
+          // Data + hora + duração: lado a lado em telas largas; empilhados no
+          // mobile (espelha o colapso do `.form-grid-2` do React em ≤640px).
+          // Sem o empilhamento os campos ficam espremidos e o texto é cortado
+          // (regressão F-602).
           if (MediaQuery.sizeOf(context).width < _kStackFieldsBelow) ...[
             _dateField(clx),
             const SizedBox(height: ClxSpace.x4),
             _horaField(clx),
+            const SizedBox(height: ClxSpace.x4),
+            _duracaoField(clx),
           ] else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _dateField(clx)),
+                Expanded(flex: 2, child: _dateField(clx)),
                 const SizedBox(width: ClxSpace.x3),
                 Expanded(child: _horaField(clx)),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(flex: 2, child: _duracaoField(clx)),
               ],
             ),
+          _avisoSobreposicao(clx),
           const SizedBox(height: ClxSpace.x4),
 
           // Valor.
@@ -870,163 +905,122 @@ class _OSFormState extends ConsumerState<OSForm> {
     );
   }
 
+  /// Hora: entrada LIVRE 'HH:MM' (D10). Sem dropdown de slots — com sobreposição
+  /// permitida, esconder horários "ocupados" só impediria encaixes legítimos.
+  /// Snap de 15 min ao sair do campo.
   Widget _horaField(CleanoxColors clx) {
-    final tt = Theme.of(context).textTheme;
-    final s = _slotState();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('Hora', required: true),
-        if (s.loading)
+        TextField(
+          key: const ValueKey('os-hora-input'),
+          controller: _hora,
+          focusNode: _horaFocus,
+          enabled: !_saving,
+          keyboardType: TextInputType.datetime,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+            LengthLimitingTextInputFormatter(5),
+          ],
+          onChanged: (_) => setState(() => _errs.remove('hora')),
+          onSubmitted: (_) => _normalizarHora(),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'HH:MM',
+            errorText: _errs['hora'],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Duração da OS — PREFILADA (visível) com a duração do profissional (D9).
+  Widget _duracaoField(CleanoxColors clx) {
+    final efetiva = _duracaoEfetiva;
+    final opcoes = <int>[
+      ...{...kDuracaoOpcoes, efetiva},
+    ]..sort();
+    final doProf = _disp?.duracaoMin ?? 0;
+    final prefilado = !_duracaoTocada && doProf > 0 && efetiva == doProf;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Duração'),
+        DropdownButtonFormField<int>(
+          key: const ValueKey('os-duracao'),
+          initialValue: efetiva,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: [
+            for (final min in opcoes)
+              DropdownMenuItem(value: min, child: Text(labelDuracao(min))),
+          ],
+          onChanged: _saving
+              ? null
+              : (v) {
+                  if (v == null) return;
+                  setState(() {
+                    _duracaoMin = v;
+                    _duracaoTocada = true;
+                  });
+                },
+        ),
+        if (prefilado)
           Padding(
-            key: const ValueKey('os-hora-loading'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-            child: Row(
-              children: [
-                const Spinner(size: 14),
-                const SizedBox(width: ClxSpace.x2),
-                Text(
-                  'Carregando horários…',
-                  style: tt.bodyMedium?.copyWith(color: clx.ink3),
-                ),
-              ],
-            ),
-          )
-        else if (s.slotMode && !s.diaAtende)
-          Padding(
-            key: const ValueKey('os-hora-dia-inativo'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
+            padding: const EdgeInsets.only(top: ClxSpace.x1),
             child: Text(
-              'Profissional não atende neste dia',
-              style: tt.bodyMedium?.copyWith(
-                color: clx.error,
-                fontWeight: FontWeight.w600,
+              'Duração padrão do profissional.',
+              key: const ValueKey('os-duracao-prefill'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Aviso AMARELO de sobreposição (D2): informa, NÃO bloqueia o salvar.
+  Widget _avisoSobreposicao(CleanoxColors clx) {
+    final colisoes = _colisoes;
+    if (colisoes.isEmpty || _ocupadosLoading) return const SizedBox.shrink();
+    final texto = colisoes
+        .map(
+          (c) =>
+              '${c.label.isEmpty ? 'OS' : 'OS de ${c.label}'} '
+              '(${hhmmDeMinutos(c.startMin)}–${hhmmDeMinutos(c.endMin)})',
+        )
+        .join(', ');
+    return Padding(
+      key: const ValueKey('os-aviso-sobreposicao'),
+      padding: const EdgeInsets.only(top: ClxSpace.x2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x3,
+          vertical: ClxSpace.x2,
+        ),
+        decoration: BoxDecoration(
+          color: clx.warningBg,
+          borderRadius: ClxRadii.rMd,
+          border: Border.all(color: clx.warning),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 18, color: clx.warning),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              child: Text(
+                'Sobrepõe $texto. Pode salvar assim mesmo.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: clx.ink2),
               ),
             ),
-          )
-        else if (s.slotMode && s.slots.isEmpty)
-          Padding(
-            key: const ValueKey('os-hora-sem-slots'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-            child: Text(
-              'Sem horários disponíveis nesta data',
-              style: tt.bodyMedium?.copyWith(color: clx.ink3),
-            ),
-          )
-        else if (s.slotMode)
-          _slotDropdowns(s.slots)
-        else
-          _freeDropdowns(),
-      ],
-    );
-  }
-
-  /// Modo slot: dois dropdowns restritos aos horários LIVRES.
-  Widget _slotDropdowns(List<String> slots) {
-    final validHours = <String>[
-      for (final h in {for (final t in slots) t.split(':')[0]}) h,
-    ];
-    final selectedHour = validHours.contains(_horaH)
-        ? _horaH
-        : (validHours.isEmpty ? _horaH : validHours.first);
-    final validMins = [
-      for (final t in slots)
-        if (t.split(':')[0] == selectedHour) t.split(':')[1],
-    ];
-    final selectedMin = validMins.contains(_horaM)
-        ? _horaM
-        : (validMins.isEmpty ? _horaM : validMins.first);
-    return Row(
-      key: const ValueKey('os-hora-slots'),
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('os-hora-h'),
-            initialValue: selectedHour,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final h in validHours)
-                DropdownMenuItem(value: h, child: Text('${h}h')),
-            ],
-            onChanged: _saving
-                ? null
-                : (v) {
-                    if (v == null) return;
-                    setState(() {
-                      _horaH = v;
-                      final firstForHour = slots.firstWhere(
-                        (t) => t.startsWith('$v:'),
-                        orElse: () => '$v:$_horaM',
-                      );
-                      _horaM = firstForHour.split(':')[1];
-                    });
-                  },
-          ),
+          ],
         ),
-        const SizedBox(width: ClxSpace.x2),
-        SizedBox(
-          width: _kMinuteFieldWidth,
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('os-hora-m'),
-            initialValue: selectedMin,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final m in validMins)
-                DropdownMenuItem(value: m, child: Text(m)),
-            ],
-            onChanged: _saving
-                ? null
-                : (v) => setState(() => _horaM = v ?? _horaM),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Modo livre (fallback): horas 0–23 + minutos fixos. Mantido quando não há
-  /// profissional, a disponibilidade falhou, ou o profissional não tem
-  /// disponibilidade cadastrada — paridade com o React (override manual).
-  Widget _freeDropdowns() {
-    return Row(
-      key: const ValueKey('os-hora-livre'),
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('os-hora-livre-h'),
-            initialValue: _horaH,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (var h = 0; h < 24; h++)
-                DropdownMenuItem(
-                  value: h.toString().padLeft(2, '0'),
-                  child: Text('${h.toString().padLeft(2, '0')}h'),
-                ),
-            ],
-            onChanged: _saving
-                ? null
-                : (v) => setState(() => _horaH = v ?? '08'),
-          ),
-        ),
-        const SizedBox(width: ClxSpace.x2),
-        SizedBox(
-          width: _kMinuteFieldWidth,
-          child: DropdownButtonFormField<String>(
-            initialValue: _kMinutes.contains(_horaM) ? _horaM : '00',
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final m in _kMinutes)
-                DropdownMenuItem(value: m, child: Text(m)),
-            ],
-            onChanged: _saving
-                ? null
-                : (v) => setState(() => _horaM = v ?? '00'),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
