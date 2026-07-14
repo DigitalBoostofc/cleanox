@@ -27,6 +27,7 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
       ) ??
       ComissaoTipo.nenhuma,
   comissaoValor: (json['comissao_valor'] as num?)?.toDouble() ?? 0,
+  avatar: json['avatar'] as String? ?? '',
   verified: json['verified'] as bool? ?? false,
   emailVisibility: json['emailVisibility'] as bool? ?? false,
   created: json['created'] as String?,
@@ -43,6 +44,7 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'whatsapp': instance.whatsapp,
       'comissao_tipo': _$ComissaoTipoEnumMap[instance.comissaoTipo]!,
       'comissao_valor': instance.comissaoValor,
+      'avatar': instance.avatar,
       'verified': instance.verified,
       'emailVisibility': instance.emailVisibility,
       'created': instance.created,

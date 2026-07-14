@@ -12,8 +12,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/user.dart';
+import '../../core/repositories/usuarios_repository.dart';
+import '../data/painel_providers.dart';
 
 /// Rótulo do papel (espelha `ROLE_LABELS`).
 String _roleLabel(Role? role) => switch (role) {
@@ -50,6 +54,8 @@ class ContaScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final role = ref.watch(currentRoleProvider);
+    final easypay =
+        ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
 
     return ListView(
       padding: const EdgeInsets.all(ClxSpace.x6),
@@ -60,13 +66,28 @@ class ContaScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (easypay) ...[
+                  ClxFadeSlide(child: _ProfileHero(user: user, role: role)),
+                  const SizedBox(height: ClxSpace.x4),
+                ],
                 _DadosCard(
                   nome: user?.displayName ?? '—',
                   email: user?.email ?? '—',
                   role: role,
+                  user: user,
+                  showAvatarEditor: !easypay,
                 ),
                 const SizedBox(height: ClxSpace.x5),
                 const _AlterarSenhaCard(),
+                const SizedBox(height: ClxSpace.x4),
+                ClxButton(
+                  label: 'Sair da conta',
+                  variant: ClxButtonVariant.ghost,
+                  icon: Icons.logout_rounded,
+                  expand: true,
+                  onPressed: () => ref.read(authServiceProvider).logout(),
+                ),
+                const SizedBox(height: ClxSpace.x6),
               ],
             ),
           ),
@@ -76,28 +97,268 @@ class ContaScreen extends ConsumerWidget {
   }
 }
 
-class _DadosCard extends StatelessWidget {
+/// Hero com foto editável (APK / web estreita).
+class _ProfileHero extends ConsumerStatefulWidget {
+  const _ProfileHero({required this.user, required this.role});
+  final User? user;
+  final Role? role;
+
+  @override
+  ConsumerState<_ProfileHero> createState() => _ProfileHeroState();
+}
+
+class _ProfileHeroState extends ConsumerState<_ProfileHero> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUpload() async {
+    final user = widget.user;
+    if (user == null || _uploading) return;
+    final file = await pickImageWithSource(context);
+    if (file == null || !mounted) return;
+    setState(() => _uploading = true);
+    try {
+      final bytes = await file.readAsBytes();
+      await ref.read(usuariosRepositoryProvider).update(
+        user.id,
+        <String, dynamic>{},
+        avatar: AvatarUpload(
+          bytes: bytes,
+          filename: file.name.isNotEmpty ? file.name : 'avatar.jpg',
+        ),
+      );
+      await ref.read(pocketBaseProvider).collection('users').authRefresh();
+      if (mounted) {
+        showClxToast(context, 'Foto atualizada.', type: ToastType.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar a foto.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final user = widget.user;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            clx.accent,
+            Color.lerp(clx.accent, clx.primary, 0.55)!,
+            clx.primary,
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: clx.primary.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              if (_uploading)
+                const SizedBox(
+                  width: 96,
+                  height: 96,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                )
+              else
+                UserAvatar(user: user, radius: 48, onTap: _pickAndUpload),
+              Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _uploading ? null : _pickAndUpload,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.camera_alt_rounded, size: 18),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            user?.displayName ?? '—',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user?.email ?? '—',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: _uploading ? null : _pickAndUpload,
+            icon: const Icon(Icons.photo_camera_outlined, color: Colors.white),
+            label: Text(
+              user?.hasAvatar == true ? 'Trocar foto' : 'Adicionar foto',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card de dados — no desktop web inclui editor de foto (APK/estreito usa o hero).
+class _DadosCard extends ConsumerStatefulWidget {
   const _DadosCard({
     required this.nome,
     required this.email,
     required this.role,
+    this.user,
+    this.showAvatarEditor = false,
   });
 
   final String nome;
   final String email;
   final Role? role;
+  final User? user;
+  final bool showAvatarEditor;
+
+  @override
+  ConsumerState<_DadosCard> createState() => _DadosCardState();
+}
+
+class _DadosCardState extends ConsumerState<_DadosCard> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUpload() async {
+    final user = widget.user;
+    if (user == null || _uploading) return;
+    final file = await pickImageWithSource(context);
+    if (file == null || !mounted) return;
+    setState(() => _uploading = true);
+    try {
+      final bytes = await file.readAsBytes();
+      await ref.read(usuariosRepositoryProvider).update(
+        user.id,
+        <String, dynamic>{},
+        avatar: AvatarUpload(
+          bytes: bytes,
+          filename: file.name.isNotEmpty ? file.name : 'avatar.jpg',
+        ),
+      );
+      await ref.read(pocketBaseProvider).collection('users').authRefresh();
+      if (mounted) {
+        showClxToast(context, 'Foto atualizada.', type: ToastType.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar a foto.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final user = widget.user;
+    final nome = widget.nome;
+    final email = widget.email;
+    final role = widget.role;
+    final editPhoto = widget.showAvatarEditor && user != null;
+
     return ClxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (editPhoto) ...[
+            Center(
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      if (_uploading)
+                        SizedBox(
+                          width: 88,
+                          height: 88,
+                          child: Center(
+                            child: CircularProgressIndicator(color: clx.primary),
+                          ),
+                        )
+                      else
+                        UserAvatar(
+                          user: user,
+                          radius: 44,
+                          onTap: _pickAndUpload,
+                        ),
+                      Material(
+                        color: clx.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _uploading ? null : _pickAndUpload,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.camera_alt_rounded,
+                              size: 16,
+                              color: clx.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: ClxSpace.x2),
+                  TextButton.icon(
+                    onPressed: _uploading ? null : _pickAndUpload,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: Text(
+                      user.hasAvatar ? 'Trocar foto' : 'Adicionar foto',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x4),
+            Divider(height: 1, color: clx.line),
+            const SizedBox(height: ClxSpace.x4),
+          ],
           Row(
             children: [
-              Icon(Icons.person_outline_rounded, size: 18, color: clx.ink2),
-              const SizedBox(width: ClxSpace.x2),
+              if (!editPhoto && user != null) ...[
+                UserAvatar(user: user, radius: 22),
+                const SizedBox(width: ClxSpace.x3),
+              ] else if (!editPhoto) ...[
+                Icon(Icons.person_outline_rounded, size: 18, color: clx.ink2),
+                const SizedBox(width: ClxSpace.x2),
+              ],
               Text(
                 'Minha conta',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(

@@ -14,6 +14,8 @@ import '../../core/design/design.dart';
 import '../../core/env/env.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/repositories/usuarios_repository.dart';
+import '../../painel/data/painel_providers.dart';
 import '../data/prof_filters.dart';
 import '../data/prof_providers.dart';
 import '../location/tracking_providers.dart';
@@ -77,171 +79,269 @@ final perfilStatsProvider = FutureProvider.autoDispose<PerfilStats>((
   );
 });
 
-class PerfilScreen extends ConsumerWidget {
+class PerfilScreen extends ConsumerStatefulWidget {
   const PerfilScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PerfilScreen> createState() => _PerfilScreenState();
+}
+
+class _PerfilScreenState extends ConsumerState<PerfilScreen> {
+  bool _uploadingPhoto = false;
+
+  Future<void> _pickPhoto() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null || _uploadingPhoto) return;
+    final file = await pickImageWithSource(context);
+    if (file == null || !mounted) return;
+    setState(() => _uploadingPhoto = true);
+    try {
+      final bytes = await file.readAsBytes();
+      await ref.read(usuariosRepositoryProvider).update(
+        user.id,
+        <String, dynamic>{},
+        avatar: AvatarUpload(
+          bytes: bytes,
+          filename: file.name.isNotEmpty ? file.name : 'avatar.jpg',
+        ),
+      );
+      await ref.read(pocketBaseProvider).collection('users').authRefresh();
+      if (mounted) {
+        showClxToast(context, 'Foto atualizada.', type: ToastType.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar a foto.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final user = ref.watch(currentUserProvider);
     final statsAsync = ref.watch(perfilStatsProvider);
     final rawName = user?.displayName ?? '—';
     final displayName = rawName != '—' ? rawName : 'Profissional';
-    final avatarInitial = displayName.isNotEmpty
-        ? displayName[0].toUpperCase()
-        : 'P';
+    final mode = ref.watch(themeModeControllerProvider);
 
     return Column(
       children: [
-        _Header(mode: ref.watch(themeModeControllerProvider), ref: ref),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(ClxSpace.x4),
+            padding: EdgeInsets.zero,
             children: [
-              // Card do usuário.
-              ClxCard(
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: clx.accent,
-                      child: Text(
-                        avatarInitial,
-                        style: tt.headlineSmall?.copyWith(color: Colors.white),
-                      ),
+              ClxFadeSlide(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 22),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        clx.accent,
+                        Color.lerp(clx.accent, clx.primary, 0.55)!,
+                        clx.primary,
+                      ],
                     ),
-                    const SizedBox(height: ClxSpace.x3),
-                    Text(
-                      displayName,
-                      style: tt.titleMedium?.copyWith(
-                        color: clx.ink,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                    if ((user?.email ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        user!.email,
-                        style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: clx.primary.withValues(alpha: 0.25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
-                    const SizedBox(height: ClxSpace.x2),
-                    ClxChip(label: 'Profissional', color: clx.primary),
-                    statsAsync.maybeWhen(
-                      data: (s) => s.media != null
-                          ? Padding(
-                              padding: const EdgeInsets.only(top: ClxSpace.x3),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Sua avaliação: ',
-                                    style: tt.bodyLarge?.copyWith(
-                                      color: clx.ink2,
-                                    ),
-                                  ),
-                                  StarRating(value: s.media!, size: 15),
-                                  const SizedBox(width: ClxSpace.x1),
-                                  Text(
-                                    s.media!.toStringAsFixed(1),
-                                    style: tt.bodyLarge?.copyWith(
-                                      color: clx.ink,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
+                  ),
+                  child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'Alternar tema',
+                              icon: Icon(
+                                mode == ThemeMode.dark
+                                    ? Icons.light_mode_outlined
+                                    : Icons.dark_mode_outlined,
+                                color: Colors.white,
                               ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.only(top: ClxSpace.x2),
-                              child: Text(
-                                'Nenhuma avaliação ainda',
-                                style: tt.bodyMedium?.copyWith(
-                                  color: clx.ink3,
+                              onPressed: () => ref
+                                  .read(themeModeControllerProvider.notifier)
+                                  .toggle(),
+                            ),
+                          ],
+                        ),
+                        Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            if (_uploadingPhoto)
+                              const SizedBox(
+                                width: 96,
+                                height: 96,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            else
+                              UserAvatar(
+                                user: user,
+                                radius: 48,
+                                onTap: _pickPhoto,
+                              ),
+                            Material(
+                              color: Colors.white,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _uploadingPhoto ? null : _pickPhoto,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ),
-                      orElse: () => const SizedBox.shrink(),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          style: tt.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if ((user?.email ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            user!.email,
+                            style: tt.bodyMedium?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Text(
+                            'Profissional',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        statsAsync.maybeWhen(
+                          data: (s) => s.media != null
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Avaliação: ',
+                                        style: tt.bodyMedium?.copyWith(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                        ),
+                                      ),
+                                      StarRating(value: s.media!, size: 15),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        s.media!.toStringAsFixed(1),
+                                        style: tt.bodyMedium?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Text(
+                                    'Nenhuma avaliação ainda',
+                                    style: tt.bodySmall?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.8,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          orElse: () => const SizedBox.shrink(),
+                        ),
+                        TextButton.icon(
+                          onPressed: _uploadingPhoto ? null : _pickPhoto,
+                          icon: const Icon(
+                            Icons.photo_camera_outlined,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            user?.hasAvatar == true
+                                ? 'Trocar foto'
+                                : 'Adicionar foto',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(ClxSpace.x4),
+                child: Column(
+                  children: [
+                    ClxFadeSlide(
+                      delay: const Duration(milliseconds: 50),
+                      child: _ResumoDoDia(statsAsync: statsAsync),
+                    ),
+                    const SizedBox(height: ClxSpace.x3),
+                    ClxFadeSlide(
+                      delay: const Duration(milliseconds: 90),
+                      child: const _AlterarSenhaCard(),
+                    ),
+                    const SizedBox(height: ClxSpace.x3),
+                    ClxFadeSlide(
+                      delay: const Duration(milliseconds: 120),
+                      child: const _LiberarLocalizacaoTile(),
+                    ),
+                    const SizedBox(height: ClxSpace.x3),
+                    ClxButton(
+                      label: 'Sair do sistema',
+                      variant: ClxButtonVariant.ghost,
+                      icon: Icons.logout_rounded,
+                      expand: true,
+                      onPressed: () => ref.read(authServiceProvider).logout(),
+                    ),
+                    const SizedBox(height: ClxSpace.x8),
                   ],
                 ),
               ),
-              const SizedBox(height: ClxSpace.x3),
-
-              // Resumo do dia.
-              _ResumoDoDia(statsAsync: statsAsync),
-              const SizedBox(height: ClxSpace.x3),
-
-              // Alterar senha.
-              const _AlterarSenhaCard(),
-              const SizedBox(height: ClxSpace.x3),
-
-              // Liberar localização (placeholder / B4).
-              const _LiberarLocalizacaoTile(),
-              const SizedBox(height: ClxSpace.x3),
-
-              // Sair.
-              ClxButton(
-                label: 'Sair do sistema',
-                variant: ClxButtonVariant.ghost,
-                icon: Icons.logout_rounded,
-                expand: true,
-                onPressed: () => ref.read(authServiceProvider).logout(),
-              ),
-              const SizedBox(height: ClxSpace.x8),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.mode, required this.ref});
-
-  final ThemeMode mode;
-  final WidgetRef ref;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x4,
-        ClxSpace.x3,
-        ClxSpace.x2,
-        ClxSpace.x3,
-      ),
-      decoration: BoxDecoration(
-        color: clx.bg,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Perfil',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: clx.ink,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Alternar tema',
-            icon: Icon(
-              mode == ThemeMode.dark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
-            onPressed: () =>
-                ref.read(themeModeControllerProvider.notifier).toggle(),
-          ),
-        ],
-      ),
     );
   }
 }
