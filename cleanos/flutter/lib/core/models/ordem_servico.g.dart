@@ -16,6 +16,7 @@ _$OrdemServicoImpl _$$OrdemServicoImplFromJson(
   servico: json['servico'] as String?,
   tipoServicoNome: json['tipo_servico_nome'] as String?,
   dataHora: json['data_hora'] as String? ?? '',
+  duracaoMin: _duracaoMinFromJson(json['duracao_min']),
   profissional: json['profissional'] as String?,
   status:
       $enumDecodeNullable(
@@ -82,6 +83,7 @@ Map<String, dynamic> _$$OrdemServicoImplToJson(
   'servico': instance.servico,
   'tipo_servico_nome': instance.tipoServicoNome,
   'data_hora': instance.dataHora,
+  'duracao_min': instance.duracaoMin,
   'profissional': instance.profissional,
   'status': _$OSStatusEnumMap[instance.status]!,
   'valor_servico': instance.valorServico,

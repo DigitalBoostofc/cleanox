@@ -54,6 +54,16 @@ class OrdemServico with _$OrdemServico {
     /// ISO datetime UTC.
     @JsonKey(name: 'data_hora') @Default('') String dataHora,
 
+    /// Duração do atendimento em minutos (fim = [dataHora] + [duracaoMin]).
+    ///
+    /// ⚠️ R2 (variante NUMÉRICA): NumberField opcional do PB volta como **0**
+    /// quando vazio — nunca `null`. Toda OS anterior à migration 27 chega com
+    /// `"duracao_min": 0`. [_duracaoMinFromJson] normaliza `<= 0 → null` já no
+    /// parse (fromJson e fromRecord), para o resto do app poder confiar em
+    /// `null == sem duração própria` e cair no fallback do
+    /// `duracaoEfetivaMin` (OS > profissional > 60).
+    @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson) int? duracaoMin,
+
     /// Relation → users (ID).
     String? profissional,
     @JsonKey(unknownEnumValue: OSStatus.agendada)
@@ -149,6 +159,20 @@ class OrdemServico with _$OrdemServico {
   bool get temItensObrigatoriosPendentes => checklistExec.any(
     (i) => i.obrigatorio && i.status != ChecklistExecStatus.concluido,
   );
+}
+
+/// `duracao_min` do PB → minutos, ou `null` quando "sem duração própria".
+///
+/// NumberField opcional vazio chega como `0` (e, em records antigos/serializações
+/// tolerantes, pode chegar como `null` ou `""`). Tudo isso vira `null` aqui —
+/// nunca um `0` que o layout interpretaria como evento de duração zero.
+int? _duracaoMinFromJson(Object? raw) {
+  final n = switch (raw) {
+    final num v => v.toInt(),
+    final String s => int.tryParse(s.trim()) ?? 0,
+    _ => 0,
+  };
+  return n > 0 ? n : null;
 }
 
 RecordModel? _expandOne(RecordModel record, String key) {

@@ -266,6 +266,17 @@ mixin _$OrdemServico {
   @JsonKey(name: 'data_hora')
   String get dataHora => throw _privateConstructorUsedError;
 
+  /// Duração do atendimento em minutos (fim = [dataHora] + [duracaoMin]).
+  ///
+  /// ⚠️ R2 (variante NUMÉRICA): NumberField opcional do PB volta como **0**
+  /// quando vazio — nunca `null`. Toda OS anterior à migration 27 chega com
+  /// `"duracao_min": 0`. [_duracaoMinFromJson] normaliza `<= 0 → null` já no
+  /// parse (fromJson e fromRecord), para o resto do app poder confiar em
+  /// `null == sem duração própria` e cair no fallback do
+  /// `duracaoEfetivaMin` (OS > profissional > 60).
+  @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+  int? get duracaoMin => throw _privateConstructorUsedError;
+
   /// Relation → users (ID).
   String? get profissional => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: OSStatus.agendada)
@@ -354,6 +365,8 @@ abstract class $OrdemServicoCopyWith<$Res> {
     String? servico,
     @JsonKey(name: 'tipo_servico_nome') String? tipoServicoNome,
     @JsonKey(name: 'data_hora') String dataHora,
+    @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+    int? duracaoMin,
     String? profissional,
     @JsonKey(unknownEnumValue: OSStatus.agendada) OSStatus status,
     @JsonKey(name: 'valor_servico') double? valorServico,
@@ -414,6 +427,7 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? servico = freezed,
     Object? tipoServicoNome = freezed,
     Object? dataHora = null,
+    Object? duracaoMin = freezed,
     Object? profissional = freezed,
     Object? status = null,
     Object? valorServico = freezed,
@@ -468,6 +482,10 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
                 ? _value.dataHora
                 : dataHora // ignore: cast_nullable_to_non_nullable
                       as String,
+            duracaoMin: freezed == duracaoMin
+                ? _value.duracaoMin
+                : duracaoMin // ignore: cast_nullable_to_non_nullable
+                      as int?,
             profissional: freezed == profissional
                 ? _value.profissional
                 : profissional // ignore: cast_nullable_to_non_nullable
@@ -611,6 +629,8 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     String? servico,
     @JsonKey(name: 'tipo_servico_nome') String? tipoServicoNome,
     @JsonKey(name: 'data_hora') String dataHora,
+    @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+    int? duracaoMin,
     String? profissional,
     @JsonKey(unknownEnumValue: OSStatus.agendada) OSStatus status,
     @JsonKey(name: 'valor_servico') double? valorServico,
@@ -672,6 +692,7 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? servico = freezed,
     Object? tipoServicoNome = freezed,
     Object? dataHora = null,
+    Object? duracaoMin = freezed,
     Object? profissional = freezed,
     Object? status = null,
     Object? valorServico = freezed,
@@ -726,6 +747,10 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
             ? _value.dataHora
             : dataHora // ignore: cast_nullable_to_non_nullable
                   as String,
+        duracaoMin: freezed == duracaoMin
+            ? _value.duracaoMin
+            : duracaoMin // ignore: cast_nullable_to_non_nullable
+                  as int?,
         profissional: freezed == profissional
             ? _value.profissional
             : profissional // ignore: cast_nullable_to_non_nullable
@@ -834,6 +859,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
     this.servico,
     @JsonKey(name: 'tipo_servico_nome') this.tipoServicoNome,
     @JsonKey(name: 'data_hora') this.dataHora = '',
+    @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+    this.duracaoMin,
     this.profissional,
     @JsonKey(unknownEnumValue: OSStatus.agendada)
     this.status = OSStatus.agendada,
@@ -906,6 +933,18 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @override
   @JsonKey(name: 'data_hora')
   final String dataHora;
+
+  /// Duração do atendimento em minutos (fim = [dataHora] + [duracaoMin]).
+  ///
+  /// ⚠️ R2 (variante NUMÉRICA): NumberField opcional do PB volta como **0**
+  /// quando vazio — nunca `null`. Toda OS anterior à migration 27 chega com
+  /// `"duracao_min": 0`. [_duracaoMinFromJson] normaliza `<= 0 → null` já no
+  /// parse (fromJson e fromRecord), para o resto do app poder confiar em
+  /// `null == sem duração própria` e cair no fallback do
+  /// `duracaoEfetivaMin` (OS > profissional > 60).
+  @override
+  @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+  final int? duracaoMin;
 
   /// Relation → users (ID).
   @override
@@ -1012,7 +1051,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1030,6 +1069,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
                 other.tipoServicoNome == tipoServicoNome) &&
             (identical(other.dataHora, dataHora) ||
                 other.dataHora == dataHora) &&
+            (identical(other.duracaoMin, duracaoMin) ||
+                other.duracaoMin == duracaoMin) &&
             (identical(other.profissional, profissional) ||
                 other.profissional == profissional) &&
             (identical(other.status, status) || other.status == status) &&
@@ -1091,6 +1132,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
     servico,
     tipoServicoNome,
     dataHora,
+    duracaoMin,
     profissional,
     status,
     valorServico,
@@ -1139,6 +1181,8 @@ abstract class _OrdemServico extends OrdemServico {
     final String? servico,
     @JsonKey(name: 'tipo_servico_nome') final String? tipoServicoNome,
     @JsonKey(name: 'data_hora') final String dataHora,
+    @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+    final int? duracaoMin,
     final String? profissional,
     @JsonKey(unknownEnumValue: OSStatus.agendada) final OSStatus status,
     @JsonKey(name: 'valor_servico') final double? valorServico,
@@ -1207,6 +1251,18 @@ abstract class _OrdemServico extends OrdemServico {
   @override
   @JsonKey(name: 'data_hora')
   String get dataHora;
+
+  /// Duração do atendimento em minutos (fim = [dataHora] + [duracaoMin]).
+  ///
+  /// ⚠️ R2 (variante NUMÉRICA): NumberField opcional do PB volta como **0**
+  /// quando vazio — nunca `null`. Toda OS anterior à migration 27 chega com
+  /// `"duracao_min": 0`. [_duracaoMinFromJson] normaliza `<= 0 → null` já no
+  /// parse (fromJson e fromRecord), para o resto do app poder confiar em
+  /// `null == sem duração própria` e cair no fallback do
+  /// `duracaoEfetivaMin` (OS > profissional > 60).
+  @override
+  @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
+  int? get duracaoMin;
 
   /// Relation → users (ID).
   @override
