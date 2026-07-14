@@ -36,8 +36,9 @@ void main() {
         size: const Size(900, 1200),
       );
 
-      // Submete sem preencher nada.
-      await tester.tap(find.byType(ClxButton));
+      // Submete sem preencher nada. A tela tem mais de um ClxButton
+      // ("Sair da conta" no rodapé) — mira o submit pelo rótulo.
+      await tester.tap(find.widgetWithText(ClxButton, 'Alterar senha'));
       await tester.pump();
 
       expect(find.text('Informe a senha atual'), findsOneWidget);
@@ -58,7 +59,7 @@ void main() {
       await tester.enterText(fields.at(0), 'senhaAntiga1');
       await tester.enterText(fields.at(1), 'novaSenha123');
       await tester.enterText(fields.at(2), 'outraCoisa999');
-      await tester.tap(find.byType(ClxButton));
+      await tester.tap(find.widgetWithText(ClxButton, 'Alterar senha'));
       await tester.pump();
 
       expect(find.text('As senhas não coincidem'), findsOneWidget);
@@ -78,7 +79,7 @@ void main() {
       await tester.enterText(fields.at(0), 'senhaAntiga1');
       await tester.enterText(fields.at(1), '123');
       await tester.enterText(fields.at(2), '123');
-      await tester.tap(find.byType(ClxButton));
+      await tester.tap(find.widgetWithText(ClxButton, 'Alterar senha'));
       await tester.pump();
 
       expect(find.text('Mínimo 8 caracteres'), findsOneWidget);

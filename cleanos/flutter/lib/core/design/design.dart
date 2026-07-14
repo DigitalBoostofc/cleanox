@@ -2,6 +2,7 @@
 library;
 
 export 'cleanox_colors.dart';
+export 'motion.dart';
 export 'theme.dart';
 export 'tokens.dart';
 export 'widgets/widgets.dart';

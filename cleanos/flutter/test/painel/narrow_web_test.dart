@@ -94,7 +94,7 @@ void main() {
       // Sem card elevado (layout clássico), com ícone cleaning_services
       expect(find.byType(ClxCard), findsNothing);
       expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
-      expect(find.text('CleanOS'), findsOneWidget);
+      expect(find.text('OS Fácil'), findsOneWidget);
       expect(find.text('Entrar'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -128,13 +128,15 @@ void main() {
   });
 
   group('LoginScreen — 800dp (tablet web, ≥ 600dp)', () {
-    testWidgets('isWeb=true + 800dp → layout clássico (ClxCard presente)', (
+    testWidgets('isWeb=true + 800dp → login desktop (não fintech mobile)', (
       tester,
     ) async {
       await _pumpLogin(tester, isWeb: true, physicalWidth: 800);
 
-      expect(find.byType(ClxCard), findsOneWidget);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsNothing);
+      // Desktop/tablet web: marca + ícone; sem sheet fintech mobile.
+      expect(find.text('OS Fácil'), findsOneWidget);
+      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+      expect(find.text('Esqueceu a senha? Fale com o administrador.'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -151,22 +153,24 @@ void main() {
   });
 
   group('LoginScreen — 1280dp (desktop web)', () {
-    testWidgets('isWeb=true + 1280dp → layout clássico', (tester) async {
+    testWidgets('isWeb=true + 1280dp → login desktop com marca', (tester) async {
       await _pumpLogin(tester, isWeb: true, physicalWidth: 1280);
 
-      expect(find.byType(ClxCard), findsOneWidget);
+      expect(find.text('OS Fácil'), findsOneWidget);
+      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
 
   group('LoginScreen — não-web (APK, kIsWeb=false)', () {
-    testWidgets('isWeb=false + 390dp → layout clássico (não é narrow web)', (
+    testWidgets('isWeb=false + 390dp → layout desktop-login (não é narrow web)', (
       tester,
     ) async {
       await _pumpLogin(tester, isWeb: false, physicalWidth: 390);
 
-      // isFintechClean=false + isWeb=false → classic
-      expect(find.byType(ClxCard), findsOneWidget);
+      // isFintechClean=false + isWeb=false → path desktop (card flutuante)
+      expect(find.text('OS Fácil'), findsOneWidget);
+      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

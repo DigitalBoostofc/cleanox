@@ -12,10 +12,21 @@
 /// ⚠️ As funções puras [buildAgendaGrid]/[weekdayIndexOf] (grade de slots por
 /// disponibilidade) permanecem aqui por serem reusadas fora da Agenda
 /// (`ordens/os_form.dart`) e cobertas por teste — a UI de calendário não as usa.
+///
+/// ── FASE 2 (arraste no desktop) ──────────────────────────────────────────────
+/// O drop NÃO recarrega a janela: aplica o **record confirmado pelo servidor**
+/// por cima da lista ([moverOs]/[redimensionarOs]). Três travas fecham a corrida
+/// (spec R-A3):
+///   1. token monotônico no [load] — resposta velha nunca sobrescreve o novo;
+///   2. `_pendingDrag` — OS com PATCH em voo não arrasta de novo e SOBREVIVE a
+///      um `load()` concorrente (senão o bloco pularia de volta pro horário
+///      antigo até o servidor responder);
+///   3. rollback restaura **só** a entrada daquela OS, não a lista inteira.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_drag.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/disponibilidade.dart';
@@ -199,16 +210,27 @@ int agendaEventHour(OrdemServico os) {
 }
 
 /// Rótulo do período conforme a visão (PT-BR, BRT).
+///
+/// Na visão **semana**, [anchor] é o **início da janela de 7 dias** (rolante:
+/// pode ser quarta→quarta/terça, não precisa ser segunda→domingo).
 String agendaPeriodLabel(AgendaView view, DateTime anchor) {
   switch (view) {
     case AgendaView.dia:
       return '${_dowLong[_dow(anchor)]}, ${_dd(anchor.day)} de '
           '${_mesLong[anchor.month - 1]} de ${anchor.year}';
     case AgendaView.semana:
-      final ws = startOfWeek(anchor);
+      // Janela rolante de 7 dias a partir de [anchor] (inclusive).
+      // Ex.: quarta→terça, ou se começar num dia qualquer: "de X a Y".
+      final ws = DateTime(anchor.year, anchor.month, anchor.day);
       final we = addDays(ws, 6);
-      return '${_dd(ws.day)} ${_mesAbbr[ws.month - 1]} – '
-          '${_dd(we.day)} ${_mesAbbr[we.month - 1]} ${we.year}';
+      final sameMonth = ws.month == we.month && ws.year == we.year;
+      if (sameMonth) {
+        return '${kDowShort[_dow(ws)]} ${_dd(ws.day)} – '
+            '${kDowShort[_dow(we)]} ${_dd(we.day)} '
+            '${_mesAbbr[we.month - 1]} ${we.year}';
+      }
+      return '${kDowShort[_dow(ws)]} ${_dd(ws.day)} ${_mesAbbr[ws.month - 1]} – '
+          '${kDowShort[_dow(we)]} ${_dd(we.day)} ${_mesAbbr[we.month - 1]} ${we.year}';
     case AgendaView.mes:
       return '${_mesLong[anchor.month - 1]} de ${anchor.year}';
   }
@@ -229,11 +251,15 @@ class AgendaState {
   const AgendaState({
     required this.anchor,
     required this.selectedDay,
+    required this.hoje,
     this.view = AgendaView.semana,
     this.profissionais = const [],
     this.osList = const [],
+    this.dispByProf = const {},
+    this.pendentes = const {},
     this.loading = true,
     this.error,
+    this.dragError,
     this.filterProfId,
   });
 
@@ -246,10 +272,28 @@ class AgendaState {
   /// Dia selecionado na visão mês mobile (date-only, BRT).
   final DateTime selectedDay;
 
+  /// "Hoje" (date-only, BRT) — RECALCULADO no refresh-on-focus (R-M7): o
+  /// controller vive para sempre no `IndexedStack` do casco, então um "hoje"
+  /// congelado na construção viraria mentira depois da meia-noite.
+  final DateTime hoje;
+
   final List<User> profissionais;
   final List<OrdemServico> osList;
+
+  /// Disponibilidade por profissional — alimenta o fallback de duração (D9):
+  /// OS > profissional > 60. Sem isso, OS antiga (sem `duracao_min`) desenharia
+  /// 60 min mesmo quando o profissional atende em 90.
+  final Map<String, Disponibilidade> dispByProf;
+
+  /// OS com um drop EM VOO (PATCH pendente): não podem ser arrastadas de novo e
+  /// sobrevivem a um `load()` concorrente (R-A3).
+  final Set<String> pendentes;
+
   final bool loading;
   final String? error;
+
+  /// Falha do último drop (arrastar/redimensionar) — some depois de exibida.
+  final String? dragError;
 
   /// Filtro opcional: só um profissional (null = todos).
   final String? filterProfId;
@@ -277,19 +321,27 @@ class AgendaState {
     AgendaView? view,
     DateTime? anchor,
     DateTime? selectedDay,
+    DateTime? hoje,
     List<User>? profissionais,
     List<OrdemServico>? osList,
+    Map<String, Disponibilidade>? dispByProf,
+    Set<String>? pendentes,
     bool? loading,
     Object? error = _s,
+    Object? dragError = _s,
     Object? filterProfId = _s,
   }) => AgendaState(
     view: view ?? this.view,
     anchor: anchor ?? this.anchor,
     selectedDay: selectedDay ?? this.selectedDay,
+    hoje: hoje ?? this.hoje,
     profissionais: profissionais ?? this.profissionais,
     osList: osList ?? this.osList,
+    dispByProf: dispByProf ?? this.dispByProf,
+    pendentes: pendentes ?? this.pendentes,
     loading: loading ?? this.loading,
     error: error == _s ? this.error : error as String?,
+    dragError: dragError == _s ? this.dragError : dragError as String?,
     filterProfId: filterProfId == _s
         ? this.filterProfId
         : filterProfId as String?,
@@ -299,21 +351,41 @@ class AgendaState {
 }
 
 class AgendaController extends StateNotifier<AgendaState> {
-  AgendaController(this._ref)
-    : super(
-        AgendaState(anchor: _todayDate(), selectedDay: _todayDate()),
+  AgendaController(this._ref, {DateTime Function()? now})
+    : _now = now ?? DateTime.now,
+      super(
+        AgendaState(
+          anchor: _todayDateOf(now),
+          selectedDay: _todayDateOf(now),
+          hoje: _todayDateOf(now),
+        ),
       ) {
     _loadProfs();
+    _loadDisponibilidades();
     load();
   }
 
   final Ref _ref;
 
+  /// Relógio injetável — só para o teste poder virar o dia (o app usa
+  /// `DateTime.now`). NUNCA é chamado no meio de um arraste (gate G-8).
+  final DateTime Function() _now;
+
+  /// Token monotônico do [load]: uma resposta ATRASADA de um load antigo não
+  /// pode sobrescrever o estado mais novo (mesmo padrão do `os_form`).
+  int _loadSeq = 0;
+
+  /// OS com PATCH de drop em voo. Some do set no fim (sucesso ou rollback).
+  final Set<String> _pendingDrag = <String>{};
+
   /// Hoje como date-only (BRT).
-  static DateTime _todayDate() {
-    final d = DateTime.tryParse(todayLocalDate()) ?? DateTime.now();
+  static DateTime _todayDateOf(DateTime Function()? now) {
+    final d =
+        DateTime.tryParse(todayLocalDate(now: now?.call())) ?? DateTime.now();
     return DateTime(d.year, d.month, d.day);
   }
+
+  DateTime _todayDate() => _todayDateOf(_now);
 
   /// Janela [from, to) da visão atual, em string UTC do PB (BRT centralizado).
   ({String start, String end}) _loadRange() {
@@ -326,8 +398,10 @@ class AgendaController extends StateNotifier<AgendaState> {
         from = anchor;
         to = addDays(anchor, 1);
       case AgendaView.semana:
-        from = startOfWeek(anchor);
-        to = addDays(from, 7);
+        // Janela rolante: carrega margem ampla p/ scroll contínuo da faixa.
+        // [anchor] = primeiro dia visível (não força segunda-feira).
+        from = addDays(anchor, -21);
+        to = addDays(anchor, 28);
       case AgendaView.mes:
         from = startOfWeek(DateTime(anchor.year, anchor.month, 1));
         to = addDays(from, 42);
@@ -353,7 +427,28 @@ class AgendaController extends StateNotifier<AgendaState> {
     }
   }
 
+  /// Disponibilidade de TODOS os profissionais: é o 2º degrau do fallback de
+  /// duração (D9). Sem ela, a OS antiga (sem `duracao_min`) desenharia 60 min
+  /// mesmo quando o profissional atende em 90 — pendência aberta na Fase 1.
+  Future<void> _loadDisponibilidades() async {
+    try {
+      final res = await _ref
+          .read(disponibilidadeRepositoryProvider)
+          .list(page: 1, perPage: 200);
+      if (!mounted) return;
+      state = state.copyWith(
+        dispByProf: {
+          for (final d in res.items)
+            if (d.profissional.isNotEmpty) d.profissional: d,
+        },
+      );
+    } catch (_) {
+      /* sem disponibilidade a duração cai no padrão de 60 — silencioso */
+    }
+  }
+
   Future<void> load() async {
+    final seq = ++_loadSeq;
     state = state.copyWith(loading: true, error: null);
     try {
       final range = _loadRange();
@@ -369,13 +464,33 @@ class AgendaController extends StateNotifier<AgendaState> {
             sort: 'data_hora',
             expand: 'profissional',
           );
-      state = state.copyWith(osList: res.items, loading: false, error: null);
+      // Resposta ATRASADA de um load antigo (troca rápida de período/visão, ou
+      // um drop que já reescreveu a lista): descarta — nunca sobrescreve o novo.
+      if (!mounted || seq != _loadSeq) return;
+      state = state.copyWith(
+        osList: _preservandoPendentes(res.items),
+        loading: false,
+        error: null,
+      );
     } catch (_) {
+      if (!mounted || seq != _loadSeq) return;
       state = state.copyWith(
         loading: false,
         error: 'Não foi possível carregar a agenda.',
       );
     }
+  }
+
+  /// O servidor ainda não confirmou o drop das OS em [_pendingDrag] — o `load()`
+  /// traria o horário ANTIGO delas e o bloco pularia de volta na tela. Mantém a
+  /// versão otimista local dessas (e só dessas).
+  List<OrdemServico> _preservandoPendentes(List<OrdemServico> doServidor) {
+    if (_pendingDrag.isEmpty) return doServidor;
+    final local = {for (final o in state.osList) o.id: o};
+    return [
+      for (final o in doServidor)
+        if (_pendingDrag.contains(o.id)) (local[o.id] ?? o) else o,
+    ];
   }
 
   void setView(AgendaView view) {
@@ -393,6 +508,29 @@ class AgendaController extends StateNotifier<AgendaState> {
   void goPrev() => _shift(-1);
   void goNext() => _shift(1);
 
+  /// Define o primeiro dia da janela de 7 dias (scroll contínuo da faixa).
+  /// Não recarrega a cada pixel — só se a janela sair da margem carregada.
+  ///
+  /// Se o dia selecionado sair da nova janela [start, start+6], move a
+  /// seleção para o dia mais próximo dentro dela (mantém o foco coerente).
+  void setWeekWindowStart(DateTime start, {bool forceLoad = false}) {
+    final s = DateTime(start.year, start.month, start.day);
+    if (sameDay(s, state.anchor) && !forceLoad) return;
+    final prev = state.anchor;
+    final we = addDays(s, 6);
+    var sel = state.selectedDay;
+    if (sel.isBefore(s)) {
+      sel = s;
+    } else if (sel.isAfter(we)) {
+      sel = we;
+    }
+    state = state.copyWith(anchor: s, selectedDay: sel);
+    // Recarrega se avançou/recuou bastante (margem no buffer de load).
+    if (forceLoad || (s.difference(prev).inDays).abs() >= 10) {
+      load();
+    }
+  }
+
   void _shift(int dir) {
     final a = state.anchor;
     final DateTime next;
@@ -400,11 +538,22 @@ class AgendaController extends StateNotifier<AgendaState> {
       case AgendaView.dia:
         next = addDays(a, dir);
       case AgendaView.semana:
+        // Avança a janela rolante em 7 dias (setas ◀ ▶).
         next = addDays(a, dir * 7);
       case AgendaView.mes:
         next = DateTime(a.year, a.month + dir, 1);
     }
-    state = state.copyWith(anchor: next);
+    final nextSelected = state.view == AgendaView.semana
+        ? addDays(state.selectedDay, dir * 7)
+        : state.selectedDay;
+    state = state.copyWith(
+      anchor: next,
+      selectedDay: DateTime(
+        nextSelected.year,
+        nextSelected.month,
+        nextSelected.day,
+      ),
+    );
     _syncSelectedForMonth(next);
     load();
   }
@@ -437,6 +586,144 @@ class AgendaController extends StateNotifier<AgendaState> {
   void setFilterProf(String? profId) {
     if (profId == state.filterProfId) return;
     state = state.copyWith(filterProfId: profId);
+  }
+
+  /* ═══════════════════ Fase 2 — drop do arraste (R-A3) ═══════════════════ */
+
+  /// A Agenda voltou a ficar visível (branch do casco reganhou foco — R-M7).
+  ///
+  /// O `IndexedStack` do `StatefulShellRoute` mantém esta tela viva PARA SEMPRE,
+  /// então `hoje` (e a âncora fixada nele) congelariam depois da meia-noite.
+  /// Recalcula "hoje" e, se a âncora estava grudada no dia de ontem, leva a
+  /// agenda junto — depois recarrega a janela.
+  void refreshOnFocus() {
+    final hoje = _todayDate();
+    final antes = state.hoje;
+    if (!sameDay(hoje, antes)) {
+      final grudadoNoHoje = sameDay(state.anchor, antes);
+      state = state.copyWith(
+        hoje: hoje,
+        anchor: grudadoNoHoje ? hoje : state.anchor,
+        selectedDay: sameDay(state.selectedDay, antes)
+            ? hoje
+            : state.selectedDay,
+      );
+    }
+    load();
+  }
+
+  /// Drop de MOVER (corpo do bloco): novo dia e/ou novo horário — D7/D8 já
+  /// resolvidos pelo núcleo puro (`core/agenda/agenda_drag.dart`).
+  Future<void> moverOs(
+    OrdemServico os, {
+    required DateTime dia,
+    required int startMin,
+  }) {
+    final novo = dataHoraPbDe(dia, startMin);
+    if (novo.isEmpty || novo == os.dataHora) return Future<void>.value();
+    return _persistirDrop(
+      os,
+      body: {'data_hora': novo},
+      otimista: os.copyWith(dataHora: novo),
+    );
+  }
+
+  /// Drop de REDIMENSIONAR (borda inferior): só a duração muda.
+  Future<void> redimensionarOs(OrdemServico os, int duracaoMin) {
+    if (duracaoMin <= 0 || duracaoMin == os.duracaoMin) {
+      return Future<void>.value();
+    }
+    return _persistirDrop(
+      os,
+      body: {'duracao_min': duracaoMin},
+      otimista: os.copyWith(duracaoMin: duracaoMin),
+    );
+  }
+
+  /// Ajuste pelo SHEET do APK / web estreita (Fase 3): início e duração podem
+  /// mudar juntos → **um único PATCH** (dois seriam duas idas ao servidor e um
+  /// estado intermediário visível). Mesma persistência do drop (R-A3): otimista,
+  /// record confirmado por cima, rollback cirúrgico.
+  ///
+  /// Só os campos que REALMENTE mudaram entram no corpo; nada mudou → sem PATCH.
+  /// Uma OS antiga (sem `duracao_min`) grava a duração efetiva que o sheet
+  /// mostrou — o que o usuário viu é o que fica salvo.
+  Future<void> ajustarOs(
+    OrdemServico os, {
+    required DateTime dia,
+    required int startMin,
+    required int duracaoMin,
+  }) {
+    final body = <String, dynamic>{};
+    var otimista = os;
+
+    final novaData = dataHoraPbDe(dia, startMin);
+    if (novaData.isNotEmpty && novaData != os.dataHora) {
+      body['data_hora'] = novaData;
+      otimista = otimista.copyWith(dataHora: novaData);
+    }
+    if (duracaoMin > 0 && duracaoMin != os.duracaoMin) {
+      body['duracao_min'] = duracaoMin;
+      otimista = otimista.copyWith(duracaoMin: duracaoMin);
+    }
+    if (body.isEmpty) return Future<void>.value();
+
+    return _persistirDrop(os, body: body, otimista: otimista);
+  }
+
+  /// PATCH do drop: otimista na tela → **record confirmado pelo servidor** por
+  /// cima da lista (nunca um `load()` da janela inteira, que traria 500 OS e
+  /// piscaria a grade). Falhou: desfaz **só** a entrada daquela OS.
+  Future<void> _persistirDrop(
+    OrdemServico os, {
+    required Map<String, dynamic> body,
+    required OrdemServico otimista,
+  }) async {
+    // Um drag por OS: o 2º drop chegaria com a versão pré-PATCH e desfaria o 1º.
+    if (_pendingDrag.contains(os.id)) return;
+    final anterior = os;
+    _pendingDrag.add(os.id);
+    state = state.copyWith(
+      osList: _substituir(state.osList, otimista),
+      pendentes: {..._pendingDrag},
+      dragError: null,
+    );
+
+    try {
+      final confirmado = await _ref
+          .read(ordensRepositoryProvider)
+          .update(os.id, body, expand: 'profissional');
+      _pendingDrag.remove(os.id);
+      if (!mounted) return;
+      state = state.copyWith(
+        osList: _substituir(state.osList, confirmado),
+        pendentes: {..._pendingDrag},
+      );
+    } catch (_) {
+      _pendingDrag.remove(os.id);
+      if (!mounted) return;
+      state = state.copyWith(
+        osList: _substituir(state.osList, anterior),
+        pendentes: {..._pendingDrag},
+        dragError: 'Não foi possível salvar o novo horário. Tente de novo.',
+      );
+    }
+  }
+
+  /// Troca UMA OS da lista pelo [novo] (mesmo id), preservando a ordem. Se ela
+  /// não está mais na lista (a janela mudou no meio do voo), não ressuscita.
+  static List<OrdemServico> _substituir(
+    List<OrdemServico> lista,
+    OrdemServico novo,
+  ) => [
+    for (final o in lista)
+      if (o.id == novo.id) novo else o,
+  ];
+
+  /// Limpa o aviso de falha do drop (depois de exibido no SnackBar).
+  void limparDragError() {
+    if (state.dragError == null) return;
+    state = state.copyWith(dragError: null);
   }
 }
 

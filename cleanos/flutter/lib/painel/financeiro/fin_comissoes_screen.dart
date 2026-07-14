@@ -40,8 +40,14 @@ class FinComissoesScreen extends ConsumerWidget {
         ref.invalidate(_comissoesProfissionaisProvider);
         ref.invalidate(_comissoesExtratoProvider);
       },
+      // Lista preenche a altura do card (borda fecha no fundo do painel).
       child: ListView(
-        padding: const EdgeInsets.all(ClxSpace.x4),
+        padding: const EdgeInsets.fromLTRB(
+          ClxSpace.x5,
+          ClxSpace.x4,
+          ClxSpace.x5,
+          ClxSpace.x8,
+        ),
         children: [
           Text(
             'Comissão por profissional',

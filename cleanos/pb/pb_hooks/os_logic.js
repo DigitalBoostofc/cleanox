@@ -295,15 +295,45 @@ function assertServiceIsToday(record) {
 }
 
 /**
+ * Cerca de status da AGENDA: OS `concluida` ou `cancelada` tem o horário
+ * CONGELADO — nem admin remarca (nem `data_hora`, nem `duracao_min`).
+ *
+ * Motivo: a OS fechada já gerou histórico financeiro (lançamento `via_os`,
+ * repasse) e relatório; mover a data/duração depois disso reescreveria o
+ * passado. Vale para TODOS os papéis (o profissional já é barrado antes pela
+ * denylist, mas o painel — com um bug de drag, por exemplo — não seria).
+ *
+ * Padrão R3: valida ANTES do `e.next()` (throw DEPOIS do commit não faz rollback).
+ */
+function assertHorarioNaoCongelado(record) {
+  const orig = record.original ? record.original() : null;
+  if (!orig) return; // create — não há estado anterior a congelar
+  const from = String(orig.get("status") || "");
+  if (from !== "concluida" && from !== "cancelada") return;
+  if (
+    changed(orig, record, "data_hora") ||
+    changed(orig, record, "duracao_min")
+  ) {
+    throw new BadRequestError(
+      `Não é possível alterar data/hora ou duração de uma OS ${from}.`
+    );
+  }
+}
+
+/**
  * Trava de autorização a NÍVEL DE CAMPO no update via API.
  * As regras de coleção do PocketBase são por registro; esta função impõe o
  * controle fino que falta:
+ *   - qualquer papel: OS concluida/cancelada tem horário congelado;
  *   - profissional: só avança status em transições válidas e grava pagamento;
  *   - gerente/admin: só admin mexe em repasse.
  */
 function guardOrdemUpdateRequest(e) {
   const auth = e.auth;
   const role = auth ? String(auth.get("role")) : "";
+
+  // Cerca de status: vale para todo mundo, inclusive admin.
+  assertHorarioNaoCongelado(e.record);
 
   // admin/gerente: única restrição extra é repasse ser exclusivo de admin.
   if (role === "admin" || role === "gerente") {
@@ -355,6 +385,10 @@ function guardOrdemUpdateRequest(e) {
     "bairro",
     "tipo_servico_nome",
     "data_hora",
+    // duração da OS (agenda): quem remarca/redimensiona é o painel (admin/gerente).
+    // O profissional NÃO estica o próprio serviço via PATCH. Fora do OSExecPatch
+    // do Flutter (core/repositories/repo_types.dart) — os dois lados casam.
+    "duracao_min",
     "valor_servico",
     "endereco_liberado",        // só o hook de modelo escreve
     "aviso_a_caminho_em",       // só a rota /a-caminho escreve (server-side)
@@ -522,6 +556,7 @@ module.exports = {
   assertPaymentIfConcluida,
   setRepasseIfConcluida,
   assertServiceIsToday,
+  assertHorarioNaoCongelado,
   guardOrdemUpdateRequest,
   triggerRatingWebhookIfConcluida,
 };

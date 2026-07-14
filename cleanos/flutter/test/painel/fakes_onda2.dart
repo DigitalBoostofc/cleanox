@@ -206,9 +206,9 @@ class FakeUsuarios implements UsuariosRepository {
   @override
   Future<User> getOne(String id) => _unused();
   @override
-  Future<User> create(Map<String, dynamic> data) => _unused();
+  Future<User> create(Map<String, dynamic> data, {AvatarUpload? avatar}) => _unused();
   @override
-  Future<User> update(String id, Map<String, dynamic> data) => _unused();
+  Future<User> update(String id, Map<String, dynamic> data, {AvatarUpload? avatar}) => _unused();
   @override
   Future<void> delete(String id) => _unused();
 }

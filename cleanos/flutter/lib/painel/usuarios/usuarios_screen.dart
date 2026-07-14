@@ -303,20 +303,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final clx = context.clx;
-    final dn = user.displayName;
-    final initial = dn != '—' && dn.isNotEmpty ? dn[0].toUpperCase() : 'U';
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: clx.accent,
-      child: Text(
-        initial,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+    return UserAvatar(user: user, radius: 18);
   }
 }
 

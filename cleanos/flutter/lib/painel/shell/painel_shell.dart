@@ -56,9 +56,11 @@ class PainelShell extends ConsumerWidget {
     );
 
     // Fintech Clean (doc 12): bottom nav de 5 itens em TODO Android — celular
-    // E tablet, sem NavigationRail no APK (decisão do dono P-2). Só a Web
-    // segue com sidebar/rail/drawer responsivo abaixo.
-    if (ref.watch(isFintechCleanProvider)) {
+    // E tablet, sem NavigationRail no APK (decisão do dono P-2).
+    // Web estreita: mesmo casco (via isNarrowWeb no app builder + largura).
+    final fintechApk = ref.watch(isFintechCleanProvider);
+    final narrowWebFlag = ref.watch(isNarrowWebProvider);
+    if (fintechApk) {
       return FintechPainelScaffold(
         navigationShell: navigationShell,
         section: section,
@@ -66,26 +68,27 @@ class PainelShell extends ConsumerWidget {
       );
     }
 
-    // Lido aqui (fora do LayoutBuilder) para que a assinatura seja registrada
-    // em build() — não durante o callback de layout.
-    final themeMode = ref.watch(themeModeControllerProvider);
-
     final items = navItemsForRole(role);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
 
-        // ── NARROW WEB ────────────────────────────────────────────────────────
-        // kIsWeb é uma const de compilação: em testes (VM) sempre false, então
-        // este branch é código morto nos testes — o layout clássico abaixo é
-        // o único exercitado. Em produção web + largura < 600dp mostra o mesmo
-        // visual fintech do APK, com o tema aplicado via Theme() wrapper.
-        if (kIsWeb && width < ClxLayout.narrowBreakpoint) {
+        // ── NARROW WEB (< 600dp) ───────────────────────────────────────────────
+        // Mesmo casco Easypay do APK: top bar + avatar + bottom nav 5 itens.
+        // Desktop web (≥ 600dp) NÃO entra aqui — sidebar/rail intactos.
+        //
+        // [isNarrowWebProvider] costuma vir true do builder do MaterialApp
+        // (app.dart). Mantemos também o check de largura (kIsWeb) como rede
+        // de segurança se o flag não estiver na árvore.
+        final narrowWeb = narrowWebFlag ||
+            (kIsWeb && width < ClxLayout.narrowBreakpoint);
+        if (narrowWeb) {
+          final dark = Theme.of(context).brightness == Brightness.dark;
           return ProviderScope(
             overrides: [isNarrowWebProvider.overrideWithValue(true)],
             child: Theme(
-              data: themeMode == ThemeMode.dark
+              data: dark
                   ? buildFintechDarkTheme()
                   : buildFintechLightTheme(),
               child: FintechPainelScaffold(
@@ -97,58 +100,21 @@ class PainelShell extends ConsumerWidget {
           );
         }
 
-        final isDesktop = width >= _desktopBreakpoint;
-
-        if (isDesktop) {
-          return Scaffold(
-            backgroundColor: clx.bg2,
-            body: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: ClxLayout.sidebarW,
-                  child: _Sidebar(
-                    items: items,
-                    active: section,
-                    role: role,
-                    showClose: false,
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _TopBar(section: section, showMenu: false),
-                      Expanded(child: _Content(child: navigationShell)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Tablet/janela média (600–1023dp): NavigationRail fixo (MD3).
+        // ── DESKTOP / TABLET WEB (≥ 600dp) ──────────────────────────────────
+        // Casco estilo “dashboard flutuante” (ref. Shakuro): canvas cinza,
+        // shell branco arredondado + rail escuro de ícones + conteúdo.
+        // APK e web estreita já saíram acima (FintechPainelScaffold).
         if (width >= ClxLayout.narrowBreakpoint) {
-          return Scaffold(
-            backgroundColor: clx.bg2,
-            body: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _NavRail(items: items, active: section),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _TopBar(section: section, showMenu: false),
-                      Expanded(child: _Content(child: navigationShell)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          return _DesktopAppShell(
+            items: items,
+            section: section,
+            role: role,
+            navigationShell: navigationShell,
+            compact: width < _desktopBreakpoint,
           );
         }
 
-        // Compact (<600dp): sidebar em Drawer, hambúrguer na AppBar.
+        // Compact residual (não-web / edge): drawer clássico.
         return Scaffold(
           backgroundColor: clx.bg2,
           drawer: Drawer(
@@ -172,8 +138,578 @@ class PainelShell extends ConsumerWidget {
   }
 }
 
-/// Área de conteúdo: limita a ~1200px e alinha ao topo. O [child] é o
-/// `StatefulNavigationShell` (IndexedStack das seções).
+/// Canvas + shell flutuante branco (desktop web) com entrada animada.
+class _DesktopAppShell extends ConsumerWidget {
+  const _DesktopAppShell({
+    required this.items,
+    required this.section,
+    required this.role,
+    required this.navigationShell,
+    this.compact = false,
+  });
+
+  final List<PainelNavItem> items;
+  final PainelSection section;
+  final Role? role;
+  final StatefulNavigationShell navigationShell;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clx = context.clx;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pad = compact ? 12.0 : 20.0;
+    final radius = compact ? 22.0 : 28.0;
+
+    return Scaffold(
+      // Canvas externo (cinza suave / preto no dark).
+      backgroundColor: isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE6EAEE),
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(pad),
+          child: ClxScaleFade(
+            beginScale: 0.94,
+            duration: ClxMotion.emphasizedDuration,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: clx.bg,
+                borderRadius: BorderRadius.circular(radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+                    blurRadius: 40,
+                    offset: const Offset(0, 16),
+                  ),
+                  BoxShadow(
+                    color: clx.primary.withValues(alpha: 0.06),
+                    blurRadius: 60,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(radius),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _IconRail(
+                      items: items,
+                      active: section,
+                      role: role,
+                      compact: compact,
+                    ),
+                    Expanded(
+                      child: ColoredBox(
+                        // Fundo suave: o conteúdo “flutua” em cards brancos.
+                        color: clx.bg2,
+                        child: Column(
+                          children: [
+                            _DesktopTopBar(section: section),
+                            Expanded(
+                              // Card da página cola nas bordas úteis (sem “faixa”
+                              // incompleta em volta do Financeiro/listas).
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  compact ? 10 : 14,
+                                  0,
+                                  compact ? 10 : 14,
+                                  compact ? 10 : 14,
+                                ),
+                                child: _FloatingPage(
+                                  child: _Content(child: navigationShell),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rail escuro: **recolhido** (só ícones) ou **expandido** (ícone + nome).
+/// Seta no meio da borda direita alterna o estado.
+class _IconRail extends ConsumerStatefulWidget {
+  const _IconRail({
+    required this.items,
+    required this.active,
+    required this.role,
+    this.compact = false,
+  });
+
+  final List<PainelNavItem> items;
+  final PainelSection active;
+  final Role? role;
+  final bool compact;
+
+  @override
+  ConsumerState<_IconRail> createState() => _IconRailState();
+}
+
+class _IconRailState extends ConsumerState<_IconRail> {
+  static const _railBg = Color(0xFF12181C);
+  static const double _collapsedW = 76;
+  static const double _expandedW = 228;
+
+  /// Começa recolhido (como no mock) — clique na seta abre os nomes.
+  bool _expanded = false;
+
+  void _toggle() => setState(() => _expanded = !_expanded);
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final user = ref.watch(currentUserProvider);
+    final items = widget.items;
+    final active = widget.active;
+    final collapsedW = widget.compact ? 64.0 : _collapsedW;
+    final width = _expanded ? _expandedW : collapsedW;
+
+    return AnimatedContainer(
+          duration: ClxMotion.emphasizedDuration,
+          curve: ClxMotion.emphasized,
+          width: width,
+          color: _railBg,
+          child: SafeArea(
+            right: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                // Marca + nome quando expandido.
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: _expanded ? 14 : 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: _expanded
+                        ? MainAxisAlignment.start
+                        : MainAxisAlignment.center,
+                    children: [
+                      ClxPulse(
+                        minScale: 0.97,
+                        maxScale: 1.05,
+                        period: const Duration(milliseconds: 1800),
+                        child: Tooltip(
+                          message: kAppDisplayName,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: clx.primary,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: clx.primary.withValues(alpha: 0.5),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.cleaning_services_rounded,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Gap DENTRO do Expanded: com gap fixo fora, os primeiros
+                      // frames da expansão (largura ainda ~76) estouravam a Row
+                      // em 4px (logo 40 + gap 12 > 48 úteis).
+                      if (_expanded) ...[
+                        Expanded(
+                          child: AnimatedOpacity(
+                            opacity: _expanded ? 1 : 0,
+                            duration: ClxMotion.standardDuration,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Text(
+                                kAppDisplayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _expanded ? 10 : 10,
+                    ),
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        _RailIcon(
+                          icon: items[i].icon,
+                          label: items[i].label,
+                          selected: items[i].section == active,
+                          expanded: _expanded,
+                          onTap: () =>
+                              context.go(painelPath(items[i].section)),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    children: [
+                      // Seta logo acima do boneco (Minha Conta).
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Center(
+                          child: Material(
+                            color: clx.primary,
+                            elevation: 3,
+                            shadowColor: clx.primary.withValues(alpha: 0.35),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: _toggle,
+                              child: Tooltip(
+                                message: _expanded
+                                    ? 'Recolher menu'
+                                    : 'Expandir menu',
+                                child: SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: Center(
+                                    child: AnimatedRotation(
+                                      turns: _expanded ? 0.5 : 0,
+                                      duration: ClxMotion.standardDuration,
+                                      curve: ClxMotion.emphasized,
+                                      child: const Icon(
+                                        Icons.chevron_right_rounded,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      _RailIcon(
+                        icon: Icons.person_outline_rounded,
+                        label: 'Minha Conta',
+                        selected: active == PainelSection.conta,
+                        expanded: _expanded,
+                        onTap: () =>
+                            context.go(painelPath(PainelSection.conta)),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _expanded ? 12 : 0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: _expanded
+                              ? MainAxisAlignment.start
+                              : MainAxisAlignment.center,
+                          children: [
+                            Tooltip(
+                              message: user?.displayName ?? 'Conta',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: () => context.go(
+                                    painelPath(PainelSection.conta),
+                                  ),
+                                  child: UserAvatar(user: user, radius: 18),
+                                ),
+                              ),
+                            ),
+                            if (_expanded) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  user?.displayName ?? 'Usuário',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _RailIcon(
+                        icon: Icons.logout_rounded,
+                        label: 'Sair',
+                        selected: false,
+                        expanded: _expanded,
+                        onTap: () =>
+                            ref.read(authServiceProvider).logout(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+}
+
+class _RailIcon extends StatelessWidget {
+  const _RailIcon({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final fg = selected
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.62);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Tooltip(
+        // Tooltip só no recolhido (quando expandido o nome já aparece).
+        message: expanded ? '' : label,
+        child: ClxPressScale(
+          onTap: onTap,
+          scale: 0.94,
+          child: AnimatedContainer(
+            duration: ClxMotion.standardDuration,
+            curve: ClxMotion.emphasized,
+            height: 48,
+            padding: EdgeInsets.symmetric(horizontal: expanded ? 10 : 0),
+            alignment: expanded ? Alignment.centerLeft : Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? clx.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: clx.primary.withValues(alpha: 0.5),
+                        blurRadius: 16,
+                        offset: const Offset(0, 5),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: expanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: selected ? 1.08 : 1.0,
+                  duration: ClxMotion.shortDuration,
+                  curve: ClxMotion.emphasized,
+                  child: Icon(icon, size: 22, color: fg),
+                ),
+                if (expanded) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AnimatedOpacity(
+                      opacity: expanded ? 1 : 0,
+                      duration: ClxMotion.standardDuration,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: fg,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600,
+                          fontSize: 13.5,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top bar limpa dentro do shell (título + tema).
+class _DesktopTopBar extends ConsumerWidget {
+  const _DesktopTopBar({required this.section});
+
+  final PainelSection section;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clx = context.clx;
+    final mode = ref.watch(themeModeControllerProvider);
+    final user = ref.watch(currentUserProvider);
+
+    // Top bar no fundo suave (fora do card flutuante da página).
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.fromLTRB(28, 8, 20, 8),
+      color: clx.bg2,
+      child: Row(
+        children: [
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: ClxMotion.standardDuration,
+              switchInCurve: ClxMotion.emphasized,
+              switchOutCurve: ClxMotion.emphasizedAccelerate,
+              transitionBuilder: (child, anim) {
+                return FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.25),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                );
+              },
+              child: Text(
+                painelTitle(section),
+                key: ValueKey(section),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                ),
+              ),
+            ),
+          ),
+          ClxPressScale(
+            onTap: () =>
+                ref.read(themeModeControllerProvider.notifier).toggle(),
+            child: IconButton(
+              tooltip: 'Alternar tema',
+              icon: AnimatedSwitcher(
+                duration: ClxMotion.shortDuration,
+                transitionBuilder: (child, anim) =>
+                    RotationTransition(turns: anim, child: child),
+                child: Icon(
+                  mode == ThemeMode.dark
+                      ? Icons.light_mode_outlined
+                      : Icons.dark_mode_outlined,
+                  key: ValueKey(mode),
+                  color: clx.ink2,
+                ),
+              ),
+              onPressed: () =>
+                  ref.read(themeModeControllerProvider.notifier).toggle(),
+            ),
+          ),
+          if (user != null && user.email.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 8),
+              child: ClxFadeSlide(
+                delay: const Duration(milliseconds: 120),
+                offset: const Offset(0.2, 0),
+                child: Text(
+                  user.email,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: clx.ink3,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Superfície flutuante onde as páginas vivem — **preenche 100%** do espaço
+/// (largura + altura) para a borda do card fechar em volta do conteúdo.
+class _FloatingPage extends StatelessWidget {
+  const _FloatingPage({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClxScaleFade(
+      beginScale: 0.985,
+      duration: ClxMotion.standardDuration,
+      child: SizedBox.expand(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: clx.bg,
+            borderRadius: ClxRadii.rXl,
+            border: Border.all(
+              color: clx.line2.withValues(alpha: isDark ? 0.5 : 0.9),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+              BoxShadow(
+                color: clx.primary.withValues(alpha: 0.05),
+                blurRadius: 40,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: ClxRadii.rXl,
+            child: ColoredBox(
+              // Fundo contínuo até a borda (listas curtas não “quebram” o card).
+              color: clx.bg,
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Conteúdo da seção: ocupa 100% do card flutuante.
 class _Content extends StatelessWidget {
   const _Content({required this.child});
 
@@ -181,13 +717,7 @@ class _Content extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: ClxLayout.contentMaxW),
-        child: child,
-      ),
-    );
+    return SizedBox.expand(child: child);
   }
 }
 
@@ -279,103 +809,8 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
   }
 }
 
-/// NavigationRail da janela média: mesmas seções da sidebar, com "Minha
-/// Conta" e logout no rodapé. Rolável para não estourar em janelas baixas.
-class _NavRail extends ConsumerWidget {
-  const _NavRail({required this.items, required this.active});
-
-  final List<PainelNavItem> items;
-  final PainelSection active;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final clx = context.clx;
-    final selected = items.indexWhere((i) => i.section == active);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: clx.bgSidebar,
-        border: Border(right: BorderSide(color: clx.line)),
-      ),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, c) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: c.maxHeight),
-              child: IntrinsicHeight(
-                child: NavigationRail(
-                  backgroundColor: Colors.transparent,
-                  labelType: NavigationRailLabelType.all,
-                  selectedIndex: selected >= 0 ? selected : null,
-                  onDestinationSelected: (i) =>
-                      context.go(painelPath(items[i].section)),
-                  leading: Padding(
-                    padding: const EdgeInsets.only(
-                      top: ClxSpace.x2,
-                      bottom: ClxSpace.x3,
-                    ),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: clx.primary,
-                        borderRadius: ClxRadii.rMd,
-                      ),
-                      child: const Icon(
-                        Icons.cleaning_services_rounded,
-                        size: 18,
-                        color: ClxBrand.onPrimary,
-                      ),
-                    ),
-                  ),
-                  trailing: Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: ClxSpace.x2),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: 'Minha Conta',
-                              icon: Icon(
-                                Icons.person_outline_rounded,
-                                color: active == PainelSection.conta
-                                    ? clx.primary
-                                    : clx.ink2,
-                              ),
-                              onPressed: () =>
-                                  context.go(painelPath(PainelSection.conta)),
-                            ),
-                            IconButton(
-                              tooltip: 'Sair',
-                              icon: Icon(Icons.logout_rounded, color: clx.ink2),
-                              onPressed: () =>
-                                  ref.read(authServiceProvider).logout(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  destinations: [
-                    for (final item in items)
-                      NavigationRailDestination(
-                        icon: Icon(item.icon),
-                        label: Text(item.label),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Sidebar: marca + navegação por papel + rodapé (usuário/conta + logout).
+/// Usada no drawer residual; desktop usa [_IconRail].
 class _Sidebar extends ConsumerWidget {
   const _Sidebar({
     required this.items,
@@ -402,7 +837,6 @@ class _Sidebar extends ConsumerWidget {
     final clx = context.clx;
     final user = ref.watch(currentUserProvider);
     final dn = user?.displayName ?? '—';
-    final avatarInitial = dn != '—' ? dn[0].toUpperCase() : 'U';
 
     return Container(
       decoration: BoxDecoration(
@@ -438,7 +872,7 @@ class _Sidebar extends ConsumerWidget {
                   const SizedBox(width: ClxSpace.x2),
                   Expanded(
                     child: Text(
-                      'CleanOS',
+                      kAppDisplayName,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: clx.ink,
                         fontWeight: FontWeight.w800,
@@ -486,17 +920,8 @@ class _Sidebar extends ConsumerWidget {
                         padding: const EdgeInsets.all(ClxSpace.x1),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: clx.accent,
-                              child: Text(
-                                avatarInitial,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                            // Foto real quando houver; senão iniciais (UserAvatar).
+                            UserAvatar(user: user, radius: 16),
                             const SizedBox(width: ClxSpace.x2),
                             Expanded(
                               child: Column(

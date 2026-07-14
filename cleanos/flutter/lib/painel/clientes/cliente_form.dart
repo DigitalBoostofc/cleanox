@@ -26,6 +26,7 @@ import '../../core/models/cliente.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/config_atuacao.dart';
 import '../data/painel_providers.dart';
+import '../ordens/ordens_controller.dart';
 import 'os_inline_section.dart';
 
 /// Abre o formulário de cliente. [editing] nulo = criar. Resolve `true` se salvou.
@@ -67,6 +68,10 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
   late final TextEditingController _observacoes;
 
   bool _ativo = true;
+
+  /// Origem do lead selecionada (slug). `null` = não informado.
+  String? _origem;
+
   bool _saving = false;
   String? _saveError;
   final Map<String, String> _errs = {};
@@ -108,6 +113,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
     _estado = TextEditingController(text: c?.enderecoEstado ?? '');
     _observacoes = TextEditingController(text: c?.observacoes ?? '');
     _ativo = c?.ativo ?? true;
+    _origem = (c?.origem ?? '').isEmpty ? null : c!.origem;
     _loadConfig();
   }
 
@@ -265,6 +271,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
       'endereco_estado': _estado.text.trim(),
       'endereco_cep': _cep.text.trim(),
       'ativo': _ativo,
+      'origem': _origem ?? '',
       'observacoes': _observacoes.text.trim(),
     };
     try {
@@ -308,6 +315,11 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
             }
             return;
           }
+          // OS criada por aqui não passa pelo controller da lista de OS, e o
+          // shell mantém aquela aba viva (IndexedStack) com estado velho —
+          // então avisamos a lista/contadores pra refletir sem refresh manual.
+          ref.read(ordensControllerProvider.notifier).refresh();
+          ref.invalidate(ordensCountsProvider);
         }
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -439,6 +451,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
                     textCapitalization: TextCapitalization.characters,
                   ),
                 ),
+                _origemField(clx),
                 _field(
                   label: 'Observações',
                   controller: _observacoes,
@@ -682,6 +695,35 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
             onChanged: _saving
                 ? null
                 : (v) => setState(() => _cidade.text = v ?? ''),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dropdown "Origem" — de onde veio o lead. Opcional (permite "— Selecionar —").
+  Widget _origemField(CleanoxColors clx) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _fieldLabel('Origem'),
+          const SizedBox(height: ClxSpace.x1),
+          DropdownButtonFormField<String>(
+            initialValue: _origem ?? '',
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('— Selecionar —')),
+              for (final (slug, rotulo) in Cliente.origemOpcoes)
+                DropdownMenuItem(value: slug, child: Text(rotulo)),
+            ],
+            onChanged: _saving
+                ? null
+                : (v) => setState(
+                    () => _origem = (v == null || v.isEmpty) ? null : v,
+                  ),
           ),
         ],
       ),

@@ -134,8 +134,9 @@ void main() {
       await tester.tap(find.text('Carlos Silva').last);
       await tester.pumpAndSettle();
 
-      // Valor (índice 2: picker=0, tipo=1, valor=2).
-      await tester.enterText(osFormFieldAt(2), '150');
+      // Valor (índice 3: picker=0, tipo=1, hora=2, valor=3). A Hora virou entrada
+      // LIVRE 'HH:MM' (agenda estilo Google) e entrou na frente do Valor.
+      await tester.enterText(osFormFieldAt(3), '150');
       await tester.pump();
 
       // Data: abre o date picker e confirma (hoje).

@@ -263,6 +263,9 @@ ThemeData _build(Brightness brightness, CleanoxColors clx) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: isDark ? clx.bg2 : clx.bg,
+      // Hint em cinza "muted" (ink3): deixa claro que é só um exemplo, não o
+      // dado digitado (que usa `ink`). Sem isso o placeholder confunde.
+      hintStyle: textTheme.bodyLarge?.copyWith(color: clx.ink3),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: ClxSpace.x4,
         vertical: ClxSpace.x3,

@@ -1,20 +1,11 @@
-/// fintech_balance_hero.dart — Hero de saldo do Financeiro (Opção B, doc 12
-/// §2.5, Onda 3): único elemento das telas do Financeiro que a troca de
-/// `ThemeData` sozinha não cobre — o mock inverte a superfície (fundo `ink`,
-/// texto `bg`) mesmo no tema claro, o que não é um papel padrão do
-/// `ColorScheme`/`CleanoxColors` (nenhum dos dois define "card com cores
-/// trocadas"). Exibido no APK e na web estreita (&lt;600dp) quando
-/// `FinVisaoGeralScreen` liga o modo fintech; no desktop web clássico a
-/// tela usa a grade de KPIs sem este hero.
+/// fintech_balance_hero.dart — Hero de saldo estilo Easypay (gradiente + glow).
 library;
 
 import 'package:flutter/material.dart';
 
 import '../../../core/design/design.dart';
 
-/// Card escuro (claro no tema escuro — inversão proposital, ver doc 12 §2.5)
-/// com o saldo em destaque. `label`/`hint` usam `clx.bg`/`clx.bg2` com opacidade
-/// reduzida para contraste AA sobre `clx.ink`.
+/// Card com gradiente petrol→teal e valor em destaque.
 class FintechBalanceHero extends StatelessWidget {
   const FintechBalanceHero({
     super.key,
@@ -33,55 +24,95 @@ class FintechBalanceHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    // Texto sobre o fundo invertido: `clx.bg` é o par de contraste de `clx.ink`
-    // nos dois temas (ink claro → bg escuro vira o texto; ink escuro → bg claro
-    // vira o texto), preservando AA sem precisar de um token novo.
-    final onInk = clx.bg;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x5,
-        vertical: ClxSpace.x5,
-      ),
-      decoration: BoxDecoration(color: clx.ink, borderRadius: ClxRadii.rXl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: onInk.withValues(alpha: 0.65)),
-              const SizedBox(width: ClxSpace.x1),
-              Text(
-                label.toUpperCase(),
-                style: tt.labelMedium?.copyWith(
-                  color: onInk.withValues(alpha: 0.65),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-              ),
+    return ClxFadeSlide(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x5,
+          vertical: ClxSpace.x5,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              clx.accent,
+              Color.lerp(clx.accent, clx.primary, 0.5)!,
+              clx.primary,
             ],
           ),
-          const SizedBox(height: ClxSpace.x1),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: tt.displayLarge?.copyWith(color: onInk, letterSpacing: -1),
-          ),
-          if (hint != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              hint!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodySmall?.copyWith(
-                color: onInk.withValues(alpha: 0.55),
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: clx.primary.withValues(alpha: 0.28),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
             ),
           ],
-        ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -24,
+              top: -36,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                    const SizedBox(width: ClxSpace.x1),
+                    Text(
+                      label.toUpperCase(),
+                      style: tt.labelMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: ClxSpace.x1),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.displayLarge?.copyWith(
+                    color: Colors.white,
+                    letterSpacing: -1,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    hint!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

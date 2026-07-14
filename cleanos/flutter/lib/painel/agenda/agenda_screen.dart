@@ -11,33 +11,92 @@
 /// eventos, alvos de toque ≥ 48dp. PT-BR, BRT (UTC-3).
 library;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_layout.dart';
 import '../../core/auth/auth_providers.dart';
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import '../usuarios/disponibilidade_editor.dart';
 import 'agenda_controller.dart';
+import 'ajuste_sheet.dart';
+import 'day_column.dart';
 
 /// Abaixo disto, usa as variantes mobile (listas/compacto).
 const double _kMobileBreakpoint = 760;
-const double _kTimeColW = 56;
-const double _kHourRowH = 60;
 
-class AgendaScreen extends ConsumerWidget {
+class AgendaScreen extends ConsumerStatefulWidget {
   const AgendaScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AgendaScreen> createState() => _AgendaScreenState();
+}
+
+class _AgendaScreenState extends ConsumerState<AgendaScreen> {
+  /// REFRESH-ON-FOCUS (spec §9 / R-M7). O `StatefulShellRoute.indexedStack`
+  /// mantém esta tela VIVA para sempre (o branch fica offstage, não é destruído),
+  /// então sem isto a agenda ficaria congelada no dia/estado de quando foi aberta
+  /// — inclusive "hoje", depois da meia-noite.
+  ///
+  /// O go_router embrulha cada branch num `TickerMode(enabled: isActive)`; o
+  /// notifier dele é o sinal de foco mais barato e confiável que existe aqui.
+  ValueListenable<bool>? _foco;
+  bool _visivel = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final n = TickerMode.getNotifier(context);
+    if (n != _foco) {
+      _foco?.removeListener(_onFoco);
+      _foco = n..addListener(_onFoco);
+      _visivel = n.value;
+    }
+  }
+
+  void _onFoco() {
+    final visivel = _foco?.value ?? true;
+    final voltou = visivel && !_visivel;
+    _visivel = visivel;
+    if (voltou && mounted) {
+      ref.read(agendaControllerProvider.notifier).refreshOnFocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _foco?.removeListener(_onFoco);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(agendaControllerProvider);
+    final easypay =
+        ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
+
+    // Falha no drop: avisa e devolve o bloco ao lugar (o rollback já rodou).
+    ref.listen<AgendaState>(agendaControllerProvider, (prev, next) {
+      final msg = next.dragError;
+      if (msg == null || msg == prev?.dragError) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger == null) return;
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+      ref.read(agendaControllerProvider.notifier).limparDragError();
+    });
+
     return Column(
       children: [
-        const _Toolbar(),
-        Expanded(child: _Body(state: state)),
+        if (easypay) const _EasypayToolbar() else const _Toolbar(),
+        Expanded(child: _Body(state: state, easypay: easypay)),
       ],
     );
   }
@@ -196,11 +255,80 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
+/* ─────────────────────────── Toolbar Easypay ─────────────────────────── */
+
+class _EasypayToolbar extends ConsumerWidget {
+  const _EasypayToolbar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clx = context.clx;
+    final state = ref.watch(agendaControllerProvider);
+    final notifier = ref.read(agendaControllerProvider.notifier);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Anterior',
+                onPressed: notifier.goPrev,
+                icon: Icon(Icons.chevron_left_rounded, color: clx.ink2),
+              ),
+              Expanded(
+                child: Text(
+                  agendaPeriodLabel(state.view, state.anchor),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.ink,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Próximo',
+                onPressed: notifier.goNext,
+                icon: Icon(Icons.chevron_right_rounded, color: clx.ink2),
+              ),
+              TextButton(
+                onPressed: notifier.goToday,
+                child: const Text('Hoje'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SegmentedButton<AgendaView>(
+            segments: const [
+              ButtonSegment(value: AgendaView.dia, label: Text('Dia')),
+              ButtonSegment(value: AgendaView.semana, label: Text('Semana')),
+              ButtonSegment(value: AgendaView.mes, label: Text('Mês')),
+            ],
+            selected: {state.view},
+            showSelectedIcon: false,
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              backgroundColor: WidgetStateProperty.resolveWith((s) {
+                if (s.contains(WidgetState.selected)) {
+                  return clx.primary.withValues(alpha: 0.16);
+                }
+                return clx.bg;
+              }),
+            ),
+            onSelectionChanged: (s) => notifier.setView(s.first),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /* ─────────────────────────── Corpo ─────────────────────────── */
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.state});
+  const _Body({required this.state, this.easypay = false});
   final AgendaState state;
+  final bool easypay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,26 +350,73 @@ class _Body extends ConsumerWidget {
 
     void openOS(OrdemServico os) => showDialog<void>(
       context: context,
-      builder: (_) => _OSDetailDialog(os: os),
+      builder: (_) => _OSDetailDialog(
+        os: os,
+        disp: state.dispByProf[os.profissional ?? ''],
+      ),
     );
 
     final notifier = ref.read(agendaControllerProvider.notifier);
-    final today = _todayDate();
+
+    /// FASE 3 (APK / web estreita): long-press no card → sheet de ajuste (D3).
+    /// Sem grade nem arraste no celular (R4) — os steppers de ±15 fazem o papel.
+    void ajustarOS(OrdemServico os) {
+      final brt = agendaEventBrt(os);
+      // D6 + drop em voo: sem sheet (o card nem chama, mas a guarda fica aqui
+      // também — é o único caminho de escrita da agenda no celular).
+      if (brt == null || !osAjustavel(os) || state.pendentes.contains(os.id)) {
+        return;
+      }
+      final dia = DateTime(brt.year, brt.month, brt.day);
+      showAjusteOsSheet(
+        context,
+        os: os,
+        dia: dia,
+        hoje: state.hoje,
+        disp: state.dispByProf[os.profissional ?? ''],
+        ocupados: _ocupadosDoDia(state, os, dia),
+        onSalvar: (d, startMin, duracaoMin) => notifier.ajustarOs(
+          os,
+          dia: d,
+          startMin: startMin,
+          duracaoMin: duracaoMin,
+        ),
+      );
+    }
+
+    // "Hoje" vem do estado (recalculado no refresh-on-focus — R-M7), não de um
+    // `DateTime.now()` solto: é o piso do arraste (D7) e o realce da coluna.
+    final today = state.hoje;
 
     return LayoutBuilder(
       builder: (context, c) {
-        final mobile = c.maxWidth < _kMobileBreakpoint;
+        final mobile = c.maxWidth < _kMobileBreakpoint || easypay;
         switch (state.view) {
           case AgendaView.semana:
             return mobile
-                ? _MobileWeekView(state: state, today: today, onTap: openOS)
-                : _WeekView(state: state, today: today, onTap: openOS);
+                ? _MobileWeekView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    onAjustar: ajustarOS,
+                    easypay: easypay,
+                    // Toque só seleciona o dia; arraste da faixa muda o período.
+                    onSelectDay: notifier.setSelectedDay,
+                    onWindowStart: (d) => notifier.setWeekWindowStart(d),
+                  )
+                : _WeekView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    notifier: notifier,
+                  );
           case AgendaView.mes:
             return mobile
                 ? _MobileMonthView(
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onAjustar: ajustarOS,
                     onSelectDay: notifier.setSelectedDay,
                   )
                 : _MonthView(
@@ -252,32 +427,82 @@ class _Body extends ConsumerWidget {
                   );
           case AgendaView.dia:
             return mobile
-                ? _MobileDayView(state: state, today: today, onTap: openOS)
-                : _DayView(state: state, today: today, onTap: openOS);
+                ? _MobileDayView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    onAjustar: ajustarOS,
+                    easypay: easypay,
+                  )
+                : _DayView(
+                    state: state,
+                    today: today,
+                    onTap: openOS,
+                    notifier: notifier,
+                  );
         }
       },
     );
   }
 }
 
-DateTime _todayDate() {
-  final d = DateTime.tryParse(todayLocalDate()) ?? DateTime.now();
-  return DateTime(d.year, d.month, d.day);
+/// OS que OCUPAM a agenda do MESMO profissional no [dia] — base do aviso de
+/// sobreposição do sheet (D11, a mesma regra do formulário): fora `concluida` e
+/// `cancelada` (reagendar no mesmo dia não pode gerar aviso fantasma) e fora a
+/// própria [os].
+///
+/// Sai do estado JÁ carregado (nenhuma ida ao servidor) e ignora o filtro de
+/// profissional da tela — filtrar a VISTA não pode esconder um conflito real.
+/// OS sem profissional não tem agenda a colidir: sem aviso (idem formulário).
+List<Intervalo> _ocupadosDoDia(
+  AgendaState state,
+  OrdemServico os,
+  DateTime dia,
+) {
+  final prof = os.profissional ?? '';
+  if (prof.isEmpty) return const [];
+  final disp = state.dispByProf[prof];
+  return [
+    for (final o in state.osList)
+      if (o.id != os.id &&
+          (o.profissional ?? '') == prof &&
+          o.status != OSStatus.concluida &&
+          o.status != OSStatus.cancelada)
+        if (agendaEventBrt(o) case final brt? when sameDay(brt, dia))
+          intervaloDaOs(o, disp),
+  ];
 }
 
 /* ─────────────────────────── Semana (desktop) ─────────────────────────── */
 
 class _WeekView extends StatelessWidget {
-  const _WeekView({required this.state, required this.today, required this.onTap});
+  const _WeekView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.notifier,
+  });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final AgendaController notifier;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final ws = startOfWeek(state.anchor);
     final days = [for (var i = 0; i < 7; i++) addDays(ws, i)];
+    final eventosPorDia = [for (final d in days) state.eventsForDay(d)];
+    // Janela ÚNICA para os 7 dias: sem isso as linhas de hora não alinham entre
+    // as colunas (um evento às 5h num dia deslocaria só aquela coluna).
+    final janela = janelaCompartilhada([
+      for (final eventos in eventosPorDia)
+        [
+          for (final os in eventos)
+            intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+        ],
+    ]);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -289,7 +514,7 @@ class _WeekView extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const SizedBox(width: _kTimeColW),
+              const SizedBox(width: kAgendaReguaW),
               for (final d in days)
                 Expanded(child: _WeekDayHeader(day: d, isToday: sameDay(d, today))),
             ],
@@ -297,25 +522,27 @@ class _WeekView extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            child: Column(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final h in kAgendaHours)
-                  // IntrinsicHeight dá uma altura LIMITADA ao `stretch` da Row:
-                  // dentro do scroll vertical a altura entrante é infinita e o
-                  // stretch sozinho forçaria altura infinita nas células (crash).
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _HourLabel(hour: h),
-                        for (final d in days)
-                          Expanded(
-                            child: _WeekCell(
-                              events: state.eventsForHour(d, h),
-                              onTap: onTap,
-                            ),
-                          ),
-                      ],
+                AgendaHourGutter(dayStart: janela.inicio, dayEnd: janela.fim),
+                for (var i = 0; i < days.length; i++)
+                  Expanded(
+                    child: DayColumn(
+                      day: days[i],
+                      events: eventosPorDia[i],
+                      onTap: onTap,
+                      dayStart: janela.inicio,
+                      dayEnd: janela.fim,
+                      dispByProf: state.dispByProf,
+                      // Semana desktop: arrasta e MUDA DE DIA (D8).
+                      editable: true,
+                      permiteCrossDay: true,
+                      hoje: today,
+                      pendentes: state.pendentes,
+                      onMover: (os, dia, startMin) =>
+                          notifier.moverOs(os, dia: dia, startMin: startMin),
+                      onRedimensionar: notifier.redimensionarOs,
                     ),
                   ),
               ],
@@ -365,58 +592,7 @@ class _WeekDayHeader extends StatelessWidget {
   }
 }
 
-class _HourLabel extends StatelessWidget {
-  const _HourLabel({required this.hour});
-  final int hour;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      width: _kTimeColW,
-      constraints: const BoxConstraints(minHeight: _kHourRowH),
-      alignment: Alignment.topRight,
-      padding: const EdgeInsets.only(right: ClxSpace.x2, top: ClxSpace.x1),
-      decoration: BoxDecoration(
-        color: clx.bg2,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Text(
-        '${hour}h',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: clx.ink3),
-      ),
-    );
-  }
-}
-
-class _WeekCell extends StatelessWidget {
-  const _WeekCell({required this.events, required this.onTap});
-  final List<OrdemServico> events;
-  final ValueChanged<OrdemServico> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      constraints: const BoxConstraints(minHeight: _kHourRowH),
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: clx.line),
-          bottom: BorderSide(color: clx.line),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final os in events) _EventChip(os: os, onTap: onTap),
-        ],
-      ),
-    );
-  }
-}
-
-/// Evento compacto (semana/mês): hora + nome curto, cor do status.
+/// Evento compacto (mês): hora + nome curto, cor do status.
 class _EventChip extends StatelessWidget {
   const _EventChip({required this.os, required this.onTap});
   final OrdemServico os;
@@ -610,16 +786,30 @@ class _MonthDayCell extends StatelessWidget {
 /* ─────────────────────────── Dia (desktop) ─────────────────────────── */
 
 class _DayView extends StatelessWidget {
-  const _DayView({required this.state, required this.today, required this.onTap});
+  const _DayView({
+    required this.state,
+    required this.today,
+    required this.onTap,
+    required this.notifier,
+  });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final AgendaController notifier;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final day = state.anchor;
     final isToday = sameDay(day, today);
+    final events = state.eventsForDay(day);
+    final janela = janelaCompartilhada([
+      [
+        for (final os in events)
+          intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+      ],
+    ]);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -642,10 +832,29 @@ class _DayView extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            child: Column(
+            padding: const EdgeInsets.only(right: ClxSpace.x4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final h in kAgendaHours)
-                  _DaySlot(hour: h, events: state.eventsForHour(day, h), onTap: onTap),
+                AgendaHourGutter(dayStart: janela.inicio, dayEnd: janela.fim),
+                Expanded(
+                  child: DayColumn(
+                    day: day,
+                    events: events,
+                    onTap: onTap,
+                    dayStart: janela.inicio,
+                    dayEnd: janela.fim,
+                    dispByProf: state.dispByProf,
+                    // Visão dia: arrasta no tempo, mas não há coluna vizinha —
+                    // sem cross-day (o arraste horizontal é ignorado).
+                    editable: true,
+                    hoje: today,
+                    pendentes: state.pendentes,
+                    onMover: (os, dia, startMin) =>
+                        notifier.moverOs(os, dia: dia, startMin: startMin),
+                    onRedimensionar: notifier.redimensionarOs,
+                  ),
+                ),
               ],
             ),
           ),
@@ -655,116 +864,96 @@ class _DayView extends StatelessWidget {
   }
 }
 
-class _DaySlot extends StatelessWidget {
-  const _DaySlot({required this.hour, required this.events, required this.onTap});
-  final int hour;
-  final List<OrdemServico> events;
-  final ValueChanged<OrdemServico> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      constraints: const BoxConstraints(minHeight: _kHourRowH),
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x4,
-        vertical: ClxSpace.x2,
-      ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 48,
-            child: Text(
-              '${hour}h',
-              style: Theme.of(context).textTheme.labelMedium
-                  ?.copyWith(color: clx.ink3),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final os in events) _DayEventTile(os: os, onTap: onTap),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DayEventTile extends StatelessWidget {
-  const _DayEventTile({required this.os, required this.onTap});
-  final OrdemServico os;
-  final ValueChanged<OrdemServico> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    final prof = os.expand?.profissional?.displayName;
-    return InkWell(
-      onTap: () => onTap(os),
-      borderRadius: ClxRadii.rMd,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: ClxSpace.x2),
-        padding: const EdgeInsets.symmetric(
-          horizontal: ClxSpace.x3,
-          vertical: ClxSpace.x2,
-        ),
-        decoration: BoxDecoration(
-          color: clx.statusBg(os.status),
-          borderRadius: ClxRadii.rMd,
-          border: Border(
-            left: BorderSide(color: clx.statusColor(os.status), width: 3),
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(
-              formatTime(os.dataHora),
-              style: tt.bodyMedium?.copyWith(
-                color: clx.ink,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: ClxSpace.x2),
-            Expanded(
-              child: Text(
-                '${os.nomeCurto.isEmpty ? '—' : os.nomeCurto} — '
-                '${os.tipoServicoNome ?? '—'}'
-                '${prof != null && prof != '—' ? ' · $prof' : ''}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: tt.bodyMedium?.copyWith(color: clx.ink2),
-              ),
-            ),
-            StatusBadge(status: os.status, dense: true),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /* ─────────────────────────── Mobile ─────────────────────────── */
 
 /// Mini-card usado nas visões mobile (dia/semana/mês).
+///
+/// **Toque** abre o detalhe; **long-press** abre o sheet de ajuste (Fase 3/D3) —
+/// só nas OS `agendada`/`atribuida` (D6): nas demais o gesto simplesmente não
+/// existe, e nenhum enfeite promete o que a OS não pode fazer.
 class _AgendaMiniCard extends StatelessWidget {
-  const _AgendaMiniCard({required this.os, required this.onTap});
+  const _AgendaMiniCard({
+    required this.os,
+    required this.onTap,
+    this.onAjustar,
+    this.disp,
+    this.easypay = false,
+  });
   final OrdemServico os;
   final ValueChanged<OrdemServico> onTap;
 
+  /// Long-press → ajuste por sheet. Null (ou status travado) = sem gesto.
+  final ValueChanged<OrdemServico>? onAjustar;
+
+  /// Disponibilidade do profissional — 2º degrau do fallback de duração (D9).
+  final Disponibilidade? disp;
+  final bool easypay;
+
   @override
   Widget build(BuildContext context) {
+    final card = KeyedSubtree(
+      key: ValueKey('agenda-card-${os.id}'),
+      child: _card(context),
+    );
+    final ajustar = onAjustar;
+    if (ajustar == null || !osAjustavel(os)) return card;
+    return GestureDetector(
+      // Presente SÓ nas OS ajustáveis (D6) — é a afordância do long-press.
+      key: ValueKey('agenda-card-lp-${os.id}'),
+      // O toque continua chegando no InkWell do card (a arena dá o tap pra ele e
+      // o long-press pra este detector, como num ListTile).
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        ajustar(os);
+      },
+      child: card,
+    );
+  }
+
+  Widget _card(BuildContext context) {
     final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
     final prof = os.expand?.profissional?.displayName;
+    // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
+    // tabela — R4.
+    final faixa = faixaHorariaDaOs(os, disp);
+    if (easypay) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+        child: ClxFadeSlide(
+          child: EasypayListCard(
+            onTap: () => onTap(os),
+            stripeColor: clx.statusColor(os.status),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                gradient: LinearGradient(
+                  colors: [
+                    clx.primary.withValues(alpha: 0.18),
+                    clx.accent.withValues(alpha: 0.1),
+                  ],
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                formatTime(os.dataHora),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: clx.accent,
+                ),
+              ),
+            ),
+            title: os.nomeCurto.isEmpty ? '—' : os.nomeCurto,
+            subtitle:
+                '$faixa · ${os.tipoServicoNome ?? '—'}'
+                '${prof != null && prof != '—' ? ' · $prof' : ''}',
+            trailing: StatusBadge(status: os.status, dense: true),
+          ),
+        ),
+      );
+    }
+    final tt = Theme.of(context).textTheme;
     return InkWell(
       onTap: () => onTap(os),
       borderRadius: ClxRadii.rMd,
@@ -785,8 +974,8 @@ class _AgendaMiniCard extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              formatTime(os.dataHora),
-              style: tt.bodyMedium?.copyWith(
+              faixa,
+              style: tt.bodySmall?.copyWith(
                 color: clx.ink,
                 fontWeight: FontWeight.w800,
               ),
@@ -829,10 +1018,14 @@ class _MobileDayView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    this.onAjustar,
+    this.easypay = false,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
+  final bool easypay;
 
   @override
   Widget build(BuildContext context) {
@@ -854,7 +1047,14 @@ class _MobileDayView extends StatelessWidget {
         if (events.isEmpty)
           const _EmptyDay()
         else
-          for (final os in events) _AgendaMiniCard(os: os, onTap: onTap),
+          for (final os in events)
+            _AgendaMiniCard(
+              os: os,
+              onTap: onTap,
+              onAjustar: onAjustar,
+              easypay: easypay,
+              disp: state.dispByProf[os.profissional ?? ''],
+            ),
       ],
     );
   }
@@ -865,16 +1065,78 @@ class _MobileWeekView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    this.onAjustar,
+    this.easypay = false,
+    this.onSelectDay,
+    this.onWindowStart,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
+  final bool easypay;
+  final ValueChanged<DateTime>? onSelectDay;
+  final ValueChanged<DateTime>? onWindowStart;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final ws = startOfWeek(state.anchor);
+    // Janela rolante: 7 dias a partir de [anchor] (não força segunda-feira).
+    final ws = DateTime(state.anchor.year, state.anchor.month, state.anchor.day);
     final days = [for (var i = 0; i < 7; i++) addDays(ws, i)];
+    final focus = state.selectedDay;
+    final focusDay = days.any((d) => sameDay(d, focus))
+        ? focus
+        : (sameDay(focus, today) ? today : days.first);
+    final dayEvents = state.eventsForDay(focusDay)
+      ..sort((a, b) => a.dataHora.compareTo(b.dataHora));
+
+    if (easypay) {
+      return Column(
+        children: [
+          EasypayWeekStrip(
+            selected: focusDay,
+            today: today,
+            windowStart: ws,
+            onSelect: (d) => onSelectDay?.call(d),
+            onWindowStart: (d) => onWindowStart?.call(d),
+          ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: ClxMotion.standardDuration,
+              switchInCurve: ClxMotion.emphasized,
+              switchOutCurve: Curves.easeIn,
+              child: dayEvents.isEmpty
+                  ? const Center(
+                      key: ValueKey('empty-day'),
+                      child: EmptyState(
+                        icon: Icons.event_busy_outlined,
+                        title: 'Sem atendimentos neste dia',
+                        message:
+                            'Arraste a faixa para ver outros dias, ou toque num dia.',
+                      ),
+                    )
+                  : ListView.builder(
+                      key: ValueKey(
+                        'day-${focusDay.year}-${focusDay.month}-${focusDay.day}',
+                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      itemCount: dayEvents.length,
+                      itemBuilder: (context, i) => _AgendaMiniCard(
+                        os: dayEvents[i],
+                        onTap: onTap,
+                        onAjustar: onAjustar,
+                        easypay: true,
+                        disp:
+                            state.dispByProf[dayEvents[i].profissional ?? ''],
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final anyEvents = days.any((d) => state.eventsForDay(d).isNotEmpty);
     if (!anyEvents) {
       return const Center(
@@ -914,7 +1176,12 @@ class _MobileWeekView extends StatelessWidget {
             ),
             for (final os in state.eventsForDay(d)
               ..sort((a, b) => a.dataHora.compareTo(b.dataHora)))
-              _AgendaMiniCard(os: os, onTap: onTap),
+              _AgendaMiniCard(
+                os: os,
+                onTap: onTap,
+                onAjustar: onAjustar,
+                disp: state.dispByProf[os.profissional ?? ''],
+              ),
             const SizedBox(height: ClxSpace.x3),
           ],
       ],
@@ -928,10 +1195,12 @@ class _MobileMonthView extends StatelessWidget {
     required this.today,
     required this.onTap,
     required this.onSelectDay,
+    this.onAjustar,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<OrdemServico>? onAjustar;
   final ValueChanged<DateTime> onSelectDay;
 
   @override
@@ -988,7 +1257,13 @@ class _MobileMonthView extends StatelessWidget {
         if (selectedEvents.isEmpty)
           const _EmptyDay()
         else
-          for (final os in selectedEvents) _AgendaMiniCard(os: os, onTap: onTap),
+          for (final os in selectedEvents)
+            _AgendaMiniCard(
+              os: os,
+              onTap: onTap,
+              onAjustar: onAjustar,
+              disp: state.dispByProf[os.profissional ?? ''],
+            ),
       ],
     );
   }
@@ -1080,8 +1355,9 @@ class _EmptyDay extends StatelessWidget {
 /* ─────────────────────────── Detalhe da OS ─────────────────────────── */
 
 class _OSDetailDialog extends StatelessWidget {
-  const _OSDetailDialog({required this.os});
+  const _OSDetailDialog({required this.os, this.disp});
   final OrdemServico os;
+  final Disponibilidade? disp;
 
   @override
   Widget build(BuildContext context) {
@@ -1112,6 +1388,13 @@ class _OSDetailDialog extends StatelessWidget {
           _row(clx, tt, 'Bairro', os.bairro.isEmpty ? '—' : os.bairro),
           _row(clx, tt, 'Serviço', os.tipoServicoNome ?? '—'),
           _row(clx, tt, 'Data / Hora', formatDateTime(os.dataHora)),
+          _row(
+            clx,
+            tt,
+            'Duração',
+            '${duracaoEfetivaMin(os, disp)} min '
+            '(${faixaHorariaDaOs(os, disp)})',
+          ),
           _row(clx, tt, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
           if (os.status == OSStatus.concluida) ...[
             const SizedBox(height: ClxSpace.x2),
