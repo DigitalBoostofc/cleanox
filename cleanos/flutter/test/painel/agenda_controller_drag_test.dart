@@ -378,6 +378,84 @@ void main() {
     expect(_estado(m.container).pendentes, isEmpty);
   });
 
+  test('ajustarOs (sheet do APK): início + duração num ÚNICO PATCH', () async {
+    final m = _montar([_os('a', '08:00', duracaoMin: 60)]);
+    await _tick();
+
+    final salvar = m.ctrl.ajustarOs(
+      _acha(_estado(m.container), 'a'),
+      dia: _hoje,
+      startMin: 8 * 60 + 15,
+      duracaoMin: 75,
+    );
+
+    expect(m.ordens.updateCount, 1, reason: 'um PATCH, não um por campo');
+    expect(m.ordens.lastUpdateBody, {
+      'data_hora': _pb('08:15'),
+      'duracao_min': 75,
+    });
+    // Otimista na tela, e a OS fica "em voo" (não aceita outro ajuste).
+    expect(_acha(_estado(m.container), 'a').dataHora, _pb('08:15'));
+    expect(_estado(m.container).pendentes, {'a'});
+
+    m.ordens.gateUpdate!.complete(_os('a', '08:15', duracaoMin: 75));
+    await salvar;
+    expect(_estado(m.container).pendentes, isEmpty);
+  });
+
+  test('ajustarOs manda SÓ o campo que mudou', () async {
+    final m = _montar([_os('a', '08:00', duracaoMin: 60)]);
+    await _tick();
+    final os = _acha(_estado(m.container), 'a');
+
+    m.ctrl.ajustarOs(os, dia: _hoje, startMin: 8 * 60, duracaoMin: 90);
+    expect(m.ordens.lastUpdateBody, {'duracao_min': 90});
+    m.ordens.gateUpdate!.complete(_os('a', '08:00', duracaoMin: 90));
+    await _tick();
+
+    m.ctrl.ajustarOs(
+      _acha(_estado(m.container), 'a'),
+      dia: _hoje,
+      startMin: 9 * 60,
+      duracaoMin: 90,
+    );
+    expect(m.ordens.lastUpdateBody, {'data_hora': _pb('09:00')});
+  });
+
+  test('ajustarOs sem mudança nenhuma não gasta PATCH', () async {
+    final m = _montar([_os('a', '08:00', duracaoMin: 60)]);
+    await _tick();
+
+    await m.ctrl.ajustarOs(
+      _acha(_estado(m.container), 'a'),
+      dia: _hoje,
+      startMin: 8 * 60,
+      duracaoMin: 60,
+    );
+
+    expect(m.ordens.updateCount, 0);
+  });
+
+  test('ajustarOs falhou: rollback devolve horário E duração', () async {
+    final m = _montar([_os('a', '08:00', duracaoMin: 60)]);
+    await _tick();
+
+    final salvar = m.ctrl.ajustarOs(
+      _acha(_estado(m.container), 'a'),
+      dia: _hoje,
+      startMin: 10 * 60,
+      duracaoMin: 30,
+    );
+    m.ordens.gateUpdate!.completeError(Exception('500'));
+    await salvar;
+
+    final s = _estado(m.container);
+    expect(_acha(s, 'a').dataHora, _pb('08:00'));
+    expect(_acha(s, 'a').duracaoMin, 60);
+    expect(s.dragError, isNotNull);
+    expect(s.pendentes, isEmpty);
+  });
+
   test('refresh-on-focus recalcula HOJE e leva a âncora junto (R-M7)', () async {
     var agora = _hojeUtc;
     final m = _montar([_os('a', '08:00')], now: () => agora);
