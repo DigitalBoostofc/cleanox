@@ -58,9 +58,16 @@ const pago = require('../../pb/pb_hooks/prof_comissao_pago_lib.js')
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 
-/** Registro mockado: get(campo) do mapa. */
+/** Registro mockado: get/set sobre o mapa. */
 function rec(fields, id = 'com1') {
-  return { id, get: (k) => fields[k], _data: fields }
+  return {
+    id,
+    get: (k) => fields[k],
+    set: (k, v) => {
+      fields[k] = v
+    },
+    _data: fields,
+  }
 }
 
 /**
@@ -142,7 +149,16 @@ function mockApp({ lancamentos = [], categorias, contas } = {}) {
 
 /** Lançamento já existente ligado a uma comissão. */
 function lancDe(comissaoId, id = 'lanc_existente') {
-  return rec({ comissao_id: comissaoId, tipo: 'despesa', valor: 60 }, id)
+  return rec(
+    {
+      comissao_id: comissaoId,
+      tipo: 'despesa',
+      valor: 60,
+      status: 'pago',
+      origem: 'via_comissao',
+    },
+    id,
+  )
 }
 
 const COMISSAO_PAGA = () =>
@@ -234,23 +250,39 @@ describe('(a) pendente → paga cria a DESPESA (F-231)', () => {
 
 // ── (b) paga → pendente: estorna ─────────────────────────────────────────────
 
-describe('(b) paga → pendente ESTORNA a despesa', () => {
-  it('apaga o lançamento da comissão (o fin_saldo devolve o saldo)', () => {
-    const { app, saved, deleted } = mockApp({ lancamentos: [lancDe('com1')] })
+describe('(b) paga → pendente mantém a despesa em aberto', () => {
+  // Ciclo dono 2026-07: desmarcar paga NÃO apaga o lançamento — só volta a
+  // pendente (visível em Movimentações / a pagar). Saldo estorna via fin_saldo
+  // no update status pago→pendente.
+  it('atualiza o lançamento para status pendente (não apaga)', () => {
+    const existente = lancDe('com1')
+    existente.set('status', 'pago')
+    const { app, saved, deleted } = mockApp({ lancamentos: [existente] })
     const voltou = rec({ status: 'pendente', valor_comissao: 60 }, 'com1')
 
     pago.sincronizarLancamento(app, voltou, 'paga')
 
-    assert.equal(deleted.length, 1, 'deve apagar o lançamento')
-    assert.equal(deleted[0].id, 'lanc_existente')
-    assert.equal(saved.length, 0, 'estorno não cria lançamento novo')
+    assert.equal(deleted.length, 0, 'não apaga a despesa ao voltar a pendente')
+    assert.equal(saved.length, 1, 'grava o status pendente')
+    assert.equal(saved[0].get('status'), 'pendente')
   })
 
-  it('não explode se o lançamento já não existir (apagado à mão no painel)', () => {
-    const { app, deleted } = mockApp({ lancamentos: [] })
-    const voltou = rec({ status: 'pendente' }, 'com1')
+  it('cria despesa pendente se o lançamento não existir', () => {
+    const { app, saved, deleted } = mockApp({ lancamentos: [] })
+    const voltou = rec(
+      {
+        status: 'pendente',
+        valor_comissao: 60,
+        profissional: 'p1',
+        profissional_nome: 'João',
+        os: 'os1',
+      },
+      'com1',
+    )
     assert.doesNotThrow(() => pago.sincronizarLancamento(app, voltou, 'paga'))
     assert.equal(deleted.length, 0)
+    assert.equal(saved.length, 1)
+    assert.equal(saved[0].get('status'), 'pendente')
   })
 })
 
@@ -261,7 +293,13 @@ describe('(c) idempotência', () => {
     // 2ª chamada: o lançamento da 1ª já existe na base.
     const { app, saved } = mockApp({ lancamentos: [lancDe('com1')] })
     pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'pendente')
-    assert.equal(saved.length, 0, 'já existe lançamento pra esta comissão; não duplica')
+    // Pode regravar o existente (alinha categoria/status), mas NÃO cria outro id.
+    const novos = saved.filter((s) => s.id === 'lanc_novo')
+    assert.equal(
+      novos.length,
+      0,
+      'já existe lançamento pra esta comissão; não cria segundo',
+    )
   })
 
   it('salvar a comissão SEM mudar o status não mexe no financeiro', () => {

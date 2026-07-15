@@ -1,12 +1,15 @@
-/// fin_paridade_test.dart — Testes de paridade Flutter↔React para:
-/// • CategoriaForm: seletor mãe (reparent/promote/herança de tipo), ícone
-///   texto livre (round-trip desconhecido, vazio→'tag'), cor hex + presets.
-/// • FinLimitesScreen: aceita 0, rejeita negativo/vazio, card "Limite zerado".
+/// fin_paridade_test.dart — Testes de paridade para:
+/// • CategoriaForm: seletor mãe, alocação automática de ícone/cor,
+///   herança de subcategoria.
+/// • FinLimitesScreen: aceita 0, rejeita negativo/vazio, card sem limite.
 library;
+
+import 'dart:math' show Random;
 
 import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/painel/financeiro/categorias/categoria_form.dart';
+import 'package:cleanos/painel/financeiro/fin_labels.dart';
 import 'package:cleanos/painel/financeiro/fin_limites_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
 import 'package:flutter/material.dart';
@@ -144,7 +147,9 @@ void main() {
 
         // Hint de herança deve aparecer.
         expect(
-          find.text('A subcategoria herda o tipo da categoria-mãe.'),
+          find.text(
+            'A subcategoria herda o tipo, o símbolo e a cor da categoria-mãe.',
+          ),
           findsOneWidget,
         );
 
@@ -218,13 +223,76 @@ void main() {
     });
   });
 
-  // ─── CategoriaForm: ícone texto livre ─────────────────────────────────────
+  // ─── Alocação automática de ícone/cor ────────────────────────────────────
 
-  group('CategoriaForm — ícone', () {
+  group('alocarIconeCorCategoria', () {
+    test('raiz nova evita ícone e cor já usados', () {
+      final existentes = [
+        fakeCategoria(id: 'a', nome: 'A', icone: 'tag', cor: '#EF4444'),
+        fakeCategoria(id: 'b', nome: 'B', icone: 'cash', cor: '#F97316'),
+      ];
+      final aloc = alocarIconeCorCategoria(
+        existentes: existentes,
+        random: Random(42),
+      );
+      expect(aloc.icone, isNot(anyOf('tag', 'cash')));
+      expect(aloc.cor.toUpperCase(), isNot(anyOf('#EF4444', '#F97316')));
+      expect(kFinCategoriaIcons.containsKey(aloc.icone), isTrue);
+      expect(
+        kFinCategoriaCoresPool.map((c) => c.toUpperCase()),
+        contains(aloc.cor.toUpperCase()),
+      );
+    });
+
+    test('subcategoria herda ícone e cor da mãe', () {
+      final mae = fakeCategoria(
+        id: 'mae',
+        nome: 'Mãe',
+        icone: 'truck',
+        cor: '#3B82F6',
+      );
+      final aloc = alocarIconeCorCategoria(
+        existentes: [mae],
+        parentId: 'mae',
+      );
+      expect(aloc.icone, 'truck');
+      expect(aloc.cor, '#3B82F6');
+    });
+
+    test('subs não contam para unicidade de raiz', () {
+      final mae = fakeCategoria(
+        id: 'mae',
+        nome: 'Mãe',
+        icone: 'tag',
+        cor: '#EF4444',
+      );
+      final sub = fakeCategoria(
+        id: 'sub',
+        nome: 'Sub',
+        parentId: 'mae',
+        icone: 'tag',
+        cor: '#EF4444',
+      );
+      // Única raiz usa tag/#EF4444; sub não bloqueia outros slots além da raiz.
+      final aloc = alocarIconeCorCategoria(
+        existentes: [mae, sub],
+        random: Random(1),
+      );
+      expect(aloc.icone, isNot('tag'));
+      expect(aloc.cor.toUpperCase(), isNot('#EF4444'));
+    });
+  });
+
+  group('CategoriaForm — ícone/cor automáticos', () {
     testWidgets(
-      'ícone desconhecido "spray-can" é preservado no save sem tocar',
+      'edição preserva ícone e cor da raiz',
       (tester) async {
-        final cat = fakeCategoria(id: 'x', nome: 'Cat').copyWith(icone: 'spray-can');
+        final cat = fakeCategoria(
+          id: 'x',
+          nome: 'Cat',
+          icone: 'spray-can',
+          cor: '#AABBCC',
+        );
         final fake = FakeFinanceiro(categorias: [cat]);
 
         await _pumpForm(tester, fake: fake, editing: cat);
@@ -233,86 +301,14 @@ void main() {
         await tester.pump();
 
         expect(fake.lastUpdateCategoria?['icone'], 'spray-can');
-      },
-    );
-
-    testWidgets('ícone vazio → "tag" no save', (tester) async {
-      final fake = FakeFinanceiro();
-
-      await _pumpForm(tester, fake: fake);
-
-      // Limpa o campo de ícone.
-      final iconeField = find.byWidgetPredicate(
-        (w) =>
-            w is TextField &&
-            w.decoration?.hintText == 'Ex.: spray-can, truck, home',
-      );
-      await tester.enterText(iconeField, '');
-      await tester.pump();
-
-      // Preenche nome obrigatório.
-      final nomeField = find.byWidgetPredicate(
-        (w) =>
-            w is TextField &&
-            w.decoration?.hintText == 'Ex.: Marketing, Salários, Vendas',
-      );
-      await tester.enterText(nomeField, 'Nova');
-      await tester.pump();
-
-      await tester.tap(find.text('Salvar'));
-      await tester.pump();
-
-      expect(fake.lastCreateCategoria?['icone'], 'tag');
-    });
-
-    testWidgets('clicar tile de preset preenche campo de ícone', (tester) async {
-      final fake = FakeFinanceiro();
-
-      await _pumpForm(tester, fake: fake);
-
-      // Toca no tile de 'cash' (ícone payments_outlined).
-      await tester.tap(find.byIcon(Icons.payments_outlined));
-      await tester.pump();
-
-      final iconeField = find.byWidgetPredicate(
-        (w) =>
-            w is TextField &&
-            w.decoration?.hintText == 'Ex.: spray-can, truck, home',
-      );
-      expect(tester.widget<TextField>(iconeField).controller?.text, 'cash');
-    });
-  });
-
-  // ─── CategoriaForm: cor hex + presets ─────────────────────────────────────
-
-  group('CategoriaForm — cor', () {
-    testWidgets(
-      'cor desconhecida "#AABBCC" é preservada no save sem tocar',
-      (tester) async {
-        final cat = fakeCategoria(id: 'x', nome: 'Cat').copyWith(cor: '#AABBCC');
-        final fake = FakeFinanceiro(categorias: [cat]);
-
-        await _pumpForm(tester, fake: fake, editing: cat);
-
-        await tester.tap(find.text('Salvar'));
-        await tester.pump();
-
         expect(fake.lastUpdateCategoria?['cor'], '#AABBCC');
       },
     );
 
-    testWidgets('digitar "#FF0000" no campo atualiza cor no save', (
-      tester,
-    ) async {
+    testWidgets('criar raiz grava ícone e cor do pool', (tester) async {
       final fake = FakeFinanceiro();
 
       await _pumpForm(tester, fake: fake);
-
-      final corField = find.byWidgetPredicate(
-        (w) => w is TextField && w.decoration?.hintText == '#0E9F9C',
-      );
-      await tester.enterText(corField, '#FF0000');
-      await tester.pump();
 
       final nomeField = find.byWidgetPredicate(
         (w) =>
@@ -325,45 +321,54 @@ void main() {
       await tester.tap(find.text('Salvar'));
       await tester.pump();
 
-      expect(fake.lastCreateCategoria?['cor'], '#FF0000');
+      final icone = fake.lastCreateCategoria?['icone'] as String?;
+      final cor = fake.lastCreateCategoria?['cor'] as String?;
+      expect(icone, isNotNull);
+      expect(icone, isNotEmpty);
+      expect(kFinCategoriaIcons.containsKey(icone), isTrue);
+      expect(cor, isNotNull);
+      expect(cor!.startsWith('#'), isTrue);
+      expect(find.textContaining('Gerado automaticamente'), findsOneWidget);
     });
 
-    testWidgets('clicar preset "#22C55E" atualiza campo hex', (tester) async {
-      final fake = FakeFinanceiro();
-
-      await _pumpForm(tester, fake: fake);
-
-      final corField = find.byWidgetPredicate(
-        (w) => w is TextField && w.decoration?.hintText == '#0E9F9C',
+    testWidgets('criar sub herda ícone e cor da mãe', (tester) async {
+      final mae = fakeCategoria(
+        id: 'mae',
+        nome: 'Marketing',
+        icone: 'megaphone',
+        cor: '#8B5CF6',
       );
+      final fake = FakeFinanceiro(categorias: [mae]);
 
-      // kPresetCores[3] == '#22C55E' — achamos todos os swatches (círculos) e pegamos o índice 3.
-      final swatches = find.byWidgetPredicate(
+      await _pumpForm(tester, fake: fake, parent: mae, parents: [mae]);
+
+      final nomeField = find.byWidgetPredicate(
         (w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration! as BoxDecoration).shape == BoxShape.circle,
+            w is TextField &&
+            w.decoration?.hintText == 'Ex.: Marketing, Salários, Vendas',
       );
-      await tester.ensureVisible(swatches.at(3));
-      await tester.tap(swatches.at(3));
+      await tester.enterText(nomeField, 'Meta Ads');
       await tester.pump();
 
-      expect(
-        tester.widget<TextField>(corField).controller?.text,
-        '#22C55E',
-      );
+      await tester.tap(find.text('Salvar'));
+      await tester.pump();
+
+      expect(fake.lastCreateCategoria?['icone'], 'megaphone');
+      expect(fake.lastCreateCategoria?['cor'], '#8B5CF6');
+      expect(fake.lastCreateCategoria?['parent_id'], 'mae');
+      expect(find.textContaining('Mesmo símbolo e cor da mãe'), findsOneWidget);
     });
   });
 
-  // ─── Limites: validação e card ─────────────────────────────────────────────
+  // ─── Limites: empty do mês + popover ───────────────────────────────────────
 
-  group('Limites — validação e card', () {
+  group('Limites — Organizze', () {
     List<Override> withFin(FakeFinanceiro fake) => [
       ...painelOverrides(user: painelUser()),
       financeiroRepositoryProvider.overrideWithValue(fake),
     ];
 
-    testWidgets('aceita valor 0: upsert chamado sem erro', (tester) async {
+    testWidgets('mês vazio mostra Definir e Copiar', (tester) async {
       final cat = fakeCategoria(id: 'cat', nome: 'Material');
       final fake = FakeFinanceiro(categorias: [cat]);
 
@@ -374,36 +379,57 @@ void main() {
       );
       await _settle(tester);
 
-      await tester.tap(find.text('Novo limite').first);
+      expect(find.textContaining('Nenhum limite de gasto definido'), findsOneWidget);
+      expect(find.text('Definir limite de gastos'), findsOneWidget);
+      expect(find.text('Copiar os últimos definidos'), findsOneWidget);
+    });
+
+    testWidgets('Definir abre árvore; + e Ok gravam limite 0', (tester) async {
+      final cat = fakeCategoria(id: 'cat', nome: 'Material');
+      final fake = FakeFinanceiro(categorias: [cat]);
+
+      await pumpPainel(
+        tester,
+        const FinLimitesScreen(),
+        overrides: withFin(fake),
+      );
+      await _settle(tester);
+
+      await tester.tap(find.text('Definir limite de gastos'));
       await tester.pumpAndSettle();
 
-      // Seleciona categoria.
-      await tester.tap(find.text('Selecione…'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Material'));
+      expect(find.text('Material'), findsOneWidget);
+      expect(find.text('despesas'), findsOneWidget);
+
+      // Abre popover no + da linha.
+      await tester.tap(find.byIcon(Icons.add).first);
       await tester.pumpAndSettle();
 
-      // Digita 0.
       final valorField = find.byWidgetPredicate(
         (w) => w is TextField && w.decoration?.hintText == '0,00',
       );
+      expect(valorField, findsOneWidget);
       await tester.enterText(valorField, '0');
       await tester.pump();
 
-      await tester.tap(find.text('Salvar'));
-      await tester.pump();
+      await tester.tap(find.text('Ok'));
+      await tester.pumpAndSettle();
 
-      expect(find.text('Informe um teto válido'), findsNothing);
       expect(fake.upsertLimiteCount, 1);
       expect(
         (fake.lastUpsertLimiteData?['limite'] as num?)?.toDouble(),
         0.0,
       );
+      expect(fake.lastUpsertLimiteData?['categoria_id'], 'cat');
+      expect(fake.lastUpsertLimiteData?['ano_mes'], isNotEmpty);
     });
 
-    testWidgets('rejeita valor negativo', (tester) async {
+    testWidgets('limite 0 não mostra "X de Y" (sem teto visual)', (tester) async {
       final cat = fakeCategoria(id: 'cat', nome: 'Material');
-      final fake = FakeFinanceiro(categorias: [cat]);
+      final fake = FakeFinanceiro(
+        categorias: [cat],
+        limites: [fakeLimite(id: 'l', categoriaId: 'cat', limite: 0)],
+      );
 
       await pumpPainel(
         tester,
@@ -412,73 +438,11 @@ void main() {
       );
       await _settle(tester);
 
-      await tester.tap(find.text('Novo limite').first);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Selecione…'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Material'));
-      await tester.pumpAndSettle();
-
-      final valorField = find.byWidgetPredicate(
-        (w) => w is TextField && w.decoration?.hintText == '0,00',
-      );
-      await tester.enterText(valorField, '-10');
-      await tester.pump();
-
-      await tester.tap(find.text('Salvar'));
-      await tester.pump();
-
-      expect(find.text('Informe um teto válido'), findsOneWidget);
-      expect(fake.upsertLimiteCount, 0);
+      expect(find.text('Material'), findsOneWidget);
+      // Totais globais: "0,00 de 0,00"; linha da cat sem teto não repete "R$ 0,00 de R$ 0,00".
+      expect(find.textContaining('0,00 de 0,00'), findsOneWidget);
+      expect(find.textContaining('R\$ 0,00 de R\$ 0,00'), findsNothing);
     });
-
-    testWidgets('rejeita campo de valor vazio', (tester) async {
-      final cat = fakeCategoria(id: 'cat', nome: 'Material');
-      final fake = FakeFinanceiro(categorias: [cat]);
-
-      await pumpPainel(
-        tester,
-        const FinLimitesScreen(),
-        overrides: withFin(fake),
-      );
-      await _settle(tester);
-
-      await tester.tap(find.text('Novo limite').first);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Selecione…'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Material'));
-      await tester.pumpAndSettle();
-
-      // Não digita nada → campo vazio.
-      await tester.tap(find.text('Salvar'));
-      await tester.pump();
-
-      expect(find.text('Informe um teto válido'), findsOneWidget);
-      expect(fake.upsertLimiteCount, 0);
-    });
-
-    testWidgets(
-      'card com limite 0 exibe "Limite zerado" e sem LinearProgressIndicator',
-      (tester) async {
-        final cat = fakeCategoria(id: 'cat', nome: 'Material');
-        final fake = FakeFinanceiro(
-          categorias: [cat],
-          limites: [fakeLimite(id: 'l', categoriaId: 'cat', limite: 0)],
-        );
-
-        await pumpPainel(
-          tester,
-          const FinLimitesScreen(),
-          overrides: withFin(fake),
-        );
-        await _settle(tester);
-
-        expect(find.text('Limite zerado'), findsOneWidget);
-        expect(find.byType(LinearProgressIndicator), findsNothing);
-      },
-    );
   });
 }
+

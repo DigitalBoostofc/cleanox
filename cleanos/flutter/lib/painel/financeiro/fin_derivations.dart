@@ -86,12 +86,31 @@ class ResumoPeriodo {
   static const zero = ResumoPeriodo(entradas: 0, saidas: 0, saldoMes: 0);
 }
 
-/// Σ receitas pagas / Σ despesas pagas / saldo do período (entradas − saídas).
-/// Os lançamentos JÁ devem estar filtrados pelo período desejado.
+/// Lançamento REALIZADO: status `pago`.
+///
+/// **Receita do mês** = só estes:
+/// - `via_os` pago (OS **concluída** com pagamento — o hook promove previsto→pago)
+/// - receita **manual** paga
+///
+/// Receita `previsto` de OS atribuída/em andamento **não** entra no mês
+/// realizado (fica em contas a receber / KPI "Previstas").
+bool isLancamentoRealizado(FinLancamento l) =>
+    l.status == LancamentoStatus.pago;
+
+/// Receita ainda não realizada (previsto/pendente/em atraso) — OS aberta ou
+/// conta a receber manual.
+bool isReceitaPrevista(FinLancamento l) =>
+    l.tipo == TipoLancamento.receita &&
+    l.status != LancamentoStatus.pago;
+
+/// Σ receitas **pagas** / Σ despesas **pagas** / saldo do período.
+///
+/// Ignora previsto/pendente/em_atraso — em especial receita prevista de OS
+/// ainda não concluída. Os lançamentos JÁ devem estar filtrados pelo período.
 ResumoPeriodo resumoPeriodo(List<FinLancamento> lancs) {
   var entradas = 0, saidas = 0;
   for (final l in lancs) {
-    if (l.status != LancamentoStatus.pago) continue;
+    if (!isLancamentoRealizado(l)) continue;
     if (l.tipo == TipoLancamento.receita) {
       entradas += _cents(l.valor);
     } else {
@@ -102,6 +121,75 @@ ResumoPeriodo resumoPeriodo(List<FinLancamento> lancs) {
     entradas: _reais(entradas),
     saidas: _reais(saidas),
     saldoMes: _reais(entradas - saidas),
+  );
+}
+
+/// Σ receitas previstas (não pagas) do conjunto — OS atribuídas + a receber.
+double totalReceitasPrevistas(List<FinLancamento> lancs) {
+  var cents = 0;
+  for (final l in lancs) {
+    if (isReceitaPrevista(l)) cents += _cents(l.valor);
+  }
+  return _reais(cents);
+}
+
+/// Σ despesas ainda não pagas (contas a pagar manuais / em atraso).
+double totalDespesasEmAberto(List<FinLancamento> lancs) {
+  var cents = 0;
+  for (final l in lancs) {
+    if (l.tipo != TipoLancamento.despesa) continue;
+    if (l.status == LancamentoStatus.pago) continue;
+    cents += _cents(l.valor);
+  }
+  return _reais(cents);
+}
+
+/// Compromissos (ainda não são caixa) + projeção simples.
+///
+/// - [aReceber]: receitas previstas (OS futuras + a receber manual)
+/// - [comissoesAPagar]: comissões pendentes da equipe
+/// - [contasAPagar]: despesas em aberto (não comissão, se já nos lancs)
+/// - [resultadoProjetado] = saldo realizado do mês + a receber − comissões − contas
+class CompromissosResumo {
+  const CompromissosResumo({
+    required this.aReceber,
+    required this.comissoesAPagar,
+    required this.contasAPagar,
+    required this.resultadoRealizado,
+  });
+
+  final double aReceber;
+  final double comissoesAPagar;
+  final double contasAPagar;
+  final double resultadoRealizado;
+
+  double get totalAPagar => comissoesAPagar + contasAPagar;
+
+  /// Se tudo se confirmar: realizado + a receber − obrigações.
+  double get resultadoProjetado =>
+      resultadoRealizado + aReceber - totalAPagar;
+
+  static const zero = CompromissosResumo(
+    aReceber: 0,
+    comissoesAPagar: 0,
+    contasAPagar: 0,
+    resultadoRealizado: 0,
+  );
+}
+
+/// Monta [CompromissosResumo] a partir dos lançamentos do período + total de
+/// comissões pendentes (vindas de `prof_comissoes`).
+CompromissosResumo compromissosResumo({
+  required List<FinLancamento> lancsPeriodo,
+  required double comissoesPendentes,
+  ResumoPeriodo? realizado,
+}) {
+  final r = realizado ?? resumoPeriodo(lancsPeriodo);
+  return CompromissosResumo(
+    aReceber: totalReceitasPrevistas(lancsPeriodo),
+    comissoesAPagar: comissoesPendentes < 0 ? 0 : comissoesPendentes,
+    contasAPagar: totalDespesasEmAberto(lancsPeriodo),
+    resultadoRealizado: r.saldoMes,
   );
 }
 
@@ -127,21 +215,24 @@ class GrupoPorData {
   final double totalDia;
 }
 
-/// Agrupa por dia, do mais recente ao mais antigo. `totalDia` = soma com sinal.
+/// Agrupa por dia, do mais recente ao mais antigo.
+///
+/// `totalDia` = só lançamentos **realizados** (pago), com sinal. Itens
+/// previstos continuam na lista do dia, mas **não** entram no total do dia
+/// (regra: receita do mês = OS concluída + manual paga).
 List<GrupoPorData> agruparPorData(List<FinLancamento> lancs) {
   final map = <String, List<FinLancamento>>{};
   for (final l in lancs) {
     (map[dateOnly(l.data)] ??= []).add(l);
   }
   final grupos = map.entries.map((e) {
-    final cents = e.value.fold<int>(
-      0,
-      (s, l) =>
-          s +
+    final cents = e.value.fold<int>(0, (s, l) {
+      if (!isLancamentoRealizado(l)) return s;
+      return s +
           (l.tipo == TipoLancamento.receita
               ? _cents(l.valor)
-              : -_cents(l.valor)),
-    );
+              : -_cents(l.valor));
+    });
     return GrupoPorData(data: e.key, itens: e.value, totalDia: _reais(cents));
   }).toList();
   grupos.sort((a, b) => b.data.compareTo(a.data));

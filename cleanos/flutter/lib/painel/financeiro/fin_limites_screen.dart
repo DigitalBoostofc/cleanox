@@ -1,12 +1,13 @@
-/// fin_limites_screen.dart — Limites de gasto por categoria (`fin_limites`).
+/// fin_limites_screen.dart — Limites de gasto por categoria × mês (Organizze).
 ///
-/// Espelha `LimiteGastos.tsx`: para cada limite, progresso do GASTO (despesas
-/// pagas do período) vs. o TETO, com barra colorida (ok/atenção/estourado). O
-/// seletor de mês (BRT) define o período do gasto. CRUD via modal (upsert por
-/// categoria). Estados carregando/erro/vazio/sucesso.
+/// • Seletor de mês no topo.
+/// • Mês sem limites: "Definir limite de gastos" | "Copiar os últimos definidos".
+/// • Após definir: árvore de todas as categorias/sub de despesa, barra de
+///   progresso pelo gasto do mês, "+" no fim da linha abre popover R$ + Ok.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design.dart';
@@ -19,45 +20,136 @@ import 'fin_form_kit.dart';
 import 'fin_labels.dart';
 import 'fin_providers.dart';
 
-class FinLimitesScreen extends ConsumerWidget {
+String _anoMesOf(FinPeriod p) =>
+    '${p.year.toString().padLeft(4, '0')}-${p.month.toString().padLeft(2, '0')}';
+
+class FinLimitesScreen extends ConsumerStatefulWidget {
   const FinLimitesScreen({super.key});
 
-  Future<void> _form(
-    BuildContext context,
-    WidgetRef ref, {
-    FinLimite? editing,
-    required List<FinCategoria> categorias,
-    required List<FinLimite> existentes,
-  }) async {
-    final saved = await showFinModal<bool>(
-      context,
-      _LimiteForm(
-        editing: editing,
-        categorias: categorias,
-        existentes: existentes,
-      ),
-    );
-    if (saved == true) {
+  @override
+  ConsumerState<FinLimitesScreen> createState() => _FinLimitesScreenState();
+}
+
+class _FinLimitesScreenState extends ConsumerState<FinLimitesScreen> {
+  /// true após clicar "Definir limite de gastos" num mês vazio (mostra a árvore).
+  bool _definindo = false;
+
+  /// Popover de valor aberto nesta categoria.
+  String? _editingCatId;
+  final _valorCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _valorCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Melhor mês anterior (YYYY-MM lexicográfico) com algum limite.
+  String? _ultimoMesComLimites(List<FinLimite> all, String anoMesAtual) {
+    final meses = <String>{};
+    for (final l in all) {
+      final m = l.anoMes;
+      if (m.isNotEmpty && m.compareTo(anoMesAtual) < 0) meses.add(m);
+    }
+    if (meses.isEmpty) return null;
+    final list = meses.toList()..sort();
+    return list.last;
+  }
+
+  Future<void> _copiarUltimos(
+    List<FinLimite> all,
+    String anoMesAtual,
+  ) async {
+    final origem = _ultimoMesComLimites(all, anoMesAtual);
+    if (origem == null) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não há limites em meses anteriores para copiar.',
+          type: ToastType.warning,
+        );
+      }
+      return;
+    }
+    final repo = ref.read(financeiroRepositoryProvider);
+    final fontes = all.where((l) => l.anoMes == origem).toList();
+    try {
+      for (final l in fontes) {
+        await repo.upsertLimite({
+          'categoria_id': l.categoriaId,
+          'limite': l.limite,
+          'ano_mes': anoMesAtual,
+        });
+      }
       ref.invalidate(finLimitesProvider);
-      if (context.mounted) {
-        showClxToast(context, 'Limite salvo.', type: ToastType.success);
+      if (mounted) {
+        setState(() => _definindo = true);
+        showClxToast(
+          context,
+          'Limites de $origem copiados para $anoMesAtual.',
+          type: ToastType.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível copiar os limites.',
+          type: ToastType.error,
+        );
       }
     }
   }
 
-  Future<void> _delete(
-    BuildContext context,
-    WidgetRef ref,
-    FinLimite limite,
-  ) async {
+  Future<void> _salvarLimite({
+    required String categoriaId,
+    required String anoMes,
+    FinLimite? existente,
+  }) async {
+    final valor = parseMoedaBr(_valorCtrl.text);
+    if (valor == null || valor < 0) {
+      showClxToast(context, 'Informe um valor válido.', type: ToastType.warning);
+      return;
+    }
+    setState(() => _saving = true);
     try {
-      await ref.read(financeiroRepositoryProvider).deleteLimite(limite.id);
+      await ref.read(financeiroRepositoryProvider).upsertLimite({
+        if (existente != null) 'id': existente.id,
+        'categoria_id': categoriaId,
+        'limite': valor,
+        'ano_mes': anoMes,
+      });
       ref.invalidate(finLimitesProvider);
-      if (context.mounted) {
+      if (mounted) {
+        setState(() {
+          _editingCatId = null;
+          _saving = false;
+          _valorCtrl.clear();
+        });
+        showClxToast(context, 'Limite salvo.', type: ToastType.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showClxToast(
+          context,
+          'Não foi possível salvar o limite.',
+          type: ToastType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _removerLimite(FinLimite lim) async {
+    try {
+      await ref.read(financeiroRepositoryProvider).deleteLimite(lim.id);
+      ref.invalidate(finLimitesProvider);
+      if (mounted) {
         showClxToast(context, 'Limite removido.', type: ToastType.success);
       }
     } catch (_) {
-      if (context.mounted) {
+      if (mounted) {
         showClxToast(
           context,
           'Não foi possível remover.',
@@ -67,96 +159,150 @@ class FinLimitesScreen extends ConsumerWidget {
     }
   }
 
+  void _abrirPopover(String catId, FinLimite? existente) {
+    setState(() {
+      _editingCatId = catId;
+      _valorCtrl.text = existente == null || existente.limite <= 0
+          ? ''
+          : formatMoedaInput(existente.limite);
+    });
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final limitesAsync = ref.watch(finLimitesProvider);
-    final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
+    final categorias =
+        ref.watch(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
+    final period = ref.watch(finPeriodProvider);
     final periodLancs =
-        ref.watch(finPeriodLancamentosProvider).valueOrNull ?? const [];
+        ref.watch(finPeriodLancamentosProvider).valueOrNull ??
+        const <FinLancamento>[];
+    final anoMes = _anoMesOf(period);
+    final mobile = finIsMobile(context);
+
+    // Ao trocar de mês, sai do modo "definindo" se o novo mês já tem limites.
+    ref.listen(finPeriodProvider, (prev, next) {
+      if (prev != next) {
+        setState(() {
+          _definindo = false;
+          _editingCatId = null;
+        });
+      }
+    });
 
     return Column(
       children: [
-        _Header(
-          onNovo: () {
-            final lims = limitesAsync.valueOrNull ?? const <FinLimite>[];
-            _form(context, ref, categorias: categorias, existentes: lims);
-          },
-        ),
+        _Header(periodLabel: period.label, mobile: mobile),
         Expanded(
           child: FinAsync<List<FinLimite>>(
             value: limitesAsync,
             onRetry: () => ref.invalidate(finLimitesProvider),
-            data: (limites) {
-              if (limites.isEmpty) {
-                return EmptyState(
-                  icon: Icons.speed_outlined,
-                  title: 'Nenhum limite definido',
-                  message:
-                      'Defina tetos de gasto por categoria para acompanhar '
-                      'o orçamento do mês.',
-                  action: ClxButton(
-                    label: 'Novo limite',
-                    icon: Icons.add_rounded,
-                    onPressed: () => _form(
-                      context,
-                      ref,
-                      categorias: categorias,
-                      existentes: limites,
-                    ),
-                  ),
+            data: (allLimites) {
+              final doMes = allLimites
+                  .where((l) => l.anoMes == anoMes)
+                  .toList();
+              // Legado sem ano_mes: conta só no mês corrente se coincidir
+              // com o backfill; senão ignora.
+              final vazio = doMes.isEmpty;
+              final mostrarArvore = !vazio || _definindo;
+
+              if (!mostrarArvore) {
+                return _EmptyMes(
+                  labelMes: period.label,
+                  temAnteriores:
+                      _ultimoMesComLimites(allLimites, anoMes) != null,
+                  onDefinir: () => setState(() => _definindo = true),
+                  onCopiar: () => _copiarUltimos(allLimites, anoMes),
                 );
               }
-              final tree = _buildLimiteTree(limites, categorias);
-              // Totais do mês (estilo Organizze: "despesas X de Y").
+
+              final limByCat = {for (final l in doMes) l.categoriaId: l};
+              final tree = _buildCatTree(categorias);
+
+              // Totais: gasto do mês em despesas + soma dos tetos definidos.
               var gastoAll = 0.0;
               var metaAll = 0.0;
-              for (final l in limites) {
+              for (final l in doMes) {
                 final p = progressoLimite(l, periodLancs);
                 gastoAll += p.gasto;
                 metaAll += p.limite;
               }
+              // Se nenhum teto, ainda mostra o gasto total de despesas do mês.
+              if (doMes.isEmpty) {
+                for (final l in periodLancs) {
+                  if (l.tipo == TipoLancamento.despesa &&
+                      l.status == LancamentoStatus.pago) {
+                    gastoAll += l.valor;
+                  }
+                }
+              }
+
               return ListView(
-                padding: const EdgeInsets.all(ClxSpace.x6),
+                padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x6),
                 children: [
                   _TotaisBar(gasto: gastoAll, meta: metaAll),
-                  const SizedBox(height: ClxSpace.x5),
-                  for (final node in tree) ...[
-                    _LimiteTreeRow(
-                      node: node,
+                  const SizedBox(height: ClxSpace.x6),
+                  for (final root in tree) ...[
+                    _CatLimiteRow(
+                      categoria: root.cat,
+                      limite: limByCat[root.cat.id],
                       periodLancs: periodLancs,
                       indent: false,
-                      onEdit: (lim) => _form(
-                        context,
-                        ref,
-                        editing: lim,
-                        categorias: categorias,
-                        existentes: limites,
+                      editing: _editingCatId == root.cat.id,
+                      valorCtrl: _valorCtrl,
+                      saving: _saving,
+                      onPlus: () =>
+                          _abrirPopover(root.cat.id, limByCat[root.cat.id]),
+                      onOk: () => _salvarLimite(
+                        categoriaId: root.cat.id,
+                        anoMes: anoMes,
+                        existente: limByCat[root.cat.id],
                       ),
-                      onDelete: (lim) => _delete(context, ref, lim),
-                      onAddChild: (parentCat) => _form(
-                        context,
-                        ref,
-                        categorias: categorias,
-                        existentes: limites,
-                      ),
+                      onCancel: () => setState(() {
+                        _editingCatId = null;
+                        _valorCtrl.clear();
+                      }),
+                      onLongRemove: limByCat[root.cat.id] != null
+                          ? () => _removerLimite(limByCat[root.cat.id]!)
+                          : null,
                     ),
-                    for (final child in node.children)
-                      _LimiteTreeRow(
-                        node: child,
+                    for (final sub in root.subs)
+                      _CatLimiteRow(
+                        categoria: sub,
+                        limite: limByCat[sub.id],
                         periodLancs: periodLancs,
                         indent: true,
-                        onEdit: (lim) => _form(
-                          context,
-                          ref,
-                          editing: lim,
-                          categorias: categorias,
-                          existentes: limites,
+                        editing: _editingCatId == sub.id,
+                        valorCtrl: _valorCtrl,
+                        saving: _saving,
+                        onPlus: () =>
+                            _abrirPopover(sub.id, limByCat[sub.id]),
+                        onOk: () => _salvarLimite(
+                          categoriaId: sub.id,
+                          anoMes: anoMes,
+                          existente: limByCat[sub.id],
                         ),
-                        onDelete: (lim) => _delete(context, ref, lim),
-                        onAddChild: (_) {},
+                        onCancel: () => setState(() {
+                          _editingCatId = null;
+                          _valorCtrl.clear();
+                        }),
+                        onLongRemove: limByCat[sub.id] != null
+                            ? () => _removerLimite(limByCat[sub.id]!)
+                            : null,
                       ),
                     const SizedBox(height: ClxSpace.x4),
                   ],
+                  if (tree.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: ClxSpace.x8),
+                      child: Center(
+                        child: Text(
+                          'Nenhuma categoria de despesa cadastrada.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: context.clx.ink3),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
@@ -167,13 +313,17 @@ class FinLimitesScreen extends ConsumerWidget {
   }
 }
 
+/* ─────────────────────── header ─────────────────────── */
+
 class _Header extends StatelessWidget {
-  const _Header({required this.onNovo});
-  final VoidCallback onNovo;
+  const _Header({required this.periodLabel, required this.mobile});
+  final String periodLabel;
+  final bool mobile;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -184,103 +334,119 @@ class _Header extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      // Mobile: período em largura total + botão embaixo (Row original
-      // cortava "+ Novo limite" na borda direita da tela).
-      child: finIsMobile(context)
+      child: mobile
           ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(
-                  width: double.infinity,
-                  child: FinPeriodSelector(expand: true),
+                Text(
+                  'Limite de gastos',
+                  style: tt.titleSmall?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: ClxSpace.x3),
-                ClxButton(
-                  label: 'Novo limite',
-                  icon: Icons.add_rounded,
-                  onPressed: onNovo,
-                  expand: true,
-                ),
+                const FinPeriodSelector(expand: true),
               ],
             )
           : Row(
               children: [
-                const FinPeriodSelector(),
-                const Spacer(),
-                ClxButton(
-                  label: 'Novo limite',
-                  icon: Icons.add_rounded,
-                  onPressed: onNovo,
+                Text(
+                  'Limite de gastos',
+                  style: tt.titleSmall?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                const Spacer(),
+                const FinPeriodSelector(),
               ],
             ),
     );
   }
 }
 
-/* ─────────────────────── árvore (pai → filhos) ─────────────────────── */
+/* ─────────────────────── empty do mês ─────────────────────── */
 
-class _LimiteNode {
-  _LimiteNode({
-    required this.categoria,
-    this.limite,
-    List<_LimiteNode>? children,
-  }) : children = children ?? [];
+class _EmptyMes extends StatelessWidget {
+  const _EmptyMes({
+    required this.labelMes,
+    required this.temAnteriores,
+    required this.onDefinir,
+    required this.onCopiar,
+  });
 
-  final FinCategoria categoria;
-  final FinLimite? limite;
-  final List<_LimiteNode> children;
-}
+  final String labelMes;
+  final bool temAnteriores;
+  final VoidCallback onDefinir;
+  final VoidCallback onCopiar;
 
-/// Agrupa limites em raízes + filhos (estilo Organizze).
-List<_LimiteNode> _buildLimiteTree(
-  List<FinLimite> limites,
-  List<FinCategoria> categorias,
-) {
-  final catById = {for (final c in categorias) c.id: c};
-  final limByCat = {for (final l in limites) l.categoriaId: l};
-  final roots = <String, _LimiteNode>{};
-
-  _LimiteNode ensureRoot(FinCategoria rootCat) {
-    return roots.putIfAbsent(
-      rootCat.id,
-      () => _LimiteNode(
-        categoria: rootCat,
-        limite: limByCat[rootCat.id],
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(ClxSpace.x6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Nenhum limite de gasto definido em $labelMes.',
+                textAlign: TextAlign.center,
+                style: tt.bodyLarge?.copyWith(color: clx.ink3),
+              ),
+              const SizedBox(height: ClxSpace.x5),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onDefinir,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: clx.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: ClxRadii.rMd,
+                    ),
+                  ),
+                  child: const Text(
+                    'Definir limite de gastos',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x3),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: temAnteriores ? onCopiar : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: clx.bg3,
+                    foregroundColor: clx.ink2,
+                    disabledBackgroundColor: clx.bg3,
+                    disabledForegroundColor: clx.ink3,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: ClxRadii.rMd,
+                    ),
+                  ),
+                  child: const Text(
+                    'Copiar os últimos definidos',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
-
-  for (final lim in limites) {
-    final cat = catById[lim.categoriaId] ??
-        FinCategoria(id: lim.categoriaId, nome: 'Categoria');
-    if (cat.parentId == null) {
-      // Limite na raiz.
-      final node = ensureRoot(cat);
-      roots[cat.id] = _LimiteNode(
-        categoria: cat,
-        limite: lim,
-        children: node.children,
-      );
-    } else {
-      final parent = catById[cat.parentId!] ??
-          FinCategoria(id: cat.parentId!, nome: 'Grupo');
-      final root = ensureRoot(parent);
-      // Evita duplicar filho.
-      if (!root.children.any((c) => c.categoria.id == cat.id)) {
-        root.children.add(_LimiteNode(categoria: cat, limite: lim));
-      }
-    }
-  }
-
-  // Ordena filhos e raízes por nome.
-  final list = roots.values.toList()
-    ..sort((a, b) => a.categoria.nome.compareTo(b.categoria.nome));
-  for (final r in list) {
-    r.children.sort((a, b) => a.categoria.nome.compareTo(b.categoria.nome));
-  }
-  return list;
 }
+
+/* ─────────────────────── totais ─────────────────────── */
 
 class _TotaisBar extends StatelessWidget {
   const _TotaisBar({required this.gasto, required this.meta});
@@ -296,29 +462,34 @@ class _TotaisBar extends StatelessWidget {
     final barColor = estourou
         ? clx.error
         : pct >= 0.8
-        ? clx.warning
-        : clx.success;
+            ? clx.warning
+            : clx.success;
     return Column(
       children: [
         Text(
           'despesas',
-          style: tt.labelMedium?.copyWith(color: clx.finExpense),
+          style: tt.labelMedium?.copyWith(
+            color: clx.finExpense,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         Text(
-          '${formatCurrency(gasto)} de ${formatCurrency(meta)}',
+          '${_fmtOrg(gasto)} de ${_fmtOrg(meta)}',
           style: tt.titleMedium?.copyWith(
             color: estourou ? clx.error : clx.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: ClxSpace.x2),
+        const SizedBox(height: ClxSpace.x3),
         ClipRRect(
           borderRadius: ClxRadii.rPill,
           child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 14,
+            value: meta > 0 ? pct : 0,
+            minHeight: 18,
             backgroundColor: clx.bg3,
-            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              meta > 0 ? barColor : clx.bg3,
+            ),
           ),
         ),
       ],
@@ -326,313 +497,332 @@ class _TotaisBar extends StatelessWidget {
   }
 }
 
-/// Linha de limite (raiz ou filha indentada).
-class _LimiteTreeRow extends StatelessWidget {
-  const _LimiteTreeRow({
-    required this.node,
+String _fmtOrg(num v) =>
+    formatCurrency(v).replaceFirst(RegExp(r'^R\$\s*'), '');
+
+/* ─────────────────────── árvore de categorias ─────────────────────── */
+
+class _RootNode {
+  _RootNode(this.cat, this.subs);
+  final FinCategoria cat;
+  final List<FinCategoria> subs;
+}
+
+List<_RootNode> _buildCatTree(List<FinCategoria> cats) {
+  final despesas = cats
+      .where((c) => c.tipo == TipoLancamento.despesa && !c.arquivada)
+      .toList();
+  final roots = despesas.where((c) => c.parentId == null).toList()
+    ..sort((a, b) => a.nome.compareTo(b.nome));
+  return [
+    for (final r in roots)
+      _RootNode(
+        r,
+        despesas.where((c) => c.parentId == r.id).toList()
+          ..sort((a, b) => a.nome.compareTo(b.nome)),
+      ),
+  ];
+}
+
+/* ─────────────────────── linha de categoria ─────────────────────── */
+
+class _CatLimiteRow extends StatelessWidget {
+  const _CatLimiteRow({
+    required this.categoria,
+    required this.limite,
     required this.periodLancs,
     required this.indent,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onAddChild,
+    required this.editing,
+    required this.valorCtrl,
+    required this.saving,
+    required this.onPlus,
+    required this.onOk,
+    required this.onCancel,
+    this.onLongRemove,
   });
 
-  final _LimiteNode node;
+  final FinCategoria categoria;
+  final FinLimite? limite;
   final List<FinLancamento> periodLancs;
   final bool indent;
-  final void Function(FinLimite) onEdit;
-  final void Function(FinLimite) onDelete;
-  final void Function(FinCategoria) onAddChild;
+  final bool editing;
+  final TextEditingController valorCtrl;
+  final bool saving;
+  final VoidCallback onPlus;
+  final VoidCallback onOk;
+  final VoidCallback onCancel;
+  final VoidCallback? onLongRemove;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    final lim = node.limite;
+    final lim = limite;
     final prog = lim != null
         ? progressoLimite(lim, periodLancs)
-        : const ProgressoLimite(gasto: 0, limite: 0, pct: 0);
+        : ProgressoLimite(
+            gasto: _gastoCat(categoria.id, periodLancs),
+            limite: 0,
+            pct: 0,
+          );
     final temLimite = lim != null && lim.limite > 0;
     final estourou = temLimite && prog.gasto > prog.limite;
     final atencao = temLimite && prog.pct >= 0.8 && !estourou;
     final barColor = !temLimite
         ? clx.bg3
         : estourou
-        ? clx.error
-        : atencao
-        ? clx.warning
-        : clx.success;
+            ? clx.error
+            : atencao
+                ? clx.warning
+                : clx.success;
+    final cor = finParseHex(categoria.cor) ?? clx.primary;
 
     return Padding(
       padding: EdgeInsets.only(
-        left: indent ? ClxSpace.x6 : 0,
-        bottom: ClxSpace.x3,
+        left: indent ? ClxSpace.x8 : 0,
+        bottom: ClxSpace.x4,
       ),
-      child: InkWell(
-        onTap: lim != null ? () => onEdit(lim) : null,
-        borderRadius: ClxRadii.rMd,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (indent)
+                Padding(
+                  padding: const EdgeInsets.only(right: ClxSpace.x2),
+                  child: Icon(
+                    Icons.subdirectory_arrow_right_rounded,
+                    size: 14,
+                    color: clx.ink3,
+                  ),
+                )
+              else
                 Container(
-                  width: indent ? 26 : 30,
-                  height: indent ? 26 : 30,
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(right: ClxSpace.x2),
                   decoration: BoxDecoration(
-                    color: (finParseHex(node.categoria.cor) ?? clx.primary)
-                        .withValues(alpha: 0.16),
+                    color: cor.withValues(alpha: 0.16),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    finCategoriaIcon(node.categoria.icone),
-                    size: indent ? 14 : 16,
-                    color: finParseHex(node.categoria.cor) ?? clx.primary,
+                    finCategoriaIcon(categoria.icone),
+                    size: 16,
+                    color: cor,
                   ),
                 ),
-                const SizedBox(width: ClxSpace.x2),
-                Expanded(
+              Expanded(
+                child: Text(
+                  categoria.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.bodyLarge?.copyWith(
+                    color: clx.ink,
+                    fontWeight: indent ? FontWeight.w500 : FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (temLimite)
+                Padding(
+                  padding: const EdgeInsets.only(right: ClxSpace.x2),
                   child: Text(
-                    node.categoria.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodyLarge?.copyWith(
-                      color: clx.ink,
-                      fontWeight: indent ? FontWeight.w500 : FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (temLimite)
-                  Text(
                     '${formatCurrency(prog.gasto)} de ${formatCurrency(prog.limite)}',
                     style: tt.labelMedium?.copyWith(
                       color: estourou ? clx.error : clx.ink2,
                       fontWeight: FontWeight.w700,
                     ),
-                  )
-                else
-                  Text(
-                    'sem limite',
-                    style: tt.labelSmall?.copyWith(color: clx.ink3),
                   ),
-                if (lim != null)
-                  IconButton(
-                    tooltip: 'Editar / remover',
-                    icon: Icon(
-                      Icons.edit_outlined,
-                      size: 16,
+                ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x1),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: ClxRadii.rPill,
+                  child: LinearProgressIndicator(
+                    value: temLimite ? prog.pct : 0,
+                    minHeight: indent ? 10 : 12,
+                    backgroundColor: clx.bg3,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      temLimite ? barColor : clx.bg3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x2),
+              if (editing)
+                _ValorPopover(
+                  controller: valorCtrl,
+                  saving: saving,
+                  onOk: onOk,
+                  onCancel: onCancel,
+                )
+              else
+                InkWell(
+                  onTap: onPlus,
+                  onLongPress: onLongRemove,
+                  borderRadius: ClxRadii.rPill,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.add,
+                      size: 18,
                       color: clx.ink3,
                     ),
-                    onPressed: () => onEdit(lim),
-                    visualDensity: VisualDensity.compact,
-                  )
-                else
-                  IconButton(
-                    tooltip: 'Definir limite',
-                    icon: Icon(Icons.add_rounded, size: 18, color: clx.ink3),
-                    onPressed: () => onAddChild(node.categoria),
-                    visualDensity: VisualDensity.compact,
                   ),
-              ],
-            ),
-            const SizedBox(height: ClxSpace.x1),
-            ClipRRect(
-              borderRadius: ClxRadii.rPill,
-              child: LinearProgressIndicator(
-                value: temLimite ? prog.pct : 0,
-                minHeight: indent ? 8 : 10,
-                backgroundColor: clx.bg3,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  temLimite ? barColor : clx.bg3,
                 ),
-              ),
-            ),
-            if (temLimite)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Row(
-                  children: [
-                    if (estourou)
-                      Text(
-                        'Estourou',
-                        style: tt.labelSmall?.copyWith(
-                          color: clx.error,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      )
-                    else if (atencao)
-                      Text(
-                        'Atenção',
-                        style: tt.labelSmall?.copyWith(
-                          color: clx.warning,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    const Spacer(),
+            ],
+          ),
+          if (temLimite)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                children: [
+                  if (estourou)
                     Text(
-                      '${(prog.pct * 100).round()}%',
+                      'Estourou',
                       style: tt.labelSmall?.copyWith(
-                        color: barColor,
-                        fontWeight: FontWeight.w800,
+                        color: clx.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  else if (atencao)
+                    Text(
+                      'Atenção',
+                      style: tt.labelSmall?.copyWith(
+                        color: clx.warning,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
+                  const Spacer(),
+                  Text(
+                    '${(prog.pct * 100).round()}%',
+                    style: tt.labelSmall?.copyWith(
+                      color: barColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
-}
 
-/// Modal de definir/editar um limite (upsert por categoria).
-class _LimiteForm extends ConsumerStatefulWidget {
-  const _LimiteForm({
-    this.editing,
-    required this.categorias,
-    required this.existentes,
-  });
-
-  final FinLimite? editing;
-  final List<FinCategoria> categorias;
-  final List<FinLimite> existentes;
-
-  @override
-  ConsumerState<_LimiteForm> createState() => _LimiteFormState();
-}
-
-class _LimiteFormState extends ConsumerState<_LimiteForm> {
-  late final TextEditingController _valor;
-  String? _categoriaId;
-  bool _saving = false;
-  String? _saveError;
-  String? _catErr;
-  String? _valorErr;
-
-  bool get _isEdit => widget.editing != null;
-
-  @override
-  void initState() {
-    super.initState();
-    _valor = TextEditingController(
-      text: widget.editing == null
-          ? ''
-          : formatMoedaInput(widget.editing!.limite),
-    );
-    _categoriaId = widget.editing?.categoriaId;
-  }
-
-  @override
-  void dispose() {
-    _valor.dispose();
-    super.dispose();
-  }
-
-  /// Categorias disponíveis: as de despesa que ainda não têm limite (na criação).
-  List<FinCategoria> get _opcoes {
-    final comLimite = widget.existentes
-        .where((l) => l.id != widget.editing?.id)
-        .map((l) => l.categoriaId)
-        .toSet();
-    return widget.categorias
-        .where(
-          (c) => c.tipo == TipoLancamento.despesa && !comLimite.contains(c.id),
-        )
-        .toList()
-      ..sort((a, b) => a.nome.compareTo(b.nome));
-  }
-
-  Future<void> _save() async {
-    final valor = parseMoedaBr(_valor.text);
-    setState(() {
-      _catErr = _categoriaId == null ? 'Escolha uma categoria' : null;
-      _valorErr = (valor == null || valor < 0)
-          ? 'Informe um teto válido'
-          : null;
-    });
-    if (_catErr != null || _valorErr != null) return;
-
-    setState(() {
-      _saving = true;
-      _saveError = null;
-    });
-    try {
-      await ref.read(financeiroRepositoryProvider).upsertLimite({
-        if (_isEdit) 'id': widget.editing!.id,
-        'categoria_id': _categoriaId,
-        'limite': valor,
-      });
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _saveError = 'Não foi possível salvar o limite.';
-        });
+  static double _gastoCat(String catId, List<FinLancamento> lancs) {
+    var cents = 0;
+    for (final l in lancs) {
+      if (l.tipo != TipoLancamento.despesa ||
+          l.status != LancamentoStatus.pago) {
+        continue;
+      }
+      if (l.categoriaId == catId || l.subcategoriaId == catId) {
+        cents += (l.valor * 100).round();
       }
     }
+    return cents / 100.0;
   }
+}
+
+/// Mini formulário inline: R$ + Ok (estilo Organizze).
+class _ValorPopover extends StatelessWidget {
+  const _ValorPopover({
+    required this.controller,
+    required this.saving,
+    required this.onOk,
+    required this.onCancel,
+  });
+
+  final TextEditingController controller;
+  final bool saving;
+  final VoidCallback onOk;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
-    final editingCat = _isEdit
-        ? widget.categorias.firstWhere(
-            (c) => c.id == widget.editing!.categoriaId,
-            orElse: () => FinCategoria(
-              id: widget.editing!.categoriaId,
-              nome: 'Categoria',
+    final clx = context.clx;
+    return Material(
+      elevation: 6,
+      color: clx.bg,
+      borderRadius: ClxRadii.rMd,
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.all(ClxSpace.x2),
+        decoration: BoxDecoration(
+          borderRadius: ClxRadii.rMd,
+          border: Border.all(color: clx.line),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              enabled: !saving,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+              ],
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+              decoration: InputDecoration(
+                isDense: true,
+                prefixText: 'R\$ ',
+                hintText: '0,00',
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide(color: clx.success, width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide(color: clx.success, width: 1.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide(color: clx.success, width: 2),
+                ),
+              ),
+              onSubmitted: (_) => onOk(),
             ),
-          )
-        : null;
-    return FinModalScaffold(
-      title: _isEdit ? 'Editar limite' : 'Novo limite',
-      saving: _saving,
-      error: _saveError,
-      onSave: _save,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_isEdit)
-            FinField(
-              label: 'Categoria',
-              controller: TextEditingController(text: editingCat?.nome ?? ''),
-              enabled: false,
-            )
-          else
-            FinDropdown<String>(
-              label: 'Categoria de despesa',
-              required: true,
-              value: _categoriaId,
-              enabled: !_saving,
-              error: _catErr,
-              hint: 'Selecione…',
-              items: _opcoes.map((c) => c.id).toList(),
-              itemLabel: (id) => _opcoes
-                  .firstWhere(
-                    (c) => c.id == id,
-                    orElse: () => FinCategoria(id: id, nome: id),
-                  )
-                  .nome,
-              onChanged: (v) => setState(() {
-                _categoriaId = v;
-                _catErr = null;
-              }),
+            const SizedBox(height: ClxSpace.x2),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: saving ? null : onOk,
+                style: FilledButton.styleFrom(
+                  backgroundColor: clx.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: ClxRadii.rMd,
+                  ),
+                ),
+                child: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Ok',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+              ),
             ),
-          FinField(
-            label: 'Teto de gasto (mês)',
-            controller: _valor,
-            required: true,
-            enabled: !_saving,
-            prefix: 'R\$ ',
-            hint: '0,00',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            error: _valorErr,
-            onChanged: (_) {
-              if (_valorErr != null) setState(() => _valorErr = null);
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -316,7 +316,17 @@ class _CategoriaTile extends StatelessWidget {
           children: [
             for (final f in filhos)
               _SubRow(
-                categoria: f,
+                // Sub herda cor/símbolo da mãe; se legado dessincronizado,
+                // usa a raiz para exibir o mesmo visual (só tamanho muda).
+                categoria: f.copyWith(
+                  icone: (f.icone != null && f.icone!.isNotEmpty)
+                      ? f.icone
+                      : categoria.icone,
+                  cor: (f.cor != null && f.cor!.isNotEmpty)
+                      ? f.cor
+                      : categoria.cor,
+                ),
+                corMae: accent,
                 onEdit: () => onEditFilho(f),
                 onDelete: () => onDeleteFilho(f),
               ),
@@ -362,17 +372,22 @@ class _CategoriaTile extends StatelessWidget {
 class _SubRow extends StatelessWidget {
   const _SubRow({
     required this.categoria,
+    required this.corMae,
     required this.onEdit,
     required this.onDelete,
   });
 
   final FinCategoria categoria;
+  final Color corMae;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final accent = _parseHex(categoria.cor) ?? corMae;
+    // Subcategoria: mesmo símbolo e cor da mãe, tamanho menor (24 vs 36).
+    const size = 24.0;
     return InkWell(
       onTap: onEdit,
       borderRadius: ClxRadii.rMd,
@@ -389,7 +404,20 @@ class _SubRow extends StatelessWidget {
               color: clx.ink3,
             ),
             const SizedBox(width: ClxSpace.x2),
-            Icon(finCategoriaIcon(categoria.icone), size: 16, color: clx.ink2),
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: ClxRadii.rSm,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                finCategoriaIcon(categoria.icone),
+                size: 14,
+                color: accent,
+              ),
+            ),
             const SizedBox(width: ClxSpace.x2),
             Expanded(
               child: Text(
@@ -414,5 +442,14 @@ class _SubRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static Color? _parseHex(String? hex) {
+    if (hex == null) return null;
+    var h = hex.replaceAll('#', '').trim();
+    if (h.length == 6) h = 'FF$h';
+    if (h.length != 8) return null;
+    final v = int.tryParse(h, radix: 16);
+    return v == null ? null : Color(v);
   }
 }

@@ -77,6 +77,61 @@ void main() {
       expect(r.saidas, closeTo(0.30, 1e-9));
       expect(r.saldoMes, closeTo(0.0, 1e-9)); // 0.1+0.2-0.3 == 0 exato
     });
+
+    test('receita prevista de OS atribuída NÃO entra no mês realizado', () {
+      final lancs = [
+        fakeLanc(
+          id: 'pago-os',
+          tipo: TipoLancamento.receita,
+          valor: 200,
+          status: LancamentoStatus.pago,
+          origem: OrigemLancamento.viaOs,
+        ),
+        fakeLanc(
+          id: 'manual',
+          tipo: TipoLancamento.receita,
+          valor: 50,
+          status: LancamentoStatus.pago,
+          origem: OrigemLancamento.manual,
+        ),
+        fakeLanc(
+          id: 'previsto-os',
+          tipo: TipoLancamento.receita,
+          valor: 600,
+          status: LancamentoStatus.previsto,
+          origem: OrigemLancamento.viaOs,
+        ),
+      ];
+      final r = resumoPeriodo(lancs);
+      expect(r.entradas, closeTo(250, 1e-9));
+      expect(totalReceitasPrevistas(lancs), closeTo(600, 1e-9));
+    });
+
+    test('compromissosResumo projeta realizado + a receber − comissões', () {
+      final lancs = [
+        fakeLanc(
+          id: '1',
+          tipo: TipoLancamento.receita,
+          valor: 1000,
+          status: LancamentoStatus.pago,
+        ),
+        fakeLanc(
+          id: '2',
+          tipo: TipoLancamento.receita,
+          valor: 400,
+          status: LancamentoStatus.previsto,
+        ),
+      ];
+      final c = compromissosResumo(
+        lancsPeriodo: lancs,
+        comissoesPendentes: 300,
+      );
+      expect(c.resultadoRealizado, closeTo(1000, 1e-9));
+      expect(c.aReceber, closeTo(400, 1e-9));
+      expect(c.comissoesAPagar, closeTo(300, 1e-9));
+      // 1000 + 400 - 300 = 1100
+      expect(c.resultadoProjetado, closeTo(1100, 1e-9));
+    });
   });
 
   group('saldoGeral', () {
@@ -116,6 +171,29 @@ void main() {
       expect(grupos.first.data, '2026-07-10'); // mais recente primeiro
       expect(grupos.first.totalDia, closeTo(200, 1e-9)); // 300 - 100
       expect(grupos.last.totalDia, closeTo(-50, 1e-9));
+    });
+
+    test('total do dia ignora receita prevista (OS ainda não concluída)', () {
+      final lancs = [
+        fakeLanc(
+          id: '1',
+          data: '2026-07-16',
+          tipo: TipoLancamento.receita,
+          valor: 200,
+          status: LancamentoStatus.pago,
+        ),
+        fakeLanc(
+          id: '2',
+          data: '2026-07-16',
+          tipo: TipoLancamento.receita,
+          valor: 200,
+          status: LancamentoStatus.previsto,
+          origem: OrigemLancamento.viaOs,
+        ),
+      ];
+      final grupos = agruparPorData(lancs);
+      expect(grupos.single.itens.length, 2); // ambos na lista
+      expect(grupos.single.totalDia, closeTo(200, 1e-9)); // só o pago
     });
   });
 
@@ -205,7 +283,7 @@ void main() {
   });
 
   group('FinTab.isKnownSlug (canonicalização de slug de aba)', () {
-    test('slugs reais das 7 abas são conhecidos', () {
+    test('slugs reais das abas do Financeiro são conhecidos', () {
       for (final tab in FinTab.values) {
         expect(FinTab.isKnownSlug(tab.slug), isTrue, reason: tab.slug);
       }

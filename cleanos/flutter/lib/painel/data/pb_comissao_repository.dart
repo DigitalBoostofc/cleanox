@@ -58,10 +58,14 @@ class PbComissaoRepository implements ComissaoRepository {
   }
 
   @override
-  Future<ProfComissao> marcarPaga(String id) async {
+  Future<ProfComissao> marcarPaga(String id) =>
+      setStatus(id, ComissaoStatus.paga);
+
+  @override
+  Future<ProfComissao> setStatus(String id, ComissaoStatus status) async {
     final rec = await _pb
         .collection(Collections.profComissoes)
-        .update(id, body: {'status': ComissaoStatus.paga.wire});
+        .update(id, body: {'status': status.wire});
     return ProfComissao.fromRecord(rec);
   }
 }

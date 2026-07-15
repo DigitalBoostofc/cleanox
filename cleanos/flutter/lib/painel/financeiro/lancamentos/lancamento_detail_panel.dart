@@ -3,7 +3,7 @@
 /// Espelha `LancamentoDetailPanel.tsx`: painel lateral (à direita) em telas
 /// largas, bottom-sheet no mobile. Mostra categoria, valor, conta, data/venc,
 /// recorrência, parcelas, status, vínculo com OS, observação, anexos e tags, com
-/// as ações Repetir / Editar / Copiar / Excluir no rodapé.
+/// as ações Duplicar / Editar / Excluir no rodapé.
 ///
 /// É "burro": renderiza o lançamento resolvido e RESOLVE com a ação escolhida
 /// ('edit' | 'repeat' | 'duplicate' | 'delete') — quem persiste e recarrega é a
@@ -88,8 +88,10 @@ class _LancamentoDetailPanel extends StatelessWidget {
 
   String _recorrenciaDescricao(FinLancamento l) => switch (l.recorrencia) {
     RecorrenciaTipo.unica => 'Não se aplica',
-    RecorrenciaTipo.fixa => 'Mensal (fixa, até cancelar)',
-    RecorrenciaTipo.recorrente => 'Repete periodicamente',
+    RecorrenciaTipo.fixa =>
+      '${l.frequenciaEfetiva.labelSingular} (fixa, até cancelar)',
+    RecorrenciaTipo.recorrente =>
+      '${l.frequenciaEfetiva.labelSingular} (recorrente)',
     RecorrenciaTipo.parcelada =>
       'Parcelada em ${l.parcelasTotal ?? '—'}x',
   };
@@ -335,24 +337,20 @@ class _LancamentoDetailPanel extends StatelessWidget {
         ),
         Divider(height: 1, color: clx.line),
         // Rodapé: ações.
+        // "Duplicar" cria outra movimentação idêntica (não "próxima parcela").
         Padding(
           padding: const EdgeInsets.all(ClxSpace.x4),
           child: Row(
             children: [
               _Action(
-                icon: Icons.repeat_rounded,
-                label: 'Repetir',
-                onTap: () => Navigator.of(context).pop('repeat'),
+                icon: Icons.copy_rounded,
+                label: 'Duplicar',
+                onTap: () => Navigator.of(context).pop('duplicate'),
               ),
               _Action(
                 icon: Icons.edit_outlined,
                 label: 'Editar',
                 onTap: () => Navigator.of(context).pop('edit'),
-              ),
-              _Action(
-                icon: Icons.copy_rounded,
-                label: 'Copiar',
-                onTap: () => Navigator.of(context).pop('duplicate'),
               ),
               _Action(
                 icon: Icons.delete_outline_rounded,

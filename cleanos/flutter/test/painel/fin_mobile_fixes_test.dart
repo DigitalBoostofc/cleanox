@@ -83,8 +83,8 @@ void main() {
   ];
 
   testWidgets(
-    'Visão geral no mobile: ações rápidas em grade 2x2 (receita/despesa em '
-    'cima, transferência/importar embaixo), sem overflow',
+    'Visão geral no mobile: painel Caixa + Compromissos e ações rápidas, '
+    'sem overflow',
     (tester) async {
       await pumpPainel(
         tester,
@@ -94,43 +94,12 @@ void main() {
       );
       await settle(tester);
 
-      final receitaTL = tester.getTopLeft(find.text('Nova receita'));
-      final despesaTL = tester.getTopLeft(find.text('Nova despesa'));
-      final transferenciaTL = tester.getTopLeft(find.text('Transferência'));
-      final importarTL = tester.getTopLeft(find.text('Importar'));
-
-      // Tolerância de poucos pixels: o Row centraliza (crossAxisAlignment
-      // padrão), então rótulos que quebram em 2 linhas (ex.: "Transferência")
-      // deslocam o topo do texto em relação a um rótulo de 1 linha na MESMA
-      // linha visual.
-      expect(
-        (despesaTL.dy - receitaTL.dy).abs(),
-        lessThan(5),
-        reason: 'Receita e despesa na mesma linha',
-      );
-      expect(
-        (importarTL.dy - transferenciaTL.dy).abs(),
-        lessThan(5),
-        reason: 'Transferência e importar na mesma linha',
-      );
-      expect(
-        transferenciaTL.dy,
-        greaterThan(receitaTL.dy + 5),
-        reason: 'Segunda linha abaixo da primeira',
-      );
-
-      // Ordem X: receita à esquerda de despesa (linha 1), transferência à
-      // esquerda de importar (linha 2) — não apenas a mesma linha.
-      expect(
-        receitaTL.dx,
-        lessThan(despesaTL.dx),
-        reason: 'Nova receita à esquerda de Nova despesa',
-      );
-      expect(
-        transferenciaTL.dx,
-        lessThan(importarTL.dx),
-        reason: 'Transferência à esquerda de Importar',
-      );
+      // Painel de clareza financeira (Caixa + Compromissos).
+      expect(find.textContaining('Caixa (realizado)'), findsWidgets);
+      expect(find.textContaining('ainda não é caixa'), findsWidgets);
+      expect(find.text('Dinheiro que entrou'), findsWidgets);
+      expect(find.text('Comissões a pagar'), findsWidgets);
+      expect(find.text('Se tudo se confirmar'), findsWidgets);
 
       await expectStableNoOverflow(tester);
     },
@@ -185,8 +154,7 @@ void main() {
   );
 
   testWidgets(
-    'Limites no mobile: header quebra em coluna e "Novo limite" não é '
-    'cortado fora do viewport',
+    'Limites no mobile: header com seletor de mês sem overflow',
     (tester) async {
       await pumpPainel(
         tester,
@@ -196,7 +164,8 @@ void main() {
       );
       await settle(tester);
 
-      expect(find.text('Novo limite'), findsWidgets);
+      expect(find.text('Limite de gastos'), findsWidgets);
+      expect(find.text('Definir limite de gastos'), findsOneWidget);
       await expectStableNoOverflow(tester);
     },
   );
@@ -280,8 +249,8 @@ void main() {
   );
 
   testWidgets(
-    'Visão geral no desktop (1400x900): ações rápidas seguem em Wrap numa '
-    'única linha (layout original preservado), sem overflow',
+    'Visão geral no desktop (1400x900): ações rápidas compactas na mesma '
+    'linha (DESPESA / RECEITA / TRANSF.), sem overflow',
     (tester) async {
       await pumpPainel(
         tester,
@@ -291,25 +260,20 @@ void main() {
       );
       await settle(tester);
 
-      final receitaY = tester.getTopLeft(find.text('Nova receita')).dy;
-      final despesaY = tester.getTopLeft(find.text('Nova despesa')).dy;
-      final transferenciaY = tester.getTopLeft(find.text('Transferência')).dy;
-      final importarY = tester.getTopLeft(find.text('Importar')).dy;
+      // Desktop do Painel usa labels compactos no acesso rápido.
+      final despesaY = tester.getTopLeft(find.text('DESPESA')).dy;
+      final receitaY = tester.getTopLeft(find.text('RECEITA')).dy;
+      final transfY = tester.getTopLeft(find.text('TRANSF.')).dy;
 
       expect(
-        (despesaY - receitaY).abs(),
+        (receitaY - despesaY).abs(),
         lessThan(5),
-        reason: 'Receita e despesa na mesma linha (desktop)',
+        reason: 'DESPESA e RECEITA na mesma linha (desktop)',
       );
       expect(
-        (transferenciaY - receitaY).abs(),
+        (transfY - despesaY).abs(),
         lessThan(5),
-        reason: 'Transferência na mesma linha (desktop)',
-      );
-      expect(
-        (importarY - receitaY).abs(),
-        lessThan(5),
-        reason: 'Importar na mesma linha (desktop)',
+        reason: 'TRANSF. na mesma linha (desktop)',
       );
 
       await expectStableNoOverflowAt(
@@ -321,8 +285,8 @@ void main() {
   );
 
   testWidgets(
-    'Contas a pagar/receber no desktop (1400x900): filtros permanecem '
-    'ABERTOS por padrão, sem overflow',
+    'Contas a pagar/receber no desktop (1400x900): filtros COLAPSADOS por '
+    'padrão (botão Filtros), sem overflow',
     (tester) async {
       await pumpPainel(
         tester,
@@ -332,6 +296,11 @@ void main() {
       );
       await settle(tester);
 
+      expect(find.text('Filtros'), findsOneWidget);
+      expect(find.text('Limpar filtros'), findsNothing);
+
+      await tester.tap(find.text('Filtros'));
+      await settle(tester);
       expect(find.text('Limpar filtros'), findsOneWidget);
 
       await expectStableNoOverflowAt(
@@ -379,8 +348,7 @@ void main() {
   );
 
   testWidgets(
-    'Limites no desktop (1400x900): header permanece em Row (período + '
-    '"Novo limite" lado a lado), sem overflow',
+    'Limites no desktop (1400x900): título + seletor de mês na mesma linha',
     (tester) async {
       await pumpPainel(
         tester,
@@ -393,17 +361,17 @@ void main() {
       final periodTL = tester.getTopLeft(
         find.byIcon(Icons.chevron_left_rounded),
       );
-      final novoTL = topmostTopLeft(tester, find.text('Novo limite'));
+      final titleTL = topmostTopLeft(tester, find.text('Limite de gastos'));
 
       expect(
-        (novoTL.dy - periodTL.dy).abs(),
-        lessThan(30),
-        reason: 'Período e botão na mesma linha (Row, não Column)',
+        (titleTL.dy - periodTL.dy).abs(),
+        lessThan(40),
+        reason: 'Título e período na mesma linha (Row, não Column)',
       );
       expect(
-        novoTL.dx,
-        greaterThan(periodTL.dx),
-        reason: 'Botão à direita do seletor de período (Row)',
+        periodTL.dx,
+        greaterThan(titleTL.dx),
+        reason: 'Seletor à direita do título',
       );
 
       await expectStableNoOverflowAt(

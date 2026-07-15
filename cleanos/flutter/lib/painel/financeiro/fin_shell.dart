@@ -24,17 +24,30 @@ import 'fin_comissoes_screen.dart';
 import 'fin_visao_geral_screen.dart';
 import 'lancamentos/fin_lancamentos_screen.dart';
 
-/// Abas do Financeiro (ordem/rótulos idênticos ao `FinanceiroLayout` + Comissões).
-/// O [slug] é o segmento de URL da aba (`/painel/financeiro/<slug>`).
+/// Abas do Financeiro — ordem otimizada para o fluxo do dono:
+/// ver caixa → movimentar → analisar → cobrar/pagar → contas → equipe → config.
+/// O [slug] é o segmento de URL (`/painel/financeiro/<slug>`).
 enum FinTab {
-  visaoGeral('Visão geral', 'visao-geral'),
-  lancamentos('Lançamentos', 'lancamentos'),
-  contas('Contas a pagar/receber', 'contas'),
-  comissoes('Comissões', 'comissoes'),
-  categorias('Categorias', 'categorias'),
+  /// Caixa realizado + compromissos.
+  visaoGeral('Painel', 'visao-geral'),
+
+  /// Extrato do mês (pago + previsto), estilo Organizze.
+  lancamentos('Movimentações', 'lancamentos'),
+
+  /// Análise por categoria e entradas × saídas.
   relatorios('Relatórios', 'relatorios'),
-  limites('Limites', 'limites'),
-  carteiras('Carteiras', 'carteiras');
+
+  /// Contas a receber e a pagar (pendentes).
+  contas('A receber / A pagar', 'contas'),
+
+  /// Contas bancárias / caixinhas.
+  carteiras('Carteiras', 'carteiras'),
+
+  /// Dashboard de comissões da equipe.
+  comissoes('Equipe', 'comissoes'),
+
+  categorias('Categorias', 'categorias'),
+  limites('Limites', 'limites');
 
   const FinTab(this.label, this.slug);
   final String label;
@@ -107,12 +120,12 @@ class _FinanceiroShellState extends State<FinanceiroShell> {
   Widget _body(FinTab tab) => switch (tab) {
     FinTab.visaoGeral => const FinVisaoGeralScreen(),
     FinTab.lancamentos => const FinLancamentosScreen(),
+    FinTab.relatorios => const FinRelatoriosScreen(),
     FinTab.contas => const FinContasPagarReceberScreen(),
+    FinTab.carteiras => const FinCarteirasScreen(),
     FinTab.comissoes => const FinComissoesScreen(),
     FinTab.categorias => const FinCategoriasScreen(),
-    FinTab.relatorios => const FinRelatoriosScreen(),
     FinTab.limites => const FinLimitesScreen(),
-    FinTab.carteiras => const FinCarteirasScreen(),
   };
 }
 

@@ -14,9 +14,10 @@
  *
  * O processo do PocketBase roda em UTC na VPS. `new Date().toISOString()` puro
  * faz uma conclusão às 21:30 BRT gravar como 00:30 do DIA SEGUINTE — e os
- * relatórios bucketizam pela parte-data 'YYYY-MM-DD'. Espelha exatamente o que
- * `os_financeiro_lib.js` já faz no lançamento da OS (fix F-222), para que a
- * receita e a comissão da MESMA OS caiam sempre no MESMO dia.
+ * relatórios bucketizam pela parte-data 'YYYY-MM-DD'.
+ *
+ * Preferir [dataParedeDaOs] (data_hora da OS) ao criar comissão/despesa —
+ * "agora" só como fallback (sem data_hora / OS sumida).
  */
 function dataBrtAgora() {
   var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
@@ -26,6 +27,86 @@ function dataBrtAgora() {
       .replace("T", " ")
       .slice(0, 23) + "Z"
   );
+}
+
+/**
+ * Parte-data parede BRT da OS (`data_hora`), igual à receita via_os.
+ * Assim a comissão e a entrada da OS caem no MESMO dia em Movimentações.
+ * Fallback: dia BRT de agora.
+ */
+function dataParedeDaOs(osRecord) {
+  try {
+    return require(`${__hooks}/os_financeiro_lib.js`).dataParedeBrtDaOs(
+      osRecord,
+    );
+  } catch (_) {
+    return String(dataBrtAgora()).slice(0, 10);
+  }
+}
+
+/**
+ * Ponto único OS → comissão (chamar DEPOIS de e.next()):
+ *   - concluida → cria comissão (se configurada)
+ *   - qualquer outro status → remove comissões da OS
+ *     (pendente: delete; paga: apaga despesa + comissão)
+ *
+ * Assim OS reaberta (atribuida) ou cancelada não deixa comissão fantasma.
+ */
+function sincronizarComissaoOs(app, record, origStatus) {
+  const status = String(record.get("status") || "");
+  if (status === "concluida") {
+    criarComissaoProfissional(app, record, origStatus);
+    return;
+  }
+  removerComissoesDaOs(app, record.id);
+}
+
+/**
+ * Remove todas as comissões ligadas à OS.
+ * Pendente: delete direto.
+ * Paga: apaga o lançamento de despesa (via lib) e a comissão.
+ */
+function removerComissoesDaOs(app, osId) {
+  if (!osId) return;
+  let list = [];
+  try {
+    list = app.findRecordsByFilter(
+      "prof_comissoes",
+      "os = {:id}",
+      "",
+      50,
+      0,
+      { id: osId },
+    );
+  } catch (_) {
+    list = [];
+  }
+  if (!list || list.length === 0) return;
+
+  const pagoLib = require(`${__hooks}/prof_comissao_pago_lib.js`);
+  for (let i = 0; i < list.length; i++) {
+    const rec = list[i];
+    try {
+      // Sempre remove a despesa (pendente ou paga) antes da comissão.
+      try {
+        pagoLib.apagarLancamentoDaComissao(app, rec.id);
+      } catch (err) {
+        console.error(
+          "[comissao] remoção despesa falhou (segue delete): " + err,
+        );
+      }
+      app.delete(rec);
+      console.log(
+        "[comissao] removida " +
+          rec.id +
+          " (OS " +
+          osId +
+          " não está concluída)",
+      );
+    } catch (err) {
+      console.error("[comissao] falha ao remover " + rec.id + ": " + err);
+    }
+  }
 }
 
 function criarComissaoProfissional(app, record, origStatus) {
@@ -39,6 +120,9 @@ function criarComissaoProfissional(app, record, origStatus) {
     const orig = record.original ? record.original() : null;
     prevStatus = orig ? String(orig.get("status") || "") : "";
   }
+  // Idempotente: se já concluída, não recria (anti-duplicata abaixo cobre).
+  // Ainda assim, se a comissão foi apagada manualmente, permite recriar?
+  // Mantém: só na transição para concluida (prev !== concluida).
   if (prevStatus === "concluida") return;
 
   const valorPago = Number(record.get("valor_pago") || 0);
@@ -108,11 +192,10 @@ function criarComissaoProfissional(app, record, origStatus) {
   rec.set("tipo_aplicado", tipo);
   rec.set("base_valor", base);
   rec.set("status", "pendente");
-  // F-229: data no fuso BRT (UTC-3), IGUAL ao lançamento da OS
-  // (os_financeiro_lib.js, fix F-222). Sem isso, a receita e a comissão da MESMA
-  // OS gravavam instantes com 3h de diferença e uma conclusão entre 21h e a
-  // meia-noite caía em DIAS DIFERENTES no relatório e no extrato.
-  rec.set("data", dataBrtAgora());
+  // Data = dia parede BRT da OS (data_hora), IGUAL à receita via_os.
+  // NÃO usar "agora": backfill ou conclusão em lote colocaria todas as
+  // comissões no mesmo dia (ex.: 15) e sumiria da sequência de cada OS.
+  rec.set("data", dataParedeDaOs(record));
 
   const nomeCurto = String(record.get("nome_curto") || "");
   const servico = String(record.get("tipo_servico_nome") || "");
@@ -138,4 +221,10 @@ function criarComissaoProfissional(app, record, origStatus) {
   }
 }
 
-module.exports = { criarComissaoProfissional, dataBrtAgora };
+module.exports = {
+  sincronizarComissaoOs,
+  criarComissaoProfissional,
+  removerComissoesDaOs,
+  dataBrtAgora,
+  dataParedeDaOs,
+};

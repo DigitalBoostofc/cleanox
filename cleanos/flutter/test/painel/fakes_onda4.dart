@@ -7,6 +7,7 @@ library;
 import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
 import 'package:cleanos/painel/data/pb_financeiro_repository.dart';
+import 'package:cleanos/painel/financeiro/fin_derivations.dart';
 
 FinConta fakeConta({
   required String id,
@@ -30,12 +31,14 @@ FinCategoria fakeCategoria({
   TipoLancamento tipo = TipoLancamento.despesa,
   String? parentId,
   String icone = 'tag',
+  String? cor,
 }) => FinCategoria(
   id: id,
   nome: nome,
   tipo: tipo,
   parentId: parentId,
   icone: icone,
+  cor: cor,
 );
 
 FinLancamento fakeLanc({
@@ -49,6 +52,8 @@ FinLancamento fakeLanc({
   String? vencimento,
   LancamentoStatus status = LancamentoStatus.pago,
   OrigemLancamento origem = OrigemLancamento.manual,
+  RecorrenciaTipo recorrencia = RecorrenciaTipo.unica,
+  String? observacao,
 }) => FinLancamento(
   id: id,
   tipo: tipo,
@@ -60,13 +65,30 @@ FinLancamento fakeLanc({
   vencimento: vencimento,
   status: status,
   origem: origem,
+  recorrencia: recorrencia,
+  observacao: observacao,
 );
 
 FinLimite fakeLimite({
   required String id,
   String categoriaId = 'cat',
   double limite = 500,
-}) => FinLimite(id: id, categoriaId: categoriaId, limite: limite);
+  String? anoMes,
+}) {
+  // Default: mês BRT corrente (casa com o seletor da tela de Limites).
+  final am = anoMes ??
+      (() {
+        final h = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+        final m = h.month.toString().padLeft(2, '0');
+        return '${h.year}-$m';
+      })();
+  return FinLimite(
+    id: id,
+    categoriaId: categoriaId,
+    limite: limite,
+    anoMes: am,
+  );
+}
 
 class FakeFinanceiro implements FinanceiroPanelRepository {
   FakeFinanceiro({
@@ -163,6 +185,8 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
         (data['tipo'] as String?) ?? TipoLancamento.despesa.wire,
       ),
       parentId: data['parent_id'] as String?,
+      icone: (data['icone'] as String?) ?? 'tag',
+      cor: data['cor'] as String?,
     );
     categorias = [...categorias, nova];
     return nova;
@@ -244,9 +268,14 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   Future<FinLancamento> repeatLancamento(FinLancamento base) async {
     repeatLancCount++;
     lastRepeatBase = base;
-    createLancCount++;
-    return fakeLanc(id: 'rep', descricao: base.descricao);
+    return duplicateLancamento(base);
   }
+
+  @override
+  Future<int> ensureRecorrenciasNoPeriodo(Periodo periodo) async => 0;
+
+  @override
+  Future<int> materializarRecorrenciaAFrente(FinLancamento template) async => 0;
 
   @override
   Future<List<FinLimite>> listLimites() async {

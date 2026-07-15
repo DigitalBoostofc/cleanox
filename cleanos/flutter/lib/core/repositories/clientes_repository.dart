@@ -18,6 +18,10 @@ abstract class ClientesRepository {
   Future<Cliente> create(Map<String, dynamic> data);
   Future<Cliente> update(String id, Map<String, dynamic> data);
   Future<void> delete(String id);
+
+  /// Busca cliente existente pelo celular (comparação tolerante a máscara/DDI).
+  /// [excludeId] ignora o próprio registro na edição. `null` se não achar.
+  Future<Cliente?> findByTelefone(String telefone, {String? excludeId});
 }
 
 /// Stub congelado (Fase 1). Impl real é entregue na Fase 2 (Time A / Painel).
@@ -46,4 +50,8 @@ class UnimplementedClientesRepository implements ClientesRepository {
 
   @override
   Future<void> delete(String id) => _todo();
+
+  @override
+  Future<Cliente?> findByTelefone(String telefone, {String? excludeId}) =>
+      _todo();
 }

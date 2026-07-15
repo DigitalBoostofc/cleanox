@@ -140,7 +140,7 @@ void main() {
       }
     });
 
-    testWidgets('FinanceiroShell(tabSlug) renderiza a sub-nav das 7 abas', (
+    testWidgets('FinanceiroShell(tabSlug) renderiza a sub-nav (Relatórios 3º)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -158,11 +158,13 @@ void main() {
       );
       await tester.pump();
 
-      // A sub-nav (chrome do FinanceiroShell) monta as 7 abas — prova que o
-      // alvo do deep-link `/painel/financeiro/:tab` renderiza pela slug.
-      expect(find.text('Visão geral'), findsWidgets);
-      expect(find.text('Lançamentos'), findsWidgets);
+      // Deep-link `/painel/financeiro/:tab` monta a sub-nav completa.
+      expect(find.text('Painel'), findsWidgets);
+      expect(find.text('Movimentações'), findsWidgets);
+      expect(find.text('Relatórios'), findsOneWidget);
       expect(find.text('Carteiras'), findsOneWidget);
+      // Ordem: Relatórios é a 3ª aba (índice 2 no enum).
+      expect(FinTab.values[2], FinTab.relatorios);
     });
   });
 

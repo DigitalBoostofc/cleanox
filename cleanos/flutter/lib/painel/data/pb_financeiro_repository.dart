@@ -36,6 +36,9 @@ import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
 import '../../core/repositories/financeiro_repository.dart';
 import '../../core/repositories/repo_types.dart';
+import '../financeiro/fin_derivations.dart';
+import '../financeiro/fin_recorrencia.dart';
+import 'painel_filters.dart';
 
 /// Contrato do repositório do Financeiro NA CAMADA DO PAINEL: a interface
 /// congelada do core ([FinanceiroRepository]) + os extras que o Painel precisa
@@ -61,22 +64,29 @@ abstract class FinanceiroPanelRepository implements FinanceiroRepository {
   /// transação server-side — sem rollback client-side).
   Future<void> transferir(String fromId, String toId, double valor);
 
-  /// Copia um lançamento como NOVO (" (cópia)" na descrição, mesmo status).
-  /// Espelha `duplicateLancamento` do store: um `via_os` vira MANUAL e SEM
-  /// vínculo com a OS (anti-desvio — não fabrica um 2º recebimento fantasma da
-  /// mesma OS, que inflaria receita/saldo em dobro).
+  /// Copia um lançamento como NOVO idêntico (anti-desvio: via_os vira manual).
   Future<FinLancamento> duplicateLancamento(FinLancamento base);
 
-  /// Cria a PRÓXIMA ocorrência de um lançamento: status volta a 'previsto' e, se
-  /// parcelada, `parcelaAtual` avança 1. Também desvincula da OS (mesma regra do
-  /// [duplicateLancamento]). Espelha `repeatLancamento` do store.
+  /// Alias de [duplicateLancamento] (botão legado "Repetir" no detalhe).
   Future<FinLancamento> repeatLancamento(FinLancamento base);
+
+  /// Materializa no [periodo] as ocorrências mensais faltantes de despesas/
+  /// receitas `fixa`/`recorrente` (status `previsto`). Idempotente.
+  /// Retorna quantas ocorrências novas foram criadas.
+  Future<int> ensureRecorrenciasNoPeriodo(Periodo periodo);
+
+  /// Ao criar um lançamento fixo/recorrente: grava as próximas
+  /// [kRecorrenciaMesesAFrente] ocorrências mensais como `previsto`.
+  Future<int> materializarRecorrenciaAFrente(FinLancamento template);
 }
 
 class PbFinanceiroRepository implements FinanceiroPanelRepository {
   PbFinanceiroRepository(this._pb);
 
   final PocketBase _pb;
+
+  /// Dedup de ensure concorrente (controller + period provider no mesmo mês).
+  final Map<String, Future<int>> _ensureLocks = {};
 
   RecordService get _contas => _pb.collection(FinCollections.contas);
   RecordService get _categorias => _pb.collection(FinCollections.categorias);
@@ -274,24 +284,159 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     };
   }
 
+  /// Duplica o lançamento **idêntico** (mesma descrição, valor, status, datas…).
+  /// Só tira o vínculo com OS (`via_os` → manual). Não acrescenta " (cópia)".
   @override
   Future<FinLancamento> duplicateLancamento(FinLancamento base) {
-    final body = _bodyDesvinculado(base)
-      ..['descricao'] = '${base.descricao} (cópia)';
-    return createLancamento(body);
+    return createLancamento(_bodyDesvinculado(base));
+  }
+
+  /// Alias de [duplicateLancamento] — o botão "Repetir" do detalhe era confuso:
+  /// o dono espera outra movimentação **igual**, não a "próxima parcela prevista".
+  @override
+  Future<FinLancamento> repeatLancamento(FinLancamento base) =>
+      duplicateLancamento(base);
+
+  /// Lista todas as fixas/recorrentes com data < [antesDe] (paginado).
+  Future<List<FinLancamento>> _listRecorrenciasAtivas({
+    required String antesDe,
+  }) async {
+    final filter =
+        '(recorrencia = ${pbStringLiteral(RecorrenciaTipo.fixa.wire)} '
+        '|| recorrencia = ${pbStringLiteral(RecorrenciaTipo.recorrente.wire)}) '
+        '&& data < ${pbStringLiteral(antesDe)}';
+    final out = <FinLancamento>[];
+    var page = 1;
+    const perPage = 200;
+    while (true) {
+      final res = await listLancamentos(
+        page: page,
+        perPage: perPage,
+        filter: filter,
+        sort: 'data',
+      );
+      out.addAll(res.items);
+      if (page >= res.totalPages || res.items.isEmpty) break;
+      page++;
+    }
+    return out;
   }
 
   @override
-  Future<FinLancamento> repeatLancamento(FinLancamento base) {
-    final proximaParcela =
-        base.recorrencia == RecorrenciaTipo.parcelada &&
-            base.parcelaAtual != null
-        ? base.parcelaAtual! + 1
-        : base.parcelaAtual;
-    final body = _bodyDesvinculado(base)
-      ..['status'] = LancamentoStatus.previsto.wire
-      ..['parcela_atual'] = proximaParcela;
-    return createLancamento(body);
+  Future<int> ensureRecorrenciasNoPeriodo(Periodo periodo) {
+    final key = '${periodo.start}|${periodo.end}';
+    return _ensureLocks.putIfAbsent(key, () async {
+      try {
+        return await _ensureRecorrenciasImpl(periodo);
+      } finally {
+        _ensureLocks.remove(key);
+      }
+    });
+  }
+
+  Future<int> _ensureRecorrenciasImpl(Periodo periodo) async {
+    // Templates e ocorrências até o fim do período (+ 1 ano p/ semanal).
+    final horizonte = parseYmdLocal(periodo.end) ?? DateTime.now();
+    final ativos = await _listRecorrenciasAtivas(
+      antesDe: formatYmdLocal(addMonthsClamped(horizonte, 1)),
+    );
+    if (ativos.isEmpty) return 0;
+
+    final bySerie = <String, List<FinLancamento>>{};
+    for (final l in ativos) {
+      if (!isRecorrenciaAtiva(l.recorrencia)) continue;
+      bySerie.putIfAbsent(serieRecorrenciaKey(l), () => []).add(l);
+    }
+
+    var created = 0;
+    for (final members in bySerie.values) {
+      members.sort((a, b) => a.data.compareTo(b.data));
+      final template = members.first;
+      final baseDate = parseYmdLocal(template.data);
+      if (baseDate == null) continue;
+
+      // Existentes: YMD (10 chars) + year-month (mensal). PB date pode vir com hora.
+      final existentes = <String>{
+        for (final m in members) ...[
+          m.data.length >= 10 ? m.data.substring(0, 10) : m.data,
+          yearMonthOf(m.data),
+        ],
+      };
+      final faltantes = datasRecorrenciaFaltantes(
+        baseDate: baseDate,
+        frequencia: template.frequenciaEfetiva,
+        periodo: periodo,
+        datasExistentes: existentes,
+      );
+      for (final dataYmd in faltantes) {
+        String? venc;
+        if (template.vencimento != null &&
+            template.vencimento!.isNotEmpty) {
+          final v0 = parseYmdLocal(template.vencimento!);
+          final d0 = parseYmdLocal(dataYmd);
+          if (v0 != null && d0 != null) {
+            final deltaDays = v0.difference(baseDate).inDays;
+            venc = formatYmdLocal(d0.add(Duration(days: deltaDays)));
+          }
+        }
+        await createLancamento(
+          bodyOcorrenciaPrevista(template, dataYmd, vencimentoYmd: venc),
+        );
+        created++;
+      }
+    }
+    return created;
+  }
+
+  @override
+  Future<int> materializarRecorrenciaAFrente(FinLancamento template) async {
+    if (!isRecorrenciaAtiva(template.recorrencia)) return 0;
+    final baseDate = parseYmdLocal(template.data);
+    if (baseDate == null) return 0;
+    final freq = template.frequenciaEfetiva;
+
+    final ultimo = addFrequencia(
+      baseDate,
+      freq,
+      horizontePassos(freq) + 1,
+    );
+    final ativos = await _listRecorrenciasAtivas(
+      antesDe: formatYmdLocal(ultimo),
+    );
+    final key = serieRecorrenciaKey(template);
+    final existentes = <String>{
+      for (final l in ativos)
+        if (serieRecorrenciaKey(l) == key) ...[
+          l.data.length >= 10 ? l.data.substring(0, 10) : l.data,
+          yearMonthOf(l.data),
+        ],
+    };
+
+    var created = 0;
+    for (final dataYmd in datasRecorrenciaAFrente(
+      baseDate: baseDate,
+      frequencia: freq,
+    )) {
+      final ym = yearMonthOf(dataYmd);
+      if (existentes.contains(dataYmd) || existentes.contains(ym)) continue;
+      String? venc;
+      if (template.vencimento != null && template.vencimento!.isNotEmpty) {
+        final v0 = parseYmdLocal(template.vencimento!);
+        final d0 = parseYmdLocal(dataYmd);
+        if (v0 != null && d0 != null) {
+          final deltaDays = v0.difference(baseDate).inDays;
+          venc = formatYmdLocal(d0.add(Duration(days: deltaDays)));
+        }
+      }
+      await createLancamento(
+        bodyOcorrenciaPrevista(template, dataYmd, vencimentoYmd: venc),
+      );
+      existentes
+        ..add(dataYmd)
+        ..add(ym);
+      created++;
+    }
+    return created;
   }
 
   /* ─────────────────────── Limites de gasto ─────────────────────── */
