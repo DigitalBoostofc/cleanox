@@ -1,8 +1,8 @@
 /// agenda_drag_test.dart — Núcleo PURO do arraste (Fase 2, spec §7/§11).
 ///
 /// Trava a aritmética do drag em minutos-BRT inteiros: snap de 15, duração
-/// mínima, teto na meia-noite, cross-day por largura de coluna, bloqueio de dia
-/// anterior (D7) e o **ida-e-volta BRT** completo
+/// mínima, teto na meia-noite, cross-day por largura de coluna, piso amplo do
+/// dia de destino (2020) e o **ida-e-volta BRT** completo
 /// (pixel → minuto → `localInputToPBDate` → PATCH → `parsePbUtc` → pixel),
 /// incluindo o caso noturno (23h BRT = 02h UTC do dia seguinte).
 library;
@@ -113,17 +113,19 @@ void main() {
     });
   });
 
-  group('clampDiaDestino (D7 — nunca para um dia anterior)', () {
+  group('clampDiaDestino (piso 2020 — permite passado)', () {
     final hoje = DateTime(2026, 7, 13);
 
-    test('OS futura não pode voltar pra antes de hoje', () {
+    test('pode voltar de hoje/futuro para um dia passado', () {
       final os = DateTime(2026, 7, 15);
       expect(
-        clampDiaDestino(DateTime(2026, 7, 11), diaOriginal: os, hoje: hoje),
-        hoje,
+        clampDiaDestino(DateTime(2026, 7, 14), diaOriginal: os, hoje: hoje),
+        DateTime(2026, 7, 14),
       );
-      // Voltar até HOJE é permitido.
-      expect(clampDiaDestino(hoje, diaOriginal: os, hoje: hoje), hoje);
+      expect(
+        clampDiaDestino(DateTime(2026, 7, 11), diaOriginal: os, hoje: hoje),
+        DateTime(2026, 7, 11),
+      );
     });
 
     test('avançar é sempre permitido', () {
@@ -134,16 +136,15 @@ void main() {
       );
     });
 
-    test('OS já no passado: o piso é o próprio dia dela', () {
+    test('piso absoluto em 2020-01-01', () {
       final os = DateTime(2026, 7, 10);
       expect(
-        clampDiaDestino(DateTime(2026, 7, 8), diaOriginal: os, hoje: hoje),
-        os,
+        clampDiaDestino(DateTime(2019, 12, 31), diaOriginal: os, hoje: hoje),
+        DateTime(2020),
       );
-      // ...mas ela pode andar pra frente normalmente.
       expect(
-        clampDiaDestino(DateTime(2026, 7, 12), diaOriginal: os, hoje: hoje),
-        DateTime(2026, 7, 12),
+        clampDiaDestino(DateTime(2026, 7, 8), diaOriginal: os, hoje: hoje),
+        DateTime(2026, 7, 8),
       );
     });
   });
@@ -187,7 +188,7 @@ void main() {
       expect(p.inerte, isTrue); // nada mudou → drop é no-op
     });
 
-    test('arrastar pro passado é recortado em hoje (D7)', () {
+    test('arrastar pro passado aplica o delta (15 → 10, não recorta em hoje)', () {
       final p = propostaDeMover(
         diaOriginal: DateTime(2026, 7, 15),
         hoje: hoje,
@@ -199,8 +200,8 @@ void main() {
         larguraColunaPx: 120,
         permiteCrossDay: true,
       );
-      expect(p.dia, hoje);
-      expect(p.deltaDias, -2); // 15 → 13, não 15 → 10
+      expect(p.dia, DateTime(2026, 7, 10));
+      expect(p.deltaDias, -5); // 15 → 10
     });
   });
 

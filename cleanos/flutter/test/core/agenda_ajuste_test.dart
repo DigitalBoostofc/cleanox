@@ -85,8 +85,8 @@ void main() {
     });
   });
 
-  group('dia do ajuste (D7)', () {
-    test('o sheet nunca cai num dia anterior a hoje', () {
+  group('dia do ajuste (clampDiaDestino)', () {
+    test('preserva o dia da OS (sheet não muda de dia) e aceita passado', () {
       final hoje = DateTime(2026, 7, 13);
       final amanha = DateTime(2026, 7, 14);
       // O sheet não muda de dia: o destino é sempre o dia da própria OS.
@@ -94,9 +94,14 @@ void main() {
         clampDiaDestino(amanha, diaOriginal: amanha, hoje: hoje),
         amanha,
       );
-      // OS atrasada (ontem): o piso é o dia dela — o ajuste não a empurra.
+      // OS atrasada (ontem): permanece no dia dela.
       final ontem = DateTime(2026, 7, 12);
       expect(clampDiaDestino(ontem, diaOriginal: ontem, hoje: hoje), ontem);
+      // Remarcar de amanhã para ontem é permitido (grade / correção).
+      expect(
+        clampDiaDestino(ontem, diaOriginal: amanha, hoje: hoje),
+        ontem,
+      );
     });
   });
 

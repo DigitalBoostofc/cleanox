@@ -4,7 +4,7 @@
 /// [DayColumn] e cobra o que a spec promete:
 /// - arrastar o CORPO move (novo `data_hora` = dia + minuto-BRT);
 /// - arrastar a BORDA INFERIOR redimensiona (`duracao_min`, snap 15/mín 15);
-/// - cross-day na semana (D8) e bloqueio de dia anterior (D7);
+/// - cross-day na semana (D8) e remarcar para dia passado (piso 2020);
 /// - status não-arrastável (D6) e OS com drop em voo NÃO têm alça nem arrastam.
 library;
 
@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'painel_test_helpers.dart';
 
-/// Dia da coluna: SEMPRE no futuro, para o piso do D7 nunca recortar o teste.
+/// Dia da coluna de referência nos testes (amanhã+1 — grade estável).
 final DateTime _hoje = DateTime.parse(todayLocalDate());
 final DateTime _dia = _hoje.add(const Duration(days: 2));
 
@@ -213,8 +213,10 @@ void main() {
     expect(drops.startMin, 9 * 60 + 30);
   });
 
-  testWidgets('SEMANA: não solta num dia ANTERIOR a hoje (D7)', (tester) async {
-    // OS amanhã; arrasta 3 colunas pra esquerda → cairia ANTES de hoje.
+  testWidgets('SEMANA: solta em dia passado quando o delta puxa pra trás', (
+    tester,
+  ) async {
+    // OS amanhã; arrasta 3 colunas pra esquerda → 2 dias antes de hoje.
     final amanha = _hoje.add(const Duration(days: 1));
     final drops = await _pumpGrade(
       tester,
@@ -227,7 +229,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(drops.movidas, 1);
-    expect(drops.dia, _hoje, reason: 'recortado em hoje, não 2 dias atrás');
+    expect(
+      drops.dia,
+      amanha.subtract(const Duration(days: 3)),
+      reason: 'delta de -3 colunas aplica o dia passado (não recorta em hoje)',
+    );
   });
 
   testWidgets('status NÃO arrastável (D6): sem alça e sem drop', (tester) async {
