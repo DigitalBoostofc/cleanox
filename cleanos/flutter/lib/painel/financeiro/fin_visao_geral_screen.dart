@@ -9,9 +9,9 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -67,6 +67,7 @@ class FinVisaoGeralScreen extends ConsumerWidget {
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
     final limites = ref.watch(finLimitesProvider).valueOrNull ?? const [];
     final pendentes = ref.watch(finPendentesProvider).valueOrNull ?? const [];
+    final user = ref.watch(currentUserProvider);
     final mobile = finIsMobile(context);
     final fintech = ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
 
@@ -85,6 +86,7 @@ class FinVisaoGeralScreen extends ConsumerWidget {
         categorias: categorias,
         limites: limites,
         pendentes: pendentes,
+        userName: user?.displayName ?? 'Admin',
         mobile: mobile,
         fintech: fintech,
         leadingChildren: leadingChildren,
@@ -170,6 +172,7 @@ class _Body extends StatelessWidget {
     required this.categorias,
     required this.limites,
     required this.pendentes,
+    required this.userName,
     required this.onNovaReceita,
     required this.onNovaDespesa,
     required this.onTransferencia,
@@ -183,6 +186,7 @@ class _Body extends StatelessWidget {
   final List<FinCategoria> categorias;
   final List<FinLimite> limites;
   final List<FinLancamento> pendentes;
+  final String userName;
   final VoidCallback onNovaReceita;
   final VoidCallback onNovaDespesa;
   final VoidCallback onTransferencia;
@@ -191,8 +195,8 @@ class _Body extends StatelessWidget {
   final bool mobile;
 
   /// APK "Fintech Clean" (doc 12): saldo geral vira [FintechBalanceHero] em
-  /// vez de um card de KPI a mais na grade. A Web (`fintech=false`) preserva
-  /// 100% do layout de 4 KPIs de hoje.
+  /// vez de um card de KPI a mais na grade. A Web (`fintech=false`) usa o
+  /// layout estilo Organizze (saudação + acesso rápido + 2 colunas).
   final bool fintech;
 
   /// Widgets inseridos ANTES dos KPIs (cabeçalho mobile). Vazio no desktop.
@@ -213,129 +217,110 @@ class _Body extends StatelessWidget {
     final hoje = todayLocalDate();
     final receber = contasAReceber(pendentes, hoje).take(5).toList();
     final pagar = contasAPagar(pendentes, hoje).take(5).toList();
-
-    final entradasCard = FinKpiCard(
-      label: 'Entradas do mês',
-      value: formatCurrency(resumo.entradas),
-      color: clx.finIncome,
-      icon: Icons.north_east_rounded,
-      hint: 'Receitas realizadas',
-    );
-    final saidasCard = FinKpiCard(
-      label: 'Saídas do mês',
-      value: formatCurrency(resumo.saidas),
-      color: clx.finExpense,
-      icon: Icons.south_west_rounded,
-      hint: 'Despesas realizadas',
-    );
-    final saldoMesCard = FinKpiCard(
-      label: 'Saldo do mês',
-      value: formatCurrency(resumo.saldoMes),
-      color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
-      icon: Icons.equalizer_rounded,
-      hint: 'Entradas − saídas',
-    );
-
-    // Easypay (APK): hero + mini KPIs + gráfico de fluxo animado.
     final chartGroups = _fluxoUltimosMeses(lancs);
-    final kpiSection = fintech
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FintechBalanceHero(
-                label: 'Saldo geral',
-                value: formatCurrency(saldoTotal),
-                hint: 'Disponível em contas',
-              ),
-              const SizedBox(height: ClxSpace.x4),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ClxFadeSlide(
-                      delay: const Duration(milliseconds: 40),
-                      child: entradasCard,
-                    ),
-                  ),
-                  const SizedBox(width: ClxSpace.x3),
-                  Expanded(
-                    child: ClxFadeSlide(
-                      delay: const Duration(milliseconds: 80),
-                      child: saidasCard,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: ClxSpace.x3),
-              ClxFadeSlide(
-                delay: const Duration(milliseconds: 120),
-                child: FinKpiCard(
-                  label: 'Saldo do mês',
-                  value: formatCurrency(resumo.saldoMes),
-                  color: resumo.saldoMes < 0 ? clx.finExpense : clx.primary,
-                  icon: Icons.equalizer_rounded,
-                  hint: 'Entradas − saídas',
-                  wide: true,
+
+    // APK fintech: hero + mini KPIs (mantém doc 12).
+    if (fintech || mobile) {
+      return ListView(
+        padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x5),
+        children: [
+          ...leadingChildren,
+          if (fintech)
+            FintechBalanceHero(
+              label: 'Saldo geral',
+              value: formatCurrency(saldoTotal),
+              hint: 'Disponível em contas',
+            )
+          else
+            FinKpiGrid(
+              cards: [
+                FinKpiCard(
+                  label: 'Entradas do mês',
+                  value: formatCurrency(resumo.entradas),
+                  color: clx.finIncome,
+                  icon: Icons.north_east_rounded,
                 ),
-              ),
-              if (chartGroups.isNotEmpty) ...[
-                const SizedBox(height: ClxSpace.x4),
-                ClxFadeSlide(
-                  delay: const Duration(milliseconds: 160),
-                  child: ClxCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Fluxo do período',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: clx.ink,
-                              ),
-                        ),
-                        const SizedBox(height: ClxSpace.x3),
-                        FinGroupedBarChart(groups: chartGroups, height: 180),
-                      ],
-                    ),
-                  ),
+                FinKpiCard(
+                  label: 'Saídas do mês',
+                  value: formatCurrency(resumo.saidas),
+                  color: clx.finExpense,
+                  icon: Icons.south_west_rounded,
                 ),
               ],
-            ],
-          )
-        : FinKpiGrid(
-            cards: [
-              entradasCard,
-              saidasCard,
-              saldoMesCard,
-              FinKpiCard(
-                label: 'Saldo geral',
-                value: formatCurrency(saldoTotal),
-                color: saldoTotal < 0 ? clx.finExpense : clx.ink,
-                icon: Icons.account_balance_outlined,
-                hint: 'Disponível em contas',
-              ),
-            ],
-          );
-
-    // Desktop: grid denso em largura total (sem faixas vazias laterais).
-    // Mobile: coluna simples.
-    return ListView(
-      padding: EdgeInsets.all(mobile ? ClxSpace.x4 : ClxSpace.x5),
-      children: [
-        ...leadingChildren,
-        kpiSection,
-        const SizedBox(height: ClxSpace.x4),
-        ClxCard(
-          child: _QuickActions(
-            onNovaReceita: onNovaReceita,
-            onNovaDespesa: onNovaDespesa,
-            onTransferencia: onTransferencia,
-            onImportar: () => showClxToast(
-              context,
-              'Importação — em breve.',
-              type: ToastType.info,
             ),
+          const SizedBox(height: ClxSpace.x4),
+          ClxCard(
+            child: _QuickActions(
+              onNovaReceita: onNovaReceita,
+              onNovaDespesa: onNovaDespesa,
+              onTransferencia: onTransferencia,
+              onImportar: () => showClxToast(
+                context,
+                'Importação — em breve.',
+                type: ToastType.info,
+              ),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+          _GastosCard(lancs: lancs, cat: _cat),
+          const SizedBox(height: ClxSpace.x4),
+          _LimitesCard(lancs: lancs, limites: limites, cat: _cat),
+          const SizedBox(height: ClxSpace.x4),
+          _PreviewCard(
+            title: 'Contas a pagar',
+            badge: '${pagar.length}',
+            badgeColor: clx.finExpense,
+            items: pagar,
+            kind: TipoLancamento.despesa,
+            cat: _cat,
+          ),
+          const SizedBox(height: ClxSpace.x4),
+          _PreviewCard(
+            title: 'Contas a receber',
+            badge: '${receber.length}',
+            badgeColor: clx.finIncome,
+            items: receber,
+            kind: TipoLancamento.receita,
+            cat: _cat,
+          ),
+          if (chartGroups.isNotEmpty) ...[
+            const SizedBox(height: ClxSpace.x4),
+            ClxCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Fluxo do período',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: clx.ink,
+                    ),
+                  ),
+                  const SizedBox(height: ClxSpace.x3),
+                  FinGroupedBarChart(groups: chartGroups, height: 180),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: ClxSpace.x4),
+        ],
+      );
+    }
+
+    // Desktop web — layout estilo Organizze (2 colunas + saudação).
+    return ListView(
+      padding: const EdgeInsets.all(ClxSpace.x5),
+      children: [
+        _OrganizzeTop(
+          userName: userName,
+          resumo: resumo,
+          onNovaReceita: onNovaReceita,
+          onNovaDespesa: onNovaDespesa,
+          onTransferencia: onTransferencia,
+          onImportar: () => showClxToast(
+            context,
+            'Importação — em breve.',
+            type: ToastType.info,
           ),
         ),
         if (lancs.isEmpty) ...[
@@ -345,84 +330,335 @@ class _Body extends StatelessWidget {
               icon: Icons.insights_outlined,
               title: 'Sem movimentações neste mês',
               message:
-                  'Os gráficos do período aparecem vazios. As contas a pagar/'
-                  'receber abaixo consideram todos os períodos.',
+                  'Cadastre receitas e despesas para ver gráficos e limites. '
+                  'Contas a pagar/receber abaixo consideram todos os períodos.',
             ),
           ),
         ],
         const SizedBox(height: ClxSpace.x4),
-        // Linha 1: a receber | a pagar | maiores gastos (3 colunas em desktop).
-        _ResponsiveRow(
-          minColWidth: 260,
-          children: [
-            _PreviewCard(
-              title: 'Contas a receber',
-              badge: '${receber.length} próximas',
-              badgeColor: clx.finIncome,
-              items: receber,
-              kind: TipoLancamento.receita,
-              cat: _cat,
-            ),
-            _PreviewCard(
-              title: 'Contas a pagar',
-              badge: '${pagar.length} próximas',
-              badgeColor: clx.finExpense,
-              items: pagar,
-              kind: TipoLancamento.despesa,
-              cat: _cat,
-            ),
-            _GastosCard(lancs: lancs, cat: _cat),
-          ],
+        LayoutBuilder(
+          builder: (context, c) {
+            final wide = c.maxWidth >= 960;
+            final left = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SaldoEContasCard(saldoTotal: saldoTotal, contas: contas),
+                const SizedBox(height: ClxSpace.x4),
+                _LimitesCard(lancs: lancs, limites: limites, cat: _cat),
+              ],
+            );
+            final right = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _GastosCard(lancs: lancs, cat: _cat),
+                const SizedBox(height: ClxSpace.x4),
+                _PreviewCard(
+                  title: 'Contas a pagar',
+                  badge: '${pagar.length}',
+                  badgeColor: clx.finExpense,
+                  items: pagar,
+                  kind: TipoLancamento.despesa,
+                  cat: _cat,
+                ),
+                const SizedBox(height: ClxSpace.x4),
+                _PreviewCard(
+                  title: 'Contas a receber',
+                  badge: '${receber.length}',
+                  badgeColor: clx.finIncome,
+                  items: receber,
+                  kind: TipoLancamento.receita,
+                  cat: _cat,
+                ),
+                if (chartGroups.isNotEmpty) ...[
+                  const SizedBox(height: ClxSpace.x4),
+                  ClxCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Entradas × Saídas',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: clx.ink,
+                              ),
+                        ),
+                        const SizedBox(height: ClxSpace.x3),
+                        FinGroupedBarChart(groups: chartGroups, height: 200),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: ClxSpace.x4),
+                _OrigemCard(lancs: lancs),
+              ],
+            );
+            if (!wide) {
+              return Column(
+                children: [
+                  left,
+                  const SizedBox(height: ClxSpace.x4),
+                  right,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 5, child: left),
+                const SizedBox(width: ClxSpace.x4),
+                Expanded(flex: 6, child: right),
+              ],
+            );
+          },
         ),
         const SizedBox(height: ClxSpace.x4),
-        // Linha 2: receitas por origem | limites | fluxo (preenche a largura).
-        _ResponsiveRow(
-          minColWidth: 280,
-          children: [
-            _OrigemCard(lancs: lancs),
-            _LimitesCard(lancs: lancs, limites: limites, cat: _cat),
-            if (!mobile && !fintech && chartGroups.isNotEmpty)
-              ClxCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Fluxo do período',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: clx.ink,
-                      ),
-                    ),
-                    const SizedBox(height: ClxSpace.x3),
-                    FinGroupedBarChart(groups: chartGroups, height: 200),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        // Mobile/fintech: fluxo já está no hero; desktop sem 3ª col acima ok.
-        if ((mobile || fintech) && chartGroups.isNotEmpty) ...[
-          const SizedBox(height: ClxSpace.x4),
-          ClxCard(
+      ],
+    );
+  }
+}
+
+/* ─────────────────────── topo Organizze ─────────────────────── */
+
+class _OrganizzeTop extends StatelessWidget {
+  const _OrganizzeTop({
+    required this.userName,
+    required this.resumo,
+    required this.onNovaReceita,
+    required this.onNovaDespesa,
+    required this.onTransferencia,
+    required this.onImportar,
+  });
+
+  final String userName;
+  final ResumoPeriodo resumo;
+  final VoidCallback onNovaReceita;
+  final VoidCallback onNovaDespesa;
+  final VoidCallback onTransferencia;
+  final VoidCallback onImportar;
+
+  String get _saudacao {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return ClxCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Fluxo do período',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  '$_saudacao, $userName!',
+                  style: tt.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: clx.ink,
                   ),
                 ),
                 const SizedBox(height: ClxSpace.x3),
-                FinGroupedBarChart(groups: chartGroups, height: 180),
+                Wrap(
+                  spacing: ClxSpace.x6,
+                  runSpacing: ClxSpace.x2,
+                  children: [
+                    _MesTot(
+                      label: 'Receitas no mês atual',
+                      value: formatCurrency(resumo.entradas),
+                      color: clx.finIncome,
+                    ),
+                    _MesTot(
+                      label: 'Despesas no mês atual',
+                      value: formatCurrency(resumo.saidas),
+                      color: clx.finExpense,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+          const SizedBox(width: ClxSpace.x4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Acesso rápido',
+                style: tt.labelLarge?.copyWith(
+                  color: clx.ink3,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: ClxSpace.x2),
+              _QuickActions(
+                compact: true,
+                onNovaReceita: onNovaReceita,
+                onNovaDespesa: onNovaDespesa,
+                onTransferencia: onTransferencia,
+                onImportar: onImportar,
+              ),
+            ],
+          ),
         ],
-        // Respiro final menor — evita “mar” de branco sob o conteúdo.
-        const SizedBox(height: ClxSpace.x4),
+      ),
+    );
+  }
+}
+
+class _MesTot extends StatelessWidget {
+  const _MesTot({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: tt.bodySmall?.copyWith(color: clx.ink3),
+        ),
+        Text(
+          value,
+          style: tt.headlineSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _SaldoEContasCard extends StatelessWidget {
+  const _SaldoEContasCard({
+    required this.saldoTotal,
+    required this.contas,
+  });
+
+  final double saldoTotal;
+  final List<FinConta> contas;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    final ativas = contas.where((c) => c.ativo).toList();
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: clx.primary,
+                  borderRadius: ClxRadii.rSm,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Saldo geral',
+                      style: tt.bodySmall?.copyWith(color: clx.ink3),
+                    ),
+                    Text(
+                      formatCurrency(saldoTotal),
+                      style: tt.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: saldoTotal < 0 ? clx.finExpense : clx.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x4),
+          Text(
+            'Minhas contas',
+            style: tt.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: clx.ink,
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          if (ativas.isEmpty)
+            Text(
+              'Nenhuma conta ativa.',
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
+            )
+          else
+            for (final c in ativas)
+              Padding(
+                padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: (finParseHex(c.cor) ?? clx.primary)
+                            .withValues(alpha: 0.16),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 16,
+                        color: finParseHex(c.cor) ?? clx.primary,
+                      ),
+                    ),
+                    const SizedBox(width: ClxSpace.x3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c.nome,
+                            style: tt.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: clx.ink,
+                            ),
+                          ),
+                          Text(
+                            contaTipoLabel(c.tipo),
+                            style: tt.labelSmall?.copyWith(color: clx.ink3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      formatCurrency(c.saldoAtual),
+                      style: tt.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: c.saldoAtual < 0 ? clx.finExpense : clx.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
+      ),
     );
   }
 }
@@ -457,132 +693,6 @@ List<FinBarGroup> _fluxoUltimosMeses(List<FinLancamento> lancs) {
   ];
 }
 
-/* ─────────────────────── layout responsivo ─────────────────────── */
-
-/// Linha que vira coluna em telas estreitas (mantém cada filho >= [minColWidth]).
-/// Em desktop, filhos [Expanded] ocupam a **largura total** (sem sobras laterais).
-class _ResponsiveRow extends StatelessWidget {
-  const _ResponsiveRow({required this.children, required this.minColWidth});
-
-  final List<Widget> children;
-  final double minColWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final n = children.length;
-        final cabe = n > 0 && c.maxWidth >= minColWidth * n;
-        if (!cabe) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(height: ClxSpace.x4),
-                children[i],
-              ],
-            ],
-          );
-        }
-        // Colunas de mesma altura SEM IntrinsicHeight: os cards contêm
-        // LayoutBuilder (donut responsivo em fin_charts.dart), e o Flutter
-        // proíbe consultar intrínsecos de um LayoutBuilder (crash em debug,
-        // altura 0 em release). O layout custom mede as colunas e estica
-        // todas para a mais alta, sem intrínsecos.
-        return _EqualHeightRow(gap: ClxSpace.x4, children: children);
-      },
-    );
-  }
-}
-
-/// Linha de colunas de LARGURA igual esticadas para a altura da mais alta.
-/// Substitui `IntrinsicHeight(Row(stretch))`, que não suporta filhos com
-/// `LayoutBuilder`. Dois passes: mede a altura natural de cada coluna na
-/// largura final e relayouta com a altura máxima (tight).
-class _EqualHeightRow extends MultiChildRenderObjectWidget {
-  const _EqualHeightRow({required this.gap, required super.children});
-
-  final double gap;
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderEqualHeightRow(gap);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderEqualHeightRow renderObject,
-  ) {
-    renderObject.gap = gap;
-  }
-}
-
-class _EqualHeightRowParentData extends ContainerBoxParentData<RenderBox> {}
-
-class _RenderEqualHeightRow extends RenderBox
-    with
-        ContainerRenderObjectMixin<RenderBox, _EqualHeightRowParentData>,
-        RenderBoxContainerDefaultsMixin<RenderBox, _EqualHeightRowParentData> {
-  _RenderEqualHeightRow(this._gap);
-
-  double _gap;
-  set gap(double v) {
-    if (v == _gap) return;
-    _gap = v;
-    markNeedsLayout();
-  }
-
-  @override
-  void setupParentData(RenderBox child) {
-    if (child.parentData is! _EqualHeightRowParentData) {
-      child.parentData = _EqualHeightRowParentData();
-    }
-  }
-
-  @override
-  void performLayout() {
-    final n = childCount;
-    if (n == 0) {
-      size = constraints.smallest;
-      return;
-    }
-    final colW = (constraints.maxWidth - _gap * (n - 1)) / n;
-    final colConstraints = BoxConstraints(minWidth: colW, maxWidth: colW);
-
-    // 1º passe: altura natural de cada coluna na largura final.
-    var maxH = 0.0;
-    var child = firstChild;
-    while (child != null) {
-      child.layout(colConstraints, parentUsesSize: true);
-      if (child.size.height > maxH) maxH = child.size.height;
-      child = (child.parentData! as _EqualHeightRowParentData).nextSibling;
-    }
-    maxH = constraints.constrainHeight(maxH);
-
-    // 2º passe: estica todas para a altura da mais alta e posiciona.
-    var x = 0.0;
-    child = firstChild;
-    while (child != null) {
-      child.layout(
-        BoxConstraints.tightFor(width: colW, height: maxH),
-        parentUsesSize: true,
-      );
-      (child.parentData! as _EqualHeightRowParentData).offset = Offset(x, 0);
-      x += colW + _gap;
-      child = (child.parentData! as _EqualHeightRowParentData).nextSibling;
-    }
-    size = Size(constraints.maxWidth, maxH);
-  }
-
-  @override
-  void paint(PaintingContext context, Offset offset) =>
-      defaultPaint(context, offset);
-
-  @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
-      defaultHitTestChildren(result, position: position);
-}
-
 /* ─────────────────────── ações rápidas ─────────────────────── */
 
 class _QuickActions extends StatelessWidget {
@@ -591,6 +701,7 @@ class _QuickActions extends StatelessWidget {
     required this.onNovaDespesa,
     required this.onTransferencia,
     required this.onImportar,
+    this.compact = false,
   });
 
   final VoidCallback onNovaReceita;
@@ -598,37 +709,55 @@ class _QuickActions extends StatelessWidget {
   final VoidCallback onTransferencia;
   final VoidCallback onImportar;
 
+  /// Estilo Organizze: 4 botões em linha (DESPESA / RECEITA / TRANSF / IMPORT).
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final novaReceita = _QuickAction(
-      icon: Icons.add_rounded,
-      label: 'Nova receita',
-      fg: clx.success,
-      bg: clx.successBg,
-      onTap: onNovaReceita,
-    );
     final novaDespesa = _QuickAction(
       icon: Icons.remove_rounded,
-      label: 'Nova despesa',
-      fg: clx.error,
-      bg: clx.errorBg,
+      label: compact ? 'DESPESA' : 'Nova despesa',
+      fg: Colors.white,
+      bg: clx.error,
       onTap: onNovaDespesa,
+    );
+    final novaReceita = _QuickAction(
+      icon: Icons.add_rounded,
+      label: compact ? 'RECEITA' : 'Nova receita',
+      fg: Colors.white,
+      bg: clx.success,
+      onTap: onNovaReceita,
     );
     final transferencia = _QuickAction(
       icon: Icons.swap_horiz_rounded,
-      label: 'Transferência',
-      fg: clx.info,
-      bg: clx.infoBg,
+      label: compact ? 'TRANSF.' : 'Transferência',
+      fg: clx.ink2,
+      bg: clx.bg3,
       onTap: onTransferencia,
     );
     final importar = _QuickAction(
       icon: Icons.file_download_outlined,
-      label: 'Importar',
-      fg: clx.primary,
-      bg: clx.primary.withValues(alpha: 0.14),
+      label: compact ? 'IMPORTAR' : 'Importar',
+      fg: clx.ink2,
+      bg: clx.bg3,
       onTap: onImportar,
     );
+
+    if (compact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          novaDespesa,
+          const SizedBox(width: ClxSpace.x2),
+          novaReceita,
+          const SizedBox(width: ClxSpace.x2),
+          transferencia,
+          const SizedBox(width: ClxSpace.x2),
+          importar,
+        ],
+      );
+    }
 
     // Mobile / Easypay: grade fixa 2x2.
     if (finIsMobile(context)) {
@@ -877,10 +1006,13 @@ class _GastosCard extends StatelessWidget {
   }
 
   Widget _donut(BuildContext context, Map<String, double> gastos) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final entries = gastos.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final top = entries.take(5).toList();
-    final resto = entries.skip(5).fold<double>(0, (a, e) => a + e.value);
+    final top = entries.take(6).toList();
+    final resto = entries.skip(6).fold<double>(0, (a, e) => a + e.value);
+    final total = entries.fold<double>(0, (a, e) => a + e.value);
     final cores = finSeriesColors(context, top.length + 1);
     final slices = <FinSlice>[
       for (var i = 0; i < top.length; i++)
@@ -892,7 +1024,48 @@ class _GastosCard extends StatelessWidget {
       if (resto > 0)
         FinSlice(label: 'Outros', value: resto, color: cores.last),
     ];
-    return FinDonutChart(slices: slices, centerLabel: 'Gastos');
+    // Estilo Organizze: ranking com % + donut (legenda nativa do chart).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < slices.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+            child: Row(
+              children: [
+                FinCategoriaAvatar(
+                  categoria: i < top.length ? cat(top[i].key) : null,
+                  size: 28,
+                ),
+                const SizedBox(width: ClxSpace.x2),
+                Expanded(
+                  child: Text(
+                    slices[i].label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.bodyMedium?.copyWith(
+                      color: clx.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  total > 0
+                      ? '${(slices[i].value / total * 100).toStringAsFixed(2)}%'
+                          .replaceAll('.', ',')
+                      : '0%',
+                  style: tt.labelLarge?.copyWith(
+                    color: clx.ink2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: ClxSpace.x3),
+        FinDonutChart(slices: slices, centerLabel: 'Gastos', size: 160),
+      ],
+    );
   }
 }
 
@@ -1048,14 +1221,20 @@ class _LimiteRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${formatCurrency(progresso.gasto)} / '
-              '${formatCurrency(progresso.limite)}',
+              '${(progresso.pct * 100).round()}%',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: estourou ? clx.error : clx.ink3,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
+        ),
+        Text(
+          'Meta: ${formatCurrency(progresso.limite)}  ·  '
+          'Gasto: ${formatCurrency(progresso.gasto)}',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: estourou ? clx.error : clx.ink3,
+          ),
         ),
         const SizedBox(height: ClxSpace.x1),
         FinProgressBar(value: progresso.pct),
