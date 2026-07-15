@@ -428,7 +428,8 @@ Future<T?> showFinModal<T>(BuildContext context, Widget child) {
       shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 780),
+        // Modal mais enxuto (estilo Organizze: formulário de lançamento curto).
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 720),
         child: child,
       ),
     ),
