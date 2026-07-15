@@ -137,14 +137,11 @@ function criarLancamentoFinanceiro(app, record, origStatus) {
   const formaPagamento = FORMA_MAP[formaRaw] || formaRaw;
 
   const descricao = "OS " + osNumero + (clienteNome ? " - " + clienteNome : "");
-  // F-222: data do lançamento no fuso BRT (UTC-3). `new Date()` puro (UTC) faria
-  // conclusões 21:00–23:59 BRT caírem no dia/mês SEGUINTE nos relatórios (que
-  // bucketizam pela PARTE-DATA 'YYYY-MM-DD' via slice/dentroDoPeriodo). Subtrai 3h
-  // do instante para que a parte-data reflita o dia BRT da conclusão — espelha a
-  // convenção dos fixes F-203/F-204/getUtcDayBounds do projeto. O processo PB pode
-  // rodar em UTC na VPS, então o offset é aplicado explicitamente (não via TZ local).
-  var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const now = new Date(Date.now() - BRT_OFFSET_MS).toISOString().replace("T", " ").slice(0, 23) + "Z";
+  // Data do lançamento = DIA DO SERVIÇO (data_hora da OS em BRT), não "agora".
+  // Assim OS históricas (backfill com data no passado) caem no mês/dia certos
+  // nos relatórios. Fallback: dia BRT da conclusão (F-222) se data_hora faltar.
+  // DateField do PB: 'YYYY-MM-DD' (parede) — mesmo formato do form manual.
+  const dataParede = dataParedeBrtDaOs(record);
 
   const finLancCol = app.findCollectionByNameOrId("fin_lancamentos");
   const lanc = new Record(finLancCol);
@@ -153,7 +150,7 @@ function criarLancamentoFinanceiro(app, record, origStatus) {
   lanc.set("categoria_id",     categoriaId);
   lanc.set("valor",            valorPago);
   lanc.set("conta_id",         contaId);
-  lanc.set("data",             now);
+  lanc.set("data",             dataParede);
   lanc.set("status",           "pago");
   lanc.set("recorrencia",      "unica");
   lanc.set("origem",           "via_os");
@@ -178,4 +175,38 @@ function criarLancamentoFinanceiro(app, record, origStatus) {
   console.log("[fin] Lançamento receita criado (saldo creditado pelo hook de fin_lancamentos) — OS " + osId + ", R$ " + valorPago + ", cat=" + categoriaId + ", conta=" + contaId + ".");
 }
 
-module.exports = { criarLancamentoFinanceiro };
+/**
+ * Parte-data parede BRT ('YYYY-MM-DD') da OS a partir de `data_hora` (UTC no PB).
+ * Fallback: dia BRT de agora (conclusão sem data_hora).
+ */
+function dataParedeBrtDaOs(record) {
+  var BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+  var raw = "";
+  try {
+    raw = record && record.getString ? String(record.getString("data_hora") || "") : "";
+  } catch (_) {
+    raw = "";
+  }
+  if (raw) {
+    try {
+      // PB grava "2026-07-14 17:00:00.000Z" (espaço, não T).
+      var iso = raw.indexOf("T") >= 0 ? raw : raw.replace(" ", "T");
+      if (!/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += "Z";
+      var d = new Date(iso);
+      if (!isNaN(d.getTime())) {
+        var brt = new Date(d.getTime() - BRT_OFFSET_MS);
+        var y = brt.getUTCFullYear();
+        var m = String(brt.getUTCMonth() + 1).padStart(2, "0");
+        var day = String(brt.getUTCDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
+    } catch (_) { /* fallback abaixo */ }
+  }
+  var agora = new Date(Date.now() - BRT_OFFSET_MS);
+  var ay = agora.getUTCFullYear();
+  var am = String(agora.getUTCMonth() + 1).padStart(2, "0");
+  var ad = String(agora.getUTCDate()).padStart(2, "0");
+  return ay + "-" + am + "-" + ad;
+}
+
+module.exports = { criarLancamentoFinanceiro, dataParedeBrtDaOs };

@@ -217,12 +217,20 @@ class FinDateField extends StatelessWidget {
   }
 
   Future<void> _pick(BuildContext context) async {
-    final current = DateTime.tryParse(controller.text) ?? DateTime.now();
+    // Datas no passado são legítimas (backfill de caixa / OS históricas).
+    // Piso amplo 2020 — igual ao form de OS e à agenda.
+    final first = DateTime(2020);
+    final last = DateTime(2100);
+    var initial = DateTime.tryParse(controller.text) ?? DateTime.now();
+    // DatePicker exige initialDate dentro de [first, last]; sem clamp ele
+    // lança e o usuário não consegue abrir o calendário.
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: current,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
     );
     if (picked != null) {
       String p(int n) => n.toString().padLeft(2, '0');
