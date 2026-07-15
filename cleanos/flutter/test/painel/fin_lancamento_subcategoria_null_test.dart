@@ -2,9 +2,8 @@
 /// bug "" vs null do `parent_id` de `FinCategoria` (05e2388), aqui em
 /// `subcategoria_id` de `FinLancamento`. `subcategoria_id` é um RelationField
 /// OPCIONAL (migration 14) — o PocketBase grava relação vazia como `""`, nunca
-/// `null`. Sem normalizar no `fromRecord`, o `FinDropdown<String?>` da
-/// subcategoria (`items: [null, ...subs]`) derruba a tela ao editar QUALQUER
-/// lançamento sem subcategoria, pois `""` não bate em nenhum item da lista.
+/// `null`. O form usa [FinCategoriaTreePicker] unificado; sem normalizar no
+/// `fromRecord`, a seleção falha ao editar lançamento sem subcategoria.
 library;
 
 import 'package:cleanos/core/design/design.dart';
@@ -22,7 +21,7 @@ import 'painel_test_helpers.dart';
 void main() {
   testWidgets(
     'editar lançamento sem subcategoria (subcategoria_id="" do PocketBase) '
-    'não crasha o FinDropdown<String?>',
+    'não crasha o picker unificado',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -88,7 +87,9 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(LancamentoForm), findsOneWidget);
-      expect(find.text('— Nenhuma'), findsOneWidget);
+      // Picker unificado mostra a categoria-raiz (sem "— Nenhuma").
+      expect(find.text('Transporte'), findsOneWidget);
+      expect(find.byKey(const ValueKey('fin-categoria-tree-picker')), findsOneWidget);
     },
   );
 }
