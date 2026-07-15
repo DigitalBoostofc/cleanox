@@ -888,27 +888,23 @@ class _DonutCard extends StatelessWidget {
               ),
             )
           else ...[
-            FinDonutChart(
-              centerLabel: 'Total',
-              slices: [
-                for (final s in slices)
-                  FinSlice(label: s.label, value: s.value, color: s.color),
-              ],
-            ),
-            const SizedBox(height: ClxSpace.x4),
-            Divider(height: 1, color: clx.line),
-            const SizedBox(height: ClxSpace.x2),
+            // Estilo Organizze: ranking com valor + % e donut abaixo.
             for (final s in slices)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: ClxSpace.x1),
+                padding: const EdgeInsets.only(bottom: ClxSpace.x2),
                 child: Row(
                   children: [
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 28,
+                      height: 28,
                       decoration: BoxDecoration(
+                        color: s.color.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.sell_outlined,
+                        size: 14,
                         color: s.color,
-                        borderRadius: ClxRadii.rSm,
                       ),
                     ),
                     const SizedBox(width: ClxSpace.x2),
@@ -917,28 +913,66 @@ class _DonutCard extends StatelessWidget {
                         s.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
+                        style: tt.bodyMedium?.copyWith(
+                          color: clx.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     Text(
                       formatCurrency(s.value),
                       style: tt.bodyMedium?.copyWith(
                         color: clx.ink,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(width: ClxSpace.x3),
                     SizedBox(
-                      width: 46,
+                      width: 56,
                       child: Text(
-                        '${(total > 0 ? s.pct * 100 : 0).toStringAsFixed(1).replaceAll('.', ',')}%',
-                        textAlign: TextAlign.right,
-                        style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                        '${(s.pct * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
+                        textAlign: TextAlign.end,
+                        style: tt.labelMedium?.copyWith(
+                          color: clx.ink3,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+            Padding(
+              padding: const EdgeInsets.only(
+                top: ClxSpace.x1,
+                bottom: ClxSpace.x3,
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'Total',
+                    style: tt.labelLarge?.copyWith(
+                      color: clx.ink2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    formatCurrency(total),
+                    style: tt.titleSmall?.copyWith(
+                      color: clx.ink,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FinDonutChart(
+              centerLabel: 'Total',
+              slices: [
+                for (final s in slices)
+                  FinSlice(label: s.label, value: s.value, color: s.color),
+              ],
+            ),
           ],
         ],
       ),

@@ -547,8 +547,8 @@ void main() {
 
       expect(find.text('Compra A'), findsOneWidget);
       expect(find.text('Venda B'), findsOneWidget);
-      expect(find.text('10/07/2026'), findsOneWidget);
-      expect(find.text('08/07/2026'), findsOneWidget);
+      expect(find.text('10/07/26'), findsOneWidget);
+      expect(find.text('08/07/26'), findsOneWidget);
     });
 
     testWidgets('vazio', (tester) async {

@@ -255,14 +255,30 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     // fixos acima de um Expanded), liberando viewport para os lançamentos.
     if (mobile) return _mobileBody(state, categorias, contas, toolbar);
 
-    // Desktop/tablet: layout original preservado (faixa fixa + lista).
+    // Desktop/tablet: faixa fixa + lista + rodapé saldo/previsto (estilo Organizze).
     return Column(
       children: [
         toolbar,
         const _Kpis(),
+        if (_unpaidPastBanner(state) != null) _unpaidPastBanner(state)!,
         Expanded(child: _body(state, categorias, contas)),
+        _SaldoPrevistoFooter(items: state.items),
       ],
     );
+  }
+
+  /// Banner: quantos lançamentos em aberto com data/vencimento no passado.
+  Widget? _unpaidPastBanner(FinLancState state) {
+    final hoje = todayLocalDate();
+    final n = state.items.where((l) {
+      if (l.status == LancamentoStatus.pago) return false;
+      final ref = (l.vencimento != null && l.vencimento!.isNotEmpty)
+          ? dateOnly(l.vencimento!)
+          : dateOnly(l.data);
+      return ref.compareTo(hoje) < 0;
+    }).length;
+    if (n == 0) return null;
+    return _UnpaidPastBanner(count: n);
   }
 
   /// Layout de celular: um único `CustomScrollView` onde o cabeçalho (toolbar +
@@ -934,55 +950,32 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({required this.grupo});
   final GrupoPorData grupo;
 
+  /// 'YYYY-MM-DD' → 'dd/MM/yy' (compacto, estilo Organizze).
+  String get _dataCurta {
+    final d = dateOnly(grupo.data);
+    if (d.length != 10) return formatDateOnlyBr(grupo.data);
+    return '${d.substring(8, 10)}/${d.substring(5, 7)}/${d.substring(2, 4)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    return Padding(
+    return Container(
+      width: double.infinity,
+      color: clx.bg2.withValues(alpha: 0.55),
       padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x6,
+        ClxSpace.x5,
         ClxSpace.x3,
-        ClxSpace.x6,
-        ClxSpace.x1,
+        ClxSpace.x5,
+        ClxSpace.x2,
       ),
-      child: Row(
-        children: [
-          Text(
-            formatDateOnlyBr(grupo.data),
-            style: tt.labelMedium?.copyWith(
-              color: clx.ink2,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          // Expanded (no lugar de Text + Spacer): ocupa o vão empurrando o total
-          // pra direita como antes, mas a contagem elipsa/encolhe primeiro em
-          // vez de estourar a Row em telas estreitas.
-          Expanded(
-            child: Text(
-              '${grupo.itens.length} lançamento${grupo.itens.length == 1 ? '' : 's'}',
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodySmall?.copyWith(color: clx.ink3),
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          // Flexible p/ totais longos (ex.: R$ 1.234.567,89) não estourarem.
-          Flexible(
-            child: Text(
-              formatSignedValue(grupo.totalDia),
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: tt.labelMedium?.copyWith(
-                color: grupo.totalDia < 0 ? clx.finExpense : clx.finIncome,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        _dataCurta,
+        style: tt.labelLarge?.copyWith(
+          color: clx.ink2,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1032,118 +1025,249 @@ class _LancamentoRow extends StatelessWidget {
     return parts.join(' · ');
   }
 
+  bool get _emAberto =>
+      lancamento.status != LancamentoStatus.pago;
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final l = lancamento;
     final sub = _sub();
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x6,
-        vertical: ClxSpace.x1,
-      ),
-      child: ClxCard(
+    // Fundo creme (Organizze) para não pagos / previstos.
+    final bg = _emAberto
+        ? clx.warning.withValues(alpha: 0.10)
+        : clx.bg;
+    return Material(
+      color: bg,
+      child: InkWell(
         onTap: onTap,
-        padding: const EdgeInsets.symmetric(
-          horizontal: ClxSpace.x4,
-          vertical: ClxSpace.x3,
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) => Row(
-            children: [
-              FinCategoriaAvatar(categoria: categoria, size: 36),
-              const SizedBox(width: ClxSpace.x3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.titleSmall?.copyWith(color: clx.ink),
-                    ),
-                    if (sub.isNotEmpty)
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: ClxSpace.x5,
+            vertical: ClxSpace.x3,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                // Bolinha status (vermelho = em aberto; transparente se pago).
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(right: ClxSpace.x2),
+                  decoration: BoxDecoration(
+                    color: _emAberto ? clx.error : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                FinCategoriaAvatar(
+                  categoria: subcategoria ?? categoria,
+                  size: 36,
+                ),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        sub,
+                        l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: tt.bodySmall?.copyWith(color: clx.ink3),
+                        style: tt.titleSmall?.copyWith(
+                          color: clx.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    const SizedBox(height: ClxSpace.x1),
-                    Wrap(
-                      spacing: ClxSpace.x1,
-                      runSpacing: ClxSpace.x1,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        OrigemChip(origem: l.origem),
-                        if (conta != null) ContaBadge(conta: conta!),
-                        if (l.recorrencia != RecorrenciaTipo.unica)
-                          RecorrenciaChip(recorrencia: l.recorrencia),
-                        StatusLancamentoChip(status: l.status, dense: true),
-                      ],
-                    ),
-                  ],
+                      if (sub.isNotEmpty)
+                        Text(
+                          sub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tt.bodySmall?.copyWith(color: clx.ink3),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: ClxSpace.x3),
-              // Sem Flexible/Expanded (QA-F3): o valor precisa da sua largura
-              // intrínseca inteira — nunca trunca pra valores normais. É a
-              // descrição no Expanded acima que cede espaço (ellipsis) quando o
-              // valor for longo. Como filho não-flex de uma Row, o valor recebe
-              // largura IRRESTRITA do Flutter (só Flexible/Expanded limitariam
-              // — proibido aqui) — por isso o ConstrainedBox abaixo (review) dá
-              // um teto (fração da largura DISPONÍVEL na Row, via
-              // `LayoutBuilder`) só pra valores ABSURDOS (ex.:
-              // R$ 123.456.789,00), que o FittedBox então encolhe pra caber, em
-              // vez de estourar a Row (RenderFlex overflow). Qualquer valor
-              // realista fica bem abaixo do teto e nunca é afetado.
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * 0.4,
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    formatSigned(l),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: tt.bodyLarge?.copyWith(
-                      color: tipoColor(clx, l.tipo),
-                      fontWeight: FontWeight.w800,
+                if (l.recorrencia != RecorrenciaTipo.unica) ...[
+                  Icon(
+                    Icons.repeat_rounded,
+                    size: 16,
+                    color: clx.ink3,
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                ],
+                if (conta != null) ...[
+                  ContaBadge(conta: conta!),
+                  const SizedBox(width: ClxSpace.x3),
+                ],
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.32,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      formatSigned(l),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: tt.bodyLarge?.copyWith(
+                        color: tipoColor(clx, l.tipo),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: 'Ações',
-                icon: Icon(Icons.more_vert_rounded, size: 18, color: clx.ink3),
-                onSelected: (v) {
-                  switch (v) {
-                    case 'detail':
-                      onDetail();
-                    case 'edit':
-                      onEdit();
-                    case 'repeat':
-                      onRepeat();
-                    case 'duplicate':
-                      onDuplicate();
-                    case 'delete':
-                      onDelete();
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'detail', child: Text('Ver detalhes')),
-                  PopupMenuItem(value: 'edit', child: Text('Editar')),
-                  PopupMenuItem(value: 'repeat', child: Text('Repetir')),
-                  PopupMenuItem(value: 'duplicate', child: Text('Copiar')),
-                  PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                ],
-              ),
-            ],
+                if (_emAberto)
+                  Padding(
+                    padding: const EdgeInsets.only(left: ClxSpace.x1),
+                    child: Icon(
+                      Icons.schedule_rounded,
+                      size: 16,
+                      color: clx.warning,
+                    ),
+                  ),
+                PopupMenuButton<String>(
+                  tooltip: 'Ações',
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 18,
+                    color: clx.ink3,
+                  ),
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'detail':
+                        onDetail();
+                      case 'edit':
+                        onEdit();
+                      case 'repeat':
+                        onRepeat();
+                      case 'duplicate':
+                        onDuplicate();
+                      case 'delete':
+                        onDelete();
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'detail',
+                      child: Text('Ver detalhes'),
+                    ),
+                    PopupMenuItem(value: 'edit', child: Text('Editar')),
+                    PopupMenuItem(value: 'repeat', child: Text('Repetir')),
+                    PopupMenuItem(value: 'duplicate', child: Text('Copiar')),
+                    PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/* ─────────────────────── banner + rodapé Organizze ─────────────────────── */
+
+class _UnpaidPastBanner extends StatelessWidget {
+  const _UnpaidPastBanner({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+        ClxSpace.x6,
+        ClxSpace.x2,
+        ClxSpace.x6,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: ClxSpace.x4,
+        vertical: ClxSpace.x3,
+      ),
+      decoration: BoxDecoration(
+        color: clx.warning.withValues(alpha: 0.12),
+        borderRadius: ClxRadii.rMd,
+        border: Border.all(color: clx.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: clx.warning),
+          const SizedBox(width: ClxSpace.x2),
+          Expanded(
+            child: Text(
+              count == 1
+                  ? 'Há 1 lançamento passado que ainda não foi pago'
+                  : 'Há $count lançamentos passados que ainda não foram pagos',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rodapé sticky: saldo (pago) + previsto (não pago) do que está na lista.
+class _SaldoPrevistoFooter extends StatelessWidget {
+  const _SaldoPrevistoFooter({required this.items});
+  final List<FinLancamento> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    var saldoCents = 0;
+    var prevCents = 0;
+    for (final l in items) {
+      final c = (l.valor * 100).round();
+      final signed = l.tipo == TipoLancamento.receita ? c : -c;
+      if (l.status == LancamentoStatus.pago) {
+        saldoCents += signed;
+      } else {
+        prevCents += signed;
+      }
+    }
+    final saldo = saldoCents / 100.0;
+    final previsto = prevCents / 100.0;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ClxSpace.x6,
+        vertical: ClxSpace.x3,
+      ),
+      decoration: BoxDecoration(
+        color: clx.bg,
+        border: Border(top: BorderSide(color: clx.line)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text('saldo', style: tt.bodySmall?.copyWith(color: clx.ink3)),
+          const SizedBox(width: ClxSpace.x2),
+          Text(
+            formatCurrency(saldo),
+            style: tt.titleSmall?.copyWith(
+              color: saldo < 0 ? clx.finExpense : clx.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: ClxSpace.x5),
+          Text('previsto', style: tt.bodySmall?.copyWith(color: clx.ink3)),
+          const SizedBox(width: ClxSpace.x2),
+          Text(
+            formatCurrency(previsto),
+            style: tt.titleSmall?.copyWith(
+              color: previsto < 0 ? clx.finExpense : clx.ink2,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
