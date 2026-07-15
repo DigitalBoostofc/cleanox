@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
+import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
 import 'fin_form_kit.dart';
@@ -105,33 +106,58 @@ class FinLimitesScreen extends ConsumerWidget {
                   ),
                 );
               }
-              return ListView.builder(
+              final tree = _buildLimiteTree(limites, categorias);
+              // Totais do mês (estilo Organizze: "despesas X de Y").
+              var gastoAll = 0.0;
+              var metaAll = 0.0;
+              for (final l in limites) {
+                final p = progressoLimite(l, periodLancs);
+                gastoAll += p.gasto;
+                metaAll += p.limite;
+              }
+              return ListView(
                 padding: const EdgeInsets.all(ClxSpace.x6),
-                itemCount: limites.length,
-                itemBuilder: (context, i) {
-                  final limite = limites[i];
-                  final prog = progressoLimite(limite, periodLancs);
-                  final cat = categorias.firstWhere(
-                    (c) => c.id == limite.categoriaId,
-                    orElse: () =>
-                        FinCategoria(id: limite.categoriaId, nome: 'Categoria'),
-                  );
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-                    child: _LimiteCard(
-                      categoria: cat,
-                      progresso: prog,
-                      onEdit: () => _form(
+                children: [
+                  _TotaisBar(gasto: gastoAll, meta: metaAll),
+                  const SizedBox(height: ClxSpace.x5),
+                  for (final node in tree) ...[
+                    _LimiteTreeRow(
+                      node: node,
+                      periodLancs: periodLancs,
+                      indent: false,
+                      onEdit: (lim) => _form(
                         context,
                         ref,
-                        editing: limite,
+                        editing: lim,
                         categorias: categorias,
                         existentes: limites,
                       ),
-                      onDelete: () => _delete(context, ref, limite),
+                      onDelete: (lim) => _delete(context, ref, lim),
+                      onAddChild: (parentCat) => _form(
+                        context,
+                        ref,
+                        categorias: categorias,
+                        existentes: limites,
+                      ),
                     ),
-                  );
-                },
+                    for (final child in node.children)
+                      _LimiteTreeRow(
+                        node: child,
+                        periodLancs: periodLancs,
+                        indent: true,
+                        onEdit: (lim) => _form(
+                          context,
+                          ref,
+                          editing: lim,
+                          categorias: categorias,
+                          existentes: limites,
+                        ),
+                        onDelete: (lim) => _delete(context, ref, lim),
+                        onAddChild: (_) {},
+                      ),
+                    const SizedBox(height: ClxSpace.x4),
+                  ],
+                ],
               );
             },
           ),
@@ -192,103 +218,269 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _LimiteCard extends StatelessWidget {
-  const _LimiteCard({
+/* ─────────────────────── árvore (pai → filhos) ─────────────────────── */
+
+class _LimiteNode {
+  _LimiteNode({
     required this.categoria,
-    required this.progresso,
-    required this.onEdit,
-    required this.onDelete,
-  });
+    this.limite,
+    List<_LimiteNode>? children,
+  }) : children = children ?? [];
 
   final FinCategoria categoria;
-  final ProgressoLimite progresso;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final FinLimite? limite;
+  final List<_LimiteNode> children;
+}
+
+/// Agrupa limites em raízes + filhos (estilo Organizze).
+List<_LimiteNode> _buildLimiteTree(
+  List<FinLimite> limites,
+  List<FinCategoria> categorias,
+) {
+  final catById = {for (final c in categorias) c.id: c};
+  final limByCat = {for (final l in limites) l.categoriaId: l};
+  final roots = <String, _LimiteNode>{};
+
+  _LimiteNode ensureRoot(FinCategoria rootCat) {
+    return roots.putIfAbsent(
+      rootCat.id,
+      () => _LimiteNode(
+        categoria: rootCat,
+        limite: limByCat[rootCat.id],
+      ),
+    );
+  }
+
+  for (final lim in limites) {
+    final cat = catById[lim.categoriaId] ??
+        FinCategoria(id: lim.categoriaId, nome: 'Categoria');
+    if (cat.parentId == null) {
+      // Limite na raiz.
+      final node = ensureRoot(cat);
+      roots[cat.id] = _LimiteNode(
+        categoria: cat,
+        limite: lim,
+        children: node.children,
+      );
+    } else {
+      final parent = catById[cat.parentId!] ??
+          FinCategoria(id: cat.parentId!, nome: 'Grupo');
+      final root = ensureRoot(parent);
+      // Evita duplicar filho.
+      if (!root.children.any((c) => c.categoria.id == cat.id)) {
+        root.children.add(_LimiteNode(categoria: cat, limite: lim));
+      }
+    }
+  }
+
+  // Ordena filhos e raízes por nome.
+  final list = roots.values.toList()
+    ..sort((a, b) => a.categoria.nome.compareTo(b.categoria.nome));
+  for (final r in list) {
+    r.children.sort((a, b) => a.categoria.nome.compareTo(b.categoria.nome));
+  }
+  return list;
+}
+
+class _TotaisBar extends StatelessWidget {
+  const _TotaisBar({required this.gasto, required this.meta});
+  final double gasto;
+  final double meta;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    final pct = progresso.pct;
-    final estourou = progresso.gasto > progresso.limite && progresso.limite > 0;
-    final atencao = pct >= 0.8 && !estourou;
+    final pct = meta > 0 ? (gasto / meta).clamp(0.0, 1.0) : 0.0;
+    final estourou = meta > 0 && gasto > meta;
     final barColor = estourou
+        ? clx.error
+        : pct >= 0.8
+        ? clx.warning
+        : clx.success;
+    return Column(
+      children: [
+        Text(
+          'despesas',
+          style: tt.labelMedium?.copyWith(color: clx.finExpense),
+        ),
+        Text(
+          '${formatCurrency(gasto)} de ${formatCurrency(meta)}',
+          style: tt.titleMedium?.copyWith(
+            color: estourou ? clx.error : clx.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        ClipRRect(
+          borderRadius: ClxRadii.rPill,
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 14,
+            backgroundColor: clx.bg3,
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Linha de limite (raiz ou filha indentada).
+class _LimiteTreeRow extends StatelessWidget {
+  const _LimiteTreeRow({
+    required this.node,
+    required this.periodLancs,
+    required this.indent,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onAddChild,
+  });
+
+  final _LimiteNode node;
+  final List<FinLancamento> periodLancs;
+  final bool indent;
+  final void Function(FinLimite) onEdit;
+  final void Function(FinLimite) onDelete;
+  final void Function(FinCategoria) onAddChild;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    final lim = node.limite;
+    final prog = lim != null
+        ? progressoLimite(lim, periodLancs)
+        : const ProgressoLimite(gasto: 0, limite: 0, pct: 0);
+    final temLimite = lim != null && lim.limite > 0;
+    final estourou = temLimite && prog.gasto > prog.limite;
+    final atencao = temLimite && prog.pct >= 0.8 && !estourou;
+    final barColor = !temLimite
+        ? clx.bg3
+        : estourou
         ? clx.error
         : atencao
         ? clx.warning
         : clx.success;
 
-    return ClxCard(
-      onTap: onEdit,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                finCategoriaIcon(categoria.icone),
-                size: 18,
-                color: clx.ink2,
-              ),
-              const SizedBox(width: ClxSpace.x2),
-              Expanded(
-                child: Text(
-                  categoria.nome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.titleSmall?.copyWith(color: clx.ink),
+    return Padding(
+      padding: EdgeInsets.only(
+        left: indent ? ClxSpace.x6 : 0,
+        bottom: ClxSpace.x3,
+      ),
+      child: InkWell(
+        onTap: lim != null ? () => onEdit(lim) : null,
+        borderRadius: ClxRadii.rMd,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: indent ? 26 : 30,
+                  height: indent ? 26 : 30,
+                  decoration: BoxDecoration(
+                    color: (finParseHex(node.categoria.cor) ?? clx.primary)
+                        .withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    finCategoriaIcon(node.categoria.icone),
+                    size: indent ? 14 : 16,
+                    color: finParseHex(node.categoria.cor) ?? clx.primary,
+                  ),
                 ),
-              ),
-              if (estourou)
-                ClxChip(label: 'Estourou', color: clx.error, dense: true)
-              else if (atencao)
-                ClxChip(label: 'Atenção', color: clx.warning, dense: true),
-              IconButton(
-                tooltip: 'Remover limite',
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: clx.ink3,
+                const SizedBox(width: ClxSpace.x2),
+                Expanded(
+                  child: Text(
+                    node.categoria.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.bodyLarge?.copyWith(
+                      color: clx.ink,
+                      fontWeight: indent ? FontWeight.w500 : FontWeight.w700,
+                    ),
+                  ),
                 ),
-                onPressed: onDelete,
-              ),
-            ],
-          ),
-          const SizedBox(height: ClxSpace.x2),
-          if (progresso.limite > 0)
+                if (temLimite)
+                  Text(
+                    '${formatCurrency(prog.gasto)} de ${formatCurrency(prog.limite)}',
+                    style: tt.labelMedium?.copyWith(
+                      color: estourou ? clx.error : clx.ink2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                else
+                  Text(
+                    'sem limite',
+                    style: tt.labelSmall?.copyWith(color: clx.ink3),
+                  ),
+                if (lim != null)
+                  IconButton(
+                    tooltip: 'Editar / remover',
+                    icon: Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: clx.ink3,
+                    ),
+                    onPressed: () => onEdit(lim),
+                    visualDensity: VisualDensity.compact,
+                  )
+                else
+                  IconButton(
+                    tooltip: 'Definir limite',
+                    icon: Icon(Icons.add_rounded, size: 18, color: clx.ink3),
+                    onPressed: () => onAddChild(node.categoria),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            const SizedBox(height: ClxSpace.x1),
             ClipRRect(
               borderRadius: ClxRadii.rPill,
               child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 10,
+                value: temLimite ? prog.pct : 0,
+                minHeight: indent ? 8 : 10,
                 backgroundColor: clx.bg3,
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
-              ),
-            )
-          else
-            Text(
-              'Limite zerado',
-              style: tt.bodySmall?.copyWith(color: clx.warning),
-            ),
-          const SizedBox(height: ClxSpace.x2),
-          Row(
-            children: [
-              Text(
-                '${formatCurrency(progresso.gasto)} de '
-                '${formatCurrency(progresso.limite)}',
-                style: tt.bodyMedium?.copyWith(color: clx.ink2),
-              ),
-              const Spacer(),
-              Text(
-                '${(pct * 100).round()}%',
-                style: tt.bodyMedium?.copyWith(
-                  color: barColor,
-                  fontWeight: FontWeight.w700,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  temLimite ? barColor : clx.bg3,
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+            if (temLimite)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  children: [
+                    if (estourou)
+                      Text(
+                        'Estourou',
+                        style: tt.labelSmall?.copyWith(
+                          color: clx.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    else if (atencao)
+                      Text(
+                        'Atenção',
+                        style: tt.labelSmall?.copyWith(
+                          color: clx.warning,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    const Spacer(),
+                    Text(
+                      '${(prog.pct * 100).round()}%',
+                      style: tt.labelSmall?.copyWith(
+                        color: barColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

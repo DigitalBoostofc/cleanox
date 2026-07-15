@@ -194,11 +194,12 @@ void main() {
         expect(find.text('Atenção'), findsNothing);
         // clamp em 1.0 → "100%" (não "150%").
         expect(find.text('100%'), findsOneWidget);
-        // Barra presente (limite > 0) e o texto "gasto de teto".
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        // Barra global + barra da categoria; texto "gasto de teto".
+        expect(find.byType(LinearProgressIndicator), findsWidgets);
+        // Aparece no total global e na linha da categoria.
         expect(
           find.text('${formatCurrency(150)} de ${formatCurrency(100)}'),
-          findsOneWidget,
+          findsWidgets,
         );
       },
     );
@@ -228,7 +229,7 @@ void main() {
         expect(find.text('Atenção'), findsOneWidget);
         expect(find.text('Estourou'), findsNothing);
         expect(find.text('90%'), findsOneWidget);
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(find.byType(LinearProgressIndicator), findsWidgets);
       },
     );
   });
