@@ -30,7 +30,7 @@ import 'fakes_onda2.dart';
 import 'ordens_screen_test.dart' show overridesFor;
 import 'painel_test_helpers.dart';
 
-/// Data no FUTURO: o form recusa data no passado, e a OS de teste precisa
+/// Data no FUTURO: OS de teste precisa de data estável (evita flaky com "hoje");
 /// passar pela validação para chegar ao `update` (que é o que queremos medir).
 const String _dataFutura = '2030-01-15 13:00:00Z';
 

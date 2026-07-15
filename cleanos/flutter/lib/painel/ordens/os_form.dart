@@ -441,10 +441,10 @@ class _OSFormState extends ConsumerState<OSForm> {
   Map<String, String> _validate() {
     final errs = <String, String>{};
     if (_clienteId.isEmpty) errs['cliente'] = 'Selecione um cliente';
+    // Datas no passado são permitidas: permite registrar OS históricas
+    // (atendimentos já feitos que ainda não entraram no sistema).
     if (_dataDate.isEmpty) {
       errs['data'] = 'Data é obrigatória';
-    } else if (_dataDate.compareTo(todayLocalDate()) < 0) {
-      errs['data'] = 'A data não pode ser no passado';
     }
     if (_horaMin == null) errs['hora'] = 'Horário inválido (HH:MM)';
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
@@ -1062,13 +1062,16 @@ class _OSFormState extends ConsumerState<OSForm> {
     } else {
       initial = now;
     }
-    final first = DateTime(now.year, now.month, now.day);
+    // Piso amplo: permite lançar OS de atendimentos passados (backfill operacional).
+    final first = DateTime(2020);
     if (initial.isBefore(first)) initial = first;
+    final last = DateTime(now.year + 2);
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: first,
-      lastDate: DateTime(now.year + 2),
+      lastDate: last,
     );
     if (picked != null) {
       setState(() {
