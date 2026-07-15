@@ -342,7 +342,8 @@ void main() {
       await settle(tester);
 
       expect(find.text('Material'), findsOneWidget);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      // Barra global (totais) + barra da categoria.
+      expect(find.byType(LinearProgressIndicator), findsWidgets);
       expect(find.text('75%'), findsOneWidget);
     });
 
