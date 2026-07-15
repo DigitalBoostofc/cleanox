@@ -138,7 +138,8 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  /// [andAnother]: salva e limpa o form (só criação), sem fechar o modal.
+  Future<void> _save({bool andAnother = false}) async {
     final errs = <String, String>{};
     if (_descricao.text.trim().isEmpty) {
       errs['descricao'] = 'Descrição é obrigatória';
@@ -214,7 +215,29 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       } else {
         await repo.createLancamento(data);
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      if (andAnother && !_isEdit) {
+        // Mantém data/conta/categoria; limpa o que muda a cada lançamento.
+        setState(() {
+          _descricao.clear();
+          _valor.clear();
+          _observacao.clear();
+          _tags.clear();
+          _formaPagamento.clear();
+          _vencimento.clear();
+          _anexos = [];
+          _showObs = false;
+          _showTags = false;
+          _showAnexos = false;
+          _showRepetir = false;
+          _showAvancado = false;
+          _recorrencia = RecorrenciaTipo.unica;
+          _status = LancamentoStatus.pago;
+          _saving = false;
+        });
+        return;
+      }
+      Navigator.of(context).pop(true);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -258,7 +281,9 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       title: _title,
       saving: _saving,
       error: _saveError,
-      onSave: _save,
+      onSave: () => _save(),
+      organizzeFooter: true,
+      onSaveAndAnother: _isEdit ? null : () => _save(andAnother: true),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

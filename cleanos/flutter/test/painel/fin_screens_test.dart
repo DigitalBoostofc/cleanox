@@ -580,7 +580,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LancamentoForm), findsOneWidget);
 
-      await tester.tap(find.text('Salvar'));
+      await tester.tap(find.byTooltip('Salvar'));
       await tester.pump();
 
       expect(find.text('Descrição é obrigatória'), findsOneWidget);
@@ -617,7 +617,7 @@ void main() {
       await tester.enterText(descField, 'Compra de material');
       await tester.enterText(valorField, '-10');
       await tester.pump();
-      await tester.tap(find.text('Salvar'));
+      await tester.tap(find.byTooltip('Salvar'));
       await tester.pump();
 
       expect(find.text('Informe um valor válido'), findsOneWidget);
@@ -627,7 +627,7 @@ void main() {
       // Valor ZERO também é inválido (não é > 0).
       await tester.enterText(valorField, '0');
       await tester.pump();
-      await tester.tap(find.text('Salvar'));
+      await tester.tap(find.byTooltip('Salvar'));
       await tester.pump();
 
       expect(find.text('Informe um valor válido'), findsOneWidget);
@@ -707,7 +707,7 @@ void main() {
       await tester.tap(find.text('Vendas').last);
       await tester.pumpAndSettle();
 
-      final salvarBtn = find.text('Salvar');
+      final salvarBtn = find.byTooltip('Salvar');
       await tester.ensureVisible(salvarBtn);
       await tester.tap(salvarBtn);
       await tester.pumpAndSettle();
