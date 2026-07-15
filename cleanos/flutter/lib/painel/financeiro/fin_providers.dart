@@ -14,7 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
+import '../data/painel_providers.dart' show comissaoRepositoryProvider;
 import '../data/pb_financeiro_repository.dart';
 import 'fin_derivations.dart';
 import 'fin_filters.dart';
@@ -106,10 +108,15 @@ const int _kFinPageSize = 200;
 
 /// Carrega TODOS os lançamentos de um período, PAGINANDO (`getList`) até esgotar.
 /// Bounded pelo período (não é uma lista de UI infinita) — seguro para agregar.
+/// Antes, materializa ocorrências de fixas/recorrentes faltantes no período.
 Future<List<FinLancamento>> _fetchLancamentosDoPeriodo(
   FinanceiroPanelRepository repo,
-  Periodo periodo,
-) async {
+  Periodo periodo, {
+  bool ensureRecorrencias = true,
+}) async {
+  if (ensureRecorrencias) {
+    await repo.ensureRecorrenciasNoPeriodo(periodo);
+  }
   final filter = finPeriodoFilter(periodo);
   final out = <FinLancamento>[];
   var page = 1;
@@ -128,7 +135,7 @@ Future<List<FinLancamento>> _fetchLancamentosDoPeriodo(
 }
 
 /// Lançamentos do período selecionado (base dos agregados). Reexecuta quando o
-/// período muda.
+/// período muda. Garante que fixas/recorrentes já existam no mês.
 final finPeriodLancamentosProvider =
     FutureProvider.autoDispose<List<FinLancamento>>((ref) {
       final repo = ref.watch(financeiroRepositoryProvider);
@@ -161,6 +168,20 @@ final finRelatorioLancamentosProvider =
         repo,
         Periodo(inicio.start, fim.end),
       );
+    });
+
+/// Total de comissões PENDENTES (equipe) — obrigação global, não só do mês.
+/// Usado no Painel (compromissos) e KPIs de Movimentações.
+final finComissoesPendentesTotalProvider =
+    FutureProvider.autoDispose<double>((ref) async {
+      final list = await ref.watch(comissaoRepositoryProvider).listComissoes();
+      var cents = 0;
+      for (final c in list) {
+        if (c.status == ComissaoStatus.pendente) {
+          cents += (c.valorComissao * 100).round();
+        }
+      }
+      return cents / 100.0;
     });
 
 /// TODOS os lançamentos EM ABERTO (status != pago), paginando. Base de "Contas a

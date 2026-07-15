@@ -5,6 +5,7 @@ library;
 
 import 'dart:async';
 
+import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/core/models/cliente.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
@@ -87,6 +88,15 @@ class FakeClientes implements ClientesRepository {
 
   @override
   Future<void> delete(String id) async {}
+
+  @override
+  Future<Cliente?> findByTelefone(String telefone, {String? excludeId}) async {
+    for (final c in seed) {
+      if (excludeId != null && c.id == excludeId) continue;
+      if (phonesMatch(c.telefone, telefone)) return c;
+    }
+    return null;
+  }
 }
 
 /// Fake de `OrdensRepository`: cobre o que Painel/Execução consomem.

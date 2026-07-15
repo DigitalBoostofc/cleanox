@@ -36,6 +36,40 @@ enum RecorrenciaTipo {
   String get wire => name;
 }
 
+/// Periodicidade de uma série fixa/recorrente (campo `frequencia` no PB).
+enum FrequenciaRecorrencia {
+  @JsonValue('diario')
+  diario,
+  @JsonValue('semanal')
+  semanal,
+  @JsonValue('quinzenal')
+  quinzenal,
+  @JsonValue('mensal')
+  mensal,
+  @JsonValue('bimestral')
+  bimestral,
+  @JsonValue('trimestral')
+  trimestral,
+  @JsonValue('semestral')
+  semestral,
+  @JsonValue('anual')
+  anual;
+
+  String get wire => name;
+
+  /// Rótulo singular (dropdown "é uma despesa fixa").
+  String get labelSingular => switch (this) {
+        diario => 'Diário',
+        semanal => 'Semanal',
+        quinzenal => 'Quinzenal',
+        mensal => 'Mensal',
+        bimestral => 'Bimestral',
+        trimestral => 'Trimestral',
+        semestral => 'Semestral',
+        anual => 'Anual',
+      };
+}
+
 enum LancamentoStatus {
   @JsonValue('pago')
   pago,
@@ -173,6 +207,9 @@ class FinLancamento with _$FinLancamento {
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     @Default(RecorrenciaTipo.unica)
     RecorrenciaTipo recorrencia,
+    /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -205,20 +242,28 @@ class FinLancamento with _$FinLancamento {
   factory FinLancamento.fromRecord(RecordModel record) {
     final json = record.toJson();
     if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
+    // Select opcional: PB manda "" quando vazio → trata como null (default mensal na geração).
+    if (json['frequencia'] == '') json['frequencia'] = null;
     return FinLancamento.fromJson(json);
   }
+
+  /// Frequência efetiva da série (mensal se não definida).
+  FrequenciaRecorrencia get frequenciaEfetiva =>
+      frequencia ?? FrequenciaRecorrencia.mensal;
 
   /// Valor COM sinal (receita +, despesa −).
   double get valorComSinal => tipo == TipoLancamento.receita ? valor : -valor;
 }
 
-/* ---- Limite de gastos por categoria ---- */
+/* ---- Limite de gastos por categoria + mês ---- */
 @freezed
 class FinLimite with _$FinLimite {
   const factory FinLimite({
     required String id,
     @JsonKey(name: 'categoria_id') @Default('') String categoriaId,
     @Default(0) double limite,
+    /// Mês civil do orçamento: 'YYYY-MM' (BRT). Vazio em legado pré-mig 30.
+    @JsonKey(name: 'ano_mes') @Default('') String anoMes,
     String? created,
     String? updated,
   }) = _FinLimite;

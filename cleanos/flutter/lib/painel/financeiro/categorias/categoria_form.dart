@@ -1,9 +1,8 @@
 /// categoria_form.dart — Modal de criar/editar Categoria ou Subcategoria.
 ///
-/// Espelha `CategoriaModal.tsx`. Uma SUBcategoria é uma categoria com `parentId`
-/// apontando para a mãe. O seletor de mãe é sempre visível (criar E editar),
-/// permitindo reparent e promoção a raiz. Ícone é texto livre com picker de
-/// atalho; cor é hex + 12 presets do React.
+/// Ícone e cor são gerados automaticamente:
+/// - Categoria raiz: símbolo + cor exclusivos (não se repetem entre raízes).
+/// - Subcategoria: herda símbolo e cor da mãe; na UI só muda o tamanho.
 library;
 
 import 'package:flutter/material.dart';
@@ -15,24 +14,8 @@ import '../fin_form_kit.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 
-/// 12 cores preset (espelha PRESET_CORES do React).
-const List<String> kPresetCores = [
-  '#0E9F9C',
-  '#14B8A6',
-  '#10B981',
-  '#22C55E',
-  '#3B82F6',
-  '#6366F1',
-  '#8B5CF6',
-  '#EC4899',
-  '#F59E0B',
-  '#F97316',
-  '#EF4444',
-  '#64748B',
-];
-
 /// Abre o form. [editing] = editar; [parent] = criar subcategoria de [parent].
-/// [parents] = lista completa de categorias (para o seletor de mãe).
+/// [parents] = lista completa de categorias (para o seletor de mãe e alocação).
 Future<bool?> showCategoriaForm(
   BuildContext context, {
   FinCategoria? editing,
@@ -61,13 +44,10 @@ class CategoriaForm extends ConsumerStatefulWidget {
   final FinCategoria? editing;
   final FinCategoria? parent;
 
-  /// Lista completa de categorias disponíveis como possíveis mães.
+  /// Lista completa de categorias disponíveis como possíveis mães / alocação.
   final List<FinCategoria> parents;
 
-  /// Natureza (Despesas/Receitas) da aba corrente da tela — usada como default
-  /// ao criar uma categoria RAIZ nova (sem [editing]/[parent], que já carregam
-  /// seu próprio tipo). Sem isso o form sempre nascia em Despesas, então criar
-  /// na aba Receitas gerava uma categoria invisível na aba corrente.
+  /// Natureza (Despesas/Receitas) da aba corrente — default ao criar raiz.
   final TipoLancamento? defaultTipo;
 
   @override
@@ -76,11 +56,9 @@ class CategoriaForm extends ConsumerStatefulWidget {
 
 class _CategoriaFormState extends ConsumerState<CategoriaForm> {
   late final TextEditingController _nome;
-  late final TextEditingController _iconeCtrl;
-  late final TextEditingController _corCtrl;
   late TipoLancamento _tipo;
   late String _icone;
-  String? _cor;
+  late String _cor;
   String? _parentId;
 
   bool _saving = false;
@@ -113,24 +91,64 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
         widget.parent?.tipo ??
         widget.defaultTipo ??
         TipoLancamento.despesa;
-    _icone = c?.icone ?? widget.parent?.icone ?? 'tag';
-    _cor = c?.cor ?? widget.parent?.cor ?? kPresetCores[0];
     _nome = TextEditingController(text: c?.nome ?? '');
-    _iconeCtrl = TextEditingController(text: _icone);
-    _corCtrl = TextEditingController(text: _cor ?? kPresetCores[0]);
+
+    if (_isEdit) {
+      // Edição: preserva ícone/cor atuais.
+      _icone = (c?.icone != null && c!.icone!.isNotEmpty) ? c.icone! : 'tag';
+      _cor = _normCor(c?.cor) ?? kFinCategoriaCoresPool.first;
+      // Se já é sub e a mãe tem ícone/cor, alinha (caso legado dessincronizado).
+      if (_parentId != null) {
+        _aplicarHerancaMae(_parentId!);
+      }
+    } else {
+      // Criação: aloca automaticamente.
+      _alocarPara(_parentId);
+    }
   }
 
   @override
   void dispose() {
     _nome.dispose();
-    _iconeCtrl.dispose();
-    _corCtrl.dispose();
     super.dispose();
+  }
+
+  static String? _normCor(String? cor) {
+    if (cor == null || cor.isEmpty) return null;
+    final u = cor.trim().toUpperCase();
+    return u.startsWith('#') ? u : '#$u';
+  }
+
+  void _alocarPara(String? parentId) {
+    final aloc = alocarIconeCorCategoria(
+      existentes: widget.parents,
+      parentId: parentId,
+    );
+    _icone = aloc.icone;
+    _cor = aloc.cor;
+  }
+
+  void _aplicarHerancaMae(String parentId) {
+    final mae = widget.parents.cast<FinCategoria?>().firstWhere(
+      (c) => c?.id == parentId,
+      orElse: () => null,
+    );
+    if (mae == null) return;
+    if (mae.icone != null && mae.icone!.isNotEmpty) _icone = mae.icone!;
+    final cor = _normCor(mae.cor);
+    if (cor != null) _cor = cor;
   }
 
   void _handleParent(String? id) {
     if (id == null || id.isEmpty) {
-      setState(() => _parentId = null);
+      setState(() {
+        _parentId = null;
+        // Voltou a ser raiz: se está criando, realoca único; se editando e
+        // era sub, realoca para não colidir com outras raízes.
+        if (!_isEdit || widget.editing?.parentId != null) {
+          _alocarPara(null);
+        }
+      });
       return;
     }
     final mae = widget.parents.firstWhere(
@@ -140,19 +158,9 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
     setState(() {
       _parentId = id;
       _tipo = mae.tipo;
+      // Sub sempre herda símbolo + cor da mãe.
+      _aplicarHerancaMae(id);
     });
-  }
-
-  void _onCorHexChanged(String v) {
-    final m = RegExp(r'^#?([0-9A-Fa-f]{6})$').firstMatch(v.trim());
-    if (m != null) {
-      setState(() => _cor = '#${m.group(1)!.toUpperCase()}');
-    }
-  }
-
-  void _selecionarCor(String hex) {
-    setState(() => _cor = hex);
-    _corCtrl.text = hex;
   }
 
   Color? _hexToColor(String? hex) {
@@ -174,10 +182,25 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
       _nomeErr = null;
     });
     final repo = ref.read(financeiroRepositoryProvider);
-    final icone =
-        _iconeCtrl.text.trim().isEmpty ? 'tag' : _iconeCtrl.text.trim();
-    final cor =
-        (_cor == null || _cor!.isEmpty) ? kPresetCores[0] : _cor;
+    // Na criação, re-aloca no save para garantir unicidade se a lista mudou;
+    // na edição de raiz mantém o que está; sub sempre grava herança da mãe.
+    var icone = _icone;
+    var cor = _cor;
+    if (!_isEdit) {
+      final aloc = alocarIconeCorCategoria(
+        existentes: widget.parents,
+        parentId: _parentId,
+      );
+      icone = aloc.icone;
+      cor = aloc.cor;
+    } else if (_parentId != null) {
+      final aloc = alocarIconeCorCategoria(
+        existentes: widget.parents,
+        parentId: _parentId,
+      );
+      icone = aloc.icone;
+      cor = aloc.cor;
+    }
     final data = <String, dynamic>{
       'nome': _nome.text.trim(),
       'tipo': _tipo.wire,
@@ -229,7 +252,6 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
               if (_nomeErr != null) setState(() => _nomeErr = null);
             },
           ),
-          // Seletor de categoria-mãe — sempre visível (criar E editar).
           FinDropdown<String>(
             label: 'Categoria-mãe (opcional)',
             value: _parentId ?? '',
@@ -257,134 +279,86 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
             Padding(
               padding: const EdgeInsets.only(bottom: ClxSpace.x4),
               child: Text(
-                'A subcategoria herda o tipo da categoria-mãe.',
+                'A subcategoria herda o tipo, o símbolo e a cor da categoria-mãe.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: clx.ink3),
               ),
             ),
-          _iconePicker(clx),
-          const SizedBox(height: ClxSpace.x4),
-          _corPicker(clx),
+          _previewVisual(clx),
         ],
       ),
     );
   }
 
-  Widget _iconePicker(CleanoxColors clx) {
+  Widget _previewVisual(CleanoxColors clx) {
+    final cor = _hexToColor(_cor) ?? clx.primary;
+    final sizeRoot = 48.0;
+    final sizeSub = 32.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FinField(
-          label: 'Ícone',
-          controller: _iconeCtrl,
-          enabled: !_saving,
-          hint: 'Ex.: spray-can, truck, home',
-          onChanged: (v) => setState(() => _icone = v),
+        Text(
+          'Ícone e cor',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
         ),
-        Wrap(
-          spacing: ClxSpace.x2,
-          runSpacing: ClxSpace.x2,
-          children: [
-            for (final entry in kFinCategoriaIcons.entries)
-              InkWell(
-                onTap: _saving
-                    ? null
-                    : () {
-                        setState(() => _icone = entry.key);
-                        _iconeCtrl.text = entry.key;
-                      },
-                borderRadius: ClxRadii.rMd,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _icone == entry.key
-                        ? clx.primary.withValues(alpha: 0.14)
-                        : clx.bg2,
-                    borderRadius: ClxRadii.rMd,
-                    border: Border.all(
-                      color: _icone == entry.key ? clx.primary : clx.line,
-                      width: _icone == entry.key ? 2 : 1,
-                    ),
-                  ),
-                  child: Icon(
-                    entry.value,
-                    size: 20,
-                    color: _icone == entry.key ? clx.primary : clx.ink2,
-                  ),
+        const SizedBox(height: ClxSpace.x2),
+        Container(
+          padding: const EdgeInsets.all(ClxSpace.x4),
+          decoration: BoxDecoration(
+            color: clx.bg2,
+            borderRadius: ClxRadii.rMd,
+            border: Border.all(color: clx.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: _isSub ? sizeSub : sizeRoot,
+                height: _isSub ? sizeSub : sizeRoot,
+                decoration: BoxDecoration(
+                  color: cor.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  finCategoriaIcon(_icone),
+                  size: (_isSub ? sizeSub : sizeRoot) * 0.52,
+                  color: cor,
                 ),
               ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _corPicker(CleanoxColors clx) {
-    final corAtual = _hexToColor(_cor);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Container(
-              width: 40,
-              height: 36,
-              margin: const EdgeInsets.only(right: ClxSpace.x2, bottom: ClxSpace.x4),
-              decoration: BoxDecoration(
-                color: corAtual ?? clx.bg3,
-                borderRadius: ClxRadii.rMd,
-                border: Border.all(color: clx.line),
-              ),
-            ),
-            Expanded(
-              child: FinField(
-                label: 'Cor',
-                controller: _corCtrl,
-                enabled: !_saving,
-                hint: '#0E9F9C',
-                onChanged: _onCorHexChanged,
-              ),
-            ),
-          ],
-        ),
-        Wrap(
-          spacing: ClxSpace.x2,
-          runSpacing: ClxSpace.x2,
-          children: [
-            for (final hex in kPresetCores)
-              InkWell(
-                onTap: _saving ? null : () => _selecionarCor(hex),
-                borderRadius: ClxRadii.rPill,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: _hexToColor(hex),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color:
-                          (_cor?.toUpperCase() == hex.toUpperCase())
-                              ? clx.ink
-                              : clx.line2,
-                      width:
-                          (_cor?.toUpperCase() == hex.toUpperCase())
-                              ? 2.5
-                              : 1,
+              const SizedBox(width: ClxSpace.x4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isSub
+                          ? 'Mesmo símbolo e cor da mãe'
+                          : 'Gerado automaticamente',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: clx.ink,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-                  ),
-                  child: (_cor?.toUpperCase() == hex.toUpperCase())
-                      ? const Icon(
-                          Icons.check_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        )
-                      : null,
+                    const SizedBox(height: 2),
+                    Text(
+                      _isSub
+                          ? 'Na lista, a subcategoria aparece menor — '
+                              'mesmo ícone e cor exclusivos da categoria principal.'
+                          : 'Cada categoria principal recebe um símbolo e uma '
+                              'cor exclusivos, sem repetir os já usados.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: clx.ink3,
+                          ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ],
     );

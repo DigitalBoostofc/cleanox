@@ -123,11 +123,11 @@ class FinPeriodSelector extends ConsumerWidget {
   }
 }
 
-/* ─────────────────────── botão "Filtros" (mobile) ─────────────────────── */
+/* ─────────────────────── botão "Filtros" ─────────────────────── */
 
-/// Botão que colapsa/expande a seção de filtros no layout de celular (F-741).
-/// Sinaliza com um ponto quando há filtro ativo. Toque ≥ 48dp. Usado por
-/// Lançamentos, Relatórios e Visão geral para um comportamento consistente.
+/// Botão que colapsa/expande a seção de filtros (mobile e desktop).
+/// Fechado por padrão; sinaliza com ponto quando há filtro aplicado.
+/// Toque ≥ 48dp. Usado por Movimentações, Relatórios e A receber/A pagar.
 class FinFiltrosToggle extends StatelessWidget {
   const FinFiltrosToggle({
     super.key,

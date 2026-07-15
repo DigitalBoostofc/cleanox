@@ -972,6 +972,10 @@ mixin _$FinLancamento {
   LancamentoStatus get status => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
   RecorrenciaTipo get recorrencia => throw _privateConstructorUsedError;
+
+  /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  FrequenciaRecorrencia? get frequencia => throw _privateConstructorUsedError;
   @JsonKey(name: 'parcela_atual')
   int? get parcelaAtual => throw _privateConstructorUsedError;
   @JsonKey(name: 'parcelas_total')
@@ -1025,6 +1029,8 @@ abstract class $FinLancamentoCopyWith<$Res> {
     LancamentoStatus status,
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual) OrigemLancamento origem,
@@ -1067,6 +1073,7 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
     Object? vencimento = freezed,
     Object? status = null,
     Object? recorrencia = null,
+    Object? frequencia = freezed,
     Object? parcelaAtual = freezed,
     Object? parcelasTotal = freezed,
     Object? origem = null,
@@ -1127,6 +1134,10 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
                 ? _value.recorrencia
                 : recorrencia // ignore: cast_nullable_to_non_nullable
                       as RecorrenciaTipo,
+            frequencia: freezed == frequencia
+                ? _value.frequencia
+                : frequencia // ignore: cast_nullable_to_non_nullable
+                      as FrequenciaRecorrencia?,
             parcelaAtual: freezed == parcelaAtual
                 ? _value.parcelaAtual
                 : parcelaAtual // ignore: cast_nullable_to_non_nullable
@@ -1208,6 +1219,8 @@ abstract class _$$FinLancamentoImplCopyWith<$Res>
     LancamentoStatus status,
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual) OrigemLancamento origem,
@@ -1249,6 +1262,7 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
     Object? vencimento = freezed,
     Object? status = null,
     Object? recorrencia = null,
+    Object? frequencia = freezed,
     Object? parcelaAtual = freezed,
     Object? parcelasTotal = freezed,
     Object? origem = null,
@@ -1309,6 +1323,10 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
             ? _value.recorrencia
             : recorrencia // ignore: cast_nullable_to_non_nullable
                   as RecorrenciaTipo,
+        frequencia: freezed == frequencia
+            ? _value.frequencia
+            : frequencia // ignore: cast_nullable_to_non_nullable
+                  as FrequenciaRecorrencia?,
         parcelaAtual: freezed == parcelaAtual
             ? _value.parcelaAtual
             : parcelaAtual // ignore: cast_nullable_to_non_nullable
@@ -1384,6 +1402,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     this.status = LancamentoStatus.pendente,
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     this.recorrencia = RecorrenciaTipo.unica,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal) this.frequencia,
     @JsonKey(name: 'parcela_atual') this.parcelaAtual,
     @JsonKey(name: 'parcelas_total') this.parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -1438,6 +1457,11 @@ class _$FinLancamentoImpl extends _FinLancamento {
   @override
   @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
   final RecorrenciaTipo recorrencia;
+
+  /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
+  @override
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  final FrequenciaRecorrencia? frequencia;
   @override
   @JsonKey(name: 'parcela_atual')
   final int? parcelaAtual;
@@ -1489,7 +1513,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
 
   @override
   String toString() {
-    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, anexos: $anexos, created: $created, updated: $updated)';
+    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, frequencia: $frequencia, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, anexos: $anexos, created: $created, updated: $updated)';
   }
 
   @override
@@ -1513,6 +1537,8 @@ class _$FinLancamentoImpl extends _FinLancamento {
             (identical(other.status, status) || other.status == status) &&
             (identical(other.recorrencia, recorrencia) ||
                 other.recorrencia == recorrencia) &&
+            (identical(other.frequencia, frequencia) ||
+                other.frequencia == frequencia) &&
             (identical(other.parcelaAtual, parcelaAtual) ||
                 other.parcelaAtual == parcelaAtual) &&
             (identical(other.parcelasTotal, parcelasTotal) ||
@@ -1550,6 +1576,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     vencimento,
     status,
     recorrencia,
+    frequencia,
     parcelaAtual,
     parcelasTotal,
     origem,
@@ -1595,6 +1622,8 @@ abstract class _FinLancamento extends FinLancamento {
     final LancamentoStatus status,
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     final RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    final FrequenciaRecorrencia? frequencia,
     @JsonKey(name: 'parcela_atual') final int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') final int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -1645,6 +1674,11 @@ abstract class _FinLancamento extends FinLancamento {
   @override
   @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
   RecorrenciaTipo get recorrencia;
+
+  /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
+  @override
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  FrequenciaRecorrencia? get frequencia;
   @override
   @JsonKey(name: 'parcela_atual')
   int? get parcelaAtual;
@@ -1698,6 +1732,10 @@ mixin _$FinLimite {
   @JsonKey(name: 'categoria_id')
   String get categoriaId => throw _privateConstructorUsedError;
   double get limite => throw _privateConstructorUsedError;
+
+  /// Mês civil do orçamento: 'YYYY-MM' (BRT). Vazio em legado pré-mig 30.
+  @JsonKey(name: 'ano_mes')
+  String get anoMes => throw _privateConstructorUsedError;
   String? get created => throw _privateConstructorUsedError;
   String? get updated => throw _privateConstructorUsedError;
 
@@ -1720,6 +1758,7 @@ abstract class $FinLimiteCopyWith<$Res> {
     String id,
     @JsonKey(name: 'categoria_id') String categoriaId,
     double limite,
+    @JsonKey(name: 'ano_mes') String anoMes,
     String? created,
     String? updated,
   });
@@ -1743,6 +1782,7 @@ class _$FinLimiteCopyWithImpl<$Res, $Val extends FinLimite>
     Object? id = null,
     Object? categoriaId = null,
     Object? limite = null,
+    Object? anoMes = null,
     Object? created = freezed,
     Object? updated = freezed,
   }) {
@@ -1760,6 +1800,10 @@ class _$FinLimiteCopyWithImpl<$Res, $Val extends FinLimite>
                 ? _value.limite
                 : limite // ignore: cast_nullable_to_non_nullable
                       as double,
+            anoMes: null == anoMes
+                ? _value.anoMes
+                : anoMes // ignore: cast_nullable_to_non_nullable
+                      as String,
             created: freezed == created
                 ? _value.created
                 : created // ignore: cast_nullable_to_non_nullable
@@ -1787,6 +1831,7 @@ abstract class _$$FinLimiteImplCopyWith<$Res>
     String id,
     @JsonKey(name: 'categoria_id') String categoriaId,
     double limite,
+    @JsonKey(name: 'ano_mes') String anoMes,
     String? created,
     String? updated,
   });
@@ -1809,6 +1854,7 @@ class __$$FinLimiteImplCopyWithImpl<$Res>
     Object? id = null,
     Object? categoriaId = null,
     Object? limite = null,
+    Object? anoMes = null,
     Object? created = freezed,
     Object? updated = freezed,
   }) {
@@ -1826,6 +1872,10 @@ class __$$FinLimiteImplCopyWithImpl<$Res>
             ? _value.limite
             : limite // ignore: cast_nullable_to_non_nullable
                   as double,
+        anoMes: null == anoMes
+            ? _value.anoMes
+            : anoMes // ignore: cast_nullable_to_non_nullable
+                  as String,
         created: freezed == created
             ? _value.created
             : created // ignore: cast_nullable_to_non_nullable
@@ -1846,6 +1896,7 @@ class _$FinLimiteImpl extends _FinLimite {
     required this.id,
     @JsonKey(name: 'categoria_id') this.categoriaId = '',
     this.limite = 0,
+    @JsonKey(name: 'ano_mes') this.anoMes = '',
     this.created,
     this.updated,
   }) : super._();
@@ -1861,6 +1912,11 @@ class _$FinLimiteImpl extends _FinLimite {
   @override
   @JsonKey()
   final double limite;
+
+  /// Mês civil do orçamento: 'YYYY-MM' (BRT). Vazio em legado pré-mig 30.
+  @override
+  @JsonKey(name: 'ano_mes')
+  final String anoMes;
   @override
   final String? created;
   @override
@@ -1868,7 +1924,7 @@ class _$FinLimiteImpl extends _FinLimite {
 
   @override
   String toString() {
-    return 'FinLimite(id: $id, categoriaId: $categoriaId, limite: $limite, created: $created, updated: $updated)';
+    return 'FinLimite(id: $id, categoriaId: $categoriaId, limite: $limite, anoMes: $anoMes, created: $created, updated: $updated)';
   }
 
   @override
@@ -1880,14 +1936,22 @@ class _$FinLimiteImpl extends _FinLimite {
             (identical(other.categoriaId, categoriaId) ||
                 other.categoriaId == categoriaId) &&
             (identical(other.limite, limite) || other.limite == limite) &&
+            (identical(other.anoMes, anoMes) || other.anoMes == anoMes) &&
             (identical(other.created, created) || other.created == created) &&
             (identical(other.updated, updated) || other.updated == updated));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, categoriaId, limite, created, updated);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    categoriaId,
+    limite,
+    anoMes,
+    created,
+    updated,
+  );
 
   /// Create a copy of FinLimite
   /// with the given fields replaced by the non-null parameter values.
@@ -1908,6 +1972,7 @@ abstract class _FinLimite extends FinLimite {
     required final String id,
     @JsonKey(name: 'categoria_id') final String categoriaId,
     final double limite,
+    @JsonKey(name: 'ano_mes') final String anoMes,
     final String? created,
     final String? updated,
   }) = _$FinLimiteImpl;
@@ -1923,6 +1988,11 @@ abstract class _FinLimite extends FinLimite {
   String get categoriaId;
   @override
   double get limite;
+
+  /// Mês civil do orçamento: 'YYYY-MM' (BRT). Vazio em legado pré-mig 30.
+  @override
+  @JsonKey(name: 'ano_mes')
+  String get anoMes;
   @override
   String? get created;
   @override

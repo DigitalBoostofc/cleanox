@@ -1,21 +1,19 @@
-/// fin_mobile_layout_test.dart — Layout MOBILE do Financeiro (F-741).
+/// fin_mobile_layout_test.dart — Layout MOBILE do Financeiro (F-741 + Organizze).
 ///
-/// Regressão da otimização de celular do módulo Financeiro: em viewport estreita
-/// (360×760, ~APK) a toolbar de filtro de Lançamentos NÃO fica fixa nem sempre
-/// expandida — ela COLAPSA atrás de um botão "Filtros", e o cabeçalho/KPIs rolam
-/// junto com a lista (um `CustomScrollView`, não irmãos fixos acima de um
-/// `Expanded`).
+/// Regressão do layout mobile do Financeiro: em viewport estreita (360×760,
+/// ~APK) Movimentações usa toolbar Organizze clean (título + barra laranja de
+/// filtros + lista) dentro de um `CustomScrollView` — sem KPIs no topo e com
+/// busca colapsada atrás do ícone 🔍.
 ///
 /// Assertos:
-///  • a estrutura é rolável (`CustomScrollView`) com os KPIs DENTRO do scroll;
-///  • a busca (campo do filtro) começa COLAPSADA (botão "Filtros" presente);
-///  • tocar "Filtros" REVELA o campo de busca;
+///  • a estrutura é rolável (`CustomScrollView`);
+///  • barra de filtros (Tipo) sempre visível; busca inicia colapsada;
+///  • tocar o ícone Buscar REVELA o campo;
 ///  • o layout ESTÁVEL na largura estreita não estoura (sem `RenderFlex
 ///    overflowed`) — verificado forçando um relayout final a exatamente 360 px.
 library;
 
 import 'package:cleanos/core/design/design.dart';
-import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/painel/financeiro/categorias/fin_categorias_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_contas_pagar_receber_screen.dart';
@@ -97,8 +95,8 @@ void main() {
   );
 
   testWidgets(
-    'Lançamentos no mobile: toolbar colapsada (botão "Filtros"), KPIs dentro de '
-    'um CustomScrollView, sem overflow no frame estável',
+    'Lançamentos no mobile: toolbar Organizze (barra de filtros + lista) em '
+    'CustomScrollView, sem overflow no frame estável',
     (tester) async {
       await pumpPainel(
         tester,
@@ -108,25 +106,25 @@ void main() {
       );
       await settle(tester);
 
-      // Estrutura rolável (cabeçalho + KPIs + lista no MESMO scroll — sem faixa
-      // fixa acima de um Expanded).
+      // Cabeçalho + lista no MESMO scroll (sem faixa fixa de KPIs).
       expect(find.byType(CustomScrollView), findsOneWidget);
 
-      // KPIs rolam junto (dentro do scroll).
-      expect(find.text('Receitas realizadas'), findsOneWidget);
+      // Sem KPIs no topo (estilo Organizze clean).
+      expect(find.text('Dinheiro que entrou'), findsNothing);
 
-      // Toolbar COLAPSADA: botão "Filtros" presente e a busca escondida.
-      expect(find.text('Filtros'), findsOneWidget);
+      // Barra de filtros sempre visível; busca colapsada atrás do ícone.
+      expect(find.text('Tipo'), findsOneWidget);
+      expect(find.text('Movimentações'), findsOneWidget);
       expect(searchField, findsNothing);
 
-      // Ação principal continua acessível.
-      expect(find.text('Novo lançamento'), findsOneWidget);
+      // Ação principal: botão (+) com tooltip.
+      expect(find.byTooltip('Novo lançamento'), findsOneWidget);
 
       await expectStableNoOverflow(tester);
     },
   );
 
-  testWidgets('Lançamentos no mobile: tocar "Filtros" revela o campo de busca', (
+  testWidgets('Lançamentos no mobile: ícone de busca revela o campo', (
     tester,
   ) async {
     await pumpPainel(
@@ -139,11 +137,11 @@ void main() {
 
     expect(searchField, findsNothing);
 
-    await tester.tap(find.text('Filtros'));
+    await tester.tap(find.byTooltip('Buscar'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Busca agora visível; layout estável segue sem overflow com o filtro aberto.
+    // Busca agora visível; layout estável segue sem overflow.
     expect(searchField, findsOneWidget);
     await expectStableNoOverflow(tester);
   });
@@ -209,119 +207,36 @@ void main() {
     },
   );
 
-  group(
-    'Relatórios — Movimentação por conta em cards no mobile (feedback dono: '
-    'nunca tabela)',
-    () {
-      // 2 contas com valores distintos entre si E distintos dos totais dos
-      // KPIs (soma das 2), pra não colidir na busca por texto do teste.
-      FakeFinanceiro fakeComContas({
-        String contaNome = 'Cartão Empresarial Nubank',
-      }) => FakeFinanceiro(
-        contas: [
-          fakeConta(id: 'c', nome: contaNome, saldoAtual: 2260),
-          fakeConta(id: 'c2', nome: 'Caixa Loja', saldoAtual: 700),
-        ],
+  group('Relatórios — mobile sem overflow (abas Categorias / Entradas×Saídas)', () {
+    testWidgets('360×800: Categorias e fluxo sem overflow', (tester) async {
+      const size = Size(360, 800);
+      final fake = FakeFinanceiro(
         categorias: [fakeCategoria(id: 'cat', nome: 'Material')],
         lancamentos: [
           fakeLanc(
             id: '1',
-            tipo: TipoLancamento.receita,
-            valor: 2500,
-            contaId: 'c',
-            categoriaId: 'cat',
-          ),
-          fakeLanc(
-            id: '2',
             tipo: TipoLancamento.despesa,
-            valor: 240,
-            contaId: 'c',
-            categoriaId: 'cat',
-          ),
-          fakeLanc(
-            id: '3',
-            tipo: TipoLancamento.receita,
-            valor: 800,
-            contaId: 'c2',
-            categoriaId: 'cat',
-          ),
-          fakeLanc(
-            id: '4',
-            tipo: TipoLancamento.despesa,
-            valor: 100,
-            contaId: 'c2',
+            valor: 120,
             categoriaId: 'cat',
           ),
         ],
       );
-
-      Future<void> irParaAbaContas(WidgetTester tester) async {
-        // A faixa de abas rola horizontalmente e "Contas" pode nascer fora da
-        // viewport estreita — traz para a tela antes de tocar.
-        final tab = find.text('Contas');
-        await tester.ensureVisible(tab);
-        await tester.pump();
-        await tester.tap(tab);
-        await settle(tester);
-      }
-
-      testWidgets(
-        '360×800: card por conta com nome completo (sem truncar) e valores '
-        'completos (sem quebra no meio do número), sem overflow',
-        (tester) async {
-          const size = Size(360, 800);
-          await pumpPainel(
-            tester,
-            const FinRelatoriosScreen(),
-            overrides: withFin(fakeComContas()),
-            size: size,
-          );
-          await settle(tester);
-          await irParaAbaContas(tester);
-
-          // 2 cards (não tabela): nomes por extenso + as 3 métricas de cada
-          // conta com valor completo (nada colide com os totais dos KPIs).
-          expect(find.text('Cartão Empresarial Nubank'), findsOneWidget);
-          expect(find.text('Caixa Loja'), findsOneWidget);
-          expect(find.text('Entradas'), findsNWidgets(2));
-          expect(find.text('Saídas'), findsNWidgets(2));
-          expect(find.text('Saldo atual'), findsNWidgets(2));
-          expect(find.text(formatCurrency(2500)), findsOneWidget);
-          expect(find.text(formatCurrency(240)), findsOneWidget);
-          expect(find.text(formatCurrency(2260)), findsOneWidget);
-          expect(find.text(formatCurrency(800)), findsOneWidget);
-          expect(find.text(formatCurrency(100)), findsOneWidget);
-          expect(find.text(formatCurrency(700)), findsOneWidget);
-
-          // Nunca tabela no mobile: sem cabeçalho de colunas.
-          expect(find.text('Conta'), findsNothing);
-
-          await expectStableNoOverflowAt(tester, size);
-        },
+      await pumpPainel(
+        tester,
+        const FinRelatoriosScreen(),
+        overrides: withFin(fake),
+        size: size,
       );
+      await settle(tester);
+      expect(find.text('Categorias'), findsWidgets);
+      expect(find.text('Tags'), findsNothing);
+      await expectStableNoOverflowAt(tester, size);
 
-      testWidgets('320×800: sem overflow', (tester) async {
-        const size = Size(320, 800);
-        await pumpPainel(
-          tester,
-          const FinRelatoriosScreen(),
-          overrides: withFin(fakeComContas()),
-          size: size,
-        );
-        await settle(tester);
-        await irParaAbaContas(tester);
-
-        expect(find.text('Cartão Empresarial Nubank'), findsOneWidget);
-        expect(find.text('Caixa Loja'), findsOneWidget);
-        expect(find.text(formatCurrency(2500)), findsOneWidget);
-        expect(find.text(formatCurrency(240)), findsOneWidget);
-        expect(find.text(formatCurrency(2260)), findsOneWidget);
-        expect(find.text(formatCurrency(800)), findsOneWidget);
-        expect(find.text(formatCurrency(100)), findsOneWidget);
-        expect(find.text(formatCurrency(700)), findsOneWidget);
-
-        await expectStableNoOverflowAt(tester, size);
-      });
-    },
-  );
+      await tester.tap(find.text('Entradas × Saídas'));
+      await settle(tester);
+      expect(find.text('Entradas × Saídas'), findsWidgets);
+      await expectStableNoOverflowAt(tester, size);
+    });
+  });
 }
+

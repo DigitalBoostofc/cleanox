@@ -15,6 +15,7 @@
 ///     provando que o filtro ANTIGO falha e o NOVO acha "QA Teste Silva".
 library;
 
+import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/core/models/cliente.dart';
 import 'package:cleanos/core/repositories/clientes_repository.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
@@ -105,6 +106,14 @@ class FilteringClientesRepo implements ClientesRepository {
   Future<Cliente> update(String id, Map<String, dynamic> data) async => throw UnimplementedError();
   @override
   Future<void> delete(String id) async {}
+  @override
+  Future<Cliente?> findByTelefone(String telefone, {String? excludeId}) async {
+    for (final c in all) {
+      if (excludeId != null && c.id == excludeId) continue;
+      if (phonesMatch(c.telefone, telefone)) return c;
+    }
+    return null;
+  }
 }
 
 /// Reprodução do filtro ANTIGO (bugado): um único literal com o termo inteiro.

@@ -1,11 +1,8 @@
-/// fin_lancamentos_screen.dart — Lista de Lançamentos (CRUD, estilo Organizze).
+/// fin_lancamentos_screen.dart — Movimentações (estilo Organizze clean).
 ///
-/// Espelha `Lancamentos.tsx`: 4 KPIs do período (com variação vs. mês anterior),
-/// lista agrupada por DIA (BRT) com total do dia, filtros (mês/busca/tipo/status/
-/// categoria/conta) e CRUD por modal. Cada linha traz origem/conta/recorrência/
-/// status; clicar abre o painel de detalhes; o kebab tem Ver detalhes, Editar,
-/// Repetir, Copiar e Excluir. Lista VIRTUALIZADA (`ListView.builder`) com
-/// PAGINAÇÃO no servidor + scroll infinito. Estados carregando/erro/vazio/sucesso.
+/// Layout: título + (+) | seletor de mês | barra laranja de filtros (Tipo /
+/// Conta / Categoria + busca) | lista por dia | rodapé saldo / a receber /
+/// prevista. Sem KPIs no topo. Lista VIRTUALIZADA com paginação no servidor.
 library;
 
 import 'dart:async';
@@ -44,11 +41,11 @@ class FinLancamentosScreen extends ConsumerStatefulWidget {
 class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   final ScrollController _scroll = ScrollController();
   final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   Timer? _debounce;
 
-  /// Mobile: filtro (busca + chips) colapsado por padrão para priorizar a lista.
-  /// No desktop os filtros ficam sempre visíveis (este flag é ignorado).
-  bool _showFilters = false;
+  /// Campo de busca expandido na barra laranja (ícone 🔍).
+  bool _searchOpen = false;
 
   @override
   void initState() {
@@ -63,6 +60,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       ..removeListener(_onScroll)
       ..dispose();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -113,14 +111,15 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     }
   }
 
-  Future<void> _repeat(FinLancamento l) async {
+  /// Duplica criando outra movimentação **idêntica** (descrição, valor, status…).
+  Future<void> _duplicate(FinLancamento l) async {
     try {
-      await ref.read(financeiroRepositoryProvider).repeatLancamento(l);
+      await ref.read(financeiroRepositoryProvider).duplicateLancamento(l);
       await _refreshAfterMutation();
       if (mounted) {
         showClxToast(
           context,
-          'Próxima ocorrência criada (prevista).',
+          'Lançamento duplicado.',
           type: ToastType.success,
         );
       }
@@ -128,25 +127,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       if (mounted) {
         showClxToast(
           context,
-          'Não foi possível repetir o lançamento.',
-          type: ToastType.error,
-        );
-      }
-    }
-  }
-
-  Future<void> _duplicate(FinLancamento l) async {
-    try {
-      await ref.read(financeiroRepositoryProvider).duplicateLancamento(l);
-      await _refreshAfterMutation();
-      if (mounted) {
-        showClxToast(context, 'Lançamento copiado.', type: ToastType.success);
-      }
-    } catch (_) {
-      if (mounted) {
-        showClxToast(
-          context,
-          'Não foi possível copiar o lançamento.',
+          'Não foi possível duplicar o lançamento.',
           type: ToastType.error,
         );
       }
@@ -172,12 +153,41 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     switch (action) {
       case 'edit':
         await _openForm(editing: l);
-      case 'repeat':
-        await _repeat(l);
       case 'duplicate':
+      case 'repeat': // legado do botão antigo "Repetir" → agora é duplicar
         await _duplicate(l);
       case 'delete':
         await _delete(l);
+    }
+  }
+
+  /// Mãozinha Organizze: pago ↔ pendente (atualiza saldo no server via hook).
+  Future<void> _togglePago(FinLancamento l) async {
+    final novo = l.status == LancamentoStatus.pago
+        ? LancamentoStatus.pendente
+        : LancamentoStatus.pago;
+    try {
+      await ref.read(financeiroRepositoryProvider).updateLancamento(l.id, {
+        'status': novo.wire,
+      });
+      await _refreshAfterMutation();
+      if (mounted) {
+        showClxToast(
+          context,
+          novo == LancamentoStatus.pago
+              ? 'Marcado como pago.'
+              : 'Marcado como pendente.',
+          type: ToastType.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar o status.',
+          type: ToastType.error,
+        );
+      }
     }
   }
 
@@ -227,15 +237,33 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
     final mobile = finIsMobile(context);
 
-    final toolbar = _Toolbar(
+    final toolbar = _OrganizzeToolbar(
       search: _searchCtrl,
+      searchFocus: _searchFocus,
+      searchOpen: _searchOpen,
+      onToggleSearch: () {
+        setState(() => _searchOpen = !_searchOpen);
+        if (!_searchOpen) {
+          _searchCtrl.clear();
+          _onSearch('');
+        } else {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _searchFocus.requestFocus();
+          });
+        }
+      },
       onSearch: _onSearch,
+      onClearFilters: () {
+        _searchCtrl.clear();
+        ref.read(finLancControllerProvider.notifier).setFilters(
+              const FinLancFilters(),
+            );
+        setState(() => _searchOpen = false);
+      },
       filters: state.filters,
       categorias: categorias,
       contas: contas,
       mobile: mobile,
-      showFilters: _showFilters,
-      onToggleFilters: () => setState(() => _showFilters = !_showFilters),
       onTipo: (t) => ref
           .read(finLancControllerProvider.notifier)
           .setFilters(state.filters.copyWith(tipo: t)),
@@ -251,18 +279,25 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       onNovo: () => _openForm(),
     );
 
-    // Mobile (F-741): toolbar + KPIs rolam JUNTO com a lista (não são irmãos
-    // fixos acima de um Expanded), liberando viewport para os lançamentos.
-    if (mobile) return _mobileBody(state, categorias, contas, toolbar);
+    // Mobile: header + lista no mesmo scroll; rodapé sticky de saldo.
+    if (mobile) {
+      return Column(
+        children: [
+          Expanded(
+            child: _mobileBody(state, categorias, contas, toolbar),
+          ),
+          if (!state.isEmpty || state.loading) const _SaldoPrevistoFooter(),
+        ],
+      );
+    }
 
-    // Desktop/tablet: faixa fixa + lista + rodapé saldo/previsto (estilo Organizze).
+    // Desktop: header fixo + lista + rodapé (Organizze).
     return Column(
       children: [
         toolbar,
-        const _Kpis(),
         if (_unpaidPastBanner(state) != null) _unpaidPastBanner(state)!,
         Expanded(child: _body(state, categorias, contas)),
-        _SaldoPrevistoFooter(items: state.items),
+        const _SaldoPrevistoFooter(),
       ],
     );
   }
@@ -281,8 +316,8 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     return _UnpaidPastBanner(count: n);
   }
 
-  /// Layout de celular: um único `CustomScrollView` onde o cabeçalho (toolbar +
-  /// KPIs) é o primeiro sliver rolável e a lista/estados vêm logo abaixo.
+  /// Layout de celular: um único `CustomScrollView` onde o cabeçalho (toolbar)
+  /// é o primeiro sliver rolável e a lista/estados vêm logo abaixo.
   Widget _mobileBody(
     FinLancState state,
     List<FinCategoria> categorias,
@@ -304,14 +339,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
                 ClxSpace.x4,
                 ClxSpace.x2,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  toolbar,
-                  const SizedBox(height: ClxSpace.x4),
-                  const _Kpis(mobile: true),
-                ],
-              ),
+              child: toolbar,
             ),
           ),
           ..._bodySlivers(state, categorias, contas),
@@ -429,7 +457,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
           : 'Nenhum lançamento neste mês',
       message: filtered
           ? 'Ajuste os filtros ou o mês.'
-          : 'Clique em "Novo lançamento" para começar.',
+          : 'Toque no + para lançar a primeira movimentação.',
       action: filtered
           ? null
           : ClxButton(
@@ -482,9 +510,9 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
             onTap: () => _openDetail(row.item!),
             onDetail: () => _openDetail(row.item!),
             onEdit: () => _openForm(editing: row.item!),
-            onRepeat: () => _repeat(row.item!),
             onDuplicate: () => _duplicate(row.item!),
             onDelete: () => _delete(row.item!),
+            onTogglePago: () => _togglePago(row.item!),
           );
   }
 }
@@ -497,111 +525,26 @@ class _Row {
   final FinLancamento? item;
 }
 
-/* ─────────────────────── KPIs do período ─────────────────────── */
+/* ─────────────────────── Toolbar Organizze ─────────────────────── */
 
-/// 4 KPIs derivados do período (realizadas com variação vs. mês anterior,
-/// previstas e saldo). Base = [finPeriodLancamentosProvider] +
-/// [finPrevPeriodResumoProvider]. Espelha os KPIs de `Lancamentos.tsx`.
-class _Kpis extends ConsumerWidget {
-  const _Kpis({this.mobile = false});
+/// Cor da barra de filtros (referência visual Organizze).
+const Color _kOrgFilterBar = Color(0xFFF5A623);
+const Color _kOrgFilterOn = Color(0xFFFFFFFF);
 
-  /// No mobile a grade entra DENTRO do scroll (o padding externo já vem do
-  /// cabeçalho rolável), então dispensa o padding horizontal próprio.
-  final bool mobile;
-
-  static ({bool up, String text})? _trend(
-    double cur,
-    double prev,
-    String prevLabel,
-  ) {
-    if (!prev.isFinite || prev <= 0) return null;
-    final pct = (cur - prev) / prev * 100;
-    return (
-      up: pct >= 0,
-      text:
-          '${pct.abs().toStringAsFixed(1).replaceAll('.', ',')}% vs. $prevLabel',
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final clx = context.clx;
-    final lancs =
-        ref.watch(finPeriodLancamentosProvider).valueOrNull ?? const [];
-    final prev = ref.watch(finPrevPeriodResumoProvider).valueOrNull;
-    final prevLabel = ref
-        .watch(finPeriodProvider)
-        .shift(-1)
-        .label
-        .split(' ')
-        .first;
-
-    final resumo = resumoPeriodo(lancs);
-    final previstas = lancs
-        .where((l) => l.status != LancamentoStatus.pago)
-        .toList();
-    final previstasTotal = previstas.fold<double>(0, (s, l) => s + l.valor);
-    final saldoNeg = resumo.saldoMes < 0;
-
-    return Padding(
-      padding: mobile
-          ? EdgeInsets.zero
-          : const EdgeInsets.fromLTRB(ClxSpace.x6, ClxSpace.x4, ClxSpace.x6, 0),
-      child: FinKpiGrid(
-        cards: [
-          FinKpiCard(
-            label: 'Receitas realizadas',
-            value: formatCurrency(resumo.entradas),
-            color: clx.finIncome,
-            icon: Icons.north_east_rounded,
-            trend: prev == null
-                ? null
-                : _trend(resumo.entradas, prev.entradas, prevLabel),
-          ),
-          FinKpiCard(
-            label: 'Despesas realizadas',
-            value: formatCurrency(resumo.saidas),
-            color: clx.finExpense,
-            icon: Icons.south_west_rounded,
-            trend: prev == null
-                ? null
-                : _trend(resumo.saidas, prev.saidas, prevLabel),
-          ),
-          FinKpiCard(
-            label: 'Previstas',
-            value: formatCurrency(previstasTotal),
-            color: clx.info,
-            icon: Icons.schedule_rounded,
-            hint:
-                '${previstas.length} lançamento${previstas.length == 1 ? '' : 's'}',
-          ),
-          FinKpiCard(
-            label: 'Saldo do período',
-            value: formatCurrency(resumo.saldoMes),
-            color: saldoNeg ? clx.finExpense : clx.primary,
-            icon: Icons.equalizer_rounded,
-            hint: saldoNeg
-                ? 'Despesas maiores que receitas'
-                : resumo.saldoMes > 0
-                ? 'Receitas maiores que despesas'
-                : 'Equilíbrio no período',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({
+/// Cabeçalho clean: título + (+) | seletor de mês | barra laranja sempre
+/// visível (Tipo / Status / Conta / Categoria + busca). Sem KPIs no topo.
+class _OrganizzeToolbar extends StatelessWidget {
+  const _OrganizzeToolbar({
     required this.search,
+    required this.searchFocus,
+    required this.searchOpen,
+    required this.onToggleSearch,
     required this.onSearch,
+    required this.onClearFilters,
     required this.filters,
     required this.categorias,
     required this.contas,
     required this.mobile,
-    required this.showFilters,
-    required this.onToggleFilters,
     required this.onTipo,
     required this.onStatus,
     required this.onCategoria,
@@ -610,16 +553,15 @@ class _Toolbar extends StatelessWidget {
   });
 
   final TextEditingController search;
+  final FocusNode searchFocus;
+  final bool searchOpen;
+  final VoidCallback onToggleSearch;
   final ValueChanged<String> onSearch;
+  final VoidCallback onClearFilters;
   final FinLancFilters filters;
   final List<FinCategoria> categorias;
   final List<FinConta> contas;
-
-  /// Layout de celular: filtro colapsável atrás de um botão "Filtros".
   final bool mobile;
-  final bool showFilters;
-  final VoidCallback onToggleFilters;
-
   final ValueChanged<TipoLancamento?> onTipo;
   final ValueChanged<LancamentoStatus?> onStatus;
   final ValueChanged<String?> onCategoria;
@@ -628,319 +570,289 @@ class _Toolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Categorias-mãe (todas as naturezas) para o filtro.
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
     final roots = categorias.where((c) => c.parentId == null).toList()
       ..sort((a, b) => a.nome.compareTo(b.nome));
 
-    if (mobile) return _mobile(context, roots);
-    return _desktop(context, roots);
-  }
-
-  /// Desktop/tablet: layout original (faixa fixa com filtro sempre visível).
-  Widget _desktop(BuildContext context, List<FinCategoria> roots) {
-    final clx = context.clx;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        ClxSpace.x6,
-        ClxSpace.x4,
-        ClxSpace.x6,
-        ClxSpace.x3,
+    final addBtn = Tooltip(
+      message: 'Novo lançamento',
+      child: Material(
+        color: clx.ink,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onNovo,
+          child: const SizedBox(
+            width: 28,
+            height: 28,
+            child: Icon(Icons.add_rounded, size: 18, color: Colors.white),
+          ),
+        ),
       ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: clx.line)),
+    );
+
+    final titleRow = Row(
+      children: [
+        Flexible(
+          child: Text(
+            'Movimentações',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: (mobile ? tt.titleLarge : tt.headlineSmall)?.copyWith(
+              color: clx.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: ClxSpace.x2),
+        addBtn,
+        if (!mobile) ...[
+          const Spacer(),
+          const FinPeriodSelector(),
+          const Spacer(),
+          // Espelho visual do (+): mantém o seletor de mês centrado.
+          const SizedBox(width: 100),
+        ],
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 0 : ClxSpace.x6,
+        mobile ? 0 : ClxSpace.x4,
+        mobile ? 0 : ClxSpace.x6,
+        ClxSpace.x2,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const FinPeriodSelector(),
-              const Spacer(),
-              ClxButton(
-                label: 'Novo lançamento',
-                icon: Icons.add_rounded,
-                onPressed: onNovo,
-              ),
-            ],
-          ),
+          titleRow,
+          if (mobile) ...[
+            const SizedBox(height: ClxSpace.x2),
+            const SizedBox(
+              width: double.infinity,
+              child: FinPeriodSelector(expand: true),
+            ),
+          ],
           const SizedBox(height: ClxSpace.x3),
-          Row(
-            children: [
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: _searchField(context),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: ClxSpace.x3),
-          _filterChips(context, roots),
+          _orangeBar(context, roots),
         ],
       ),
     );
   }
 
-  /// Mobile: período em largura total (sem truncar o mês) + linha com "Novo
-  /// lançamento" e o botão "Filtros" (colapsa busca/chips). Tudo rola com o
-  /// conteúdo (sem faixa fixa).
-  Widget _mobile(BuildContext context, List<FinCategoria> roots) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _orangeBar(BuildContext context, List<FinCategoria> roots) {
+    final hasFilters = filters.hasAny;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: _kOrgFilterBar,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: _kOrgFilterBar.withValues(alpha: 0.28),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: searchOpen
+          ? _searchExpanded(context)
+          : _filterMenus(context, roots, hasFilters),
+    );
+  }
+
+  Widget _searchExpanded(BuildContext context) {
+    return Row(
       children: [
-        const SizedBox(
-          width: double.infinity,
-          child: FinPeriodSelector(expand: true),
+        IconButton(
+          tooltip: 'Fechar busca',
+          onPressed: onToggleSearch,
+          icon: const Icon(Icons.close_rounded, color: _kOrgFilterOn, size: 20),
         ),
-        const SizedBox(height: ClxSpace.x2),
-        Row(
+        Expanded(
+          child: TextField(
+            controller: search,
+            focusNode: searchFocus,
+            onChanged: onSearch,
+            textInputAction: TextInputAction.search,
+            style: const TextStyle(color: _kOrgFilterOn, fontSize: 15),
+            cursorColor: _kOrgFilterOn,
+            decoration: const InputDecoration(
+              isDense: true,
+              hintText: 'Buscar descrição, cliente ou nº da OS…',
+              hintStyle: TextStyle(color: Color(0xCCFFFFFF)),
+              border: InputBorder.none,
+              filled: false,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterMenus(
+    BuildContext context,
+    List<FinCategoria> roots,
+    bool hasFilters,
+  ) {
+    final tipoLabel = switch (filters.tipo) {
+      TipoLancamento.receita => 'Receitas',
+      TipoLancamento.despesa => 'Despesas',
+      null => 'Tipo',
+    };
+    final statusLabel = filters.status == null
+        ? 'Status'
+        : statusLancamentoLabel(filters.status!);
+    final catNome = (filters.categoriaId != null &&
+            filters.categoriaId!.isNotEmpty)
+        ? _firstOrNull(roots, (c) => c.id == filters.categoriaId)?.nome
+        : null;
+    final contaNome =
+        (filters.contaId != null && filters.contaId!.isNotEmpty)
+            ? _firstOrNull(contas, (c) => c.id == filters.contaId)?.nome
+            : null;
+
+    // Busca e (X) ficam fixos; só os menus rolam no meio (mobile estreito).
+    return Row(
+      children: [
+        if (hasFilters)
+          IconButton(
+            tooltip: 'Limpar filtros',
+            onPressed: onClearFilters,
+            icon: const Icon(
+              Icons.close_rounded,
+              color: _kOrgFilterOn,
+              size: 20,
+            ),
+          )
+        else
+          const SizedBox(width: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _OrgDropMenu<TipoLancamento?>(
+                  label: tipoLabel,
+                  active: filters.tipo != null,
+                  tooltip: 'Filtrar por tipo',
+                  onSelected: onTipo,
+                  items: const [
+                    (value: null, label: 'Todos os lançamentos'),
+                    (value: TipoLancamento.receita, label: 'Receitas'),
+                    (value: TipoLancamento.despesa, label: 'Despesas'),
+                  ],
+                ),
+                _OrgDropMenu<LancamentoStatus?>(
+                  label: statusLabel,
+                  active: filters.status != null,
+                  tooltip: 'Filtrar por status',
+                  onSelected: onStatus,
+                  items: [
+                    (value: null, label: 'Todos os status'),
+                    for (final s in LancamentoStatus.values)
+                      (value: s, label: statusLancamentoLabel(s)),
+                  ],
+                ),
+                _OrgDropMenu<String?>(
+                  label: contaNome ?? 'Contas',
+                  active: contaNome != null,
+                  tooltip: 'Filtrar por conta',
+                  onSelected: (v) =>
+                      onConta((v == null || v.isEmpty) ? null : v),
+                  items: [
+                    (value: '', label: 'Todas as contas'),
+                    for (final c in contas) (value: c.id, label: c.nome),
+                  ],
+                ),
+                _OrgDropMenu<String?>(
+                  label: catNome ?? 'Categorias',
+                  active: catNome != null,
+                  tooltip: 'Filtrar por categoria',
+                  onSelected: (v) =>
+                      onCategoria((v == null || v.isEmpty) ? null : v),
+                  items: [
+                    (value: '', label: 'Todas as categorias'),
+                    for (final c in roots) (value: c.id, label: c.nome),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Buscar',
+          onPressed: onToggleSearch,
+          icon: const Icon(
+            Icons.search_rounded,
+            color: _kOrgFilterOn,
+            size: 22,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Item de menu na barra laranja: rótulo + seta, popup com opções.
+class _OrgDropMenu<T> extends StatelessWidget {
+  const _OrgDropMenu({
+    required this.label,
+    required this.active,
+    required this.tooltip,
+    required this.onSelected,
+    required this.items,
+  });
+
+  final String label;
+  final bool active;
+  final String tooltip;
+  final ValueChanged<T> onSelected;
+  final List<({T value, String label})> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<T>(
+      tooltip: tooltip,
+      onSelected: onSelected,
+      offset: const Offset(0, 40),
+      itemBuilder: (_) => [
+        for (final e in items)
+          PopupMenuItem<T>(
+            value: e.value,
+            child: Text(e.label),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: ClxButton(
-                label: 'Novo lançamento',
-                icon: Icons.add_rounded,
-                onPressed: onNovo,
-                expand: true,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _kOrgFilterOn,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
             ),
-            const SizedBox(width: ClxSpace.x2),
-            FinFiltrosToggle(
-              active: showFilters,
-              hasActiveFilters: filters.hasAny,
-              onTap: onToggleFilters,
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              color: _kOrgFilterOn,
+              size: 20,
             ),
           ],
         ),
-        if (showFilters) ...[
-          const SizedBox(height: ClxSpace.x3),
-          _searchField(context),
-          const SizedBox(height: ClxSpace.x3),
-          _filterChips(context, roots),
-        ],
-      ],
-    );
-  }
-
-  Widget _searchField(BuildContext context) {
-    final clx = context.clx;
-    return TextField(
-      controller: search,
-      onChanged: onSearch,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Buscar descrição, cliente ou nº da OS…',
-        prefixIcon: const Icon(Icons.search_rounded, size: 20),
-        filled: true,
-        fillColor: clx.bg2,
-        border: const OutlineInputBorder(
-          borderRadius: ClxRadii.rMd,
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _filterChips(BuildContext context, List<FinCategoria> roots) {
-    final clx = context.clx;
-    return Wrap(
-      spacing: ClxSpace.x2,
-      runSpacing: ClxSpace.x2,
-      children: [
-        _FilterChip(
-          label: 'Todos',
-          selected: filters.tipo == null,
-          onTap: () => onTipo(null),
-        ),
-        _FilterChip(
-          label: 'Receitas',
-          selected: filters.tipo == TipoLancamento.receita,
-          color: clx.finIncome,
-          onTap: () => onTipo(TipoLancamento.receita),
-        ),
-        _FilterChip(
-          label: 'Despesas',
-          selected: filters.tipo == TipoLancamento.despesa,
-          color: clx.finExpense,
-          onTap: () => onTipo(TipoLancamento.despesa),
-        ),
-        const SizedBox(width: ClxSpace.x2),
-        _StatusMenu(value: filters.status, onChanged: onStatus),
-        _IdFilterMenu(
-          icon: Icons.category_outlined,
-          allLabel: 'Categoria',
-          value: filters.categoriaId,
-          items: [for (final c in roots) (id: c.id, nome: c.nome)],
-          onChanged: onCategoria,
-        ),
-        _IdFilterMenu(
-          icon: Icons.account_balance_wallet_outlined,
-          allLabel: 'Conta',
-          value: filters.contaId,
-          items: [for (final c in contas) (id: c.id, nome: c.nome)],
-          onChanged: onConta,
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.color,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final c = color ?? clx.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: ClxRadii.rPill,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: ClxSpace.x3,
-          vertical: ClxSpace.x2,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? c.withValues(alpha: 0.14) : clx.bg2,
-          borderRadius: ClxRadii.rPill,
-          border: Border.all(color: selected ? c : clx.line),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: selected ? c : clx.ink2,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusMenu extends StatelessWidget {
-  const _StatusMenu({required this.value, required this.onChanged});
-
-  final LancamentoStatus? value;
-  final ValueChanged<LancamentoStatus?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<LancamentoStatus?>(
-      tooltip: 'Filtrar por status',
-      onSelected: onChanged,
-      itemBuilder: (_) => [
-        const PopupMenuItem<LancamentoStatus?>(
-          value: null,
-          child: Text('Todos os status'),
-        ),
-        for (final s in LancamentoStatus.values)
-          PopupMenuItem<LancamentoStatus?>(
-            value: s,
-            child: Text(statusLancamentoLabel(s)),
-          ),
-      ],
-      child: _MenuPill(
-        icon: Icons.filter_list_rounded,
-        active: value != null,
-        label: value == null ? 'Status' : statusLancamentoLabel(value!),
-      ),
-    );
-  }
-}
-
-/// Filtro por id (categoria/conta): `null` = todos. Mostra o nome resolvido.
-class _IdFilterMenu extends StatelessWidget {
-  const _IdFilterMenu({
-    required this.icon,
-    required this.allLabel,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String allLabel;
-  final String? value;
-  final List<({String id, String nome})> items;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = (value != null && value!.isNotEmpty)
-        ? _firstOrNull(items, (e) => e.id == value)?.nome
-        : null;
-    return PopupMenuButton<String?>(
-      tooltip: 'Filtrar por $allLabel',
-      onSelected: (v) => onChanged((v == null || v.isEmpty) ? null : v),
-      itemBuilder: (_) => [
-        PopupMenuItem<String?>(
-          value: '',
-          child: Text('Todas as ${allLabel.toLowerCase()}s'),
-        ),
-        for (final e in items)
-          PopupMenuItem<String?>(value: e.id, child: Text(e.nome)),
-      ],
-      child: _MenuPill(
-        icon: icon,
-        active: selected != null,
-        label: selected ?? allLabel,
-      ),
-    );
-  }
-}
-
-class _MenuPill extends StatelessWidget {
-  const _MenuPill({
-    required this.icon,
-    required this.active,
-    required this.label,
-  });
-
-  final IconData icon;
-  final bool active;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 180),
-      padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x3,
-        vertical: ClxSpace.x2,
-      ),
-      decoration: BoxDecoration(
-        color: active ? clx.primary.withValues(alpha: 0.14) : clx.bg2,
-        borderRadius: ClxRadii.rPill,
-        border: Border.all(color: active ? clx.primary : clx.line),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: active ? clx.primary : clx.ink2),
-          const SizedBox(width: ClxSpace.x1),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: active ? clx.primary : clx.ink2,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -990,9 +902,9 @@ class _LancamentoRow extends StatelessWidget {
     required this.onTap,
     required this.onDetail,
     required this.onEdit,
-    required this.onRepeat,
     required this.onDuplicate,
     required this.onDelete,
+    this.onTogglePago,
   });
 
   final FinLancamento lancamento;
@@ -1002,17 +914,15 @@ class _LancamentoRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDetail;
   final VoidCallback onEdit;
-  final VoidCallback onRepeat;
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
+  final VoidCallback? onTogglePago;
 
-  /// Sub-linha: observação → serviço → subcategoria → categoria, + parcela.
+  /// Sub-linha: serviço / categoria / parcela (obs vai pro ícone de comentário).
   String _sub() {
     final l = lancamento;
     final parts = <String>[];
-    if (l.observacao?.trim().isNotEmpty ?? false) {
-      parts.add(l.observacao!.trim());
-    } else if (l.servicoNome?.isNotEmpty ?? false) {
+    if (l.servicoNome?.isNotEmpty ?? false) {
       parts.add(l.servicoNome!);
     } else if (subcategoria != null) {
       parts.add(subcategoria!.nome);
@@ -1025,8 +935,22 @@ class _LancamentoRow extends StatelessWidget {
     return parts.join(' · ');
   }
 
-  bool get _emAberto =>
-      lancamento.status != LancamentoStatus.pago;
+  bool get _emAberto => lancamento.status != LancamentoStatus.pago;
+
+  bool get _temObs =>
+      (lancamento.observacao?.trim().isNotEmpty ?? false);
+
+  bool get _temRecorrencia =>
+      lancamento.recorrencia != RecorrenciaTipo.unica;
+
+  String get _tooltipRecorrencia => switch (lancamento.recorrencia) {
+        RecorrenciaTipo.fixa => 'Este é um lançamento fixo',
+        RecorrenciaTipo.recorrente => 'Este é um lançamento recorrente',
+        RecorrenciaTipo.parcelada =>
+          'Parcela ${lancamento.parcelaAtual ?? 1}'
+              '${lancamento.parcelasTotal != null ? ' de ${lancamento.parcelasTotal}' : ''}',
+        RecorrenciaTipo.unica => '',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -1034,6 +958,7 @@ class _LancamentoRow extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final l = lancamento;
     final sub = _sub();
+    final pago = !_emAberto;
     // Fundo creme (Organizze) para não pagos / previstos.
     final bg = _emAberto
         ? clx.warning.withValues(alpha: 0.10)
@@ -1044,122 +969,171 @@ class _LancamentoRow extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: ClxSpace.x5,
+            horizontal: ClxSpace.x4,
             vertical: ClxSpace.x3,
           ),
           child: LayoutBuilder(
-            builder: (context, constraints) => Row(
-              children: [
-                // Bolinha status (vermelho = em aberto; transparente se pago).
-                Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.only(right: ClxSpace.x2),
-                  decoration: BoxDecoration(
-                    color: _emAberto ? clx.error : Colors.transparent,
-                    shape: BoxShape.circle,
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 520;
+              return Row(
+                children: [
+                  // Bolinha status (vermelho = em aberto; transparente se pago).
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: ClxSpace.x2),
+                    decoration: BoxDecoration(
+                      color: _emAberto ? clx.error : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                FinCategoriaAvatar(
-                  categoria: subcategoria ?? categoria,
-                  size: 36,
-                ),
-                const SizedBox(width: ClxSpace.x3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tt.titleSmall?.copyWith(
-                          color: clx.ink,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (sub.isNotEmpty)
+                  FinCategoriaAvatar(
+                    categoria: subcategoria ?? categoria,
+                    size: narrow ? 32 : 36,
+                  ),
+                  const SizedBox(width: ClxSpace.x3),
+                  // Coluna esquerda: descrição.
+                  Expanded(
+                    flex: narrow ? 3 : 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          sub,
+                          l.descricao.isEmpty
+                              ? '(sem descrição)'
+                              : l.descricao,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: tt.bodySmall?.copyWith(color: clx.ink3),
+                          style: tt.titleSmall?.copyWith(
+                            color: clx.ink,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                    ],
+                        if (sub.isNotEmpty)
+                          Text(
+                            sub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tt.bodySmall?.copyWith(color: clx.ink3),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                if (l.recorrencia != RecorrenciaTipo.unica) ...[
-                  Icon(
-                    Icons.repeat_rounded,
-                    size: 16,
-                    color: clx.ink3,
+                  // Coluna central: recorrência · comentário · conta.
+                  Expanded(
+                    flex: narrow ? 3 : 3,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_temRecorrencia) ...[
+                          Tooltip(
+                            message: _tooltipRecorrencia,
+                            waitDuration: const Duration(milliseconds: 250),
+                            child: Icon(
+                              Icons.sync_rounded,
+                              size: 18,
+                              color: clx.ink3,
+                            ),
+                          ),
+                          const SizedBox(width: ClxSpace.x1),
+                        ],
+                        if (_temObs) ...[
+                          Tooltip(
+                            message: l.observacao!.trim(),
+                            waitDuration: const Duration(milliseconds: 250),
+                            child: Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 17,
+                              color: clx.ink3,
+                            ),
+                          ),
+                          const SizedBox(width: ClxSpace.x1),
+                        ],
+                        if (conta != null)
+                          Flexible(child: ContaBadge(conta: conta!)),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: ClxSpace.x2),
-                ],
-                if (conta != null) ...[
-                  ContaBadge(conta: conta!),
-                  const SizedBox(width: ClxSpace.x3),
-                ],
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth * 0.32,
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      formatSigned(l),
-                      maxLines: 1,
-                      softWrap: false,
-                      style: tt.bodyLarge?.copyWith(
-                        color: tipoColor(clx, l.tipo),
-                        fontWeight: FontWeight.w800,
+                  // Valor (nunca trunca — FittedBox se apertar).
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * (narrow ? 0.28 : 0.22),
+                      minWidth: 72,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          formatSigned(l),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: tt.bodyLarge?.copyWith(
+                            color: tipoColor(clx, l.tipo),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (_emAberto)
-                  Padding(
-                    padding: const EdgeInsets.only(left: ClxSpace.x1),
-                    child: Icon(
-                      Icons.schedule_rounded,
-                      size: 16,
-                      color: clx.warning,
+                  // Mãozinha: 👍 pago · 👎 pendente (mesmo esquema das comissões).
+                  Tooltip(
+                    message: pago
+                        ? 'Pago — toque para marcar pendente'
+                        : 'Pendente — toque para marcar pago',
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      onPressed: onTogglePago,
+                      icon: Icon(
+                        pago
+                            ? Icons.thumb_up_alt_rounded
+                            : Icons.thumb_down_alt_rounded,
+                        size: 20,
+                        color: pago ? clx.success : clx.ink3,
+                      ),
                     ),
                   ),
-                PopupMenuButton<String>(
-                  tooltip: 'Ações',
-                  icon: Icon(
-                    Icons.more_vert_rounded,
-                    size: 18,
-                    color: clx.ink3,
-                  ),
-                  onSelected: (v) {
-                    switch (v) {
-                      case 'detail':
-                        onDetail();
-                      case 'edit':
-                        onEdit();
-                      case 'repeat':
-                        onRepeat();
-                      case 'duplicate':
-                        onDuplicate();
-                      case 'delete':
-                        onDelete();
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'detail',
-                      child: Text('Ver detalhes'),
+                  if (!narrow)
+                    PopupMenuButton<String>(
+                      tooltip: 'Ações',
+                      icon: Icon(
+                        Icons.more_vert_rounded,
+                        size: 18,
+                        color: clx.ink3,
+                      ),
+                      onSelected: (v) {
+                        switch (v) {
+                          case 'detail':
+                            onDetail();
+                          case 'edit':
+                            onEdit();
+                          case 'duplicate':
+                            onDuplicate();
+                          case 'delete':
+                            onDelete();
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'detail',
+                          child: Text('Ver detalhes'),
+                        ),
+                        PopupMenuItem(value: 'edit', child: Text('Editar')),
+                        PopupMenuItem(
+                          value: 'duplicate',
+                          child: Text('Duplicar'),
+                        ),
+                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                      ],
                     ),
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'repeat', child: Text('Repetir')),
-                    PopupMenuItem(value: 'duplicate', child: Text('Copiar')),
-                    PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -1214,60 +1188,117 @@ class _UnpaidPastBanner extends StatelessWidget {
   }
 }
 
-/// Rodapé sticky: saldo (pago) + previsto (não pago) do que está na lista.
-class _SaldoPrevistoFooter extends StatelessWidget {
-  const _SaldoPrevistoFooter({required this.items});
-  final List<FinLancamento> items;
+/// Rodapé sticky do período:
+/// - **saldo** — realizado (só pagos: receitas − despesas)
+/// - **a receber** — +Σ receitas/OS em aberto (não pagas)
+/// - **prevista** — receita total − despesa total (todos status); verde/vermelho
+class _SaldoPrevistoFooter extends ConsumerWidget {
+  const _SaldoPrevistoFooter();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    var saldoCents = 0;
-    var prevCents = 0;
+    // Período completo (não só a página da lista) — totais fiéis do mês.
+    final items =
+        ref.watch(finPeriodLancamentosProvider).valueOrNull ?? const [];
+
+    final resumo = resumoPeriodo(items);
+    final aReceber = totalReceitasPrevistas(items);
+
+    var recCents = 0;
+    var despCents = 0;
     for (final l in items) {
       final c = (l.valor * 100).round();
-      final signed = l.tipo == TipoLancamento.receita ? c : -c;
-      if (l.status == LancamentoStatus.pago) {
-        saldoCents += signed;
+      if (l.tipo == TipoLancamento.receita) {
+        recCents += c;
       } else {
-        prevCents += signed;
+        despCents += c;
       }
     }
-    final saldo = saldoCents / 100.0;
-    final previsto = prevCents / 100.0;
+    final prevista = (recCents - despCents) / 100.0;
+    final saldo = resumo.saldoMes;
+
+    Widget metric(
+      String label,
+      String valueText,
+      Color valueColor,
+    ) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: tt.bodySmall?.copyWith(color: clx.ink3)),
+          const SizedBox(width: ClxSpace.x2),
+          Flexible(
+            child: Text(
+              valueText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: tt.titleSmall?.copyWith(
+                color: valueColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final saldoW = metric(
+      'saldo',
+      formatCurrency(saldo),
+      saldo < 0 ? clx.finExpense : clx.primary,
+    );
+    // A receber: sempre positivo (+R$ …) — OS/receitas em aberto.
+    final aReceberW = metric(
+      'a receber',
+      aReceber > 0
+          ? '+${formatCurrency(aReceber)}'
+          : formatCurrency(0),
+      clx.finIncome,
+    );
+    // Prevista = receitas totais − despesas totais (verde se ≥ 0, vermelho se < 0).
+    final previstaW = metric(
+      'prevista',
+      formatCurrency(prevista),
+      prevista < 0 ? clx.finExpense : clx.finIncome,
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: ClxSpace.x6,
+        horizontal: ClxSpace.x4,
         vertical: ClxSpace.x3,
       ),
       decoration: BoxDecoration(
         color: clx.bg,
         border: Border(top: BorderSide(color: clx.line)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text('saldo', style: tt.bodySmall?.copyWith(color: clx.ink3)),
-          const SizedBox(width: ClxSpace.x2),
-          Text(
-            formatCurrency(saldo),
-            style: tt.titleSmall?.copyWith(
-              color: saldo < 0 ? clx.finExpense : clx.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x5),
-          Text('previsto', style: tt.bodySmall?.copyWith(color: clx.ink3)),
-          const SizedBox(width: ClxSpace.x2),
-          Text(
-            formatCurrency(previsto),
-            style: tt.titleSmall?.copyWith(
-              color: previsto < 0 ? clx.finExpense : clx.ink2,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 480;
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                saldoW,
+                const SizedBox(height: ClxSpace.x1),
+                aReceberW,
+                const SizedBox(height: ClxSpace.x1),
+                previstaW,
+              ],
+            );
+          }
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(child: saldoW),
+              const SizedBox(width: ClxSpace.x4),
+              Flexible(child: aReceberW),
+              const SizedBox(width: ClxSpace.x4),
+              Flexible(child: previstaW),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1288,7 +1319,7 @@ Widget debugLancamentoRow(FinLancamento lancamento) => _LancamentoRow(
   onTap: () {},
   onDetail: () {},
   onEdit: () {},
-  onRepeat: () {},
   onDuplicate: () {},
   onDelete: () {},
+  onTogglePago: () {},
 );

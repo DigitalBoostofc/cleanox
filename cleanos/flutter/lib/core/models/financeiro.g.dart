@@ -130,6 +130,11 @@ _$FinLancamentoImpl _$$FinLancamentoImplFromJson(Map<String, dynamic> json) =>
             unknownValue: RecorrenciaTipo.unica,
           ) ??
           RecorrenciaTipo.unica,
+      frequencia: $enumDecodeNullable(
+        _$FrequenciaRecorrenciaEnumMap,
+        json['frequencia'],
+        unknownValue: FrequenciaRecorrencia.mensal,
+      ),
       parcelaAtual: (json['parcela_atual'] as num?)?.toInt(),
       parcelasTotal: (json['parcelas_total'] as num?)?.toInt(),
       origem:
@@ -170,6 +175,7 @@ Map<String, dynamic> _$$FinLancamentoImplToJson(_$FinLancamentoImpl instance) =>
       'vencimento': instance.vencimento,
       'status': _$LancamentoStatusEnumMap[instance.status]!,
       'recorrencia': _$RecorrenciaTipoEnumMap[instance.recorrencia]!,
+      'frequencia': _$FrequenciaRecorrenciaEnumMap[instance.frequencia],
       'parcela_atual': instance.parcelaAtual,
       'parcelas_total': instance.parcelasTotal,
       'origem': _$OrigemLancamentoEnumMap[instance.origem]!,
@@ -199,6 +205,17 @@ const _$RecorrenciaTipoEnumMap = {
   RecorrenciaTipo.parcelada: 'parcelada',
 };
 
+const _$FrequenciaRecorrenciaEnumMap = {
+  FrequenciaRecorrencia.diario: 'diario',
+  FrequenciaRecorrencia.semanal: 'semanal',
+  FrequenciaRecorrencia.quinzenal: 'quinzenal',
+  FrequenciaRecorrencia.mensal: 'mensal',
+  FrequenciaRecorrencia.bimestral: 'bimestral',
+  FrequenciaRecorrencia.trimestral: 'trimestral',
+  FrequenciaRecorrencia.semestral: 'semestral',
+  FrequenciaRecorrencia.anual: 'anual',
+};
+
 const _$OrigemLancamentoEnumMap = {
   OrigemLancamento.manual: 'manual',
   OrigemLancamento.viaOs: 'via_os',
@@ -209,6 +226,7 @@ _$FinLimiteImpl _$$FinLimiteImplFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       categoriaId: json['categoria_id'] as String? ?? '',
       limite: (json['limite'] as num?)?.toDouble() ?? 0,
+      anoMes: json['ano_mes'] as String? ?? '',
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -218,6 +236,7 @@ Map<String, dynamic> _$$FinLimiteImplToJson(_$FinLimiteImpl instance) =>
       'id': instance.id,
       'categoria_id': instance.categoriaId,
       'limite': instance.limite,
+      'ano_mes': instance.anoMes,
       'created': instance.created,
       'updated': instance.updated,
     };

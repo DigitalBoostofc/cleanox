@@ -14,8 +14,10 @@ library;
 
 import 'package:pocketbase/pocketbase.dart';
 
+import '../../core/formatters/formatters.dart';
 import '../../core/models/cliente.dart';
 import '../../core/models/collections.dart';
+import '../../core/pb/pb_filters.dart';
 import '../../core/repositories/clientes_repository.dart';
 import '../../core/repositories/repo_types.dart';
 
@@ -68,4 +70,27 @@ class PbClientesRepository implements ClientesRepository {
 
   @override
   Future<void> delete(String id) => _col.delete(id);
+
+  @override
+  Future<Cliente?> findByTelefone(String telefone, {String? excludeId}) async {
+    final digits = onlyDigitsPhone(telefone);
+    if (digits.length < 10) return null;
+
+    // Pré-filtro frouxo pelos 4 dígitos finais (máscaras com hífen quebram
+    // match contíguo de 8+). Refine com phonesMatch no cliente.
+    final tail = digits.substring(digits.length - 4);
+    final filter = 'telefone ~ ${pbStringLiteral(tail)}';
+    final res = await _col.getList(
+      page: 1,
+      perPage: 50,
+      filter: filter,
+      sort: '-created',
+    );
+    for (final rec in res.items) {
+      if (excludeId != null && rec.id == excludeId) continue;
+      final c = Cliente.fromRecord(rec);
+      if (phonesMatch(c.telefone, telefone)) return c;
+    }
+    return null;
+  }
 }

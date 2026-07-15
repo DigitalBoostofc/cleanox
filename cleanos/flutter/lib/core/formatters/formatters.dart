@@ -186,6 +186,33 @@ String maskPhoneBR(String value) {
 /// Só os dígitos de um telefone (espelha `onlyDigitsPhone`).
 String onlyDigitsPhone(String value) => value.replaceAll(RegExp(r'\D'), '');
 
+/// Forma canônica BR (só dígitos, sem DDI 55) — espelha `phonesMatch`/`canon`
+/// em `os_logic.js`.
+String phoneCanonBR(String value) {
+  var d = onlyDigitsPhone(value);
+  if (d.startsWith('55') && d.length >= 12) {
+    d = d.substring(2);
+  }
+  return d;
+}
+
+/// Compara telefones de forma tolerante a máscara, DDI 55 e 9º dígito do
+/// celular (espelha `phonesMatch` em `os_logic.js`).
+bool phonesMatch(String a, String b) {
+  final ca = phoneCanonBR(a);
+  final cb = phoneCanonBR(b);
+  if (ca.isEmpty || cb.isEmpty) return false;
+  if (ca == cb) return true;
+  final longer = ca.length >= cb.length ? ca : cb;
+  final shorter = ca.length < cb.length ? ca : cb;
+  if (longer.length == 11 && shorter.length == 10) {
+    return longer.substring(0, 2) == shorter.substring(0, 2) &&
+        longer.substring(longer.length - 8) ==
+            shorter.substring(shorter.length - 8);
+  }
+  return false;
+}
+
 /// Máscara de CEP: NNNNN-NNN (espelha `maskCEP`).
 String maskCEP(String value) {
   final digits = value.replaceAll(RegExp(r'\D'), '');

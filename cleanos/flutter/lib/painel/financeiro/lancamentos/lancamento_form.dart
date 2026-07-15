@@ -52,15 +52,11 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   late final TextEditingController _formaPagamento;
   late final TextEditingController _observacao;
   late final TextEditingController _tags;
-  late final TextEditingController _parcelaAtual;
-  late final TextEditingController _parcelasTotal;
-
   late TipoLancamento _tipo;
   String? _contaId;
   String? _categoriaId;
   String? _subcategoriaId;
   late LancamentoStatus _status;
-  late RecorrenciaTipo _recorrencia;
   late List<Anexo> _anexos;
 
   bool _saving = false;
@@ -73,6 +69,12 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   bool _showAnexos = false;
   bool _showTags = false;
   bool _showAvancado = false;
+
+  /// Painel "Repetir" (Organizze): fixa × parcelado + período.
+  _RepetirModo _repetirModo = _RepetirModo.fixa;
+  _PeriodoFreq _freqFixa = _PeriodoFreq.mensal;
+  int _parcelasN = 2;
+  _PeriodoFreq _parcelaUnidade = _PeriodoFreq.mensal;
 
   bool get _isEdit => widget.editing != null;
 
@@ -98,19 +100,12 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _formaPagamento = TextEditingController(text: l?.formaPagamento ?? '');
     _observacao = TextEditingController(text: l?.observacao ?? '');
     _tags = TextEditingController(text: (l?.tags ?? const []).join(', '));
-    _parcelaAtual = TextEditingController(
-      text: (l?.parcelaAtual ?? 1).toString(),
-    );
-    _parcelasTotal = TextEditingController(
-      text: (l?.parcelasTotal ?? 2).toString(),
-    );
     _tipo = l?.tipo ?? widget.initialTipo ?? TipoLancamento.despesa;
     _contaId = l?.contaId.isNotEmpty == true ? l!.contaId : null;
     _categoriaId = l?.categoriaId.isNotEmpty == true ? l!.categoriaId : null;
     _subcategoriaId = l?.subcategoriaId;
     // Novo lançamento: default PAGO (lançamento rápido, como Organizze).
     _status = l?.status ?? LancamentoStatus.pago;
-    _recorrencia = l?.recorrencia ?? RecorrenciaTipo.unica;
     _anexos = List<Anexo>.from(l?.anexos ?? const []);
     // Na edição, abre seções que já têm conteúdo.
     if (l != null) {
@@ -121,6 +116,16 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       _showAvancado = l.status != LancamentoStatus.pago ||
           (l.vencimento?.isNotEmpty ?? false) ||
           (l.formaPagamento?.isNotEmpty ?? false);
+      if (l.recorrencia == RecorrenciaTipo.parcelada) {
+        _repetirModo = _RepetirModo.parcelada;
+        _parcelasN = (l.parcelasTotal != null && l.parcelasTotal! >= 2)
+            ? l.parcelasTotal!
+            : 2;
+      } else if (l.recorrencia == RecorrenciaTipo.fixa ||
+          l.recorrencia == RecorrenciaTipo.recorrente) {
+        _repetirModo = _RepetirModo.fixa;
+        _freqFixa = _periodoFromFrequencia(l.frequenciaEfetiva);
+      }
     }
   }
 
@@ -133,9 +138,15 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _formaPagamento.dispose();
     _observacao.dispose();
     _tags.dispose();
-    _parcelaAtual.dispose();
-    _parcelasTotal.dispose();
     super.dispose();
+  }
+
+  /// Recorrência efetiva a gravar (unica se o painel estiver fechado).
+  RecorrenciaTipo get _recorrenciaEfetiva {
+    if (!_showRepetir) return RecorrenciaTipo.unica;
+    return _repetirModo == _RepetirModo.fixa
+        ? RecorrenciaTipo.fixa
+        : RecorrenciaTipo.parcelada;
   }
 
   /// [andAnother]: salva e limpa o form (só criação), sem fechar o modal.
@@ -149,14 +160,10 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     if (_data.text.trim().isEmpty) errs['data'] = 'Data é obrigatória';
     if (_contaId == null) errs['conta'] = 'Escolha uma conta';
     if (_categoriaId == null) errs['categoria'] = 'Escolha uma categoria';
-    if (_recorrencia == RecorrenciaTipo.parcelada) {
-      final total = int.tryParse(_parcelasTotal.text.trim());
-      final atual = int.tryParse(_parcelaAtual.text.trim());
-      if (total == null || total < 1) {
-        errs['parcelas'] = 'Nº de parcelas deve ser um inteiro ≥ 1';
-      } else if (atual == null || atual < 1 || atual > total) {
-        errs['parcelas'] = 'Parcela atual deve estar entre 1 e $total';
-      }
+    if (_showRepetir &&
+        _repetirModo == _RepetirModo.parcelada &&
+        _parcelasN < 2) {
+      errs['parcelas'] = 'Informe ao menos 2 parcelas';
     }
     if (errs.isNotEmpty) {
       setState(() {
@@ -172,7 +179,13 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       _errs.clear();
     });
 
-    final data = <String, dynamic>{
+    final rec = _recorrenciaEfetiva;
+    final tags = _tags.text
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final baseBody = <String, dynamic>{
       'tipo': _tipo.wire,
       'descricao': _descricao.text.trim(),
       'categoria_id': _categoriaId,
@@ -184,20 +197,20 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           ? null
           : _vencimento.text.trim(),
       'status': _status.wire,
-      'recorrencia': _recorrencia.wire,
-      // Parcelas só quando 'parcelada'; senão limpa (o registro deixa de ser parcela).
-      if (_recorrencia == RecorrenciaTipo.parcelada) ...{
-        'parcela_atual': int.parse(_parcelaAtual.text.trim()),
-        'parcelas_total': int.parse(_parcelasTotal.text.trim()),
+      'recorrencia': rec.wire,
+      // Frequência da série (semanal, mensal…) — só em fixa/recorrente.
+      'frequencia': (rec == RecorrenciaTipo.fixa ||
+              rec == RecorrenciaTipo.recorrente)
+          ? _frequenciaFromPeriodo(_freqFixa).wire
+          : null,
+      if (rec == RecorrenciaTipo.parcelada) ...{
+        'parcela_atual': _isEdit ? (widget.editing!.parcelaAtual ?? 1) : 1,
+        'parcelas_total': _parcelasN,
       } else ...{
         'parcela_atual': null,
         'parcelas_total': null,
       },
-      'tags': _tags.text
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .toList(),
+      'tags': tags,
       'forma_pagamento': _formaPagamento.text.trim().isEmpty
           ? null
           : _formaPagamento.text.trim(),
@@ -211,9 +224,40 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     try {
       final repo = ref.read(financeiroRepositoryProvider);
       if (_isEdit) {
-        await repo.updateLancamento(widget.editing!.id, data);
+        await repo.updateLancamento(widget.editing!.id, baseBody);
+      } else if (rec == RecorrenciaTipo.parcelada) {
+        // Cria TODAS as parcelas (Organizze): divide o valor e avança a data.
+        final valores = _dividirParcelas(valor!, _parcelasN);
+        final baseDate = _parseYmd(_data.text.trim()) ?? DateTime.now();
+        final baseVenc = _vencimento.text.trim().isEmpty
+            ? null
+            : _parseYmd(_vencimento.text.trim());
+        for (var i = 0; i < _parcelasN; i++) {
+          final dataI = _formatYmd(
+            _addPeriodo(baseDate, i, _parcelaUnidade),
+          );
+          final vencI = baseVenc == null
+              ? null
+              : _formatYmd(_addPeriodo(baseVenc, i, _parcelaUnidade));
+          await repo.createLancamento({
+            ...baseBody,
+            'valor': valores[i],
+            'data': dataI,
+            'vencimento': vencI,
+            'parcela_atual': i + 1,
+            'parcelas_total': _parcelasN,
+            // 1ª parcela herda o status escolhido; demais ficam previstas.
+            'status': i == 0
+                ? _status.wire
+                : LancamentoStatus.previsto.wire,
+          });
+        }
       } else {
-        await repo.createLancamento(data);
+        final criado = await repo.createLancamento(baseBody);
+        // Fixa/recorrente: já cria os próximos 12 meses como previstos.
+        if (rec == RecorrenciaTipo.fixa || rec == RecorrenciaTipo.recorrente) {
+          await repo.materializarRecorrenciaAFrente(criado);
+        }
       }
       if (!mounted) return;
       if (andAnother && !_isEdit) {
@@ -231,7 +275,10 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           _showAnexos = false;
           _showRepetir = false;
           _showAvancado = false;
-          _recorrencia = RecorrenciaTipo.unica;
+          _repetirModo = _RepetirModo.fixa;
+          _freqFixa = _PeriodoFreq.mensal;
+          _parcelasN = 2;
+          _parcelaUnidade = _PeriodoFreq.mensal;
           _status = LancamentoStatus.pago;
           _saving = false;
         });
@@ -395,7 +442,15 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                   icon: Icons.repeat_rounded,
                   label: 'Repetir',
                   active: _showRepetir,
-                  onTap: () => setState(() => _showRepetir = !_showRepetir),
+                  onTap: () => setState(() {
+                    _showRepetir = !_showRepetir;
+                    // Ao abrir, default Organizze: fixa mensal.
+                    if (_showRepetir &&
+                        _repetirModo == _RepetirModo.fixa &&
+                        !_isEdit) {
+                      _freqFixa = _PeriodoFreq.mensal;
+                    }
+                  }),
                 ),
                 _ExtraChip(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -424,45 +479,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               ],
             ),
           ),
-          if (_showRepetir) ...[
-            FinDropdown<RecorrenciaTipo>(
-              label: 'Recorrência',
-              value: _recorrencia,
-              enabled: !_saving,
-              items: RecorrenciaTipo.values,
-              itemLabel: recorrenciaLabel,
-              onChanged: (v) =>
-                  setState(() => _recorrencia = v ?? _recorrencia),
-            ),
-            if (_recorrencia == RecorrenciaTipo.parcelada) ...[
-              FinTwoCol(
-                FinField(
-                  label: 'Parcela atual',
-                  controller: _parcelaAtual,
-                  enabled: !_saving,
-                  hint: '1',
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => _clearErr('parcelas'),
-                ),
-                FinField(
-                  label: 'Total de parcelas',
-                  controller: _parcelasTotal,
-                  enabled: !_saving,
-                  hint: '2',
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => _clearErr('parcelas'),
-                ),
-              ),
-              if (_errs['parcelas'] != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-                  child: Text(
-                    _errs['parcelas']!,
-                    style: tt.bodyMedium?.copyWith(color: clx.error),
-                  ),
-                ),
-            ],
-          ],
+          if (_showRepetir) _repetirPanel(clx, tt),
           if (_showObs)
             FinField(
               label: 'Observação',
@@ -528,6 +545,112 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     if (_errs.containsKey(key)) setState(() => _errs.remove(key));
   }
 
+  /// Painel "Repetir" estilo Organizze: rádio fixa/parcelado + dropdowns.
+  Widget _repetirPanel(CleanoxColors clx, TextTheme tt) {
+    final tipoNome =
+        _tipo == TipoLancamento.receita ? 'receita' : 'despesa';
+    final valor = parseMoedaBr(_valor.text);
+    final valores = valor != null && valor > 0
+        ? _dividirParcelas(valor, _parcelasN)
+        : null;
+    final parcelaFmt = valores == null
+        ? null
+        : formatCurrency(valores.first);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Repetir',
+            style: tt.bodyMedium?.copyWith(
+              color: clx.ink2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          _RepetirRadio(
+            selected: _repetirModo == _RepetirModo.fixa,
+            label: 'é uma $tipoNome fixa',
+            enabled: !_saving,
+            onTap: () => setState(() => _repetirModo = _RepetirModo.fixa),
+          ),
+          _RepetirRadio(
+            selected: _repetirModo == _RepetirModo.parcelada,
+            label: 'é um lançamento parcelado em',
+            enabled: !_saving,
+            onTap: () =>
+                setState(() => _repetirModo = _RepetirModo.parcelada),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          if (_repetirModo == _RepetirModo.fixa)
+            _OrgSelect<_PeriodoFreq>(
+              value: _freqFixa,
+              enabled: !_saving,
+              items: _PeriodoFreq.values,
+              itemLabel: (p) => p.labelSingular,
+              onChanged: (v) => setState(() => _freqFixa = v),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _OrgSelect<int>(
+                    value: _parcelasN,
+                    enabled: !_saving,
+                    items: List<int>.generate(47, (i) => i + 2), // 2..48
+                    itemLabel: (n) => '$n',
+                    onChanged: (v) => setState(() {
+                      _parcelasN = v;
+                      _clearErr('parcelas');
+                    }),
+                  ),
+                ),
+                const SizedBox(width: ClxSpace.x2),
+                Expanded(
+                  flex: 3,
+                  child: _OrgSelect<_PeriodoFreq>(
+                    value: _parcelaUnidade,
+                    enabled: !_saving,
+                    items: _PeriodoFreq.values,
+                    itemLabel: (p) => p.labelPlural,
+                    onChanged: (v) => setState(() => _parcelaUnidade = v),
+                  ),
+                ),
+              ],
+            ),
+            if (_errs['parcelas'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: ClxSpace.x1),
+                child: Text(
+                  _errs['parcelas']!,
+                  style: tt.bodyMedium?.copyWith(color: clx.error),
+                ),
+              ),
+            if (parcelaFmt != null) ...[
+              const SizedBox(height: ClxSpace.x2),
+              Text(
+                'Serão lançadas $_parcelasN parcelas de $parcelaFmt.',
+                style: tt.bodyMedium?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Em caso de divisão não exata, a sobra será somada à primeira '
+                'parcela.',
+                style: tt.bodySmall?.copyWith(color: clx.ink3),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _anexosSection(CleanoxColors clx, TextTheme tt) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,6 +706,226 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               ),
             ),
       ],
+    );
+  }
+}
+
+/* ─────────────────────── Repetir (Organizze) ─────────────────────── */
+
+enum _RepetirModo { fixa, parcelada }
+
+/// Frequência / unidade de período (mesmos valores, rótulos singular e plural).
+enum _PeriodoFreq {
+  anual,
+  semestral,
+  trimestral,
+  bimestral,
+  mensal,
+  quinzenal,
+  semanal,
+  diario;
+
+  String get labelSingular => switch (this) {
+        anual => 'Anual',
+        semestral => 'Semestral',
+        trimestral => 'Trimestral',
+        bimestral => 'Bimestral',
+        mensal => 'Mensal',
+        quinzenal => 'Quinzenal',
+        semanal => 'Semanal',
+        diario => 'Diário',
+      };
+
+  String get labelPlural => switch (this) {
+        anual => 'Anos',
+        semestral => 'Semestres',
+        trimestral => 'Trimestres',
+        bimestral => 'Bimestres',
+        mensal => 'Meses',
+        quinzenal => 'Quinzenas',
+        semanal => 'Semanas',
+        diario => 'Dias',
+      };
+}
+
+FrequenciaRecorrencia _frequenciaFromPeriodo(_PeriodoFreq p) => switch (p) {
+      _PeriodoFreq.diario => FrequenciaRecorrencia.diario,
+      _PeriodoFreq.semanal => FrequenciaRecorrencia.semanal,
+      _PeriodoFreq.quinzenal => FrequenciaRecorrencia.quinzenal,
+      _PeriodoFreq.mensal => FrequenciaRecorrencia.mensal,
+      _PeriodoFreq.bimestral => FrequenciaRecorrencia.bimestral,
+      _PeriodoFreq.trimestral => FrequenciaRecorrencia.trimestral,
+      _PeriodoFreq.semestral => FrequenciaRecorrencia.semestral,
+      _PeriodoFreq.anual => FrequenciaRecorrencia.anual,
+    };
+
+_PeriodoFreq _periodoFromFrequencia(FrequenciaRecorrencia f) => switch (f) {
+      FrequenciaRecorrencia.diario => _PeriodoFreq.diario,
+      FrequenciaRecorrencia.semanal => _PeriodoFreq.semanal,
+      FrequenciaRecorrencia.quinzenal => _PeriodoFreq.quinzenal,
+      FrequenciaRecorrencia.mensal => _PeriodoFreq.mensal,
+      FrequenciaRecorrencia.bimestral => _PeriodoFreq.bimestral,
+      FrequenciaRecorrencia.trimestral => _PeriodoFreq.trimestral,
+      FrequenciaRecorrencia.semestral => _PeriodoFreq.semestral,
+      FrequenciaRecorrencia.anual => _PeriodoFreq.anual,
+    };
+
+/// Divide [total] em [n] parcelas em centavos; sobra na 1ª (Organizze).
+List<double> _dividirParcelas(double total, int n) {
+  if (n < 1) return [total];
+  final cents = (total * 100).round();
+  final base = cents ~/ n;
+  final resto = cents - base * n;
+  return [
+    for (var i = 0; i < n; i++) (base + (i == 0 ? resto : 0)) / 100.0,
+  ];
+}
+
+DateTime? _parseYmd(String s) {
+  if (s.length < 10) return null;
+  final y = int.tryParse(s.substring(0, 4));
+  final m = int.tryParse(s.substring(5, 7));
+  final d = int.tryParse(s.substring(8, 10));
+  if (y == null || m == null || d == null) return null;
+  return DateTime(y, m, d);
+}
+
+String _formatYmd(DateTime d) {
+  String p(int n) => n.toString().padLeft(2, '0');
+  return '${d.year.toString().padLeft(4, '0')}-${p(d.month)}-${p(d.day)}';
+}
+
+DateTime _addMonths(DateTime d, int months) {
+  final total = d.month - 1 + months;
+  final y = d.year + total ~/ 12;
+  final mo = total % 12 + 1;
+  final lastDay = DateTime(y, mo + 1, 0).day;
+  final day = d.day > lastDay ? lastDay : d.day;
+  return DateTime(y, mo, day);
+}
+
+DateTime _addPeriodo(DateTime d, int steps, _PeriodoFreq p) {
+  if (steps == 0) return d;
+  return switch (p) {
+    _PeriodoFreq.diario => d.add(Duration(days: steps)),
+    _PeriodoFreq.semanal => d.add(Duration(days: 7 * steps)),
+    _PeriodoFreq.quinzenal => d.add(Duration(days: 15 * steps)),
+    _PeriodoFreq.mensal => _addMonths(d, steps),
+    _PeriodoFreq.bimestral => _addMonths(d, steps * 2),
+    _PeriodoFreq.trimestral => _addMonths(d, steps * 3),
+    _PeriodoFreq.semestral => _addMonths(d, steps * 6),
+    _PeriodoFreq.anual => _addMonths(d, steps * 12),
+  };
+}
+
+/// Rádio compacto (check verde quando selecionado).
+class _RepetirRadio extends StatelessWidget {
+  const _RepetirRadio({
+    required this.selected,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final bool selected;
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: ClxRadii.rMd,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.circle_outlined,
+              size: 22,
+              color: selected ? clx.success : clx.ink3,
+            ),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: clx.ink,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dropdown compacto com borda (estilo select do Organizze).
+class _OrgSelect<T> extends StatelessWidget {
+  const _OrgSelect({
+    required this.value,
+    required this.items,
+    required this.itemLabel,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  final T value;
+  final List<T> items;
+  final String Function(T) itemLabel;
+  final ValueChanged<T> onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return DropdownButtonFormField<T>(
+      key: ValueKey(value),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x3,
+          vertical: ClxSpace.x2,
+        ),
+        filled: true,
+        fillColor: clx.bg,
+        border: OutlineInputBorder(
+          borderRadius: ClxRadii.rMd,
+          borderSide: BorderSide(color: clx.line),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: ClxRadii.rMd,
+          borderSide: BorderSide(color: clx.line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: ClxRadii.rMd,
+          borderSide: BorderSide(color: clx.primary, width: 1.5),
+        ),
+      ),
+      items: [
+        for (final it in items)
+          DropdownMenuItem<T>(
+            value: it,
+            child: Text(
+              itemLabel(it),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: enabled
+          ? (v) {
+              if (v != null) onChanged(v);
+            }
+          : null,
     );
   }
 }

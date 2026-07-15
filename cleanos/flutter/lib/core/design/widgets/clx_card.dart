@@ -14,6 +14,7 @@ class ClxCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(ClxSpace.x4),
     this.elevated = false,
     this.animateHover = true,
+    this.fill = false,
   });
 
   final Widget child;
@@ -25,6 +26,14 @@ class ClxCard extends StatelessWidget {
 
   /// Elevação no hover (web) — desligar em listas densas se precisar.
   final bool animateHover;
+
+  /// Preenche a altura do pai (cards lado a lado com [IntrinsicHeight]).
+  ///
+  /// Usa [Container] + [Alignment.topLeft]: com altura frouxa (medição do
+  /// IntrinsicHeight) o card dimensiona pelo conteúdo; com altura fixa
+  /// (stretch do Row) o fundo estica e o conteúdo fica no topo.
+  /// Nunca force `height: infinity` — isso zera/corta o layout no par.
+  final bool fill;
 
   @override
   Widget build(BuildContext context) {
@@ -59,9 +68,38 @@ class ClxCard extends StatelessWidget {
 
     Widget card;
     if (onTap == null) {
-      card = DecoratedBox(
-        decoration: decoration,
-        child: Padding(padding: padding, child: child),
+      if (fill) {
+        // Alinhamento no topo + largura total; altura vem do pai (stretch)
+        // ou do filho (medição intrinsic) — sem SizedBox(height: infinity).
+        card = Container(
+          width: double.infinity,
+          alignment: Alignment.topLeft,
+          padding: padding,
+          decoration: decoration,
+          child: child,
+        );
+      } else {
+        card = DecoratedBox(
+          decoration: decoration,
+          child: Padding(padding: padding, child: child),
+        );
+      }
+    } else if (fill) {
+      card = Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: decoration,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: ClxRadii.rXl,
+            child: Container(
+              width: double.infinity,
+              alignment: Alignment.topLeft,
+              padding: padding,
+              child: child,
+            ),
+          ),
+        ),
       );
     } else {
       card = Material(

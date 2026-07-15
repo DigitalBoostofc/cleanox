@@ -24,4 +24,7 @@ abstract class ComissaoRepository {
 
   /// Marca comissão como paga (admin/gerente).
   Future<ProfComissao> marcarPaga(String id);
+
+  /// Alterna status `pendente` ↔ `paga` (paga→pendente estorna despesa via hook).
+  Future<ProfComissao> setStatus(String id, ComissaoStatus status);
 }

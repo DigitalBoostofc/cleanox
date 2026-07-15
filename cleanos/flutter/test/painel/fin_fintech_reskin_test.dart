@@ -7,8 +7,6 @@ library;
 import 'package:cleanos/core/design/app_surface_provider.dart';
 import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/design/theme_fintech.dart';
-import 'package:cleanos/core/design/widgets/clx_card.dart';
-import 'package:cleanos/painel/financeiro/fin_common.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
 import 'package:cleanos/painel/financeiro/fin_visao_geral_screen.dart';
 import 'package:cleanos/painel/financeiro/fintech/fintech_balance_hero.dart';
@@ -87,19 +85,18 @@ void main() {
         );
 
         expect(find.byType(FintechBalanceHero), findsOneWidget);
-        expect(find.text('SALDO GERAL'), findsOneWidget);
-        // Não duplica: o rótulo minúsculo do card de KPI antigo não aparece.
-        expect(find.text('Saldo geral'), findsNothing);
+        expect(find.text('SALDO NAS CONTAS'), findsOneWidget);
 
-        // Os outros 3 KPIs do mês continuam presentes.
-        expect(find.text('Entradas do mês'), findsOneWidget);
-        expect(find.text('Saídas do mês'), findsOneWidget);
-        expect(find.text('Saldo do mês'), findsOneWidget);
+        // Painel em 2 blocos de clareza (caixa + compromissos).
+        expect(find.textContaining('Caixa (realizado)'), findsWidgets);
+        expect(find.textContaining('ainda não é caixa'), findsWidgets);
+        expect(find.text('Dinheiro que entrou'), findsWidgets);
+        expect(find.text('Comissões a pagar'), findsWidgets);
       },
     );
 
     testWidgets(
-      '"Saldo do mês" usa a variante wide (linha inteira, valor à direita)',
+      'bloco de caixa e compromissos presentes no layout fintech',
       (tester) async {
         await pumpVisaoGeral(
           tester,
@@ -107,22 +104,9 @@ void main() {
           fintech: true,
         );
 
-        final saldoMesCardFinder = find.ancestor(
-          of: find.text('Saldo do mês'),
-          matching: find.byType(FinKpiCard),
-        );
-        final card = tester.widget<FinKpiCard>(saldoMesCardFinder);
-        expect(card.wide, isTrue);
-
-        // wide: layout raiz em Row (não Column) — label à esquerda, valor à
-        // direita — diferente do Column dos outros dois cards (não-wide).
-        final directChild = tester.widget<ClxCard>(
-          find.descendant(
-            of: saldoMesCardFinder,
-            matching: find.byType(ClxCard),
-          ),
-        ).child;
-        expect(directChild, isA<Row>());
+        expect(find.text('Resultado do mês'), findsWidgets);
+        expect(find.text('A receber (agenda)'), findsWidgets);
+        expect(find.text('Se tudo se confirmar'), findsWidgets);
       },
     );
 
@@ -191,7 +175,7 @@ void main() {
 
   group('Visão geral · Web (isFintechCleanProvider=false) — não-regressão', () {
     testWidgets(
-      'preserva os 4 KPIs originais (incluindo Saldo geral na grade) sem hero',
+      'preserva painel Caixa + Compromissos sem hero fintech',
       (tester) async {
         await pumpVisaoGeral(
           tester,
@@ -201,15 +185,15 @@ void main() {
         );
 
         expect(find.byType(FintechBalanceHero), findsNothing);
-        expect(find.text('Saldo geral'), findsOneWidget);
-        expect(find.text('Entradas do mês'), findsOneWidget);
-        expect(find.text('Saídas do mês'), findsOneWidget);
-        expect(find.text('Saldo do mês'), findsOneWidget);
+        expect(find.textContaining('Caixa (realizado)'), findsWidgets);
+        expect(find.textContaining('ainda não é caixa'), findsWidgets);
+        expect(find.text('Dinheiro que entrou'), findsWidgets);
+        expect(find.text('Saldo nas contas'), findsWidgets);
       },
     );
 
     testWidgets(
-      'mobile estreito (360px) sem surface fintech: layout de grade antigo, sem hero',
+      'mobile estreito (360px) sem surface fintech: painel clareza, sem hero',
       (tester) async {
         await pumpVisaoGeral(
           tester,
@@ -219,7 +203,7 @@ void main() {
         );
 
         expect(find.byType(FintechBalanceHero), findsNothing);
-        expect(find.text('Saldo geral'), findsOneWidget);
+        expect(find.textContaining('Caixa (realizado)'), findsOneWidget);
         await expectStableNoOverflowAt(
           tester,
           const Size(360, 800),

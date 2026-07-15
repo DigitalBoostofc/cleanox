@@ -283,8 +283,10 @@ void main() {
         );
         // Ações do rodapé.
         expect(find.text('Editar'), findsOneWidget);
-        expect(find.text('Repetir'), findsOneWidget);
-        expect(find.text('Copiar'), findsOneWidget);
+        // "Duplicar" cria outra movimentação idêntica (substitui Repetir/Copiar).
+        expect(find.text('Duplicar'), findsOneWidget);
+        expect(find.text('Repetir'), findsNothing);
+        expect(find.text('Copiar'), findsNothing);
       },
     );
 
@@ -320,7 +322,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(LancamentoForm), findsOneWidget);
-        expect(find.text('Editar lançamento'), findsOneWidget);
+        // Título espelha o tipo (Organizze: "Editar despesa" / "Editar receita").
+        expect(find.text('Editar despesa'), findsOneWidget);
 
         // Troca o valor de 120 → 250 e salva.
         final valorField = find.byWidgetPredicate(
@@ -329,7 +332,7 @@ void main() {
         await tester.enterText(valorField, '250');
         await tester.pump();
 
-        await tester.tap(find.text('Salvar'));
+        await tester.tap(find.byTooltip('Salvar'));
         await tester.pumpAndSettle();
 
         // Uma única chamada de update, com o novo valor.

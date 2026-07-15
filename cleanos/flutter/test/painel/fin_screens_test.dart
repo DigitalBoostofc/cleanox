@@ -231,12 +231,24 @@ void main() {
       );
       await settle(tester);
 
-      // Layout Organizze: totais do mês + maiores gastos + receitas por origem.
-      expect(find.text('Receitas no mês atual'), findsOneWidget);
-      expect(find.text('Despesas no mês atual'), findsOneWidget);
+      // Painel clareza: Caixa + Compromissos + gastos + origem.
+      expect(find.textContaining('Caixa (realizado)'), findsWidgets);
+      expect(find.textContaining('ainda não é caixa'), findsWidgets);
+      expect(find.text('Dinheiro que entrou'), findsWidgets);
+      expect(find.text('Saldo nas contas'), findsWidgets);
+      // ListView é lazy: desce até os cards de análise abaixo do gráfico.
+      await tester.scrollUntilVisible(
+        find.text('Maiores gastos do mês'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Maiores gastos do mês'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Receitas por origem'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Receitas por origem'), findsOneWidget);
-      expect(find.text('Saldo geral'), findsOneWidget);
       expect(find.byType(PieChart), findsWidgets);
     });
 
@@ -279,26 +291,13 @@ void main() {
       expect(find.byType(BarChart), findsOneWidget);
     });
 
-    // Desktop preserva a tabela densa (só o mobile vira cards — ver
-    // fin_mobile_layout_test.dart).
-    testWidgets('desktop: aba Contas mantém a tabela com colunas', (
+    testWidgets('só abas Categorias e Entradas × Saídas (sem Contas/Tags)', (
       tester,
     ) async {
       final fake = FakeFinanceiro(
-        contas: [fakeConta(id: 'c', nome: 'Caixa', saldoAtual: 500)],
+        categorias: [fakeCategoria(id: 'cat', nome: 'Material')],
         lancamentos: [
-          fakeLanc(
-            id: '1',
-            tipo: TipoLancamento.receita,
-            valor: 300,
-            contaId: 'c',
-          ),
-          fakeLanc(
-            id: '2',
-            tipo: TipoLancamento.despesa,
-            valor: 120,
-            contaId: 'c',
-          ),
+          fakeLanc(id: '1', tipo: TipoLancamento.receita, valor: 300),
         ],
       );
       await pumpPainel(
@@ -308,15 +307,11 @@ void main() {
       );
       await settle(tester);
 
-      // No desktop o filtro "Contas" do header e a aba "Contas" coexistem;
-      // a aba é a última no widget tree (renderizada depois do header).
-      await tester.tap(find.text('Contas').last);
-      await settle(tester);
-
-      expect(find.text('Conta'), findsOneWidget);
-      expect(find.text('Entradas'), findsOneWidget);
-      expect(find.text('Saídas'), findsOneWidget);
-      expect(find.text('Saldo atual'), findsOneWidget);
+      expect(find.text('Categorias'), findsWidgets);
+      expect(find.text('Entradas × Saídas'), findsOneWidget);
+      // Abas internas Contas/Tags removidas (filtro Contas do modal de filtros
+      // pode existir no header — não é a aba).
+      expect(find.text('Tags'), findsNothing);
     });
   });
 
@@ -354,7 +349,10 @@ void main() {
         overrides: withFin(FakeFinanceiro()),
       );
       await settle(tester);
-      expect(find.text('Nenhum limite definido'), findsOneWidget);
+      expect(
+        find.textContaining('Nenhum limite de gasto definido'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -576,7 +574,7 @@ void main() {
       );
       await settle(tester);
 
-      await tester.tap(find.text('Novo lançamento').first);
+      await tester.tap(find.byTooltip('Novo lançamento').first);
       await tester.pumpAndSettle();
       expect(find.byType(LancamentoForm), findsOneWidget);
 
@@ -601,7 +599,7 @@ void main() {
       );
       await settle(tester);
 
-      await tester.tap(find.text('Novo lançamento').first);
+      await tester.tap(find.byTooltip('Novo lançamento').first);
       await tester.pumpAndSettle();
 
       final descField = find.byWidgetPredicate(
@@ -662,12 +660,14 @@ void main() {
       );
       await settle(tester);
 
-      // Filtra por Receitas na toolbar.
-      await tester.tap(find.text('Receitas'));
+      // Filtra por Receitas na barra laranja (Tipo → Receitas).
+      await tester.tap(find.text('Tipo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Receitas').last);
       await tester.pumpAndSettle();
 
-      // Abre o form pelo botão "Novo lançamento" (da toolbar).
-      await tester.tap(find.text('Novo lançamento').first);
+      // Abre o form pelo (+) da toolbar.
+      await tester.tap(find.byTooltip('Novo lançamento').first);
       await tester.pumpAndSettle();
       expect(find.byType(LancamentoForm), findsOneWidget);
 

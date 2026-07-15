@@ -79,8 +79,8 @@ class _FinContasPagarReceberScreenState
 
   /// `null` = ainda não alternado pelo usuário: usa o padrão por viewport
   /// (aberto no desktop, colapsado no mobile). Depois do 1º toque no botão
-  /// "Filtros", o valor explícito prevalece.
-  bool? _showFilters;
+  /// Painel de filtros colapsado por padrão (mobile e desktop).
+  bool _showFilters = false;
   _CprFilters _filters = const _CprFilters();
   String? _savingId;
 
@@ -173,7 +173,6 @@ class _FinContasPagarReceberScreenState
     final catById = {for (final c in categorias) c.id: c};
     final contaById = {for (final c in contas) c.id: c};
     final mobile = finIsMobile(context);
-    final showFilters = _showFilters ?? !mobile;
 
     final filtrosBar = _FiltrosBar(
       filters: _filters,
@@ -197,10 +196,10 @@ class _FinContasPagarReceberScreenState
       children: [
         _Toolbar(
           aba: _aba,
-          showFilters: showFilters,
+          showFilters: _showFilters,
           hasActiveFilters: _filters.ativos,
           onAba: (a) => setState(() => _aba = a),
-          onToggleFilters: () => setState(() => _showFilters = !showFilters),
+          onToggleFilters: () => setState(() => _showFilters = !_showFilters),
         ),
         Expanded(
           child: FinAsync<List<FinLancamento>>(
@@ -233,7 +232,7 @@ class _FinContasPagarReceberScreenState
                   // explicativo, e o usuário tocava "Filtros" sem ver nada
                   // acontecer sem rolar a tela inteira. Desktop/web mantêm a
                   // posição original (depois do texto explicativo).
-                  if (mobile && showFilters) ...[
+                  if (mobile && _showFilters) ...[
                     filtrosBar,
                     const SizedBox(height: ClxSpace.x4),
                   ],
@@ -283,7 +282,7 @@ class _FinContasPagarReceberScreenState
                       ).textTheme.bodySmall?.copyWith(color: context.clx.ink3),
                     ),
                   ),
-                  if (!mobile && showFilters) ...[
+                  if (!mobile && _showFilters) ...[
                     const SizedBox(height: ClxSpace.x4),
                     filtrosBar,
                   ],
@@ -745,7 +744,56 @@ class _Coluna extends StatelessWidget {
                 ),
               ),
             )
-          else
+          else ...[
+            // Cabeçalho de colunas (só desktop largo).
+            LayoutBuilder(
+              builder: (context, c) {
+                if (c.maxWidth < 520) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(
+                    left: 40, // avatar 32 + gap
+                    bottom: ClxSpace.x2,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Descrição',
+                          style: tt.labelMedium?.copyWith(
+                            color: clx.ink3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 110,
+                        child: Text(
+                          'Vencimento',
+                          textAlign: TextAlign.center,
+                          style: tt.labelMedium?.copyWith(
+                            color: clx.ink3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: ClxSpace.x3),
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          'Valor',
+                          textAlign: TextAlign.right,
+                          style: tt.labelMedium?.copyWith(
+                            color: clx.ink3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 40), // mãozinha
+                    ],
+                  ),
+                );
+              },
+            ),
             for (final p in itens)
               Padding(
                 padding: const EdgeInsets.only(bottom: ClxSpace.x2),
@@ -758,6 +806,7 @@ class _Coluna extends StatelessWidget {
                   onPagar: () => onPagar(p.lancamento),
                 ),
               ),
+          ],
         ],
       ),
     );
@@ -787,85 +836,166 @@ class _PendenteRow extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final l = pendente.lancamento;
     final venc = (l.vencimento?.isNotEmpty ?? false) ? l.vencimento! : l.data;
+    final vencColor = pendente.emAtraso
+        ? clx.error
+        : (pendente.vencendoHoje ? clx.warning : clx.ink2);
+
+    final thumb = saving
+        ? const Padding(
+            padding: EdgeInsets.all(ClxSpace.x2),
+            child: Spinner(size: 18),
+          )
+        : Tooltip(
+            message: 'Pendente — toque para marcar como pago',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPagar,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: clx.ink3.withValues(alpha: 0.10),
+                  ),
+                  child: Icon(
+                    Icons.thumb_down_alt_rounded,
+                    color: clx.ink3,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+    final valor = Text(
+      formatCurrency(l.valor),
+      style: tt.bodyLarge?.copyWith(
+        color: tipoColor(clx, tipo),
+        fontWeight: FontWeight.w800,
+      ),
+    );
+
+    // Coluna do meio: vencimento alinhado (desktop). Mobile: sob a descrição.
+    final vencimentoCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          formatDateOnlyBr(venc),
+          maxLines: 1,
+          style: tt.titleSmall?.copyWith(
+            color: vencColor,
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        if (pendente.vencendoHoje)
+          Text(
+            'Hoje',
+            style: tt.labelSmall?.copyWith(
+              color: clx.warning,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+        else if (pendente.emAtraso)
+          Text(
+            'Atrasado',
+            style: tt.labelSmall?.copyWith(
+              color: clx.error,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+        else
+          Text(
+            'Vencimento',
+            style: tt.labelSmall?.copyWith(color: clx.ink3),
+          ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
-        children: [
-          FinCategoriaAvatar(categoria: categoria, size: 32),
-          const SizedBox(width: ClxSpace.x2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.titleSmall?.copyWith(color: clx.ink),
-                ),
-                const SizedBox(height: 2),
-                Row(
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final wide = c.maxWidth >= 520;
+          return Row(
+            children: [
+              FinCategoriaAvatar(categoria: categoria, size: 32),
+              const SizedBox(width: ClxSpace.x2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.event_outlined,
-                      size: 12,
-                      color: pendente.emAtraso ? clx.error : clx.ink3,
+                    Text(
+                      l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.titleSmall?.copyWith(color: clx.ink),
                     ),
-                    const SizedBox(width: ClxSpace.x1),
-                    Flexible(
-                      child: Text(
-                        'Vence ${formatDateOnlyBr(venc)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tt.bodySmall?.copyWith(
-                          color: pendente.emAtraso ? clx.error : clx.ink3,
-                          fontWeight: pendente.emAtraso
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                        ),
+                    if (conta != null || !wide) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          if (conta != null)
+                            Flexible(child: ContaBadge(conta: conta!)),
+                          // Mobile: vencimento fica sob a descrição (sem coluna).
+                          if (!wide) ...[
+                            if (conta != null)
+                              const SizedBox(width: ClxSpace.x2),
+                            Icon(
+                              Icons.event_outlined,
+                              size: 12,
+                              color: vencColor,
+                            ),
+                            const SizedBox(width: ClxSpace.x1),
+                            Text(
+                              formatDateOnlyBr(venc),
+                              style: tt.bodySmall?.copyWith(
+                                color: vencColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (pendente.vencendoHoje) ...[
+                              const SizedBox(width: ClxSpace.x2),
+                              ClxChip(
+                                label: 'Hoje',
+                                color: clx.warning,
+                                dense: true,
+                              ),
+                            ] else if (pendente.emAtraso) ...[
+                              const SizedBox(width: ClxSpace.x2),
+                              ClxChip(
+                                label: 'Atrasado',
+                                color: clx.error,
+                                dense: true,
+                              ),
+                            ],
+                          ],
+                        ],
                       ),
-                    ),
-                    if (pendente.vencendoHoje) ...[
-                      const SizedBox(width: ClxSpace.x2),
-                      ClxChip(label: 'Hoje', color: clx.warning, dense: true),
-                    ] else if (pendente.emAtraso) ...[
-                      const SizedBox(width: ClxSpace.x2),
-                      ClxChip(label: 'Atrasado', color: clx.error, dense: true),
-                    ],
-                    if (conta != null) ...[
-                      const SizedBox(width: ClxSpace.x2),
-                      Flexible(child: ContaBadge(conta: conta!)),
                     ],
                   ],
                 ),
+              ),
+              // Desktop: coluna central de vencimento.
+              if (wide) ...[
+                const SizedBox(width: ClxSpace.x3),
+                SizedBox(width: 110, child: vencimentoCol),
               ],
-            ),
-          ),
-          const SizedBox(width: ClxSpace.x2),
-          Text(
-            formatCurrency(l.valor),
-            style: tt.bodyLarge?.copyWith(
-              color: tipoColor(clx, tipo),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          saving
-              ? const Padding(
-                  padding: EdgeInsets.all(ClxSpace.x2),
-                  child: Spinner(size: 18),
-                )
-              : IconButton(
-                  tooltip: 'Marcar como pago',
-                  icon: Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: clx.success,
-                  ),
-                  onPressed: onPagar,
-                ),
-        ],
+              const SizedBox(width: ClxSpace.x3),
+              valor,
+              const SizedBox(width: ClxSpace.x1),
+              // Mãozinha (mesmo padrão de Comissões / Movimentações).
+              thumb,
+            ],
+          );
+        },
       ),
     );
   }

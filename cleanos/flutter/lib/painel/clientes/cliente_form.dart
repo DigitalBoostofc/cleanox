@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
@@ -239,6 +240,15 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
     }
   }
 
+  String _msgClienteDuplicado(Cliente existente) {
+    final nome = [
+      existente.nome,
+      existente.sobrenome,
+    ].where((s) => (s ?? '').trim().isNotEmpty).join(' ').trim();
+    final label = nome.isEmpty ? 'sem nome' : nome;
+    return 'Cliente já existente com este número de celular ($label).';
+  }
+
   Future<void> _save() async {
     final errs = _validate();
     final osValid = (!_isEdit && _gerarOs)
@@ -258,10 +268,11 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
       _errs.clear();
     });
     final parts = splitNome(_nome.text);
+    final tel = _telefone.text.trim();
     final payload = <String, dynamic>{
       'nome': parts.nome,
       'sobrenome': parts.sobrenome,
-      'telefone': _telefone.text.trim(),
+      'telefone': tel,
       'email': _email.text.trim(),
       'endereco_rua': _rua.text.trim(),
       'endereco_numero': '',
@@ -276,6 +287,23 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
     };
     try {
       final repo = ref.read(clientesRepositoryProvider);
+
+      // Checagem antecipada por celular (UX). O servidor também bloqueia.
+      final duplicado = await repo.findByTelefone(
+        tel,
+        excludeId: _isEdit ? widget.editing!.id : null,
+      );
+      if (duplicado != null) {
+        if (!mounted) return;
+        final msg = _msgClienteDuplicado(duplicado);
+        setState(() {
+          _saving = false;
+          _errs['telefone'] = msg;
+          _saveError = msg;
+        });
+        return;
+      }
+
       if (_isEdit) {
         await repo.update(widget.editing!.id, payload);
         if (mounted) Navigator.of(context).pop(true);
@@ -323,6 +351,24 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
         }
       }
       if (mounted) Navigator.of(context).pop(true);
+    } on ClientException catch (e) {
+      if (!mounted) return;
+      final msg = (e.response['message'] as String?)?.trim() ?? '';
+      final isDup = msg.toLowerCase().contains('já existente') ||
+          msg.toLowerCase().contains('ja existente');
+      setState(() {
+        _saving = false;
+        if (isDup && msg.isNotEmpty) {
+          _errs['telefone'] = msg;
+          _saveError = msg;
+        } else {
+          _saveError = msg.isNotEmpty
+              ? msg
+              : (_isEdit
+                  ? 'Não foi possível salvar as alterações.'
+                  : 'Não foi possível criar o cliente.');
+        }
+      });
     } catch (_) {
       if (mounted) {
         setState(() {

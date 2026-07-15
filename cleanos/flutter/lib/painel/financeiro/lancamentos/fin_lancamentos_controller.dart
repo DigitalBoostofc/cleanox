@@ -127,6 +127,11 @@ class FinLancController extends StateNotifier<FinLancState> {
   Future<void> refresh() async {
     state = state.copyWith(loading: true, error: null);
     try {
+      // Fixa/recorrente: materializa ocorrências do mês antes de listar.
+      final period = _ref.read(finPeriodProvider).periodo;
+      await _ref
+          .read(financeiroRepositoryProvider)
+          .ensureRecorrenciasNoPeriodo(period);
       final res = await _fetch(1);
       state = state.copyWith(
         items: res.items,
