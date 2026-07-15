@@ -328,6 +328,9 @@ class FinModalScaffold extends StatelessWidget {
     this.saveLabel = 'Salvar',
     this.error,
     this.extraActions = const [],
+    /// Rodapé estilo Organizze: Cancelar | botão verde circular | Salvar e criar outra.
+    this.organizzeFooter = false,
+    this.onSaveAndAnother,
   });
 
   final String title;
@@ -337,6 +340,12 @@ class FinModalScaffold extends StatelessWidget {
   final String saveLabel;
   final String? error;
   final List<Widget> extraActions;
+
+  /// Se true, usa o botão verde grande no centro (+ "Salvar e criar outra").
+  final bool organizzeFooter;
+
+  /// Só usado com [organizzeFooter]. Salva e limpa o form sem fechar o modal.
+  final VoidCallback? onSaveAndAnother;
 
   @override
   Widget build(BuildContext context) {
@@ -390,30 +399,133 @@ class FinModalScaffold extends StatelessWidget {
           ),
         ),
         Divider(height: 1, color: clx.line),
-        Padding(
-          padding: const EdgeInsets.all(ClxSpace.x4),
-          child: Row(
-            children: [
-              ...extraActions,
-              const Spacer(),
-              ClxButton(
-                label: 'Cancelar',
-                variant: ClxButtonVariant.ghost,
+        if (organizzeFooter)
+          _OrganizzeFooter(
+            saving: saving,
+            onSave: onSave,
+            onSaveAndAnother: onSaveAndAnother,
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.all(ClxSpace.x4),
+            child: Row(
+              children: [
+                ...extraActions,
+                const Spacer(),
+                ClxButton(
+                  label: 'Cancelar',
+                  variant: ClxButtonVariant.ghost,
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(context).maybePop(),
+                ),
+                const SizedBox(width: ClxSpace.x3),
+                ClxButton(
+                  label: saveLabel,
+                  icon: Icons.check_rounded,
+                  loading: saving,
+                  onPressed: saving ? null : onSave,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Rodapé Organizze: Cancelar | ●✓ verde | Salvar e criar outra.
+class _OrganizzeFooter extends StatelessWidget {
+  const _OrganizzeFooter({
+    required this.saving,
+    required this.onSave,
+    this.onSaveAndAnother,
+  });
+
+  final bool saving;
+  final VoidCallback onSave;
+  final VoidCallback? onSaveAndAnother;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        ClxSpace.x4,
+        ClxSpace.x3,
+        ClxSpace.x4,
+        ClxSpace.x4,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
                 onPressed: saving
                     ? null
                     : () => Navigator.of(context).maybePop(),
+                child: Text(
+                  'Cancelar',
+                  style: tt.labelLarge?.copyWith(color: clx.ink3),
+                ),
               ),
-              const SizedBox(width: ClxSpace.x3),
-              ClxButton(
-                label: saveLabel,
-                icon: Icons.check_rounded,
-                loading: saving,
-                onPressed: saving ? null : onSave,
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          // Botão verde circular (check) — ação principal.
+          Tooltip(
+            message: 'Salvar',
+            child: Material(
+              color: saving ? clx.success.withValues(alpha: 0.5) : clx.success,
+              shape: const CircleBorder(),
+              elevation: 2,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: saving ? null : onSave,
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: Center(
+                    child: saving
+                        ? const SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.check_rounded,
+                            size: 34,
+                            color: Colors.white,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: onSaveAndAnother == null
+                  ? const SizedBox.shrink()
+                  : TextButton(
+                      onPressed: saving ? null : onSaveAndAnother,
+                      child: Text(
+                        'Salvar e criar outra',
+                        textAlign: TextAlign.right,
+                        style: tt.labelLarge?.copyWith(
+                          color: clx.success,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
