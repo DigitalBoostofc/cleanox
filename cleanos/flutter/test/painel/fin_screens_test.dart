@@ -231,11 +231,13 @@ void main() {
       );
       await settle(tester);
 
-      // KPIs do mês + os dois donuts (maiores gastos e receitas por origem).
-      expect(find.text('Entradas do mês'), findsOneWidget);
+      // Layout Organizze: totais do mês + maiores gastos + receitas por origem.
+      expect(find.text('Receitas no mês atual'), findsOneWidget);
+      expect(find.text('Despesas no mês atual'), findsOneWidget);
       expect(find.text('Maiores gastos do mês'), findsOneWidget);
       expect(find.text('Receitas por origem'), findsOneWidget);
-      expect(find.byType(PieChart), findsNWidgets(2));
+      expect(find.text('Saldo geral'), findsOneWidget);
+      expect(find.byType(PieChart), findsWidgets);
     });
 
     testWidgets('vazio quando não há movimentação', (tester) async {
@@ -690,7 +692,7 @@ void main() {
       await tester.enterText(valorField, '150');
       await tester.pump();
 
-      // Conta (1º dropdown de String).
+      // Conta (dropdown de String).
       final contaDropdown = find.byType(DropdownButtonFormField<String>).first;
       await tester.ensureVisible(contaDropdown);
       await tester.tap(contaDropdown);
@@ -698,13 +700,11 @@ void main() {
       await tester.tap(find.text('Caixa').last);
       await tester.pumpAndSettle();
 
-      // Categoria (2º dropdown de String): só "Vendas" (receita) é listada
-      // — prova que _tipo já é receita antes de qualquer interação manual.
-      final categoriaDropdown = find
-          .byType(DropdownButtonFormField<String>)
-          .at(1);
-      await tester.ensureVisible(categoriaDropdown);
-      await tester.tap(categoriaDropdown);
+      // Categoria unificada (árvore): só "Vendas" (receita) deve aparecer —
+      // prova que _tipo já é receita antes de qualquer interação manual.
+      final catPicker = find.byKey(const ValueKey('fin-categoria-tree-picker'));
+      await tester.ensureVisible(catPicker);
+      await tester.tap(catPicker);
       await tester.pumpAndSettle();
       expect(find.text('Salários'), findsNothing);
       await tester.tap(find.text('Vendas').last);
