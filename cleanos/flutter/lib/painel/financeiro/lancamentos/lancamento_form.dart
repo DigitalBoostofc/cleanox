@@ -1,8 +1,9 @@
 /// lancamento_form.dart — Modal de criar/editar um Lançamento (`fin_lancamentos`).
 ///
 /// Espelha `LancamentoFormModal.tsx`: tipo (receita/despesa), descrição, valor,
-/// data (parede/BRT), conta, categoria + subcategoria (via parentId), status,
-/// vencimento, recorrência, forma de pagamento, observação e anexos.
+/// data (parede/BRT), conta, **categoria unificada** (raiz + sub no mesmo
+/// dropdown — [FinCategoriaTreePicker]), status, vencimento, recorrência, forma
+/// de pagamento, observação e anexos.
 ///
 /// 🔒 ANTI-DESVIO: um lançamento criado no painel nasce `origem = 'manual'` e
 /// NUNCA vira `via_os`. Na EDIÇÃO, `origem`/vínculo com OS NÃO são tocados (para
@@ -16,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/design.dart';
 import '../../../core/formatters/formatters.dart';
 import '../../../core/models/financeiro.dart';
+import '../fin_categoria_picker.dart';
 import '../fin_form_kit.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
@@ -211,14 +213,9 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
 
-    // Categorias-mãe do tipo atual; subcategorias da categoria escolhida.
-    final roots =
-        categorias.where((c) => c.parentId == null && c.tipo == _tipo).toList()
-          ..sort((a, b) => a.nome.compareTo(b.nome));
-    final subs = _categoriaId == null
-        ? <FinCategoria>[]
-        : (categorias.where((c) => c.parentId == _categoriaId).toList()
-            ..sort((a, b) => a.nome.compareTo(b.nome)));
+    // Categorias do tipo atual (raiz + sub) — o picker monta a árvore.
+    final catsDoTipo =
+        categorias.where((c) => c.tipo == _tipo && !c.arquivada).toList();
 
     return FinModalScaffold(
       title: _isEdit ? 'Editar lançamento' : 'Novo lançamento',
@@ -315,43 +312,18 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               onChanged: (v) => setState(() => _status = v ?? _status),
             ),
           ),
-          FinTwoCol(
-            FinDropdown<String>(
-              label: 'Categoria',
-              required: true,
-              value: _categoriaId,
-              enabled: !_saving,
-              error: _errs['categoria'],
-              hint: roots.isEmpty ? 'Nenhuma categoria' : 'Selecione…',
-              items: roots.map((c) => c.id).toList(),
-              itemLabel: (id) => roots
-                  .firstWhere(
-                    (c) => c.id == id,
-                    orElse: () => FinCategoria(id: id, nome: id),
-                  )
-                  .nome,
-              onChanged: (v) => setState(() {
-                _categoriaId = v;
-                _subcategoriaId = null;
-                _clearErr('categoria');
-              }),
-            ),
-            FinDropdown<String?>(
-              label: 'Subcategoria',
-              value: _subcategoriaId,
-              enabled: !_saving && subs.isNotEmpty,
-              hint: subs.isEmpty ? 'Sem subcategorias' : 'Opcional',
-              items: <String?>[null, ...subs.map((c) => c.id)],
-              itemLabel: (id) => id == null
-                  ? '— Nenhuma'
-                  : subs
-                        .firstWhere(
-                          (c) => c.id == id,
-                          orElse: () => FinCategoria(id: id, nome: id),
-                        )
-                        .nome,
-              onChanged: (v) => setState(() => _subcategoriaId = v),
-            ),
+          FinCategoriaTreePicker(
+            categorias: catsDoTipo,
+            categoriaId: _categoriaId,
+            subcategoriaId: _subcategoriaId,
+            required: true,
+            enabled: !_saving,
+            error: _errs['categoria'],
+            onChanged: (catId, subId) => setState(() {
+              _categoriaId = catId;
+              _subcategoriaId = subId;
+              _clearErr('categoria');
+            }),
           ),
           FinTwoCol(
             FinDateField(
