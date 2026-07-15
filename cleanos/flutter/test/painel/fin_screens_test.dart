@@ -607,8 +607,7 @@ void main() {
       final descField = find.byWidgetPredicate(
         (w) =>
             w is TextField &&
-            w.decoration?.hintText ==
-                'Ex.: Compra de material, Recebimento cliente',
+            w.decoration?.hintText == 'O que é este lançamento?',
       );
       final valorField = find.byWidgetPredicate(
         (w) => w is TextField && w.decoration?.hintText == '0,00',
@@ -672,19 +671,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LancamentoForm), findsOneWidget);
 
-      // O form já deve nascer com "Receita" selecionada (herdada do
-      // filtro), sem precisar tocar no SegmentedButton manualmente.
-      final segmented = tester.widget<SegmentedButton<TipoLancamento>>(
-        find.byType(SegmentedButton<TipoLancamento>),
-      );
-      expect(segmented.selected, {TipoLancamento.receita});
+      // Com initialTipo=receita o form esconde o SegmentedButton e usa o
+      // título "Nova receita" (estilo Organizze).
+      expect(find.text('Nova receita'), findsOneWidget);
+      expect(find.byType(SegmentedButton<TipoLancamento>), findsNothing);
 
       // Preenche o mínimo pra salvar sem alterar o tipo.
       final descField = find.byWidgetPredicate(
         (w) =>
             w is TextField &&
-            w.decoration?.hintText ==
-                'Ex.: Compra de material, Recebimento cliente',
+            w.decoration?.hintText == 'O que é este lançamento?',
       );
       final valorField = find.byWidgetPredicate(
         (w) => w is TextField && w.decoration?.hintText == '0,00',

@@ -67,7 +67,23 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   String? _saveError;
   final Map<String, String> _errs = {};
 
+  // Extras recolhidos (estilo Organizze) — só abrem se o usuário pedir.
+  bool _showRepetir = false;
+  bool _showObs = false;
+  bool _showAnexos = false;
+  bool _showTags = false;
+  bool _showAvancado = false;
+
   bool get _isEdit => widget.editing != null;
+
+  String get _title {
+    if (_isEdit) {
+      return _tipo == TipoLancamento.receita
+          ? 'Editar receita'
+          : 'Editar despesa';
+    }
+    return _tipo == TipoLancamento.receita ? 'Nova receita' : 'Nova despesa';
+  }
 
   @override
   void initState() {
@@ -92,9 +108,20 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _contaId = l?.contaId.isNotEmpty == true ? l!.contaId : null;
     _categoriaId = l?.categoriaId.isNotEmpty == true ? l!.categoriaId : null;
     _subcategoriaId = l?.subcategoriaId;
-    _status = l?.status ?? LancamentoStatus.pendente;
+    // Novo lançamento: default PAGO (lançamento rápido, como Organizze).
+    _status = l?.status ?? LancamentoStatus.pago;
     _recorrencia = l?.recorrencia ?? RecorrenciaTipo.unica;
     _anexos = List<Anexo>.from(l?.anexos ?? const []);
+    // Na edição, abre seções que já têm conteúdo.
+    if (l != null) {
+      _showRepetir = l.recorrencia != RecorrenciaTipo.unica;
+      _showObs = (l.observacao?.trim().isNotEmpty ?? false);
+      _showTags = l.tags.isNotEmpty;
+      _showAnexos = l.anexos.isNotEmpty;
+      _showAvancado = l.status != LancamentoStatus.pago ||
+          (l.vencimento?.isNotEmpty ?? false) ||
+          (l.formaPagamento?.isNotEmpty ?? false);
+    }
   }
 
   @override
@@ -210,53 +237,66 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
+    final contas = (ref.watch(finContasProvider).valueOrNull ?? const [])
+        .where((c) => c.ativo)
+        .toList();
     final categorias = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
 
-    // Categorias do tipo atual (raiz + sub) — o picker monta a árvore.
+    // Auto-seleciona a única/primeira conta ativa (Organizze pré-preenche).
+    if (_contaId == null && contas.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _contaId == null && contas.isNotEmpty) {
+          setState(() => _contaId = contas.first.id);
+        }
+      });
+    }
+
     final catsDoTipo =
         categorias.where((c) => c.tipo == _tipo && !c.arquivada).toList();
 
     return FinModalScaffold(
-      title: _isEdit ? 'Editar lançamento' : 'Novo lançamento',
+      title: _title,
       saving: _saving,
       error: _saveError,
       onSave: _save,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Tipo (receita/despesa).
-          SegmentedButton<TipoLancamento>(
-            segments: const [
-              ButtonSegment(
-                value: TipoLancamento.despesa,
-                label: Text('Despesa'),
-                icon: Icon(Icons.south_west_rounded, size: 16),
-              ),
-              ButtonSegment(
-                value: TipoLancamento.receita,
-                label: Text('Receita'),
-                icon: Icon(Icons.north_east_rounded, size: 16),
-              ),
-            ],
-            selected: {_tipo},
-            showSelectedIcon: false,
-            onSelectionChanged: _saving
-                ? null
-                : (s) => setState(() {
-                    _tipo = s.first;
-                    // Categorias são por tipo → limpa a seleção.
-                    _categoriaId = null;
-                    _subcategoriaId = null;
-                  }),
-          ),
-          const SizedBox(height: ClxSpace.x4),
+          // Troca despesa/receita só se o form não veio com tipo pré-fixo
+          // (atalhos da visão geral já fixam o tipo).
+          if (!_isEdit && widget.initialTipo == null) ...[
+            SegmentedButton<TipoLancamento>(
+              segments: const [
+                ButtonSegment(
+                  value: TipoLancamento.despesa,
+                  label: Text('Despesa'),
+                  icon: Icon(Icons.remove_rounded, size: 16),
+                ),
+                ButtonSegment(
+                  value: TipoLancamento.receita,
+                  label: Text('Receita'),
+                  icon: Icon(Icons.add_rounded, size: 16),
+                ),
+              ],
+              selected: {_tipo},
+              showSelectedIcon: false,
+              onSelectionChanged: _saving
+                  ? null
+                  : (s) => setState(() {
+                      _tipo = s.first;
+                      _categoriaId = null;
+                      _subcategoriaId = null;
+                    }),
+            ),
+            const SizedBox(height: ClxSpace.x4),
+          ],
+          // ── Essencial (Organizze) ────────────────────────────────────
           FinField(
             label: 'Descrição',
             controller: _descricao,
             required: true,
             enabled: !_saving,
-            hint: 'Ex.: Compra de material, Recebimento cliente',
+            hint: 'O que é este lançamento?',
             error: _errs['descricao'],
             textCapitalization: TextCapitalization.sentences,
             onChanged: (_) => _clearErr('descricao'),
@@ -303,34 +343,63 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                 _clearErr('conta');
               }),
             ),
-            FinDropdown<LancamentoStatus>(
-              label: 'Status',
-              value: _status,
+            FinCategoriaTreePicker(
+              categorias: catsDoTipo,
+              categoriaId: _categoriaId,
+              subcategoriaId: _subcategoriaId,
+              required: true,
               enabled: !_saving,
-              items: LancamentoStatus.values,
-              itemLabel: statusLancamentoLabel,
-              onChanged: (v) => setState(() => _status = v ?? _status),
+              error: _errs['categoria'],
+              onChanged: (catId, subId) => setState(() {
+                _categoriaId = catId;
+                _subcategoriaId = subId;
+                _clearErr('categoria');
+              }),
             ),
           ),
-          FinCategoriaTreePicker(
-            categorias: catsDoTipo,
-            categoriaId: _categoriaId,
-            subcategoriaId: _subcategoriaId,
-            required: true,
-            enabled: !_saving,
-            error: _errs['categoria'],
-            onChanged: (catId, subId) => setState(() {
-              _categoriaId = catId;
-              _subcategoriaId = subId;
-              _clearErr('categoria');
-            }),
-          ),
-          FinTwoCol(
-            FinDateField(
-              label: 'Vencimento (opcional)',
-              controller: _vencimento,
-              enabled: !_saving,
+          // ── Extras em ícones (Organizze: Repetir / Obs / Anexo / Tags) ─
+          Padding(
+            padding: const EdgeInsets.only(
+              top: ClxSpace.x2,
+              bottom: ClxSpace.x3,
             ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _ExtraChip(
+                  icon: Icons.repeat_rounded,
+                  label: 'Repetir',
+                  active: _showRepetir,
+                  onTap: () => setState(() => _showRepetir = !_showRepetir),
+                ),
+                _ExtraChip(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Observação',
+                  active: _showObs,
+                  onTap: () => setState(() => _showObs = !_showObs),
+                ),
+                _ExtraChip(
+                  icon: Icons.attach_file_rounded,
+                  label: 'Anexo',
+                  active: _showAnexos,
+                  onTap: () => setState(() => _showAnexos = !_showAnexos),
+                ),
+                _ExtraChip(
+                  icon: Icons.sell_outlined,
+                  label: 'Tags',
+                  active: _showTags,
+                  onTap: () => setState(() => _showTags = !_showTags),
+                ),
+                _ExtraChip(
+                  icon: Icons.tune_rounded,
+                  label: 'Mais',
+                  active: _showAvancado,
+                  onTap: () => setState(() => _showAvancado = !_showAvancado),
+                ),
+              ],
+            ),
+          ),
+          if (_showRepetir) ...[
             FinDropdown<RecorrenciaTipo>(
               label: 'Recorrência',
               value: _recorrencia,
@@ -340,59 +409,77 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               onChanged: (v) =>
                   setState(() => _recorrencia = v ?? _recorrencia),
             ),
-          ),
-          // Parcelas (só quando recorrência = Parcelada). As parcelas seguintes
-          // não são geradas aqui (mesma decisão do web).
-          if (_recorrencia == RecorrenciaTipo.parcelada) ...[
-            FinTwoCol(
-              FinField(
-                label: 'Parcela atual',
-                controller: _parcelaAtual,
-                enabled: !_saving,
-                hint: '1',
-                keyboardType: TextInputType.number,
-                onChanged: (_) => _clearErr('parcelas'),
-              ),
-              FinField(
-                label: 'Total de parcelas',
-                controller: _parcelasTotal,
-                enabled: !_saving,
-                hint: '2',
-                keyboardType: TextInputType.number,
-                onChanged: (_) => _clearErr('parcelas'),
-              ),
-            ),
-            if (_errs['parcelas'] != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: ClxSpace.x3),
-                child: Text(
-                  _errs['parcelas']!,
-                  style: tt.bodyMedium?.copyWith(color: clx.error),
+            if (_recorrencia == RecorrenciaTipo.parcelada) ...[
+              FinTwoCol(
+                FinField(
+                  label: 'Parcela atual',
+                  controller: _parcelaAtual,
+                  enabled: !_saving,
+                  hint: '1',
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => _clearErr('parcelas'),
+                ),
+                FinField(
+                  label: 'Total de parcelas',
+                  controller: _parcelasTotal,
+                  enabled: !_saving,
+                  hint: '2',
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => _clearErr('parcelas'),
                 ),
               ),
+              if (_errs['parcelas'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+                  child: Text(
+                    _errs['parcelas']!,
+                    style: tt.bodyMedium?.copyWith(color: clx.error),
+                  ),
+                ),
+            ],
           ],
-          FinField(
-            label: 'Forma de pagamento (opcional)',
-            controller: _formaPagamento,
-            enabled: !_saving,
-            hint: 'Pix, Crédito, Dinheiro…',
-          ),
-          FinField(
-            label: 'Tags (opcional)',
-            controller: _tags,
-            enabled: !_saving,
-            hint: 'separe, por, vírgulas',
-          ),
-          FinField(
-            label: 'Observação (opcional)',
-            controller: _observacao,
-            enabled: !_saving,
-            maxLines: 2,
-            hint: 'Notas adicionais…',
-          ),
+          if (_showObs)
+            FinField(
+              label: 'Observação',
+              controller: _observacao,
+              enabled: !_saving,
+              maxLines: 2,
+              hint: 'Notas adicionais…',
+            ),
+          if (_showTags)
+            FinField(
+              label: 'Tags',
+              controller: _tags,
+              enabled: !_saving,
+              hint: 'separe, por, vírgulas',
+            ),
+          if (_showAnexos) _anexosSection(clx, tt),
+          if (_showAvancado) ...[
+            FinTwoCol(
+              FinDropdown<LancamentoStatus>(
+                label: 'Status',
+                value: _status,
+                enabled: !_saving,
+                items: LancamentoStatus.values,
+                itemLabel: statusLancamentoLabel,
+                onChanged: (v) => setState(() => _status = v ?? _status),
+              ),
+              FinDateField(
+                label: 'Vencimento',
+                controller: _vencimento,
+                enabled: !_saving,
+              ),
+            ),
+            FinField(
+              label: 'Forma de pagamento',
+              controller: _formaPagamento,
+              enabled: !_saving,
+              hint: 'Pix, Crédito, Dinheiro…',
+            ),
+          ],
           if (_isEdit && widget.editing!.origem == OrigemLancamento.viaOs)
             Padding(
-              padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+              padding: const EdgeInsets.only(bottom: ClxSpace.x2),
               child: Row(
                 children: [
                   Icon(Icons.link_rounded, size: 15, color: clx.info),
@@ -407,7 +494,6 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
                 ],
               ),
             ),
-          _anexosSection(clx, tt),
         ],
       ),
     );
@@ -472,6 +558,64 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               ),
             ),
       ],
+    );
+  }
+}
+
+/// Chip circular de extra (Repetir / Obs / Anexo / Tags / Mais).
+class _ExtraChip extends StatelessWidget {
+  const _ExtraChip({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final fg = active ? clx.primary : clx.ink3;
+    final bg = active
+        ? clx.primary.withValues(alpha: 0.14)
+        : clx.bg2;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: ClxRadii.rLg,
+      child: SizedBox(
+        width: 64,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: bg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: active ? clx.primary : clx.line,
+                ),
+              ),
+              child: Icon(icon, size: 20, color: fg),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: fg,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
