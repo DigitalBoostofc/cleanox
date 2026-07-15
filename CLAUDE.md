@@ -1,246 +1,464 @@
 # CleanOS — DNA do Projeto
 
+> **Fonte da verdade operacional** para devs e agentes.  
+> Medido em **2026-07-14** contra repositório local, `origin/main` e produção
+> (`ssh hostinger` + `https://app.cleanox.com.br/api/health`).  
+> Spec de negócio / MVP: `docs/MVP-BUILD-SPEC.md`. Contrato PB: `cleanos/pb/README.md`.
+
 > **Stack canônica: Flutter + PocketBase.** Todo frontend é Flutter
 > (`cleanos/flutter/`). Não existe frontend React no repositório. Novas
 > features, fixes, QA e orientações a agentes/devs são **sempre em Flutter**.
 
+---
+
 ## 1. O QUE É
 
-Gestão de empresa de limpeza: OS, agenda, clientes, profissionais, financeiro.
+Ferramenta **interna** de gestão para empresa de **higienização de estofados a
+domicílio** (sofá, poltrona, colchão, cadeira, tapete). Volume esperado baixo
+(&lt; 50 OS/mês). Marca: **Cleanox** / produto: **CleanOS**.
 
-**Superfícies (todas Flutter):**
-- **Web painel** (`AppSurface.painel`, entrypoint `main_painel.dart`) — dono/admin/gerente; servido por `pb_public/` em https://app.cleanox.com.br
-- **APK unificado** (`AppSurface.android`, entrypoint `main_android.dart`) — um único APK; `app_router.dart` roteia por papel (admin → painel, profissional → app)
+### Dor central (requisito de primeira classe)
 
-**Usuários:** dono/admin+gerente (painel web + APK) e profissionais (APK).
+O profissional detém o cliente no mundo real e pode virar concorrente levando a
+base. O CleanOS mantém **cliente, comunicação e dinheiro com a MARCA**:
 
-**UI responsiva (Fintech Clean):**
-- **APK:** sempre tema e casco fintech (bottom nav 5 itens no painel).
+1. **Dinheiro na empresa** — cliente paga na maquininha do CNPJ (débito / crédito /
+   Pix maquininha). Sem gateway online, sem split, sem link de pagamento.
+2. **Profissional sem contato do cliente** — telefone **nunca** exposto; endereço
+   completo só durante `em_andamento` no dia do serviço; comunicação WhatsApp sai
+   do número da empresa.
+
+A proteção é na **API (regras de coleção + hooks)**, nunca só na UI.
+
+### Superfícies (todas Flutter)
+
+| Superfície | Entrypoint | `AppSurface` | Quem usa | Onde roda |
+|---|---|---|---|---|
+| **Painel web** | `lib/main_painel.dart` | `painel` | admin / gerente | Flutter Web em `pb_public/` → https://app.cleanox.com.br |
+| **APK unificado** | `lib/main_android.dart` | `android` | admin + gerente + profissional | Package `br.com.wenox.cleanos`; CI/release usam **só este** |
+| App prof (legado) | `lib/main_profissional.dart` | `profissional` | só profissional | Dev local; **não** é o release |
+
+Roteamento por papel em `app_router.dart` → `homeForRole`:
+- `profissional` → `/app`
+- `admin` / `gerente` → `/painel`
+
+### UI responsiva (Fintech Clean)
+
+- **APK:** sempre tema + casco fintech (painel: bottom nav 5 itens).
 - **Web estreita (&lt; 600dp):** mesmo visual fintech do APK (login, casco, hero de saldo, empty states, checklist).
 - **Web ≥ 600dp (tablet/desktop):** layout clássico do painel (sidebar/rail) — intencional.
+
+### Papéis (`users.role`)
+
+| Role | Acesso |
+|---|---|
+| `admin` | Painel completo + WhatsApp admin + marca repasse/comissão paga |
+| `gerente` | Painel como admin, **exceto** WhatsApp admin e algumas ações de repasse |
+| `profissional` | Só app `/app` (visão de job das **suas** OS) |
+| `_superuser` | Admin UI do PocketBase (devops) — **não** é papel de negócio |
 
 ---
 
 ## 2. STACK & ESTRUTURA
 
 ```
-cleanos/
-  flutter/   ← ÚNICO frontend (Web + Android)
-  pb/        ← backend PocketBase (hooks, migrations)
-  tests/     ← integração anti-desvio + unitários de hooks PB
+cleanox/                          ← monorepo
+  CLAUDE.md                       ← ESTE DNA
+  docs/                           ← specs, ADRs, checklists (parte histórica React)
+  usability-findings.md           ← contrato QA Vision Lab
+  .github/workflows/
+    android-release-profissional.yml
+    hooks-tests.yml               ← gate unitário dos hooks PB (na main)
+  cleanos/
+    flutter/                      ← ÚNICO frontend (Web + Android)
+    pb/                           ← PocketBase (hooks, migrations, binário)
+    tests/                        ← anti-desvio + unitários de hooks
 ```
 
 ### Flutter — `cleanos/flutter/`
-SDK local: `~/flutter-sdk` (v3.35.5 no CI). State: Riverpod. Roteamento: go_router.
 
-**Entrypoints (todos em `lib/`):**
-| Arquivo | Surface | Uso |
+| Item | Valor medido |
+|---|---|
+| SDK | `~/flutter-sdk` · **3.35.5** (CI pin `FLUTTER_VERSION: '3.35.5'`) |
+| Dart | 3.9.2 (`sdk: ^3.9.2`) |
+| State | Riverpod (`flutter_riverpod` + `riverpod_annotation`) |
+| Router | go_router |
+| Backend SDK | `pocketbase: ^0.22.0` |
+| Models | freezed + json_serializable em `lib/core/models/` |
+| Auth token | `flutter_secure_storage` (nunca SharedPreferences) |
+| Fontes | Sora (marca petrol+cyan) |
+| Locale | pt_BR fixo |
+| Versão `main` | **1.2.0+21** (auto-bump CI) |
+| Versão web em prod | **1.2.0+20** (`pb_public/version.json`, medido 14/07) |
+
+**Arquitetura de pastas:**
+
+```
+lib/
+  main_*.dart              entrypoints
+  app.dart                 CleanosApp + AppSurface
+  core/                    models, repos (interfaces), auth, design, router, env, pb
+  painel/                  UI + data PB do painel (admin/gerente)
+  profissional/            UI + data do app do profissional
+  features/login/          login compartilhado
+  shared_widgets_os/       checklist, evidências, laudo PDF, relatórios
+```
+
+**Repos (interfaces)** em `lib/core/repositories/`; implementações PB em
+`lib/painel/data/` e `lib/profissional/data/`.
+
+**Orientação a agentes:** editar só `cleanos/flutter/` e `cleanos/pb/`. Nunca
+propor React, Vite, TSX. Referências a React em `docs/` ou findings antigos =
+histórico.
+
+### Módulos de produto (Flutter)
+
+**Painel** (`/painel/*`):
+
+| Seção | Rota | Função |
 |---|---|---|
-| `main_painel.dart` | `AppSurface.painel` | dev web local / `flutter build web` |
-| `main_profissional.dart` | `AppSurface.profissional` | dev Android (legado, separado por papel) |
-| `main_android.dart` | `AppSurface.android` | APK unificado — CI e release usam **só este** |
+| Dashboard | `/painel/dashboard` | Resumo do dia / operação |
+| Clientes | `/painel/clientes` | Cofre de clientes (LGPD / anti-desvio) |
+| Ordens | `/painel/ordens` | OS por status + form + execução admin |
+| Agenda | `/painel/agenda` | Calendário estilo Google (dia/semana/mês) |
+| Financeiro | `/painel/financeiro/*` | Visão, lançamentos, carteiras, categorias, comissões, limites, relatórios |
+| Serviços | `/painel/servicos` | Catálogo + checklist |
+| Usuários | `/painel/usuarios` | admin/gerente/profissional + disponibilidade |
+| Avaliações | `/painel/avaliacoes` | Ratings |
+| WhatsApp | `/painel/whatsapp` | **admin-only** |
+| Conta | `/painel/conta` | Perfil / tema |
 
-**Modelos:** `lib/core/models/` (freezed + json_serializable). Repos: `lib/core/repositories/` + implementações em `lib/painel/data/`.
+**App profissional** (`/app/*`):
 
-**Orientação a agentes:** editar só `cleanos/flutter/` e `cleanos/pb/`. Nunca propor React, Vite, TSX, ou pasta `web/` de frontend. Referências a React em `docs/` antigos ou `usability-findings.md` são **histórico**, não implementação.
+| Aba | Rota | Função |
+|---|---|---|
+| Meus serviços | `/app` | Lista do dia + execução OS |
+| Financeiro | `/app/financeiro` | Estimativa / comissões do prof |
+| Mapa | `/app/mapa` | Rotas (Maps externo) |
+| Perfil | `/app/perfil` | Conta do profissional |
+
+**Flags de ambiente** (`Env` / `--dart-define`):
+
+| Flag | Default | Estado |
+|---|---|---|
+| `PB_URL` | `https://app.cleanox.com.br` | Prod embutido no release |
+| `TRACKING_ENABLED` | `false` | GPS/foreground — código presente, flag off |
+| `PUSH_ENABLED` | `false` | FCM client — stub até gate do dono |
+| `GOOGLE_MAPS_API_KEY` | `''` | Server-side em `cleanos.env` / Maps helper |
 
 ### PocketBase — `cleanos/pb/`
-- Binário: `cleanos/pb/pocketbase` (v0.39.4)
-- Hooks JS: `cleanos/pb/pb_hooks/` — JSVM, lógica via `require()` de libs
-- Migrations: `cleanos/pb/pb_migrations/`
-- Credenciais: `/opt/cleanos/cleanos.env` (nunca no repo)
-- Referência de contrato: `cleanos/pb/README.md`
 
-**Hooks principais:**
-- `fin_saldo.pb.js` — integridade atômica de `fin_contas.saldo_atual` (lançamentos create/update/delete + guard de request)
-- `fin_saldo_lib.js` — `efeito()`, `incSaldo()` (UPDATE SQL atômico, nunca read-then-write)
-- `fin_routes.pb.js` — `POST /api/cleanos/fin/conta/{id}/ajuste` e `POST /api/cleanos/fin/transferencia`
-- `os_financeiro.pb.js` + `os_financeiro_lib.js` — cria lançamento `via_os` ao fechar OS
-- `prof_delete.pb.js` + `prof_delete_lib.js` — exclusão segura de profissional (bloqueia se há OS aberta, limpa disponibilidade antes do `e.next()`)
-- `whatsapp_routes.pb.js` + `whatsapp_helpers.js` + `uazapi.js` — rotas WhatsApp
-- `push.js` — FCM (inerte até chaves no cleanos.env)
+| Item | Valor medido |
+|---|---|
+| Binário | **v0.39.4** (local e prod) |
+| Hooks | `pb_hooks/` · 21 arquivos · JSVM + `require()` de libs |
+| Migrations | `pb_migrations/` · até `1700000028_comissao_despesa.js` |
+| Credenciais prod | `/opt/cleanos/cleanos.env` (EnvironmentFile do systemd) — **nunca no repo** |
+| Frontend web prod | `/opt/cleanos/pb/pb_public/` (rsync do `flutter build web`) |
+| Contrato | `cleanos/pb/README.md` |
 
-**Coleções principais:** `users` (campo `role`), `clientes`, `servicos`, `ordens_servico`, `app_config` (singleton de config), `config_atuacao`, `disponibilidade`, `fin_contas`, `fin_lancamentos`, `fin_categorias`
+### Coleções de negócio (prod = schema vivo)
 
-**Migrations em produção (últimas relevantes):**
-- `1700000020_perf_indexes.js` — índices de performance em `ordens_servico`
-- `1700000021_conta_padrao_unica.js` — índice único parcial: só 1 conta `padrao=true`
-- `1700000022_os_cliente_obrigatorio.js` — `minSelect:1` em OS.cliente (obrigatório na fonte)
+```
+users (auth)          role, nome, avatar, comissão, whatsapp…
+clientes              🔒 COFRE — profissional NEGADO em tudo
+servicos              catálogo + checklist
+ordens_servico        job + snapshot + endereco_liberado efêmero
+config_atuacao        área de atuação (singleton operacional)
+disponibilidade       agenda do profissional
+os_evidencias         fotos antes/depois (idempotency_key)
+prof_comissoes        comissão gerada ao concluir OS
+fin_contas            carteiras (saldo_atual só server-side)
+fin_categorias        plano de contas
+fin_lancamentos       receitas/despesas (incl. via_os)
+fin_limites           limites de gasto
+app_config            singleton (WhatsApp, templates, Meta CAPI…)
+push_tokens           tokens FCM por usuário
+```
 
-### CI — `.github/workflows/android-release-profissional.yml`
-- Entrypoint: `lib/main_android.dart`. Package: `br.com.wenox.cleanos`
-- **Gate obrigatório antes do build:** `flutter analyze --fatal-infos` + `flutter test`
-- Auto-bump `pubspec.yaml` +N (só após gate verde, em push pra main)
-- Assina com keystore dos secrets (`KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`)
-- Publica no Play com `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+Sistema PB: `_superusers`, `_authOrigins`, `_externalAuths`, `_mfas`, `_otps`.
+
+### Hooks (`pb_hooks/`) — mapa
+
+| Arquivo | Papel |
+|---|---|
+| `main.pb.js` | OS: denorm, endereço efêmero, travas de request, repasse |
+| `os_logic.js` | Lógica anti-desvio da OS (CommonJS) |
+| `os_servicos.pb.js` | Snapshot imutável serviço + evidências |
+| `os_financeiro.pb.js` + `_lib` | OS concluída → receita `via_os` |
+| `fin_saldo.pb.js` + `_lib` | Saldo atômico + guard `saldo_atual` |
+| `fin_routes.pb.js` | `POST …/fin/conta/{id}/ajuste`, `POST …/fin/transferencia` |
+| `prof_comissao_lib.js` | Gera `prof_comissoes` ao concluir OS |
+| `prof_comissao_pago.pb.js` + `_lib` | Comissão paga → despesa real (F-231) |
+| `prof_delete.pb.js` + `_lib` | Delete seguro de profissional |
+| `evidencias.pb.js` | Idempotência de upload |
+| `whatsapp_routes.pb.js` + helpers + `uazapi.js` | WhatsApp / a-caminho / relatório |
+| `ratings_routes.pb.js` | Ingest de avaliação + config templates |
+| `meta_capi_lib.js` | Meta CAPI (Schedule / Purchase / Lead) — **versionado** |
+| `maps.js` | Google Maps helper (degradação graciosa) |
+| `push.js` | FCM **HTTP v1** (inerte sem `FCM_PROJECT_ID` + `FCM_ACCESS_TOKEN`) |
+
+### Rotas custom (`/api/cleanos/…`)
+
+- Financeiro: `POST /fin/conta/{id}/ajuste`, `POST /fin/transferencia`
+- WhatsApp: status, connect, disconnect, config
+- OS: `POST /os/{id}/a-caminho`, `/relatorio`, `/posicao`, `/cheguei`
+- Ratings: `POST /ratings/ingest`, `GET /ratings/pending`
+- Push: `POST /push/register`
+
+### Migrations relevantes (últimas)
+
+| ID | O quê |
+|---|---|
+| 20 | Índices de performance em `ordens_servico` |
+| 21 | Conta padrão única (`padrao=true`) |
+| 22 | OS.cliente obrigatório |
+| 23 | Comissão do profissional |
+| 24 | Avatar de users |
+| 25 | Meta CAPI (idempotente) |
+| 26 | Origem do lead em clientes |
+| 27 | Duração de OS |
+| 28 | Comissão paga como despesa |
+
+**Nunca** rsyncar `1700000002_seed.js` para prod (R8).
+
+### Testes
+
+| Camada | Onde | CI |
+|---|---|---|
+| Flutter unit/widget | `cleanos/flutter/test/` (~80 arquivos) | Sim — job Android (se path Flutter) |
+| Hooks unitários | `cleanos/tests/integration/*.unit.test.mjs` | Sim — `hooks-tests.yml` (paths `pb/**`) |
+| Anti-desvio E2E API | `anti-desvio.test.mjs` | **Não** no CI (precisa PB vivo + secrets; dívida conhecida) |
+
+### CI
+
+1. **`android-release-profissional.yml`** — Flutter 3.35.5, entrypoint `main_android.dart`, package `br.com.wenox.cleanos`. Gate `analyze --fatal-infos` + `test`. Auto-bump `+N` em push main. Assina se secrets de keystore. Play só se `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` existir (**hoje: publish skipped**).
+2. **`hooks-tests.yml`** (main) — Node 22, `npm run test:unit` em PRs/pushes que tocam `cleanos/pb/**` ou `cleanos/tests/**`.
 
 ---
 
 ## 3. REGRAS INVIOLÁVEIS
 
-**R1 — Saldo é server-side atômico; Flutter NUNCA muta `saldo_atual`.**
-`PbFinanceiroRepository` omite `saldo_atual` do body de update. Ajustes só via `POST /fin/conta/{id}/ajuste`. Razão: lost-update catastrófico (race condition em concurrent requests) — ver `fin_saldo.pb.js`.
+**R1 — Saldo é server-side atômico; Flutter NUNCA muta `saldo_atual`.**  
+`PbFinanceiroRepository` omite `saldo_atual` do body. Ajustes só via
+`POST /api/cleanos/fin/conta/{id}/ajuste`. Razão: lost-update em concorrência.
 
-**R2 — Campo opcional no PB guarda `""`, NUNCA `null`. Comparar `!= ""`, nunca `== null`.**
-`TextField` e `RelationField` opcional (`maxSelect:1`) chegam como `""` quando vazios. Normalizar `"" → null` no `fromRecord`, não nos call sites. Razão: bug silencioso — fixture Dart com `null` passa nos testes mas falha com dados reais de produção (ex: `fin_categorias.parent_id`, `fin_lancamentos.subcategoria_id`).
+**R2 — Campo opcional no PB guarda `""`, NUNCA `null`.**  
+Comparar `!= ""`. Normalizar `"" → null` no `fromRecord`, não nos call sites.
 
-**R3 — Em hook JSVM, `e.next()` COMMITA. Validar SEMPRE antes.**
-Throw APÓS `e.next()` NÃO faz rollback. `e.next()` dentro de `runInTransaction` DEADLOCKA. Padrão do `fin_saldo.pb.js`: `assertXxx()` → `e.next()` → efeito colateral. Razão: descoberta empírica neste binário — ignora essa regra e o banco fica num estado irrecuperável sem restore.
+**R3 — Em hook JSVM, `e.next()` COMMITA.**  
+Throw depois de `e.next()` não faz rollback. `e.next()` dentro de
+`runInTransaction` deadlocka. Padrão: validar → `e.next()` → efeito colateral.
 
-**R4 — Mobile NUNCA tabela. Sempre card por item.**
-Qualquer `Table`/`DataTable` ou layout tabular que renderize no APK **ou web estreita (&lt;600dp)** é bug. Padrão: card com nome na linha, métricas abaixo. Razão: feedback direto do dono após ver número de R$ quebrando no meio em tela pequena.
+**R4 — Mobile NUNCA tabela. Sempre card por item.**  
+Vale para APK **e** web estreita (&lt; 600dp).
 
-**R5 — Merge ≠ deploy. Nada sobe pra prod sem ordem explícita do dono.**
-O dono aprova merges e autoriza cada deploy. Razão: prod tem usuários reais; deploy envolve risco de corrupção SQLite (histórico abaixo).
+**R5 — Merge ≠ deploy.** Nada sobe pra prod sem ordem explícita do dono.
 
-**R6 — `git add` por path explícito. NUNCA `-A`.**
-Razão: evita commitar `pb_data/`, `.env*`, binários, `node_modules`, `dist/`.
+**R6 — `git add` por path explícito. NUNCA `-A`.**  
+Evita `pb_data/`, `.env*`, binários, `node_modules`, `dist/`.
 
-**R7 — Deploy web SEMPRE inclui `sw.js` kill-switch em `pb_public/`.**
-Fonte: `cleanos/flutter/web/sw.js` (copiado no `flutter build web`). Validar presença no build. Razão: navegadores que ainda tinham Service Worker de um frontend antigo precisam desregistrar cache e carregar o Flutter.
+**R7 — Deploy web SEMPRE inclui `sw.js` kill-switch em `pb_public/`.**  
+Fonte: `cleanos/flutter/web/sw.js`.
 
 **R8 — NUNCA rsyncar `1700000002_seed.js` para prod.**
-Esse arquivo semeia superuser de dev `super@cleanox.local` e dados de teste em prod. Usar rsync aditivo (sem `--delete`) e excluir o seed explicitamente. Razão: aconteceu em prod em 2026-06-30; foi preciso limpar via API.
 
-**R9 — Hooks de rota não enxergam escopo do arquivo. Sempre `require()` dentro do handler.**
-Razão: cada `routerAdd` roda em VM isolada — funções do escopo do arquivo não estão disponíveis no handler.
+**R9 — Hooks de rota: `require()` dentro do handler.**  
+Cada `routerAdd` roda em VM isolada.
 
 **R10 — Frontend = Flutter only.**
-Não recriar app React/Vite/TSX. Não documentar fluxos de dev no frontend legado. Código novo e testes de UI: `cleanos/flutter/`.
 
 **R11 — Deploy de hook é cirúrgico (`scp` do arquivo). NUNCA rsyncar `pb_hooks/` inteiro.**
 
-Estado **medido** em 14/07/2026, depois do deploy do PR #47:
+Estado **medido** em 14/07/2026 (revalidado nesta análise):
 
-```
+```bash
 rsync -az --delete hostinger:/opt/cleanos/pb/pb_hooks/ /tmp/prodhooks-fresh/
-diff -rq /tmp/prodhooks-fresh/ cleanos/pb/pb_hooks/     # vazio: 21 arquivos, byte-idênticos
+diff -rq /tmp/prodhooks-fresh/ cleanos/pb/pb_hooks/   # vazio: 21 arquivos, byte-idênticos
 ```
 
-Prod e repo estão **em paridade**. O drift do Meta CAPI (que já foi real: `meta_capi_lib.js`
-só existia em prod e 3 hooks divergiam) foi **fechado** pelos PRs #40/#43 — os hooks do Meta
-CAPI estão versionados. A premissa antiga desta regra ("prod roda código que não está no
-repo") **não vale mais**.
+Prod e repo em **paridade**. Drift antigo do Meta CAPI (`meta_capi_lib.js` só em
+prod; hooks divergentes) foi **fechado** pelos PRs #40/#43. A premissa “prod roda
+código que não está no repo” **não vale mais** — mas a regra de deploy cirúrgico
+continua:
 
-A regra continua, por dois motivos que independem do drift:
-1. Um `rsync` da pasta apaga em prod qualquer hook que não esteja no repo — e a paridade de
-   hoje não é garantida amanhã (basta alguém `scp`ar um hook de emergência).
-2. `pb_hooks/` é hot-reload: o PocketBase reinicia a cada arquivo alterado. Rsync da pasta
-   dispara N restarts em cascata; `scp` de 3 arquivos, 3.
+1. `rsync` da pasta apaga em prod qualquer hook de emergência fora do repo.
+2. Hot-reload: um arquivo alterado = 1 restart; rsync da pasta = N restarts.
 
-**Sempre diffar prod contra o repo antes de escrever qualquer hook — e usar `--delete` com
-diretório FRESCO.** Rsync sem `--delete` num diretório reaproveitado deixa arquivos que já
-sumiram na origem, e o diff mente: em 14/07 eu "descobri" lixo em prod que já tinha sido
-removido horas antes, porque estava comparando contra um espelho velho. Mesma classe de erro
-da R12 — não afirme nada sobre prod a partir de um artefato; meça.
+**Sempre diffar com diretório FRESCO e `rsync --delete`.** Espelho velho sem
+`--delete` mente.
 
-**R12 — Nunca deduzir o que a CI faz lendo o `on:` do workflow. Conferir o run.**
+**R12 — Nunca deduzir o que a CI faz lendo só o `on:` do workflow. Conferir o run.**
 
-O que `android-release-profissional.yml` faz **de verdade hoje** (medido, não inferido):
-
-| push na `main` que toca… | job `build-and-release` | auto-bump | publica na Play |
+| push na `main` que toca… | `build-and-release` | auto-bump | Play publish |
 |---|---|---|---|
-| `cleanos/flutter/**` ou o próprio workflow | roda (gate → build assinado) | sim | **NÃO** (`skipped`) |
-| só backend / docs / `cleanos/pb/**` | **`skipped`** | não | não |
+| `cleanos/flutter/**` ou o workflow Android | roda | sim | **NÃO** (secret Play ausente) |
+| só backend / docs / `cleanos/pb/**` | **skipped** | não | não |
 
-- **Filtro de path existe**, mas num passo `dorny/paths-filter` (job `setup`), **não** no `on:`.
-  Run `29306385979` (PR só de hooks): `build-and-release` = `skipped`, `pubspec` intacto.
-- **`Publish to Google Play` sai `skipped`** enquanto o secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-  não existir. Run `29305301608`: gate + auto-bump + build assinado rodaram; publicação não.
-  Ou seja: **merge hoje NÃO distribui app pra ninguém.**
-
-⚠️ **No dia em que o dono configurar esse secret, isto inverte:** merge que toque em
-`cleanos/flutter/**` passa a publicar sozinho no track `internal` — e aí merge ≠ neutro,
-exige decisão explícita igual deploy (R5).
-
-**Como checar (30s, sempre antes de afirmar qualquer coisa):**
-```
-gh run view <id> --json jobs -q '.jobs[].steps[] | "\(.name): \(.conclusion)"'
-```
-Razão desta regra: eu afirmei duas vezes coisas falsas sobre esta CI lendo só o gatilho do
-workflow — que merge publicava na Play (não publica) e que não havia filtro de path (há) —
-e usei a primeira pra segurar merges do dono por um risco que não existia.
+Filtro de path: `dorny/paths-filter` no job `setup`, **não** no `on:`.  
+Checagem: `gh run view <id> --json jobs -q '…'`.
 
 ---
 
 ## 4. FLUXO DE TRABALHO
 
-**Desenvolvimento:**
-1. Branch a partir de `main` → commitar → PR → dono aprova e mergeia
-2. Mensagens de commit: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
-3. Gate antes de qualquer PR:
-   - `flutter analyze --fatal-infos` (0 issues) + `flutter test` (suíte verde) — **rodado pelo CI**
-   - `cd cleanos/tests && npm test` (hooks do PocketBase) — **NÃO é rodado pelo CI**. Rodar à
-     mão em todo PR que toque `cleanos/pb/`. Razão: sem isso a suíte apodrece em silêncio —
-     descoberto em 14/07/2026 com 3 testes de `fin_saldo` vermelhos na `main` havia semanas
-     (o lib passou a lançar `BadRequestError` e ninguém atualizou o teste). É a suíte que
-     protege o saldo; ela vermelha é pior que ausente.
-   - Nota: 10 testes do `anti-desvio.test.mjs` (ratings/dispatch/catálogo) falham na `main` por
-     dependerem de secrets e de contagem de seed. Dívida conhecida, **não** é regressão.
-4. Dev Flutter web local: `flutter run -d chrome --dart-define=PB_URL=http://127.0.0.1:8090 -t lib/main_painel.dart` (em `cleanos/flutter/`)
-5. Dev Android local: `flutter run -d <DEVICE> --dart-define=PB_URL=http://10.0.2.2:8090 -t lib/main_android.dart`
+### Desenvolvimento
 
-**Deploy produção (VPS via `ssh hostinger`):**
+1. Branch a partir de `main` → commit → PR → dono aprova e mergeia.
+2. Co-author em commits de agente: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` (ou o autor do agente em uso).
+3. **Gate antes de PR:**
+   - `flutter analyze --fatal-infos` + `flutter test` (CI Android se path Flutter).
+   - Se tocou `cleanos/pb/**`: `cd cleanos/tests && npm run test:unit` (CI `hooks-tests.yml` na main).
+   - `anti-desvio.test.mjs` precisa de PB vivo; ~10 casos de ratings/dispatch/seed falham por ambiente — dívida conhecida, não trate como regressão de feature sem medir.
+4. Dev web:  
+   `flutter run -d chrome --dart-define=PB_URL=http://127.0.0.1:8090 -t lib/main_painel.dart`  
+   (em `cleanos/flutter/`)
+5. Dev Android:  
+   `flutter run -d <DEVICE> --dart-define=PB_URL=http://10.0.2.2:8090 -t lib/main_android.dart`
+6. PB local: `cd cleanos/pb && ./pocketbase serve --http=127.0.0.1:8090`
 
-> ⚠️ **R11 — NUNCA rsyncar a pasta `pb_hooks/` inteira.** A produção roda hooks que
-> **não existem no repositório** (`meta_capi_lib.js`; e `os_financeiro.pb.js`, `uazapi.js`,
-> `whatsapp_routes.pb.js` divergem — são as versões do Meta CAPI, que está VIVO em prod).
-> Um rsync da pasta **sobrescreve o hook financeiro da produção** — o que cria os
-> lançamentos ao fechar OS. Deploy de hook é **cirúrgico**: `scp` do arquivo específico,
-> depois de diffar prod contra o repo. Verificado em 14/07/2026.
+### Deploy produção (`ssh hostinger`)
 
-```
-# Backup ANTES de qualquer operação de risco.
-# (o CLI `backup create` NÃO existe nesta build — usar backup online do SQLite:)
+```bash
+# 1) Backup ANTES de risco (CLI `backup create` NÃO existe nesta build)
 ssh hostinger "cd /opt/cleanos/pb && mkdir -p /opt/cleanos/predeploy-\$(date +%F) && \
-  /opt/cleanos/forensics/tools/sqlite3 pb_data/data.db \".backup '/opt/cleanos/predeploy-\$(date +%F)/data.db'\" && \
+  /opt/cleanos/forensics/tools/sqlite3 pb_data/data.db \
+  \".backup '/opt/cleanos/predeploy-\$(date +%F)/data.db'\" && \
   tar czf /opt/cleanos/predeploy-\$(date +%F)/pb_public.tar.gz -C /opt/cleanos/pb pb_public"
 
-# ANTES de tocar em hook: diffar prod contra o repo (detectar drift)
-rsync -az hostinger:/opt/cleanos/pb/pb_hooks/ /tmp/prodhooks/
-diff -r /tmp/prodhooks/ cleanos/pb/pb_hooks/     # conferir arquivo a arquivo
+# 2) Diff hooks (diretório FRESCO + --delete)
+rm -rf /tmp/prodhooks-fresh && mkdir -p /tmp/prodhooks-fresh
+rsync -az --delete hostinger:/opt/cleanos/pb/pb_hooks/ /tmp/prodhooks-fresh/
+diff -rq /tmp/prodhooks-fresh/ cleanos/pb/pb_hooks/
 
-# Backend — hooks: CIRÚRGICO, um arquivo por vez (ver R11)
+# 3) Hooks: CIRÚRGICO (R11)
 scp cleanos/pb/pb_hooks/<arquivo>.js hostinger:/opt/cleanos/pb/pb_hooks/
 
-# Backend — migrations: aditivo é seguro (nunca --delete, nunca o seed — R8)
-rsync -az --exclude='1700000002_seed.js' cleanos/pb/pb_migrations/ hostinger:/opt/cleanos/pb/pb_migrations/
+# 4) Migrations: aditivo, sem --delete, sem seed (R8)
+rsync -az --exclude='1700000002_seed.js' \
+  cleanos/pb/pb_migrations/ hostinger:/opt/cleanos/pb/pb_migrations/
 ssh hostinger "cd /opt/cleanos/pb && ./pocketbase migrate up"
 ssh hostinger "systemctl restart cleanos.service"
 
-# Frontend Flutter Web:
+# 5) Frontend web
 cd cleanos/flutter
 flutter build web --release -t lib/main_painel.dart
-# Validar: grep 'app.cleanox.com.br' build/web/main.dart.js >/dev/null
-# Validar: ! grep '127.0.0.1:8090' build/web/main.dart.js
-# Validar: test -f build/web/sw.js
+# Validar: app.cleanox.com.br no main.dart.js; SEM 127.0.0.1:8090; sw.js presente
 rsync --delete build/web/ hostinger:/opt/cleanos/pb/pb_public/
 ssh hostinger "chown -R ubuntu:ubuntu /opt/cleanos/pb/pb_public"
 
-# Smoke: /api/health == 200 + login real na UI
+# 6) Smoke: /api/health == 200 + login real na UI
 ```
 
-**NUNCA tocar:** Traefik, iptables, `pb_data/` direto, outros apps da VPS (`flowcrm`, `appexcrm`, `mapawenox`).
+**NUNCA tocar:** Traefik/EasyPanel (`/etc/easypanel/traefik/config/cleanox.yaml`),
+iptables, `pb_data/` direto, outros apps da VPS (`flowcrm`, `appexcrm`, `mapawenox`).
 
 ---
 
-## 5. PRODUÇÃO
+## 5. PRODUÇÃO vs LOCAL (snapshot 2026-07-14)
 
-**Infra:** VPS Hostinger (IP 181.215.134.11), systemd `cleanos.service`, PocketBase em `0.0.0.0:8090`. TLS + proxy por Traefik do EasyPanel (`/etc/easypanel/traefik/config/cleanox.yaml`) — **não editar esse arquivo à mão** (EasyPanel pode regenerar). URL: https://app.cleanox.com.br
+### Produção
 
-**Backup:** cron nativo PB às 03:30 BRT, retenção 7 dias, armazenado em `pb_data/backups/` **na mesma VPS** (off-site PENDENTE — maior risco residual).
+| Item | Valor medido |
+|---|---|
+| URL | https://app.cleanox.com.br |
+| Health | `GET /api/health` → **200** `API is healthy.` |
+| Host | VPS Hostinger · IP **181.215.134.11** |
+| Serviço | `systemd cleanos.service` · **active** · User=root |
+| Bind PB | `0.0.0.0:8090` + TLS/proxy Traefik EasyPanel |
+| Env | `/opt/cleanos/cleanos.env` |
+| PB | 0.39.4 |
+| `pb_hooks` | **== repo** (21 arquivos) |
+| Migrations | até **0028** presente |
+| Web | Flutter em `pb_public/` · `sw.js` **sim** · version **1.2.0+20** |
+| `pb_data` | ~21 MB |
+| VPS RAM/disco | 7.8 Gi / 96 G (~57% usado) |
 
-**Histórico de corrupção SQLite (3 episódios — causa raiz ABERTA):**
-- Gatilho: `SQLITE_IOERR_SHORT_READ (522)` → escala para `SQLITE_CORRUPT (11)`. Origem provável: virt-storage da VPS / WAL truncation.
-- `PRAGMA integrity_check` no modo `ro` deu falso-negativo: NÃO é suficiente para declarar banco são. Testar sempre com o processo vivo.
-- **Reparo:** service stop → cópia forense → `sqlite3 .recover` (usar `/opt/cleanos/forensics/tools/sqlite3`, não o do Ubuntu 3.45.1 do APT que vem sem `sqlite_dbpage`) → validação offline (integrity + contagem por coleção + hash por PK) → swap → start → `quick_check` no processo vivo.
-- Forense preservada em `/opt/cleanos/forensics/` (`data.db.corrupt-20260708`, `data.db.recovered-good-20260708`, `recover-20260708.sql`).
-- **Perda real (08/jul):** `app_config` perdeu 1 linha (token WhatsApp + templates). Dono precisa re-inserir via UI superuser.
+**Contagens de negócio (aprox., prod):**
 
-**Pendências estruturais abertas:**
-- Backup off-site (S3/R2) — PENDENTE (hoje tudo na mesma VPS)
-- FCM v1 — `push.js` DEPLOYADO mas inerte; aguardando projeto Firebase + chaves do dono (push.js ainda usa FCM legacy, precisa migrar para HTTP v1)
-- 2º superuser na instância — a auditar (identidade desconhecida)
-- SMTP + MFA — desligados; sem recuperação de senha
-- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — falta para publicação automática na Play Store
-- Keystore `~/.cleanos-keystore/` — backup externo CRÍTICO pendente com o dono
+| Coleção | n |
+|---|---|
+| users | 6 |
+| clientes | 4 |
+| servicos | 33 |
+| ordens_servico | 4 |
+| fin_contas | 2 |
+| fin_lancamentos | 1 |
+| fin_categorias | 41 |
+| app_config | 1 |
+| config_atuacao | 1 |
+| disponibilidade | 2 |
+| os_evidencias | 0 |
+
+Ambiente ainda **pequeno / early production** — não é só seed de dev, mas volume baixo.
+
+**Backup:** auto PB `@auto_pb_backup_acme_*` ~03:30 (visto `…20260714033000.zip`) em
+`pb_data/backups/` **na mesma VPS**. Off-site **PENDENTE** (maior risco residual).
+Predeploys manuais em `/opt/cleanos/predeploy-*`. Forense SQLite em `/opt/cleanos/forensics/`.
+
+### Local (máquina de dev)
+
+| Item | Valor medido |
+|---|---|
+| Branch de trabalho (exemplo) | `fix/qa-painel-os` (pode estar **atrás** de `origin/main`) |
+| PB | `127.0.0.1:8090` · **healthy** · `./pocketbase` 0.39.4 |
+| Flutter | 3.35.5 / Dart 3.9.2 |
+| `pb_hooks` workspace | em paridade com prod (mesmos 21 arquivos no tree atual) |
+| Atenção | Sempre `git fetch` + comparar com `origin/main` antes de afirmar “estado do projeto” — worktrees e branches de QA divergem |
+
+### Histórico de corrupção SQLite (causa raiz ABERTA)
+
+- Gatilho: `SQLITE_IOERR_SHORT_READ (522)` → `SQLITE_CORRUPT (11)`. Origem provável: virt-storage / WAL.
+- `PRAGMA integrity_check` em modo `ro` deu falso-negativo — validar com processo **vivo**.
+- Reparo: stop → cópia forense → `sqlite3 .recover` com **`/opt/cleanos/forensics/tools/sqlite3`** (não o sqlite do APT sem `sqlite_dbpage`) → validar → swap → start.
+- Perda real 08/jul: linha de `app_config` (token WhatsApp + templates).
+
+### Pendências estruturais abertas
+
+| Item | Estado |
+|---|---|
+| Backup off-site (S3/R2) | PENDENTE |
+| FCM em produção | Código **HTTP v1** deployado; inerte sem `FCM_PROJECT_ID` + `FCM_ACCESS_TOKEN` + projeto Firebase do dono |
+| Tracking GPS no app | Código atrás de `TRACKING_ENABLED=false` |
+| 2º superuser na instância | Auditar identidade |
+| SMTP + MFA | Desligados; sem recuperação de senha |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Ausente → merge **não** publica na Play |
+| Backup externo do keystore | CRÍTICO pendente com o dono |
+| `anti-desvio` E2E no CI | Dívida (precisa PB + secrets estáveis) |
+| iOS | Fora de escopo (gate conta Apple) |
+
+---
+
+## 6. FLUXO DE UMA OS (ponta a ponta)
+
+```
+Lead (WhatsApp / telefone / indicação)
+  → Painel cadastra cliente (+ origem) e cria OS (agendada)
+  → Atribui profissional (atribuida) + agenda por disponibilidade
+  → Prof vê "visão de job": nome parcial, bairro, horário, serviço
+  → No dia: Iniciar → em_andamento → hook libera endereco_liberado
+  → A-caminho / cheguei (WhatsApp empresa + posicao opcional)
+  → Checklist + evidências + pagamento (débito/crédito/pix maquininha)
+  → Concluir → concluida
+       ├─ os_financeiro → receita fin_lancamentos (via_os) + saldo atômico
+       ├─ prof_comissao → prof_comissoes (se % ou fixo)
+       └─ meta_capi → Purchase (se valor_pago > 0)
+  → Admin marca comissão paga → despesa real + debita saldo (F-231)
+  → Endereço some do histórico do prof
+```
+
+Status canônicos: `agendada` → `atribuida` → `em_andamento` → `concluida` | `cancelada`.
+
+---
+
+## 7. O QUE NÃO É ESTE PROJETO
+
+- Não é SaaS multi-tenant.
+- Não é React/Vite/PWA (legado de docs).
+- Não é gateway de pagamento / split / Asaas (histórico de spec).
+- Não é app iOS (ainda).
+- Não é CRM genérico — é operação de limpeza com anti-desvio e caixa real.
+
+---
+
+*Última medição de paridade hooks prod↔repo e health: 2026-07-14. Atualizar este DNA quando a medição mudar — não quando a intuição mudar.*
