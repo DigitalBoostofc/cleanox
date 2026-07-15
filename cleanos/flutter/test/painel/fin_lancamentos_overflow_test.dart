@@ -46,8 +46,8 @@ void main() {
 
     await pumpAt(tester, debugDayHeader(grupo), 320);
 
-    // A data renderiza e NÃO houve RenderFlex overflow.
-    expect(find.text('10/07/2026'), findsOneWidget);
+    // A data compacta (dd/MM/yy) renderiza e NÃO houve RenderFlex overflow.
+    expect(find.text('10/07/26'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
