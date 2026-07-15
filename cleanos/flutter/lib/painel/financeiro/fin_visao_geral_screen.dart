@@ -254,11 +254,6 @@ class _Body extends StatelessWidget {
               onNovaReceita: onNovaReceita,
               onNovaDespesa: onNovaDespesa,
               onTransferencia: onTransferencia,
-              onImportar: () => showClxToast(
-                context,
-                'Importação — em breve.',
-                type: ToastType.info,
-              ),
             ),
           ),
           const SizedBox(height: ClxSpace.x4),
@@ -317,11 +312,6 @@ class _Body extends StatelessWidget {
           onNovaReceita: onNovaReceita,
           onNovaDespesa: onNovaDespesa,
           onTransferencia: onTransferencia,
-          onImportar: () => showClxToast(
-            context,
-            'Importação — em breve.',
-            type: ToastType.info,
-          ),
         ),
         if (lancs.isEmpty) ...[
           const SizedBox(height: ClxSpace.x4),
@@ -427,7 +417,6 @@ class _OrganizzeTop extends StatelessWidget {
     required this.onNovaReceita,
     required this.onNovaDespesa,
     required this.onTransferencia,
-    required this.onImportar,
   });
 
   final String userName;
@@ -435,7 +424,6 @@ class _OrganizzeTop extends StatelessWidget {
   final VoidCallback onNovaReceita;
   final VoidCallback onNovaDespesa;
   final VoidCallback onTransferencia;
-  final VoidCallback onImportar;
 
   String get _saudacao {
     final h = DateTime.now().hour;
@@ -500,7 +488,6 @@ class _OrganizzeTop extends StatelessWidget {
                 onNovaReceita: onNovaReceita,
                 onNovaDespesa: onNovaDespesa,
                 onTransferencia: onTransferencia,
-                onImportar: onImportar,
               ),
             ],
           ),
@@ -700,16 +687,14 @@ class _QuickActions extends StatelessWidget {
     required this.onNovaReceita,
     required this.onNovaDespesa,
     required this.onTransferencia,
-    required this.onImportar,
     this.compact = false,
   });
 
   final VoidCallback onNovaReceita;
   final VoidCallback onNovaDespesa;
   final VoidCallback onTransferencia;
-  final VoidCallback onImportar;
 
-  /// Estilo Organizze: 4 botões em linha (DESPESA / RECEITA / TRANSF / IMPORT).
+  /// Estilo Organizze: DESPESA / RECEITA / TRANSF.
   final bool compact;
 
   @override
@@ -736,13 +721,6 @@ class _QuickActions extends StatelessWidget {
       bg: clx.bg3,
       onTap: onTransferencia,
     );
-    final importar = _QuickAction(
-      icon: Icons.file_download_outlined,
-      label: compact ? 'IMPORTAR' : 'Importar',
-      fg: clx.ink2,
-      bg: clx.bg3,
-      onTap: onImportar,
-    );
 
     if (compact) {
       return Row(
@@ -753,26 +731,15 @@ class _QuickActions extends StatelessWidget {
           novaReceita,
           const SizedBox(width: ClxSpace.x2),
           transferencia,
-          const SizedBox(width: ClxSpace.x2),
-          importar,
         ],
       );
     }
 
-    // Mobile / Easypay: grade fixa 2x2.
+    // Mobile / Easypay: 3 botões em linha.
     if (finIsMobile(context)) {
-      return Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [novaReceita, novaDespesa],
-          ),
-          const SizedBox(height: ClxSpace.x3),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [transferencia, importar],
-          ),
-        ],
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [novaReceita, novaDespesa, transferencia],
       );
     }
 
@@ -780,7 +747,7 @@ class _QuickActions extends StatelessWidget {
       spacing: ClxSpace.x3,
       runSpacing: ClxSpace.x3,
       alignment: WrapAlignment.spaceAround,
-      children: [novaReceita, novaDespesa, transferencia, importar],
+      children: [novaReceita, novaDespesa, transferencia],
     );
   }
 }
