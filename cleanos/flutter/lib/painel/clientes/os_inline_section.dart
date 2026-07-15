@@ -82,10 +82,9 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   bool validate() {
     final errs = <String, String>{};
     if (_servicoId.isEmpty) errs['servico'] = 'Selecione um serviço';
+    // Datas no passado são permitidas (registrar OS históricas / backfill).
     if (_dataDate.isEmpty) {
       errs['data'] = 'Data é obrigatória';
-    } else if (_dataDate.compareTo(todayLocalDate()) < 0) {
-      errs['data'] = 'A data não pode ser no passado';
     }
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
     if (valor == null || valor <= 0) errs['valor'] = 'Informe o valor';
@@ -735,13 +734,16 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     } else {
       initial = now;
     }
-    final first = DateTime(now.year, now.month, now.day);
+    // Piso amplo: permite lançar OS de atendimentos passados (backfill operacional).
+    final first = DateTime(2020);
     if (initial.isBefore(first)) initial = first;
+    final last = DateTime(now.year + 2);
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: first,
-      lastDate: DateTime(now.year + 2),
+      lastDate: last,
     );
     if (picked != null) {
       setState(() {
