@@ -10,7 +10,8 @@
 /// - snap de 15 min e duração mínima de 15 min;
 /// - resize pela borda inferior nunca cruza a meia-noite do dia de início;
 /// - cross-day na semana: coluna destino = deslocamento horizontal / largura (D8);
-/// - **nunca para um dia anterior** (D7) — mover mais cedo DENTRO do dia é ok.
+/// - dia de destino com piso amplo (2020): permite remarcar OS no passado
+///   (backfill / correção de agenda) — alinhado ao formulário de OS.
 library;
 
 import '../formatters/formatters.dart';
@@ -65,19 +66,25 @@ int deltaDiasDoDrag(double dxPx, double larguraColunaPx) {
 /// Data (date-only) de um [DateTime] — descarta a hora, imune a fuso.
 DateTime diaDe(DateTime d) => DateTime(d.year, d.month, d.day);
 
-/// Recorta o dia de destino do arraste (D7): **nunca antes de hoje**. Se a OS já
-/// está no passado, o piso é o próprio dia dela (arrastar não a empurra pra
-/// frente sozinha nem a joga mais pra trás).
+/// Recorta o dia de destino do arraste.
+///
+/// Piso amplo (**2020-01-01**), igual ao date picker do form de OS: permite
+/// arrastar de volta para dias passados (ex.: 15 → 14). O piso antigo “nunca
+/// antes de hoje” (D7) impedia correção de agenda e backfill operacional.
+///
+/// [diaOriginal] e [hoje] permanecem na assinatura (grade, sheet e testes);
+/// não definem mais o piso.
 DateTime clampDiaDestino(
   DateTime destino, {
   required DateTime diaOriginal,
   required DateTime hoje,
 }) {
+  // Assinatura estável para grade/sheet/testes. O piso antigo ("hoje" ou o dia
+  // original da OS) foi retirado: remarcar no passado é operação legítima.
+  assert(diaOriginal.year > 0 && hoje.year > 0);
   final d = diaDe(destino);
-  final original = diaDe(diaOriginal);
-  final h = diaDe(hoje);
-  final piso = h.isBefore(original) ? h : original;
-  return d.isBefore(piso) ? piso : d;
+  final first = DateTime(2020);
+  return d.isBefore(first) ? first : d;
 }
 
 /// `data_hora` do PB (string UTC) para o dia BRT [dia] às [startMin] minutos.
