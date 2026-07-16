@@ -389,6 +389,37 @@ class _Toolbar extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(width: ClxSpace.x3),
+          // Ordenação (server-side): data mais próxima primeiro por padrão.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 260),
+            child: DropdownButtonFormField<OrdensSort>(
+              initialValue: filter.sort,
+              isExpanded: true,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: clx.bg2,
+                prefixIcon: const Icon(Icons.swap_vert_rounded, size: 18),
+                border: const OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: [
+                for (final s in OrdensSort.values)
+                  DropdownMenuItem(
+                    value: s,
+                    child: Text(s.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (s) {
+                if (s != null) {
+                  ref.read(ordensControllerProvider.notifier).setSort(s);
+                }
+              },
+            ),
+          ),
         ],
       ),
     );
