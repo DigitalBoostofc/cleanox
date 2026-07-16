@@ -116,6 +116,12 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      // A tela agora abre em "Agendada" (semana) — a OS deste teste está
+      // em andamento, então muda de aba antes de interagir.
+      await tester.tap(find.text('Em andamento'));
+      await tester.pump();
+      await tester.pump();
+
       await tester.tap(find.text('Carlos S.').first);
       await tester.pumpAndSettle();
       expect(find.byType(OSDetail), findsOneWidget);
@@ -159,6 +165,12 @@ void main() {
           usuarios: FakeUsuarios(profissionais: profs),
         ),
       );
+      await tester.pump();
+      await tester.pump();
+
+      // A tela agora abre em "Agendada" (semana) — a OS deste teste está
+      // em andamento, então muda de aba antes de interagir.
+      await tester.tap(find.text('Em andamento'));
       await tester.pump();
       await tester.pump();
 
