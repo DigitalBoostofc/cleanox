@@ -158,8 +158,18 @@ class FakeOrdens implements OrdensRepository {
     return seed.firstWhere((o) => o.id == osId);
   }
 
+  int deleteCount = 0;
+  String? lastDeleted;
+
   @override
-  Future<void> delete(String osId) async {}
+  Future<void> delete(String osId) async {
+    deleteCount++;
+    lastDeleted = osId;
+    seed = [
+      for (final o in seed)
+        if (o.id != osId) o,
+    ];
+  }
 
   Never _unused() => throw UnimplementedError('não usado nos testes');
   @override

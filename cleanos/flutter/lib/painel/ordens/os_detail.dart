@@ -2,7 +2,7 @@
 ///
 /// Espelha o modal "view" de `OrdensServico.tsx`: identificação, endereço liberado
 /// (só em_andamento), profissional com REATRIBUIÇÃO (admin/gerente), financeiro e
-/// avaliação. Ações: abrir Execução (admin), Editar, Cancelar OS.
+/// avaliação. Ações: abrir Execução (admin), Editar, Cancelar OS, Excluir OS.
 ///
 /// Mostrado via [showOSDetail]. Resolve um [OSDetailResult] dizendo ao caller se
 /// algo mudou (recarregar a lista) e/ou se o usuário pediu para editar/executar.
@@ -180,6 +180,55 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     }
   }
 
+  Future<void> _excluir() async {
+    // O aviso muda para OS concluída: ela tem dinheiro atrelado, e o hook do
+    // servidor vai estornar receita (saldo) e apagar a comissão junto.
+    final concluida = _os.status == OSStatus.concluida;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir OS'),
+        content: Text(
+          concluida
+              ? 'Esta OS está concluída: a receita dela será removida do '
+                    'financeiro (com estorno do saldo da conta) e a comissão '
+                    'do profissional será apagada. As fotos de evidência '
+                    'também serão excluídas.\n\n'
+                    'Esta ação não pode ser desfeita.'
+              : 'A OS e suas fotos de evidência serão excluídas.\n\n'
+                    'Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Voltar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Excluir OS'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(ordensControllerProvider.notifier).excluir(_os.id);
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível excluir a OS.',
+          type: ToastType.error,
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    ref.invalidate(ordensCountsProvider);
+    showClxToast(context, 'OS excluída.', type: ToastType.success);
+    Navigator.of(context).pop(const OSDetailResult(changed: true));
+  }
+
   void _close([OSDetailIntent? intent]) {
     // Devolve `_os` — o registro ATUAL, já com a reatribuição feita aqui dentro.
     // Sem isso o caller reabria o form de edição com o registro velho (F-234).
@@ -313,6 +362,12 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   icon: Icons.cancel_outlined,
                   onPressed: _cancelar,
                 ),
+              ClxButton(
+                label: 'Excluir OS',
+                variant: ClxButtonVariant.danger,
+                icon: Icons.delete_outline_rounded,
+                onPressed: _excluir,
+              ),
             ],
           ),
         ),
