@@ -22,6 +22,7 @@ onRecordCreate((e) => {
   const lib = require(`${__hooks}/os_logic.js`);
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record); // limpa/define endereço conforme status
+  lib.stampIniciadaEm(e.record); // carimbo de início (create direto em em_andamento)
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: cobre create-as-concluida (OS nascendo concluida)
 
@@ -53,6 +54,7 @@ onRecordUpdate((e) => {
 
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
+  lib.stampIniciadaEm(e.record); // carimbo de início na transição → em_andamento
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);
@@ -191,6 +193,7 @@ onRecordRequestEmailChangeRequest((e) => {
 // ----------------------------------------------------------------------------
 cronAdd("cleanStaleEndereco", "5 * * * *", () => {
   try {
+    const lib      = require(`${__hooks}/os_logic.js`);
     const nowBRT   = new Date(Date.now() - 3 * 3600 * 1000);
     const todayBRT = nowBRT.toISOString().slice(0, 10);
 
@@ -201,12 +204,11 @@ cronAdd("cleanStaleEndereco", "5 * * * *", () => {
 
     let cleaned = 0;
     for (const rec of records) {
-      const raw = rec.getString("data_hora");
-      if (!raw) continue;
-      // Converte data_hora (UTC) para BRT e pega o dia
-      const dataBRT = new Date(new Date(raw).getTime() - 3 * 3600 * 1000);
-      const diaBRT  = dataBRT.toISOString().slice(0, 10);
-      if (diaBRT < todayBRT) {
+      // "Stale" = o serviço COMEÇOU (iniciada_em; fallback data_hora p/ OS
+      // legadas) num dia BRT anterior. O corte NÃO usa mais data_hora direto:
+      // uma OS de ontem iniciada HOJE (regra "dia do serviço ou depois")
+      // não pode ter o endereço varrido no meio do atendimento.
+      if (lib.isStaleEmAndamento(rec, todayBRT)) {
         rec.set("endereco_liberado", "");
         $app.save(rec);
         cleaned++;

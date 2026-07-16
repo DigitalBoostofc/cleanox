@@ -28,7 +28,9 @@ e vê o JSON. As garantias abaixo são impostas pelo PocketBase:
 2. O profissional só enxerga uma **"visão de job"**: primeiro nome + inicial
    ("Carlos S."), tipo de serviço, **bairro** e horário.
 3. O **endereço completo** é liberado ao profissional **somente** quando a OS vira
-   `em_andamento` (ao tocar "Iniciar"), **no dia do serviço**; ao virar
+   `em_andamento` (ao tocar "Iniciar"), **a partir do dia do serviço** — nunca
+   antes; dias passados são permitidos para encerrar OS que ficou sem registro
+   (o hook carimba `iniciada_em` e o cron corta por ele). Ao virar
    `concluida`/`cancelada` o endereço é re-restringido (some do histórico dele).
 4. O **telefone NUNCA** é exposto ao profissional em nenhum estado.
 
