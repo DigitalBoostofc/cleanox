@@ -55,6 +55,7 @@ class EvidenciasSection extends StatelessWidget {
     this.deletingId,
     this.onRetry,
     this.disabled = false,
+    this.readOnly = false,
   });
 
   final List<EvidenciaFoto> fotos;
@@ -78,6 +79,9 @@ class EvidenciasSection extends StatelessWidget {
   final String? deletingId;
   final ValueChanged<String>? onRetry;
   final bool disabled;
+
+  /// Modo leitura (OS concluída): sem adicionar/remover/editar fotos.
+  final bool readOnly;
 
   static const List<FaseFoto> _fases = [
     FaseFoto.antes,
@@ -111,7 +115,8 @@ class EvidenciasSection extends StatelessWidget {
           _FaseGrupo(
             fase: fase,
             fotos: fotos.where((f) => f.fase == fase).toList(),
-            onPick: disabled ? null : () => onPick(fase),
+            onPick: (disabled || readOnly) ? null : () => onPick(fase),
+            readOnly: readOnly,
             onRemove: onRemove,
             onLegenda: onLegenda,
             onVinculo: onVinculo,
@@ -132,6 +137,7 @@ class _FaseGrupo extends StatelessWidget {
     required this.fase,
     required this.fotos,
     required this.onPick,
+    required this.readOnly,
     required this.onRemove,
     required this.onLegenda,
     required this.onVinculo,
@@ -145,6 +151,7 @@ class _FaseGrupo extends StatelessWidget {
   final FaseFoto fase;
   final List<EvidenciaFoto> fotos;
   final VoidCallback? onPick;
+  final bool readOnly;
   final ValueChanged<String> onRemove;
   final void Function(String, String) onLegenda;
   final void Function(String, Vinculo?)? onVinculo;
@@ -229,6 +236,7 @@ class _FaseGrupo extends StatelessWidget {
                 uploading: pendingIds.contains(f.id),
                 failed: failedIds.contains(f.id),
                 deleting: deletingId == f.id,
+                readOnly: readOnly,
                 onRemove: () => onRemove(f.id),
                 onLegenda: (v) => onLegenda(f.id, v),
                 onVinculo: onVinculo == null
@@ -250,6 +258,7 @@ class _FotoCard extends StatelessWidget {
     required this.uploading,
     required this.failed,
     required this.deleting,
+    required this.readOnly,
     required this.onRemove,
     required this.onLegenda,
     required this.onVinculo,
@@ -261,6 +270,7 @@ class _FotoCard extends StatelessWidget {
   final bool uploading;
   final bool failed;
   final bool deleting;
+  final bool readOnly;
   final VoidCallback onRemove;
   final ValueChanged<String> onLegenda;
   final ValueChanged<Vinculo?>? onVinculo;
@@ -370,7 +380,7 @@ class _FotoCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                if (!busy)
+                if (!busy && !readOnly)
                   Positioned(
                     top: 4,
                     right: 4,
@@ -396,7 +406,7 @@ class _FotoCard extends StatelessWidget {
               children: [
                 TextFormField(
                   initialValue: foto.legenda ?? '',
-                  enabled: !busy,
+                  enabled: !busy && !readOnly,
                   onChanged: onLegenda,
                   style: Theme.of(context).textTheme.bodyMedium,
                   decoration: const InputDecoration(
@@ -428,7 +438,9 @@ class _FotoCard extends StatelessWidget {
                           ),
                         ),
                     ],
-                    onChanged: busy ? null : (raw) => onVinculo!(_parse(raw)),
+                    onChanged: (busy || readOnly)
+                        ? null
+                        : (raw) => onVinculo!(_parse(raw)),
                   ),
                 ],
               ],

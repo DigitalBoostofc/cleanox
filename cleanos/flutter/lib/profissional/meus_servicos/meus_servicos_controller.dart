@@ -265,10 +265,17 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
     OrdemServico os, {
     required double valor,
     required FormaPagamento forma,
+    String outro = '',
   }) async {
     final updated = await _repo.patchExec(
       os.id,
-      OSExecPatch(valorPago: valor, formaPagamento: forma),
+      // `outro` sempre vai no body: preenche no "Outros" e LIMPA ('') nas
+      // demais formas (senão um detalhe antigo sobreviveria à troca de forma).
+      OSExecPatch(
+        valorPago: valor,
+        formaPagamento: forma,
+        formaPagamentoOutro: outro,
+      ),
     );
     _upsert(updated);
   }

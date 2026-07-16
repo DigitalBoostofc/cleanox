@@ -82,6 +82,10 @@ class OrdemServico with _$OrdemServico {
     )
     FormaPagamento? formaPagamento,
 
+    /// Detalhe livre quando [formaPagamento] é [FormaPagamento.outros]
+    /// (ex.: "Transferência", "Cortesia"). "" no PB vira null aqui (R2).
+    @JsonKey(name: 'forma_pagamento_outro') String? formaPagamentoOutro,
+
     /// Repasse — gerenciado manualmente pelo admin.
     @JsonKey(
       name: 'repasse_status',
@@ -161,16 +165,28 @@ class OrdemServico with _$OrdemServico {
   );
 
   /// Nome do cliente para EXIBIR — nome inteiro quando o cofre veio expandido
-  /// (só o Painel expande `cliente`), abreviado caso contrário.
+  /// (só o Painel expande `cliente`), senão o denormalizado `nome_curto`.
   ///
-  /// 🔒 É este fallback que mantém a fronteira de privacidade: o app do
-  /// profissional nunca pede `expand=cliente`, então [expand] vem sem cliente e
-  /// ele continua vendo "Carlos S." — sem nenhum `if (isPainel)` espalhado pela
-  /// UI. Use SEMPRE este getter na UI; `nomeCurto` cru só onde o abreviado é o
-  /// objetivo.
+  /// Desde 16/07/2026 (decisão do dono) o próprio `nome_curto` já traz o nome
+  /// completo denormalizado pelo servidor; o expand continua tendo prioridade
+  /// porque reflete edições do cadastro ainda não re-denormalizadas na OS.
+  /// 🔒 O app do profissional nunca pede `expand=cliente` (o cofre segue
+  /// fechado); telefone/e-mail continuam inacessíveis a ele.
   String get clienteNomeExibicao {
     final completo = expand?.cliente?.nomeCompleto.trim() ?? '';
     return completo.isNotEmpty ? completo : nomeCurto;
+  }
+
+  /// Forma de pagamento para EXIBIR: label do enum, com o detalhe livre no
+  /// lugar de "Outros" quando preenchido (ex.: "Transferência").
+  String? get formaPagamentoExibicao {
+    final f = formaPagamento;
+    if (f == null) return null;
+    if (f == FormaPagamento.outros &&
+        (formaPagamentoOutro ?? '').trim().isNotEmpty) {
+      return formaPagamentoOutro!.trim();
+    }
+    return f.label;
   }
 }
 

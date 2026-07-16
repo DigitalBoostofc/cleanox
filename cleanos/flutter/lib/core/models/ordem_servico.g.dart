@@ -33,6 +33,7 @@ _$OrdemServicoImpl _$$OrdemServicoImplFromJson(
     json['forma_pagamento'],
     unknownValue: JsonKey.nullForUndefinedEnumValue,
   ),
+  formaPagamentoOutro: json['forma_pagamento_outro'] as String?,
   repasseStatus: $enumDecodeNullable(
     _$RepasseStatusEnumMap,
     json['repasse_status'],
@@ -90,6 +91,7 @@ Map<String, dynamic> _$$OrdemServicoImplToJson(
   'endereco_liberado': instance.enderecoLiberado,
   'valor_pago': instance.valorPago,
   'forma_pagamento': _$FormaPagamentoEnumMap[instance.formaPagamento],
+  'forma_pagamento_outro': instance.formaPagamentoOutro,
   'repasse_status': _$RepasseStatusEnumMap[instance.repasseStatus],
   'repasse_valor': instance.repasseValor,
   'aviso_a_caminho_em': instance.avisoACaminhoEm,
@@ -117,9 +119,12 @@ const _$OSStatusEnumMap = {
 };
 
 const _$FormaPagamentoEnumMap = {
+  FormaPagamento.dinheiro: 'dinheiro',
   FormaPagamento.debito: 'debito',
   FormaPagamento.credito: 'credito',
+  FormaPagamento.pix: 'pix',
   FormaPagamento.pixMaquininha: 'pix_maquininha',
+  FormaPagamento.outros: 'outros',
 };
 
 const _$RepasseStatusEnumMap = {

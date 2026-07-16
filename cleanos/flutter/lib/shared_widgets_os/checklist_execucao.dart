@@ -21,11 +21,15 @@ class ChecklistExecucao extends StatefulWidget {
     required this.items,
     required this.onChange,
     this.concluidoPor = 'Profissional',
+    this.readOnly = false,
     this.nowIso,
   });
 
   final List<ChecklistExecItem> items;
   final ValueChanged<List<ChecklistExecItem>> onChange;
+
+  /// Modo leitura (OS concluída): nenhum toggle/observação editável.
+  final bool readOnly;
 
   /// Nome gravado em `concluidoPor` ao marcar um item.
   final String concluidoPor;
@@ -45,6 +49,7 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
       widget.nowIso?.call() ?? DateTime.now().toUtc().toIso8601String();
 
   void _toggle(ChecklistExecItem item) {
+    if (widget.readOnly) return;
     final next = widget.items.map((it) {
       if (it.id != item.id) return it;
       if (it.concluido) {
@@ -143,6 +148,7 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
               _ChecklistTile(
                 item: it,
                 obsOpen: _openObs.contains(it.id),
+                readOnly: widget.readOnly,
                 onToggle: () => _toggle(it),
                 onToggleObs: () => setState(() {
                   if (!_openObs.add(it.id)) _openObs.remove(it.id);
@@ -162,6 +168,7 @@ class _ChecklistTile extends StatelessWidget {
   const _ChecklistTile({
     required this.item,
     required this.obsOpen,
+    required this.readOnly,
     required this.onToggle,
     required this.onToggleObs,
     required this.onObsChanged,
@@ -169,6 +176,7 @@ class _ChecklistTile extends StatelessWidget {
 
   final ChecklistExecItem item;
   final bool obsOpen;
+  final bool readOnly;
   final VoidCallback onToggle;
   final VoidCallback onToggleObs;
   final ValueChanged<String> onObsChanged;
@@ -209,7 +217,7 @@ class _ChecklistTile extends StatelessWidget {
                       child: Checkbox(
                         value: concluido,
                         activeColor: clx.success,
-                        onChanged: (_) => onToggle(),
+                        onChanged: readOnly ? null : (_) => onToggle(),
                         materialTapTargetSize: MaterialTapTargetSize.padded,
                       ),
                     );
@@ -226,7 +234,7 @@ class _ChecklistTile extends StatelessWidget {
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: onToggle,
+                          onTap: readOnly ? null : onToggle,
                           customBorder: const CircleBorder(),
                           child: Center(
                             child: AnimatedContainer(
@@ -258,8 +266,13 @@ class _ChecklistTile extends StatelessWidget {
                   );
                 },
               ),
+              // O NOME do item também alterna o status (pedido do dono, 16/07:
+              // antes só a caixinha respondia ao toque).
               Expanded(
-                child: Padding(
+                child: InkWell(
+                  onTap: readOnly ? null : onToggle,
+                  borderRadius: ClxRadii.rMd,
+                  child: Padding(
                   padding: const EdgeInsets.only(top: ClxSpace.x2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,21 +336,23 @@ class _ChecklistTile extends StatelessWidget {
                         ),
                     ],
                   ),
+                  ),
                 ),
               ),
-              IconButton(
-                tooltip: (item.observacao ?? '').isNotEmpty
-                    ? 'Editar observação'
-                    : 'Adicionar observação',
-                icon: Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: (item.observacao ?? '').isNotEmpty
-                      ? clx.accent
-                      : clx.ink3,
+              if (!readOnly)
+                IconButton(
+                  tooltip: (item.observacao ?? '').isNotEmpty
+                      ? 'Editar observação'
+                      : 'Adicionar observação',
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: (item.observacao ?? '').isNotEmpty
+                        ? clx.accent
+                        : clx.ink3,
+                  ),
+                  onPressed: onToggleObs,
                 ),
-                onPressed: onToggleObs,
-              ),
             ],
           ),
           if (obsOpen)

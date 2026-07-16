@@ -25,8 +25,9 @@ e vê o JSON. As garantias abaixo são impostas pelo PocketBase:
 1. O contato sensível do cliente (telefone, e-mail, sobrenome, endereço completo)
    fica na coleção **`clientes`**, que o papel `profissional` **não lê de forma
    alguma**.
-2. O profissional só enxerga uma **"visão de job"**: primeiro nome + inicial
-   ("Carlos S."), tipo de serviço, **bairro** e horário.
+2. O profissional só enxerga uma **"visão de job"**: nome do cliente (completo,
+   por decisão do dono em 16/07/2026 — antes era "Carlos S."), tipo de serviço,
+   **bairro** e horário. Telefone/e-mail seguem fora, sempre.
 3. O **endereço completo** é liberado ao profissional **somente** quando a OS vira
    `em_andamento` (ao tocar "Iniciar"), **a partir do dia do serviço** — nunca
    antes; dias passados são permitidos para encerrar OS que ficou sem registro

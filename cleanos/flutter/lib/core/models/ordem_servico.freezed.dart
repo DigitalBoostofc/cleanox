@@ -297,6 +297,11 @@ mixin _$OrdemServico {
   )
   FormaPagamento? get formaPagamento => throw _privateConstructorUsedError;
 
+  /// Detalhe livre quando [formaPagamento] é [FormaPagamento.outros]
+  /// (ex.: "Transferência", "Cortesia"). "" no PB vira null aqui (R2).
+  @JsonKey(name: 'forma_pagamento_outro')
+  String? get formaPagamentoOutro => throw _privateConstructorUsedError;
+
   /// Repasse — gerenciado manualmente pelo admin.
   @JsonKey(
     name: 'repasse_status',
@@ -377,6 +382,7 @@ abstract class $OrdemServicoCopyWith<$Res> {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     FormaPagamento? formaPagamento,
+    @JsonKey(name: 'forma_pagamento_outro') String? formaPagamentoOutro,
     @JsonKey(
       name: 'repasse_status',
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
@@ -434,6 +440,7 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? enderecoLiberado = freezed,
     Object? valorPago = freezed,
     Object? formaPagamento = freezed,
+    Object? formaPagamentoOutro = freezed,
     Object? repasseStatus = freezed,
     Object? repasseValor = freezed,
     Object? avisoACaminhoEm = freezed,
@@ -510,6 +517,10 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
                 ? _value.formaPagamento
                 : formaPagamento // ignore: cast_nullable_to_non_nullable
                       as FormaPagamento?,
+            formaPagamentoOutro: freezed == formaPagamentoOutro
+                ? _value.formaPagamentoOutro
+                : formaPagamentoOutro // ignore: cast_nullable_to_non_nullable
+                      as String?,
             repasseStatus: freezed == repasseStatus
                 ? _value.repasseStatus
                 : repasseStatus // ignore: cast_nullable_to_non_nullable
@@ -641,6 +652,7 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     FormaPagamento? formaPagamento,
+    @JsonKey(name: 'forma_pagamento_outro') String? formaPagamentoOutro,
     @JsonKey(
       name: 'repasse_status',
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
@@ -699,6 +711,7 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? enderecoLiberado = freezed,
     Object? valorPago = freezed,
     Object? formaPagamento = freezed,
+    Object? formaPagamentoOutro = freezed,
     Object? repasseStatus = freezed,
     Object? repasseValor = freezed,
     Object? avisoACaminhoEm = freezed,
@@ -775,6 +788,10 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
             ? _value.formaPagamento
             : formaPagamento // ignore: cast_nullable_to_non_nullable
                   as FormaPagamento?,
+        formaPagamentoOutro: freezed == formaPagamentoOutro
+            ? _value.formaPagamentoOutro
+            : formaPagamentoOutro // ignore: cast_nullable_to_non_nullable
+                  as String?,
         repasseStatus: freezed == repasseStatus
             ? _value.repasseStatus
             : repasseStatus // ignore: cast_nullable_to_non_nullable
@@ -872,6 +889,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     this.formaPagamento,
+    @JsonKey(name: 'forma_pagamento_outro') this.formaPagamentoOutro,
     @JsonKey(
       name: 'repasse_status',
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
@@ -972,6 +990,12 @@ class _$OrdemServicoImpl extends _OrdemServico {
   )
   final FormaPagamento? formaPagamento;
 
+  /// Detalhe livre quando [formaPagamento] é [FormaPagamento.outros]
+  /// (ex.: "Transferência", "Cortesia"). "" no PB vira null aqui (R2).
+  @override
+  @JsonKey(name: 'forma_pagamento_outro')
+  final String? formaPagamentoOutro;
+
   /// Repasse — gerenciado manualmente pelo admin.
   @override
   @JsonKey(
@@ -1051,7 +1075,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1082,6 +1106,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
                 other.valorPago == valorPago) &&
             (identical(other.formaPagamento, formaPagamento) ||
                 other.formaPagamento == formaPagamento) &&
+            (identical(other.formaPagamentoOutro, formaPagamentoOutro) ||
+                other.formaPagamentoOutro == formaPagamentoOutro) &&
             (identical(other.repasseStatus, repasseStatus) ||
                 other.repasseStatus == repasseStatus) &&
             (identical(other.repasseValor, repasseValor) ||
@@ -1139,6 +1165,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
     enderecoLiberado,
     valorPago,
     formaPagamento,
+    formaPagamentoOutro,
     repasseStatus,
     repasseValor,
     avisoACaminhoEm,
@@ -1193,6 +1220,7 @@ abstract class _OrdemServico extends OrdemServico {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     final FormaPagamento? formaPagamento,
+    @JsonKey(name: 'forma_pagamento_outro') final String? formaPagamentoOutro,
     @JsonKey(
       name: 'repasse_status',
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
@@ -1289,6 +1317,12 @@ abstract class _OrdemServico extends OrdemServico {
     unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
   )
   FormaPagamento? get formaPagamento;
+
+  /// Detalhe livre quando [formaPagamento] é [FormaPagamento.outros]
+  /// (ex.: "Transferência", "Cortesia"). "" no PB vira null aqui (R2).
+  @override
+  @JsonKey(name: 'forma_pagamento_outro')
+  String? get formaPagamentoOutro;
 
   /// Repasse — gerenciado manualmente pelo admin.
   @override

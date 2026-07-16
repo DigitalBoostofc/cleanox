@@ -132,4 +132,32 @@ void main() {
     await tester.pump();
     expect(concluiu, isTrue);
   });
+
+  testWidgets(
+    'concluida mostra "Ver detalhes do serviço" e abre a execução (leitura)',
+    (tester) async {
+      var abriu = false;
+      await tester.pumpWidget(
+        _wrap(
+          OSCard(
+            os: _os(
+              status: OSStatus.concluida,
+              valorPago: 150,
+              forma: FormaPagamento.pixMaquininha,
+            ),
+            onIniciar: () {},
+            onAvisar: () {},
+            onPagar: () {},
+            onConcluir: () {},
+            onChecklist: () => abriu = true,
+          ),
+        ),
+      );
+
+      expect(find.text('Ver detalhes do serviço'), findsOneWidget);
+      await tester.tap(find.text('Ver detalhes do serviço'));
+      await tester.pump();
+      expect(abriu, isTrue);
+    },
+  );
 }
