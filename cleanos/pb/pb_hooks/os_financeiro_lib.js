@@ -22,7 +22,9 @@ var FORMA_MAP = {
   debito: "Débito",
   credito: "Crédito",
   pix_maquininha: "Pix",
-  dinheiro: "Dinheiro",
+  pix: "Pix",
+  dinheiro: "Dinheiro em espécie",
+  outros: "Outros",
 };
 
 /**
@@ -178,7 +180,13 @@ function criarLancamentoFinanceiro(app, record, origStatus) {
   if (!meta) return;
 
   const formaRaw = record.getString("forma_pagamento");
-  const formaPagamento = FORMA_MAP[formaRaw] || formaRaw;
+  let formaPagamento = FORMA_MAP[formaRaw] || formaRaw;
+  // "Outros" com detalhe preenchido pelo profissional → o detalhe vira a forma
+  // no lançamento (ex.: "Transferência", "Cortesia").
+  if (formaRaw === "outros") {
+    const outro = record.getString("forma_pagamento_outro").trim();
+    if (outro) formaPagamento = outro;
+  }
 
   // Se já existe via_os (previsto da atribuição): promove a pago.
   try {

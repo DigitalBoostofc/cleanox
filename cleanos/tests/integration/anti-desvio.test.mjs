@@ -230,22 +230,17 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       )
     })
 
-    it('C4 · nome_curto usa formato "Nome X." (não expõe sobrenome inteiro)', async () => {
+    it('C4 · nome_curto traz o nome do cliente (decisão do dono 16/07/2026: nome completo)', async () => {
+      // A regra antiga abreviava o sobrenome ("Nome X."). O dono decidiu expor o
+      // nome COMPLETO ao profissional; o anti-desvio segue valendo para telefone/
+      // e-mail (C1/C2) e endereço (C3). Aqui só garantimos que o campo denormali-
+      // zado existe e não veio vazio.
       const { body } = await GET(
         '/api/collections/ordens_servico/records?perPage=200',
         s.profTok
       )
       const withNome = (body?.items ?? []).filter(os => os.nome_curto)
       assert.ok(withNome.length > 0, 'Nenhuma OS com nome_curto visível ao profissional')
-      // O último token deve ser uma inicial com ponto: "S." (2 chars max)
-      const leaky = withNome.filter(os => {
-        const parts = os.nome_curto.trim().split(' ')
-        return parts.length > 1 && parts[parts.length - 1].length > 2
-      })
-      assert.strictEqual(
-        leaky.length, 0,
-        `nome_curto expõe sobrenome: ${leaky.map(o => o.nome_curto).join(', ')}`
-      )
     })
   })
 

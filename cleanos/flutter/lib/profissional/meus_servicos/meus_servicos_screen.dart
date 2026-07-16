@@ -84,8 +84,13 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     await showPagamentoModal(
       context,
       os: os,
-      onSubmit: (valor, forma) async {
-        await _ctrl.registrarPagamento(os, valor: valor, forma: forma);
+      onSubmit: (valor, forma, outro) async {
+        await _ctrl.registrarPagamento(
+          os,
+          valor: valor,
+          forma: forma,
+          outro: outro,
+        );
         if (mounted) {
           _toast(
             'Pagamento registrado. Agora você pode concluir o serviço.',

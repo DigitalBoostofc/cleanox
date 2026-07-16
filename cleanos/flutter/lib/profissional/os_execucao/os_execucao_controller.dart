@@ -17,7 +17,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/errors/os_error.dart';
-import '../../core/models/collections.dart' show OSStatus;
+import '../../core/models/collections.dart' show FormaPagamento, OSStatus;
 import '../../core/models/os_execucao.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/servico.dart';
@@ -520,6 +520,39 @@ class OSExecucaoController
       failedIds: {...state.failedIds}..remove(id),
     );
     await _queue?.retry();
+  }
+
+  // ── pagamento ───────────────────────────────────────────────────────────
+
+  /// Registra o pagamento a partir da PRÓPRIA tela de execução (pedido do
+  /// dono, 16/07: encerrar por aqui sem voltar à lista). `outro` preenche o
+  /// detalhe da forma "Outros" e limpa ('') nas demais.
+  Future<void> registrarPagamento({
+    required double valor,
+    required FormaPagamento forma,
+    String outro = '',
+  }) async {
+    final updated = await _repo.patchExec(
+      _osId,
+      OSExecPatch(
+        valorPago: valor,
+        formaPagamento: forma,
+        formaPagamentoOutro: outro,
+      ),
+    );
+    state = state.copyWith(os: updated);
+  }
+
+  // ── observações do profissional ─────────────────────────────────────────
+
+  /// Persiste a lista completa de observações (`observacoes_prof`, campo
+  /// liberado na denylist) e reflete a OS atualizada no estado.
+  Future<void> salvarObservacoes(List<ObservacaoProfissional> obs) async {
+    final updated = await _repo.patchExec(
+      _osId,
+      OSExecPatch(observacoesProf: obs.map((o) => o.toJson()).toList()),
+    );
+    state = state.copyWith(os: updated);
   }
 
   // ── conclusão ───────────────────────────────────────────────────────────

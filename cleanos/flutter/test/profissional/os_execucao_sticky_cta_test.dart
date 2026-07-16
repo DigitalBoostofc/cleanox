@@ -1,7 +1,8 @@
-/// os_execucao_sticky_cta_test.dart — CTA fixo "Concluir serviço" (espec tela
-/// 3, doc 12 Onda 2): desabilitado sem pagamento/com obrigatórios pendentes,
-/// habilitado quando as duas condições da lógica de negócio já existente são
-/// satisfeitas. Tema fintech, 360x800 e 320x800 (sem overflow).
+/// os_execucao_sticky_cta_test.dart — CTA fixo de conclusão (espec tela 3 +
+/// pedido do dono 16/07/2026): o pagamento NÃO trava mais o botão — sem
+/// pagamento o CTA vira "Registrar pagamento e concluir" (ativo) e abre o
+/// sheet de pagamento antes de concluir. Só itens OBRIGATÓRIOS pendentes
+/// desabilitam. Tema fintech, 360x800 e 320x800 (sem overflow).
 library;
 
 import 'package:cleanos/core/auth/auth_providers.dart';
@@ -80,20 +81,36 @@ Future<void> _pump(WidgetTester tester, OrdemServico os, Size size) async {
   await tester.pump(const Duration(milliseconds: 100));
 }
 
-ClxButton _cta(WidgetTester tester) => tester
+ClxButton _cta(WidgetTester tester, String label) => tester
     .widgetList<ClxButton>(find.byType(ClxButton))
-    .firstWhere((b) => b.label == 'Concluir serviço');
+    .firstWhere((b) => b.label == label);
 
 void main() {
-  testWidgets('sem pagamento e sem obrigatórios: CTA desabilitado (360x800)', (
-    tester,
-  ) async {
-    await _pump(tester, _os(), const Size(360, 800));
+  testWidgets(
+    'sem pagamento e sem obrigatórios: CTA ATIVO como '
+    '"Registrar pagamento e concluir" (360x800)',
+    (tester) async {
+      await _pump(tester, _os(), const Size(360, 800));
 
-    expect(find.text('Concluir serviço'), findsOneWidget);
-    expect(_cta(tester).onPressed, isNull);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Registrar pagamento e concluir'), findsOneWidget);
+      expect(find.text('Concluir serviço'), findsNothing);
+      expect(_cta(tester, 'Registrar pagamento e concluir').onPressed, isNotNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'sem pagamento, tocar no CTA abre o sheet de pagamento na própria tela',
+    (tester) async {
+      await _pump(tester, _os(), const Size(360, 800));
+
+      await tester.tap(find.text('Registrar pagamento e concluir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Registrar pagamento'), findsOneWidget);
+      expect(find.text('Salvar pagamento'), findsOneWidget);
+    },
+  );
 
   testWidgets('obrigatório pendente MESMO com pagamento: CTA desabilitado', (
     tester,
@@ -108,7 +125,7 @@ void main() {
       const Size(360, 800),
     );
 
-    expect(_cta(tester).onPressed, isNull);
+    expect(_cta(tester, 'Concluir serviço').onPressed, isNull);
   });
 
   testWidgets('pagamento registrado e checklist ok: CTA habilitado', (
@@ -120,7 +137,7 @@ void main() {
       const Size(360, 800),
     );
 
-    expect(_cta(tester).onPressed, isNotNull);
+    expect(_cta(tester, 'Concluir serviço').onPressed, isNotNull);
   });
 
   testWidgets('320x800: sem overflow com o CTA fixo no rodapé', (

@@ -13,11 +13,15 @@
  *   - é limpo em `concluida`/`cancelada`/`agendada`/`atribuida`.
  */
 
-// "Carlos", "Silva" -> "Carlos S."  (nunca expõe o sobrenome inteiro)
-function shortName(nome, sobrenome) {
+// "Carlos", "Silva" -> "Carlos Silva".
+// Decisão do dono (16/07/2026): o profissional vê o NOME COMPLETO do cliente.
+// O anti-desvio continua valendo para telefone/e-mail (nunca copiados à OS) e
+// endereço (efêmero, só em em_andamento) — apenas o sobrenome deixou de ser
+// abreviado.
+function fullName(nome, sobrenome) {
   const n = String(nome || "").trim();
   const s = String(sobrenome || "").trim();
-  return s ? `${n} ${s.charAt(0).toUpperCase()}.` : n;
+  return s ? `${n} ${s}` : n;
 }
 
 // normaliza um valor de campo relation (single) para o id string
@@ -98,7 +102,7 @@ function syncDenormalized(app, record) {
   if (cid) {
     try {
       const c = app.findRecordById("clientes", cid);
-      record.set("nome_curto", shortName(c.get("nome"), c.get("sobrenome")));
+      record.set("nome_curto", fullName(c.get("nome"), c.get("sobrenome")));
       record.set("bairro", c.get("endereco_bairro"));
     } catch (_) {
       /* cliente pode ter sido removido — mantém campos denormalizados como estão */
@@ -577,7 +581,7 @@ function triggerRatingWebhookIfConcluida(app, record) {
 }
 
 module.exports = {
-  shortName,
+  fullName,
   relId,
   readJsonField,
   normalizePhone,

@@ -21,6 +21,7 @@ Future<void> _pump(
   required List<ChecklistExecItem> items,
   required ValueChanged<List<ChecklistExecItem>> onChange,
   bool fintech = false,
+  bool readOnly = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -34,6 +35,7 @@ Future<void> _pump(
             items: items,
             concluidoPor: 'Pedro',
             nowIso: () => '2026-07-01 10:00:00Z',
+            readOnly: readOnly,
             onChange: onChange,
           ),
         ),
@@ -104,6 +106,45 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'tocar no NOME do item também alterna (pedido do dono 16/07 — antes só a caixinha)',
+    (tester) async {
+      const items = [ChecklistExecItem(id: 'c1', titulo: 'Aspirar')];
+      List<ChecklistExecItem>? emitido;
+
+      await _pump(tester, items: items, onChange: (v) => emitido = v);
+
+      await tester.tap(find.text('Aspirar'));
+      await tester.pump();
+
+      expect(emitido, isNotNull);
+      expect(emitido!.single.concluido, isTrue);
+      expect(emitido!.single.concluidoPor, 'Pedro');
+    },
+  );
+
+  testWidgets(
+    'readOnly (OS concluída): nem caixinha nem nome alternam, sem botão de observação',
+    (tester) async {
+      const items = [ChecklistExecItem(id: 'c1', titulo: 'Aspirar')];
+      List<ChecklistExecItem>? emitido;
+
+      await _pump(
+        tester,
+        items: items,
+        onChange: (v) => emitido = v,
+        readOnly: true,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('checklist-toggle-c1')));
+      await tester.tap(find.text('Aspirar'), warnIfMissed: false);
+      await tester.pump();
+
+      expect(emitido, isNull);
+      expect(find.byTooltip('Adicionar observação'), findsNothing);
     },
   );
 }

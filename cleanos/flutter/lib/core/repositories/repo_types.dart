@@ -47,9 +47,10 @@ class OrdemServicoEvent {
 ///
 /// ⭐ Inclui EXATAMENTE os campos liberados ao profissional pela denylist do
 /// servidor (`guardOrdemUpdateRequest` em pb_hooks/os_logic.js):
-/// `status`, `valor_pago`, `forma_pagamento`, `checklist_exec`, `adicionais`,
-/// `observacoes_prof`, `descontos`. Campos ausentes NÃO são tocados — nunca
-/// envie campos travados (evita 403 desnecessário; gate G-7).
+/// `status`, `valor_pago`, `forma_pagamento`, `forma_pagamento_outro`,
+/// `checklist_exec`, `adicionais`, `observacoes_prof`, `descontos`. Campos
+/// ausentes NÃO são tocados — nunca envie campos travados (evita 403
+/// desnecessário; gate G-7).
 ///
 /// ⚠️ `service_snapshot` NÃO entra aqui: é congelado server-side na criação
 /// (hook `fillServiceSnapshot`) e está na denylist `locked` do hook — reenviá-lo
@@ -62,6 +63,7 @@ class OSExecPatch {
     this.status,
     this.valorPago,
     this.formaPagamento,
+    this.formaPagamentoOutro,
     this.checklistExec,
     this.adicionais,
     this.observacoesProf,
@@ -71,6 +73,10 @@ class OSExecPatch {
   final OSStatus? status;
   final double? valorPago;
   final FormaPagamento? formaPagamento;
+
+  /// Detalhe livre da forma "Outros". Envie '' para limpar quando a forma
+  /// escolhida não for [FormaPagamento.outros].
+  final String? formaPagamentoOutro;
   final List<Map<String, dynamic>>? checklistExec;
   final List<Map<String, dynamic>>? adicionais;
   final List<Map<String, dynamic>>? observacoesProf;
@@ -81,6 +87,9 @@ class OSExecPatch {
     if (status != null) body['status'] = status!.wire;
     if (valorPago != null) body['valor_pago'] = valorPago;
     if (formaPagamento != null) body['forma_pagamento'] = formaPagamento!.wire;
+    if (formaPagamentoOutro != null) {
+      body['forma_pagamento_outro'] = formaPagamentoOutro;
+    }
     if (checklistExec != null) body['checklist_exec'] = checklistExec;
     if (adicionais != null) body['adicionais'] = adicionais;
     if (observacoesProf != null) body['observacoes_prof'] = observacoesProf;

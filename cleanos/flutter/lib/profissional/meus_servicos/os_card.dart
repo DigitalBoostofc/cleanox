@@ -246,7 +246,7 @@ class OSCard extends StatelessWidget {
                       bg: clx.successBg,
                       text:
                           'Pago: ${formatCurrency(os.valorPago!)} via '
-                          '${os.formaPagamento!.label}',
+                          '${os.formaPagamentoExibicao}',
                     ),
 
                   // Erro de ação.
@@ -351,7 +351,7 @@ class OSCard extends StatelessWidget {
                 bg: clx.successBg,
                 text:
                     'Pagamento: ${formatCurrency(os.valorPago!)} via '
-                    '${os.formaPagamento!.label}',
+                    '${os.formaPagamentoExibicao}',
                 margin: EdgeInsets.zero,
                 icon: Icons.check_circle_rounded,
               ),
@@ -383,8 +383,17 @@ class OSCard extends StatelessWidget {
             context,
           ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
         );
-      case OSStatus.agendada:
       case OSStatus.concluida:
+        // O serviço fechou, mas o profissional ainda pode REVER o que fez
+        // (checklist, fotos, laudo) — a execução abre em modo leitura.
+        return ClxButton(
+          label: 'Ver detalhes do serviço',
+          variant: ClxButtonVariant.ghost,
+          icon: Icons.receipt_long_outlined,
+          expand: true,
+          onPressed: onChecklist,
+        );
+      case OSStatus.agendada:
         return const SizedBox.shrink();
     }
   }

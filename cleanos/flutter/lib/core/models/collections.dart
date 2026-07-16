@@ -142,24 +142,47 @@ enum OSStatus {
 
 /* ---- Formas de pagamento ---- */
 enum FormaPagamento {
+  @JsonValue('dinheiro')
+  dinheiro,
   @JsonValue('debito')
   debito,
   @JsonValue('credito')
   credito,
+  @JsonValue('pix')
+  pix,
   @JsonValue('pix_maquininha')
-  pixMaquininha;
+  pixMaquininha,
+  @JsonValue('outros')
+  outros;
 
   String get wire => switch (this) {
+    FormaPagamento.dinheiro => 'dinheiro',
     FormaPagamento.debito => 'debito',
     FormaPagamento.credito => 'credito',
+    FormaPagamento.pix => 'pix',
     FormaPagamento.pixMaquininha => 'pix_maquininha',
+    FormaPagamento.outros => 'outros',
   };
 
   String get label => switch (this) {
+    FormaPagamento.dinheiro => 'Dinheiro em espécie',
     FormaPagamento.debito => 'Débito',
     FormaPagamento.credito => 'Crédito',
+    FormaPagamento.pix => 'Pix',
     FormaPagamento.pixMaquininha => 'Pix (maquininha)',
+    FormaPagamento.outros => 'Outros',
   };
+
+  /// Opções oferecidas ao registrar um pagamento NOVO.
+  /// `pix_maquininha` fica de fora: é legado (OS antigas seguem exibindo o
+  /// label normalmente, mas pagamentos novos usam o `pix` genérico).
+  static const List<FormaPagamento> selecionaveis = [
+    FormaPagamento.dinheiro,
+    FormaPagamento.debito,
+    FormaPagamento.credito,
+    FormaPagamento.pix,
+    FormaPagamento.outros,
+  ];
 }
 
 /* ---- Status do repasse ---- */

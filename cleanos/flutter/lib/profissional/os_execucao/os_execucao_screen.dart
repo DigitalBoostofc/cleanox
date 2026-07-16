@@ -18,6 +18,7 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/os_execucao.dart';
 import '../../shared_widgets_os/shared_widgets_os.dart';
+import '../meus_servicos/pagamento_modal.dart';
 import 'os_execucao_controller.dart';
 
 class OSExecucaoScreen extends ConsumerStatefulWidget {
@@ -42,22 +43,49 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   OSExecucaoController get _ctrl =>
       ref.read(osExecucaoProvider(widget.osId).notifier);
 
-  /// Habilita o CTA fixo "Concluir serviço" (espec tela 3, doc 12 Onda 2):
-  /// mesma regra do `OSCard` da lista — pagamento registrado + nenhum item
-  /// obrigatório pendente no checklist AO VIVO (não o `checklistExec` da OS
-  /// carregada, que pode estar desatualizado em relação à edição em tela).
+  /// Modo leitura: OS fechada (concluída/cancelada) abre só para consulta —
+  /// checklist, fotos e observações visíveis, nada editável (o servidor
+  /// barraria de qualquer forma; aqui a UI deixa isso claro).
+  bool _readOnly(OSExecucaoState state) {
+    final st = state.os?.status;
+    return st == OSStatus.concluida || st == OSStatus.cancelada;
+  }
+
+  /// Habilita o CTA fixo "Concluir serviço": nenhum item obrigatório pendente
+  /// no checklist AO VIVO. O pagamento NÃO trava mais o botão — se ainda não
+  /// foi registrado, o próprio fluxo do Concluir abre o sheet de pagamento
+  /// (pedido do dono, 16/07: encerrar por aqui, sem voltar à lista).
   bool _podeConcluir(OSExecucaoState state) {
     final os = state.os;
     if (os == null || os.status != OSStatus.emAndamento) return false;
-    final pagamentoOk = (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
-    final obrigatoriosOk = !state.checklist.any(
-      (i) => i.obrigatorio && !i.concluido,
-    );
-    return pagamentoOk && obrigatoriosOk;
+    return !state.checklist.any((i) => i.obrigatorio && !i.concluido);
+  }
+
+  bool _pagamentoRegistrado(OSExecucaoState state) {
+    final os = state.os;
+    return os != null && (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
   }
 
   Future<void> _concluir() async {
     if (_concluindo) return;
+
+    // Sem pagamento registrado → registra AQUI mesmo, no sheet, e segue.
+    if (!_pagamentoRegistrado(ref.read(osExecucaoProvider(widget.osId)))) {
+      final os = ref.read(osExecucaoProvider(widget.osId)).os;
+      if (os == null) return;
+      await showPagamentoModal(
+        context,
+        os: os,
+        onSubmit: (valor, forma, outro) =>
+            _ctrl.registrarPagamento(valor: valor, forma: forma, outro: outro),
+      );
+      // Sheet fechado sem salvar (cancelou) → não conclui.
+      if (!_pagamentoRegistrado(ref.read(osExecucaoProvider(widget.osId)))) {
+        return;
+      }
+      if (!mounted) return;
+    }
+
     setState(() => _concluindo = true);
     try {
       await _ctrl.concluir();
@@ -203,12 +231,14 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
       ),
       body: SafeArea(child: _buildBody(context, state, vinculoOptions)),
       // CTA fixo "Concluir serviço" (espec tela 3, doc 12 Onda 2) — só quando
-      // há OS carregada; some nos estados de loading/erro do corpo.
-      bottomNavigationBar: os == null
+      // a OS está em execução; some no modo leitura (concluída/cancelada) e
+      // nos estados de loading/erro do corpo.
+      bottomNavigationBar: os == null || os.status != OSStatus.emAndamento
           ? null
           : _StickyConcluirCta(
               enabled: _podeConcluir(state),
               loading: _concluindo,
+              pagamentoPendente: !_pagamentoRegistrado(state),
               onPressed: _concluir,
             ),
     );
@@ -248,6 +278,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
     }
 
     final os = state.os!;
+    final readOnly = _readOnly(state);
 
     return ListView(
       padding: const EdgeInsets.all(ClxSpace.x4),
@@ -293,6 +324,25 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
                     ),
                 ],
               ),
+              // Pagamento registrado — linha própria (não cabe no Wrap de
+              // chips em 320–360dp sem estourar).
+              if ((os.valorPago ?? 0) > 0 && os.formaPagamento != null) ...[
+                const SizedBox(height: ClxSpace.x2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.payments_outlined, size: 14, color: clx.ink3),
+                    const SizedBox(width: ClxSpace.x1),
+                    Expanded(
+                      child: Text(
+                        'Pago: ${formatCurrency(os.valorPago!)} via '
+                        '${os.formaPagamentoExibicao}',
+                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (os.status == OSStatus.emAndamento &&
                   (os.enderecoLiberado ?? '').isNotEmpty) ...[
                 const SizedBox(height: ClxSpace.x3),
@@ -354,11 +404,23 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           ),
         const SizedBox(height: ClxSpace.x3),
 
-        // (c) Checklist (auto-save).
+        // (c) Checklist (auto-save; leitura quando a OS já fechou).
         ChecklistExecucao(
           items: state.checklist,
           onChange: _ctrl.setChecklist,
+          readOnly: readOnly,
           concluidoPor: os.expand?.profissional?.displayName ?? 'Profissional',
+        ),
+        const SizedBox(height: ClxSpace.x3),
+
+        // (c2) Observações do serviço (ex.: tecido rasgado, mancha que não
+        // sai, muito pelo de pet…) — pedido do dono, 16/07.
+        _ObservacoesProfCard(
+          observacoes: os.observacoesProf,
+          readOnly: readOnly,
+          autorNome:
+              os.expand?.profissional?.displayName ?? 'Profissional',
+          onSalvar: _ctrl.salvarObservacoes,
         ),
         const SizedBox(height: ClxSpace.x3),
 
@@ -375,6 +437,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           deletingId: state.deletingId,
           onRetry: _ctrl.retryFoto,
           disabled: state.fotosLoading,
+          readOnly: readOnly,
         ),
         const SizedBox(height: ClxSpace.x3),
 
@@ -416,11 +479,16 @@ class _StickyConcluirCta extends StatelessWidget {
   const _StickyConcluirCta({
     required this.enabled,
     required this.loading,
+    required this.pagamentoPendente,
     required this.onPressed,
   });
 
   final bool enabled;
   final bool loading;
+
+  /// Sem pagamento registrado o CTA continua ATIVO, mas avisa que o fluxo
+  /// começa pelo sheet de pagamento.
+  final bool pagamentoPendente;
   final VoidCallback onPressed;
 
   @override
@@ -441,13 +509,256 @@ class _StickyConcluirCta extends StatelessWidget {
             border: Border(top: BorderSide(color: clx.line)),
           ),
           child: ClxButton(
-            label: 'Concluir serviço',
-            icon: Icons.check_circle_outline_rounded,
+            label: pagamentoPendente
+                ? 'Registrar pagamento e concluir'
+                : 'Concluir serviço',
+            icon: pagamentoPendente
+                ? Icons.payments_outlined
+                : Icons.check_circle_outline_rounded,
             expand: true,
             loading: loading,
             onPressed: enabled ? onPressed : null,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Card "Observações do serviço" — notas livres do profissional sobre o
+/// atendimento (ex.: "Tecido rasgado", "Muito pelo de pet", "Mancha que não
+/// sai"). Persistem em `observacoes_prof` (campo liberado pela denylist) e
+/// aparecem no laudo e no painel do admin.
+class _ObservacoesProfCard extends StatefulWidget {
+  const _ObservacoesProfCard({
+    required this.observacoes,
+    required this.readOnly,
+    required this.autorNome,
+    required this.onSalvar,
+  });
+
+  final List<ObservacaoProfissional> observacoes;
+  final bool readOnly;
+  final String autorNome;
+  final Future<void> Function(List<ObservacaoProfissional>) onSalvar;
+
+  @override
+  State<_ObservacoesProfCard> createState() => _ObservacoesProfCardState();
+}
+
+class _ObservacoesProfCardState extends State<_ObservacoesProfCard> {
+  bool _salvando = false;
+
+  String _novoId() =>
+      'obs_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+
+  Future<void> _persistir(List<ObservacaoProfissional> lista) async {
+    setState(() => _salvando = true);
+    try {
+      await widget.onSalvar(lista);
+    } catch (err) {
+      if (mounted) {
+        showClxToast(
+          context,
+          describeOSError(err).message,
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  Future<void> _abrirEditor({ObservacaoProfissional? existente}) async {
+    final textoCtrl = TextEditingController(text: existente?.texto ?? '');
+    bool visivel = existente?.visivelCliente ?? false;
+    final salvar = await showClxSheet<bool>(
+      context,
+      title: existente == null ? 'Nova observação' : 'Editar observação',
+      child: StatefulBuilder(
+        builder: (ctx, setSheet) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: textoCtrl,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText:
+                    'Ex.: tecido rasgado, muito pelo de pet, mancha que não sai…',
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x2),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Mostrar no relatório do cliente'),
+              value: visivel,
+              onChanged: (v) => setSheet(() => visivel = v),
+            ),
+            const SizedBox(height: ClxSpace.x3),
+            Row(
+              children: [
+                Expanded(
+                  child: ClxButton(
+                    label: 'Cancelar',
+                    variant: ClxButtonVariant.ghost,
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                  ),
+                ),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(
+                  flex: 2,
+                  child: ClxButton(
+                    label: 'Salvar observação',
+                    icon: Icons.check_rounded,
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    final texto = textoCtrl.text.trim();
+    textoCtrl.dispose();
+    if (salvar != true || texto.isEmpty) return;
+
+    final lista = [...widget.observacoes];
+    if (existente == null) {
+      lista.add(
+        ObservacaoProfissional(
+          id: _novoId(),
+          texto: texto,
+          visivelCliente: visivel,
+          criadoPor: widget.autorNome,
+          criadoEm: DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+    } else {
+      final i = lista.indexWhere((o) => o.id == existente.id);
+      if (i == -1) return;
+      lista[i] = existente.copyWith(texto: texto, visivelCliente: visivel);
+    }
+    await _persistir(lista);
+  }
+
+  Future<void> _remover(ObservacaoProfissional obs) async {
+    await _persistir(
+      widget.observacoes.where((o) => o.id != obs.id).toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    final obs = widget.observacoes;
+
+    return ClxCard(
+      padding: const EdgeInsets.all(ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Observações do serviço',
+                  style: tt.titleMedium?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (_salvando) const Spinner(size: 14),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          if (obs.isEmpty)
+            Text(
+              widget.readOnly
+                  ? 'Nenhuma observação registrada.'
+                  : 'Registre condições do estofado: tecido rasgado, muito '
+                        'pelo de pet, mancha que não sai…',
+              style: tt.bodyMedium?.copyWith(color: clx.ink3),
+            )
+          else
+            for (final o in obs)
+              Container(
+                margin: const EdgeInsets.only(bottom: ClxSpace.x2),
+                padding: const EdgeInsets.all(ClxSpace.x3),
+                decoration: BoxDecoration(
+                  color: clx.bg2,
+                  borderRadius: ClxRadii.rLg,
+                  border: Border.all(color: clx.line),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      o.visivelCliente
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 16,
+                      color: o.visivelCliente ? clx.primary : clx.ink3,
+                    ),
+                    const SizedBox(width: ClxSpace.x2),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            o.texto,
+                            style: tt.bodyLarge?.copyWith(color: clx.ink),
+                          ),
+                          if (o.criadoEm.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                formatDateTime(o.criadoEm),
+                                style: tt.bodySmall?.copyWith(color: clx.ink3),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (!widget.readOnly) ...[
+                      IconButton(
+                        tooltip: 'Editar',
+                        iconSize: 18,
+                        color: clx.ink3,
+                        onPressed: _salvando
+                            ? null
+                            : () => _abrirEditor(existente: o),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Remover',
+                        iconSize: 18,
+                        color: clx.ink3,
+                        onPressed: _salvando ? null : () => _remover(o),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          if (!widget.readOnly) ...[
+            const SizedBox(height: ClxSpace.x1),
+            ClxButton(
+              label: 'Adicionar observação',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.add_rounded,
+              expand: true,
+              onPressed: _salvando ? null : () => _abrirEditor(),
+            ),
+          ],
+        ],
       ),
     );
   }
