@@ -124,10 +124,12 @@ onRealtimeSubscribeRequest((e) => {
 
 // F-403: gerente/profissional não pode definir repasse ao CRIAR uma OS.
 // Espelha a trava que já existe no onRecordUpdateRequest.
+// Superuser (Admin UI) conta como admin — mesmo tratamento do update.
 onRecordCreateRequest((e) => {
+  const lib = require(`${__hooks}/os_logic.js`);
   const auth = e.auth;
   const role = auth ? String(auth.get("role")) : "";
-  if (role !== "admin") {
+  if (role !== "admin" && !lib.isSuperuser(auth)) {
     const rs = String(e.record.get("repasse_status") || "");
     const rv = Number(e.record.get("repasse_valor") || 0);
     if (rs || rv > 0) {
@@ -148,9 +150,10 @@ onRecordUpdateRequest((e) => {
 // não-admin no self-update (a updateRule libera o próprio registro).
 // ----------------------------------------------------------------------------
 onRecordUpdateRequest((e) => {
+  const lib = require(`${__hooks}/os_logic.js`);
   const auth = e.auth;
   const role = auth ? String(auth.get("role")) : "";
-  if (role !== "admin" && role !== "gerente") {
+  if (role !== "admin" && role !== "gerente" && !lib.isSuperuser(auth)) {
     const orig = e.record.original();
     if (String(orig.get("role")) !== String(e.record.get("role"))) {
       throw new ForbiddenError("Você não pode alterar seu próprio papel (role).");
@@ -172,9 +175,10 @@ onRecordCreate((e) => {
 // F6 — bloqueia o fluxo dedicado de email-change para não-admin/gerente.
 // O hook acima cobre o update comum; este cobre o endpoint /request-email-change.
 onRecordRequestEmailChangeRequest((e) => {
+  const lib = require(`${__hooks}/os_logic.js`);
   const auth = e.auth;
   const role = auth ? String(auth.get("role")) : "";
-  if (role !== "admin" && role !== "gerente") {
+  if (role !== "admin" && role !== "gerente" && !lib.isSuperuser(auth)) {
     throw new ForbiddenError("Alteração de e-mail requer admin/gerente.");
   }
   e.next();
