@@ -96,7 +96,88 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
     return Column(
       children: [
         if (easypay) const _EasypayToolbar() else const _Toolbar(),
+        // Legenda das cores (= status da OS) — some no APK fintech onde as
+        // abas de status já explicam o esquema; aparece na web do painel.
+        if (!easypay) const _StatusLegenda(),
         Expanded(child: _Body(state: state, easypay: easypay)),
+      ],
+    );
+  }
+}
+
+/// Legenda horizontal do esquema de cores da agenda: a cor de um bloco é o
+/// STATUS da OS (quem é o profissional vem pelo avatar no canto do bloco).
+class _StatusLegenda extends StatelessWidget {
+  const _StatusLegenda();
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: ClxSpace.x6,
+        vertical: ClxSpace.x2,
+      ),
+      decoration: BoxDecoration(
+        color: clx.bg2,
+        border: Border(bottom: BorderSide(color: clx.line)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Icon(Icons.circle, size: 8, color: clx.ink3),
+            const SizedBox(width: ClxSpace.x2),
+            Text(
+              'Cor = status:',
+              style: tt.labelSmall?.copyWith(color: clx.ink3),
+            ),
+            const SizedBox(width: ClxSpace.x3),
+            for (final s in OSStatus.all) ...[
+              _LegendaItem(cor: clx.statusColor(s), label: s.label),
+              const SizedBox(width: ClxSpace.x4),
+            ],
+            Icon(Icons.person, size: 13, color: clx.ink3),
+            const SizedBox(width: 4),
+            Text(
+              'foto no canto = profissional',
+              style: tt.labelSmall?.copyWith(color: clx.ink3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendaItem extends StatelessWidget {
+  const _LegendaItem({required this.cor, required this.label});
+  final Color cor;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: cor,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: clx.ink2),
+        ),
       ],
     );
   }
@@ -601,6 +682,8 @@ class _EventChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final prof = os.expand?.profissional;
+    final temProf = prof != null && prof.displayName != '—';
     return GestureDetector(
       onTap: () => onTap(os),
       child: Container(
@@ -613,14 +696,27 @@ class _EventChip extends StatelessWidget {
             left: BorderSide(color: clx.statusColor(os.status), width: 3),
           ),
         ),
-        child: Text(
-          '${formatTime(os.dataHora)} ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: clx.ink,
-            fontWeight: FontWeight.w600,
-          ),
+        child: Row(
+          children: [
+            if (temProf) ...[
+              Tooltip(
+                message: prof.displayName,
+                child: UserAvatar(user: prof, radius: 7),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                '${formatTime(os.dataHora)} ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -973,6 +1069,13 @@ class _AgendaMiniCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            if (prof != null && prof != '—') ...[
+              Tooltip(
+                message: prof,
+                child: UserAvatar(user: os.expand?.profissional, radius: 14),
+              ),
+              const SizedBox(width: ClxSpace.x2),
+            ],
             Text(
               faixa,
               style: tt.bodySmall?.copyWith(

@@ -123,6 +123,52 @@ void main() {
       expect(find.textContaining('Carlos S.'), findsNothing);
     });
 
+    testWidgets(
+      'legenda de status + avatar do profissional no bloco (pedido do dono)',
+      (tester) async {
+        await pumpPainel(
+          tester,
+          const AgendaScreen(),
+          overrides: [
+            ...painelOverrides(
+              user: painelUser(),
+              repo: FakeOrdens(
+                seed: [
+                  fakeOSAgenda(
+                    id: 'os1',
+                    profissionalId: 'p1',
+                    nomeCurto: 'Carlos S.',
+                    dataHoraUtc: hojeAs('13:00'),
+                    profExpand: fakeUser(id: 'p1', name: 'Bia Prof'),
+                  ),
+                ],
+              ),
+            ),
+            usuariosRepositoryProvider.overrideWithValue(
+              FakeUsuariosFull(seed: [fakeUser(id: 'p1', name: 'Bia Prof')]),
+            ),
+          ],
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+
+        // Legenda explica que a cor é o status.
+        expect(find.text('Cor = status:'), findsOneWidget);
+        expect(find.text('Agendada'), findsWidgets);
+        expect(find.text('Concluída'), findsWidgets);
+
+        // Avatar do profissional presente no evento (via UserAvatar) — o
+        // tooltip carrega o nome dele.
+        expect(find.byType(UserAvatar), findsWidgets);
+        expect(
+          find.byTooltip('Bia Prof'),
+          findsWidgets,
+          reason: 'o avatar do bloco deve identificar o profissional',
+        );
+      },
+    );
+
     testWidgets('erro: falha ao carregar OS → banner', (tester) async {
       await pumpPainel(
         tester,
