@@ -173,4 +173,26 @@ void main() {
       expect(comOcupado, isNot(contains('10:00')));
     });
   });
+
+  group('getBrtWeekBounds — semana ISO (segunda→segunda) em BRT', () {
+    test('quarta-feira: começa na segunda da mesma semana', () {
+      // 2026-07-15 é quarta; 12:00 BRT = 15:00Z. Segunda = 13/07.
+      final b = getBrtWeekBounds(now: DateTime.utc(2026, 7, 15, 15));
+      expect(b.start, '2026-07-13 03:00:00');
+      expect(b.end, '2026-07-20 03:00:00');
+    });
+
+    test('segunda 00:30 BRT: a semana começa hoje', () {
+      // 00:30 BRT de segunda 13/07 = 03:30Z do mesmo dia.
+      final b = getBrtWeekBounds(now: DateTime.utc(2026, 7, 13, 3, 30));
+      expect(b.start, '2026-07-13 03:00:00');
+    });
+
+    test('domingo 23h BRT: ainda é a semana da segunda ANTERIOR', () {
+      // Domingo 19/07 23:00 BRT = 20/07 02:00Z (virada UTC ≠ virada BRT).
+      final b = getBrtWeekBounds(now: DateTime.utc(2026, 7, 20, 2));
+      expect(b.start, '2026-07-13 03:00:00');
+      expect(b.end, '2026-07-20 03:00:00');
+    });
+  });
 }

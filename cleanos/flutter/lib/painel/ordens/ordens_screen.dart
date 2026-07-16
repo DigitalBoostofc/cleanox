@@ -176,6 +176,11 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
           onSelect: (s) =>
               ref.read(ordensControllerProvider.notifier).setStatus(s),
         ),
+        _PeriodoChips(
+          active: state.filter.periodo,
+          onSelect: (p) =>
+              ref.read(ordensControllerProvider.notifier).setPeriodo(p),
+        ),
         Expanded(child: _body(state)),
       ],
     );
@@ -202,12 +207,16 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     }
     if (state.isEmpty) {
       final filtrando = state.filter.status != null;
+      final periodo = state.filter.periodo;
       return EmptyState(
         icon: Icons.receipt_long_outlined,
         title: filtrando
             ? 'Nenhuma OS com status "${state.filter.status!.label}"'
             : 'Nenhuma ordem de serviço',
-        message: 'Clique em "Nova OS" para criar a primeira.',
+        message: periodo != OrdensPeriodo.tudo
+            ? 'Nada no período "${periodo.label}" — troque o período acima '
+                  'ou crie uma Nova OS.'
+            : 'Clique em "Nova OS" para criar a primeira.',
         action: ClxButton(
           label: 'Nova OS',
           icon: Icons.add_rounded,
@@ -412,6 +421,15 @@ class _StatusTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
+            // Status primeiro (Agendada é o default de entrada); "Todas" é a
+            // rota de fuga e mora no FIM (pedido do dono, 16/07).
+            for (final s in OSStatus.all)
+              _Tab(
+                label: s.label,
+                count: data?.of(s),
+                selected: active == s,
+                onTap: () => onSelect(s),
+              ),
             _Tab(
               label: 'Todas',
               count: data?.total,
@@ -419,12 +437,67 @@ class _StatusTabs extends ConsumerWidget {
               selected: active == null,
               onTap: () => onSelect(null),
             ),
-            for (final s in OSStatus.all)
-              _Tab(
-                label: s.label,
-                count: data?.of(s),
-                selected: active == s,
-                onTap: () => onSelect(s),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Chips de período (Hoje | Esta semana | Este mês | Tudo) — janela de
+/// `data_hora` aplicada NO SERVIDOR à lista e às contagens das abas.
+class _PeriodoChips extends StatelessWidget {
+  const _PeriodoChips({required this.active, required this.onSelect});
+
+  final OrdensPeriodo active;
+  final ValueChanged<OrdensPeriodo> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: clx.line)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x6,
+          vertical: ClxSpace.x2,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.event_outlined, size: 15, color: clx.ink3),
+            const SizedBox(width: ClxSpace.x2),
+            for (final p in OrdensPeriodo.values)
+              Padding(
+                padding: const EdgeInsets.only(right: ClxSpace.x2),
+                child: Material(
+                  color: active == p
+                      ? clx.primary.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: ClxRadii.rPill,
+                  child: InkWell(
+                    onTap: () => onSelect(p),
+                    borderRadius: ClxRadii.rPill,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: ClxSpace.x3,
+                        vertical: ClxSpace.x1,
+                      ),
+                      child: Text(
+                        p.label,
+                        style: tt.bodyMedium?.copyWith(
+                          color: active == p ? clx.primary : clx.ink2,
+                          fontWeight: active == p
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),

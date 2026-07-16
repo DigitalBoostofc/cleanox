@@ -73,7 +73,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Nenhuma ordem de serviço'), findsOneWidget);
+      // Default novo (16/07): a tela abre filtrando "Agendada" na semana
+      // corrente — o vazio informa o status e sugere trocar o período.
+      expect(find.text('Nenhuma OS com status "Agendada"'), findsOneWidget);
+      expect(find.textContaining('Nada no período'), findsOneWidget);
     });
 
     testWidgets('Nova OS: abre o formulário e valida obrigatórios', (
@@ -221,8 +224,15 @@ class _FakeOrdensStatusFilter extends FakeOrdens {
     String sort = '-data_hora',
     String? expand,
   }) async {
+    // Só aplica o recorte por STATUS; a janela de data (período) é ignorada
+    // pelo fake — as OS de teste usam datas placeholder distantes.
     final items = seed
-        .where((o) => filter == null || filter.contains(o.status.wire))
+        .where(
+          (o) =>
+              filter == null ||
+              !filter.contains('status =') ||
+              filter.contains(o.status.wire),
+        )
         .toList();
     return PageResult<OrdemServico>(
       items: items,

@@ -51,6 +51,21 @@ PbDayBounds getBrtDayBounds({DateTime? now}) {
   return PbDayBounds(_fmtPb(todayStart), _fmtPb(tomorrowStart));
 }
 
+/// Limites da SEMANA corrente em BRT — segunda-feira 00:00 até a próxima
+/// segunda (half-open), como string UTC do PB. Semana ISO: segunda é o dia 1.
+DateRange getBrtWeekBounds({DateTime? now}) {
+  final brt = _brtWallClock(now ?? DateTime.now());
+  final monday = DateTime.utc(
+    brt.year,
+    brt.month,
+    brt.day,
+  ).subtract(Duration(days: brt.weekday - 1));
+  return DateRange(
+    _fmtPb(monday.add(kBrtOffset)),
+    _fmtPb(monday.add(const Duration(days: 7)).add(kBrtOffset)),
+  );
+}
+
 /// Limites de um mês (1-based) em BRT, como string UTC do PB.
 /// Espelha `getBrtMonthBounds` (o web usa month 0-based; aqui é 1-based Dart).
 DateRange getBrtMonthBounds(int year, int month) {

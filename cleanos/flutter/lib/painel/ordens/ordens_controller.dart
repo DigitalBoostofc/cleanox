@@ -10,6 +10,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/servico.dart';
@@ -24,19 +25,65 @@ const int kOrdensPerPage = 30;
 /// `cliente` — `nome_curto`/`bairro` já vêm denormalizados na OS.
 const String _kListExpand = 'profissional,cliente';
 
-/// Filtro ativo da lista: um status (ou `null` = todas) + profissional opcional.
+/// Período da lista de OS (feedback do dono, 16/07: as contagens cresceriam
+/// para sempre — o dia a dia é a semana corrente; o resto é exceção).
+enum OrdensPeriodo {
+  hoje,
+  semana,
+  mes,
+  tudo;
+
+  String get label => switch (this) {
+    OrdensPeriodo.hoje => 'Hoje',
+    OrdensPeriodo.semana => 'Esta semana',
+    OrdensPeriodo.mes => 'Este mês',
+    OrdensPeriodo.tudo => 'Tudo',
+  };
+}
+
+/// Janela [inicio, fim) do período em strings UTC do PB — `null` para "Tudo".
+/// Dias/semana/mês calculados em BRT (G-8: fuso só nos formatters).
+DateRange? ordensPeriodoRange(OrdensPeriodo periodo, {DateTime? now}) {
+  switch (periodo) {
+    case OrdensPeriodo.hoje:
+      final b = getBrtDayBounds(now: now);
+      return DateRange(b.todayStart, b.tomorrowStart);
+    case OrdensPeriodo.semana:
+      return getBrtWeekBounds(now: now);
+    case OrdensPeriodo.mes:
+      final brt = (now ?? DateTime.now()).toUtc().subtract(kBrtOffset);
+      return getBrtMonthBounds(brt.year, brt.month);
+    case OrdensPeriodo.tudo:
+      return null;
+  }
+}
+
+/// Filtro ativo da lista: um status (ou `null` = todas) + período +
+/// profissional opcional.
+///
+/// Defaults (pedido do dono, 16/07): a tela abre em **Agendadas** da
+/// **semana corrente** — é onde ele decide quem atribuir 1–2 dias antes.
 class OrdensFilter {
-  const OrdensFilter({this.status, this.profissionalId});
+  const OrdensFilter({
+    this.status = OSStatus.agendada,
+    this.periodo = OrdensPeriodo.semana,
+    this.profissionalId,
+  });
   final OSStatus? status;
+  final OrdensPeriodo periodo;
   final String? profissionalId;
 
-  OrdensFilter copyWith({Object? status = _s, Object? profissionalId = _s}) =>
-      OrdensFilter(
-        status: status == _s ? this.status : status as OSStatus?,
-        profissionalId: profissionalId == _s
-            ? this.profissionalId
-            : profissionalId as String?,
-      );
+  OrdensFilter copyWith({
+    Object? status = _s,
+    OrdensPeriodo? periodo,
+    Object? profissionalId = _s,
+  }) => OrdensFilter(
+    status: status == _s ? this.status : status as OSStatus?,
+    periodo: periodo ?? this.periodo,
+    profissionalId: profissionalId == _s
+        ? this.profissionalId
+        : profissionalId as String?,
+  );
 
   static const Object _s = Object();
 }
@@ -95,10 +142,15 @@ class OrdensController extends StateNotifier<OrdensState> {
 
   final Ref _ref;
 
-  String? get _filterExpr => ordensFilter(
-    status: state.filter.status,
-    profissionalId: state.filter.profissionalId,
-  );
+  String? get _filterExpr {
+    final range = ordensPeriodoRange(state.filter.periodo);
+    return ordensFilter(
+      status: state.filter.status,
+      profissionalId: state.filter.profissionalId,
+      dataInicio: range?.start,
+      dataFim: range?.end,
+    );
+  }
 
   Future<PageResult<OrdemServico>> _fetch(int page) => _ref
       .read(ordensRepositoryProvider)
@@ -153,6 +205,12 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
+  Future<void> setPeriodo(OrdensPeriodo periodo) async {
+    if (periodo == state.filter.periodo) return;
+    state = state.copyWith(filter: state.filter.copyWith(periodo: periodo));
+    await refresh();
+  }
+
   Future<void> setProfissional(String? profId) async {
     if (profId == state.filter.profissionalId) return;
     state = state.copyWith(
@@ -193,13 +251,24 @@ final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
   final profId = ref.watch(
     ordensControllerProvider.select((s) => s.filter.profissionalId),
   );
+  // Badges contam SÓ o período ativo — senão os números crescem para sempre
+  // e a aba vira ruído (feedback do dono, 16/07).
+  final periodo = ref.watch(
+    ordensControllerProvider.select((s) => s.filter.periodo),
+  );
   final repo = ref.watch(ordensRepositoryProvider);
+  final range = ordensPeriodoRange(periodo);
 
   Future<int> count(OSStatus? status) async {
     final res = await repo.list(
       page: 1,
       perPage: 1,
-      filter: ordensFilter(status: status, profissionalId: profId),
+      filter: ordensFilter(
+        status: status,
+        profissionalId: profId,
+        dataInicio: range?.start,
+        dataFim: range?.end,
+      ),
       sort: '-data_hora',
     );
     return res.totalItems;

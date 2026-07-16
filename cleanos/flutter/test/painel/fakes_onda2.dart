@@ -294,8 +294,14 @@ class FakeOrdensPatch extends FakeOrdens {
     String? expand,
   }) async {
     listCount++;
+    // Só recorta por STATUS; a janela de data (período) é ignorada pelo fake.
     final items = seed
-        .where((o) => filter == null || filter.contains(o.status.wire))
+        .where(
+          (o) =>
+              filter == null ||
+              !filter.contains('status =') ||
+              filter.contains(o.status.wire),
+        )
         .toList();
     return PageResult<OrdemServico>(
       items: items,

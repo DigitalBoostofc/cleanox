@@ -66,6 +66,12 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    // A atribuição muda agendada→atribuida; na aba "Todas" a OS continua
+    // visível durante todo o fluxo (o default novo é "Agendada").
+    await tester.tap(find.text('Todas'));
+    await tester.pump();
+    await tester.pump();
+
     // 1) Abre a OS pelo DETALHE (clicando na linha) — aba "Todas".
     await tester.tap(find.text('Carlos S.').first);
     await tester.pumpAndSettle();
