@@ -58,6 +58,32 @@ DateRange? ordensPeriodoRange(OrdensPeriodo periodo, {DateTime? now}) {
   }
 }
 
+/// Ordenação da lista de OS. Aplicada NO SERVIDOR (campo `sort` do PB).
+///
+/// Default (pedido do dono, 16/07): **data mais próxima primeiro** — antes a
+/// lista vinha `-data_hora` (mais distante primeiro), o inverso do útil.
+enum OrdensSort {
+  dataAsc,
+  dataDesc,
+  clienteAsc,
+  clienteDesc;
+
+  String get wire => switch (this) {
+    OrdensSort.dataAsc => 'data_hora',
+    OrdensSort.dataDesc => '-data_hora',
+    // nome_curto é o nome do cliente denormalizado na OS (server-side).
+    OrdensSort.clienteAsc => 'nome_curto',
+    OrdensSort.clienteDesc => '-nome_curto',
+  };
+
+  String get label => switch (this) {
+    OrdensSort.dataAsc => 'Data — mais próxima primeiro',
+    OrdensSort.dataDesc => 'Data — mais distante primeiro',
+    OrdensSort.clienteAsc => 'Cliente — A a Z',
+    OrdensSort.clienteDesc => 'Cliente — Z a A',
+  };
+}
+
 /// Filtro ativo da lista: um status (ou `null` = todas) + período +
 /// profissional opcional.
 ///
@@ -67,19 +93,23 @@ class OrdensFilter {
   const OrdensFilter({
     this.status = OSStatus.agendada,
     this.periodo = OrdensPeriodo.semana,
+    this.sort = OrdensSort.dataAsc,
     this.profissionalId,
   });
   final OSStatus? status;
   final OrdensPeriodo periodo;
+  final OrdensSort sort;
   final String? profissionalId;
 
   OrdensFilter copyWith({
     Object? status = _s,
     OrdensPeriodo? periodo,
+    OrdensSort? sort,
     Object? profissionalId = _s,
   }) => OrdensFilter(
     status: status == _s ? this.status : status as OSStatus?,
     periodo: periodo ?? this.periodo,
+    sort: sort ?? this.sort,
     profissionalId: profissionalId == _s
         ? this.profissionalId
         : profissionalId as String?,
@@ -158,7 +188,7 @@ class OrdensController extends StateNotifier<OrdensState> {
         page: page,
         perPage: kOrdensPerPage,
         filter: _filterExpr,
-        sort: '-data_hora',
+        sort: state.filter.sort.wire,
         expand: _kListExpand,
       );
 
@@ -208,6 +238,12 @@ class OrdensController extends StateNotifier<OrdensState> {
   Future<void> setPeriodo(OrdensPeriodo periodo) async {
     if (periodo == state.filter.periodo) return;
     state = state.copyWith(filter: state.filter.copyWith(periodo: periodo));
+    await refresh();
+  }
+
+  Future<void> setSort(OrdensSort sort) async {
+    if (sort == state.filter.sort) return;
+    state = state.copyWith(filter: state.filter.copyWith(sort: sort));
     await refresh();
   }
 

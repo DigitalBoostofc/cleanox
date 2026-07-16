@@ -47,6 +47,33 @@ void main() {
       .descendant(of: find.byType(OSForm), matching: find.byType(TextField))
       .at(i);
 
+  group('OrdensScreen — ordenação (feedback do dono 16/07)', () {
+    testWidgets(
+      'padrão é data mais próxima primeiro (data_hora asc); trocar reordena',
+      (tester) async {
+        final ordens = _FakeOrdensSortSpy(seed: [_os('a')]);
+        await pumpPainel(
+          tester,
+          const OrdensScreen(),
+          overrides: overridesFor(ordens: ordens),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Default: mais próximo primeiro → ascendente, NÃO '-data_hora'.
+        expect(ordens.lastSort, 'data_hora');
+        expect(find.text('Data — mais próxima primeiro'), findsOneWidget);
+
+        // Troca para Cliente A→Z e confirma que o servidor recebe o sort novo.
+        await tester.tap(find.text('Data — mais próxima primeiro'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cliente — A a Z').last);
+        await tester.pumpAndSettle();
+        expect(ordens.lastSort, 'nome_curto');
+      },
+    );
+  });
+
   group('OrdensScreen', () {
     testWidgets('lista: renderiza OS + abas de status', (tester) async {
       await pumpPainel(
@@ -209,6 +236,34 @@ void main() {
       expect(find.text('Higienização'), findsWidgets);
     });
   });
+}
+
+/// FakeOrdens que CAPTURA o `sort` enviado ao servidor — prova o padrão de
+/// ordenação e a troca pelo dropdown.
+class _FakeOrdensSortSpy extends FakeOrdens {
+  _FakeOrdensSortSpy({super.seed});
+
+  String? lastSort;
+
+  @override
+  Future<PageResult<OrdemServico>> list({
+    int page = 1,
+    int perPage = 30,
+    String? filter,
+    String sort = '-data_hora',
+    String? expand,
+  }) async {
+    // Só a busca da LISTA (perPage grande) importa; as contagens das abas
+    // usam perPage:1 com sort fixo e não devem sujar o que estamos medindo.
+    if (perPage > 1) lastSort = sort;
+    return PageResult<OrdemServico>(
+      items: seed,
+      page: 1,
+      perPage: perPage,
+      totalItems: seed.length,
+      totalPages: 1,
+    );
+  }
 }
 
 /// FakeOrdens que HONRA o filtro de status do servidor — necessário pra provar
