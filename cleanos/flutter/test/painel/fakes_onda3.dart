@@ -76,6 +76,7 @@ OrdemServico fakeOSAgenda({
   String tipoServicoNome = 'Sofá 3 lugares',
   String dataHoraUtc = '2026-07-01 11:00:00',
   OSStatus status = OSStatus.atribuida,
+  User? profExpand,
 }) => OrdemServico(
   id: id,
   nomeCurto: nomeCurto,
@@ -84,6 +85,7 @@ OrdemServico fakeOSAgenda({
   profissional: profissionalId,
   status: status,
   valorServico: 150,
+  expand: profExpand == null ? null : OSExpand(profissional: profExpand),
 );
 
 /* ─────────────────────────── fakes ─────────────────────────── */

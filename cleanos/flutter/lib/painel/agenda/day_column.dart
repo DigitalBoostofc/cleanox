@@ -613,6 +613,12 @@ class _BlocoOSState extends State<_BlocoOS> {
     final faixa = faixaHoraria(p.startMin, p.duracaoMin);
     final curto = p.duracaoMin < 45;
 
+    // Avatar do profissional no canto — resposta ao "de quem é este
+    // agendamento?" na visão de todos os profissionais. A cor do bloco segue
+    // sendo o STATUS; o avatar diz QUEM. Só quando há profissional atribuído.
+    final prof = os.expand?.profissional;
+    final temProf = prof != null && prof.displayName != '—';
+
     final conteudo = Container(
       decoration: BoxDecoration(
         border: Border(
@@ -626,28 +632,67 @@ class _BlocoOSState extends State<_BlocoOS> {
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
         children: [
-          Text(
-            curto
-                ? '$faixa ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}'
-                : faixa,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: tt.labelSmall?.copyWith(
-              color: clx.ink,
-              fontWeight: FontWeight.w700,
+          Padding(
+            // reserva o canto do avatar para o texto não passar por baixo dele
+            padding: EdgeInsets.only(right: temProf ? 18 : 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  curto
+                      ? '$faixa ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}'
+                      : faixa,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.labelSmall?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (!curto) ...[
+                  Flexible(
+                    child: Text(
+                      os.clienteNomeExibicao.isEmpty
+                          ? '—'
+                          : os.clienteNomeExibicao,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.labelSmall?.copyWith(color: clx.ink2),
+                    ),
+                  ),
+                  if (temProf)
+                    Text(
+                      prof.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.labelSmall?.copyWith(
+                        color: clx.ink3,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ],
             ),
           ),
-          if (!curto)
-            Flexible(
-              child: Text(
-                os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: tt.labelSmall?.copyWith(color: clx.ink2),
+          if (temProf)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: clx.statusColor(os.status),
+                    width: 1.5,
+                  ),
+                ),
+                child: Tooltip(
+                  message: prof.displayName,
+                  child: UserAvatar(user: prof, radius: 8),
+                ),
               ),
             ),
         ],
