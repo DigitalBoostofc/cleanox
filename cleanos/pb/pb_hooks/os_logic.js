@@ -24,6 +24,27 @@ function fullName(nome, sobrenome) {
   return s ? `${n} ${s}` : n;
 }
 
+// Detecta o superuser da Admin UI (coleção `_superusers`, papel de DEVOPS).
+// Ele não tem `role` de negócio — sem esta checagem cai como "papel
+// desconhecido" nos guards e leva 403 até para editar OS pela Admin UI
+// (bug real visto em prod em 15–16/07/2026). Duas vias, defensivas ao que o
+// JSVM expõe: o método core `isSuperuser()` e o nome da coleção do auth.
+function isSuperuser(auth) {
+  if (!auth) return false;
+  try {
+    if (typeof auth.isSuperuser === "function" && auth.isSuperuser()) {
+      return true;
+    }
+  } catch (_) {
+    /* segue para a checagem por coleção */
+  }
+  try {
+    return String(auth.collection().name) === "_superusers";
+  } catch (_) {
+    return false;
+  }
+}
+
 // normaliza um valor de campo relation (single) para o id string
 function relId(v) {
   if (Array.isArray(v)) return v.length ? String(v[0]) : "";
@@ -366,8 +387,12 @@ function guardOrdemUpdateRequest(e) {
   const auth = e.auth;
   const role = auth ? String(auth.get("role")) : "";
 
-  // Cerca de status: vale para todo mundo, inclusive admin.
+  // Cerca de status: vale para todo mundo, inclusive admin e superuser
+  // (protege o histórico financeiro — não é autorização por papel).
   assertHorarioNaoCongelado(e.record);
+
+  // Superuser (Admin UI / devops): passa como admin — inclusive repasse.
+  if (isSuperuser(auth)) return;
 
   // admin/gerente: única restrição extra é repasse ser exclusivo de admin.
   if (role === "admin" || role === "gerente") {
@@ -582,6 +607,7 @@ function triggerRatingWebhookIfConcluida(app, record) {
 
 module.exports = {
   fullName,
+  isSuperuser,
   relId,
   readJsonField,
   normalizePhone,
