@@ -279,19 +279,49 @@ function changed(orig, rec, field) {
   return orig.getString(field) !== rec.getString(field);
 }
 
-// data_hora precisa ser HOJE (dia do serviço, em BRT = UTC-3) para iniciar.
+// data_hora não pode ser FUTURA (em BRT = UTC-3) para Iniciar.
 // F-04: compara em BRT para não bloquear serviços noturnos (ex.: 23h BRT = 02h UTC+1d).
-function assertServiceIsToday(record) {
+// Mudança de regra (2026-07-16): Iniciar vale no dia do serviço OU DEPOIS — uma OS
+// que ficou de ontem sem registro no app ainda precisa ser executável/encerrável
+// pelo profissional. Antecipar segue bloqueado: Iniciar libera `endereco_liberado`
+// (anti-desvio), e endereço antes do dia do serviço é exatamente o que não pode.
+function assertServiceDayReached(record) {
   const raw = record.getString("data_hora"); // "2026-06-25 14:00:00.000Z" (UTC)
   const nowBRT  = new Date(Date.now() - 3 * 3600 * 1000);
   const hoje    = nowBRT.toISOString().slice(0, 10);              // dia atual em BRT
   const dataBRT = new Date(new Date(raw).getTime() - 3 * 3600 * 1000);
   const dia     = dataBRT.toISOString().slice(0, 10);             // dia do serviço em BRT
-  if (dia !== hoje) {
+  if (dia > hoje) {
     throw new BadRequestError(
-      `Só é possível Iniciar a OS no dia do serviço (data BRT: ${dia}, hoje BRT: ${hoje}).`
+      `Só é possível Iniciar a OS a partir do dia do serviço (data BRT: ${dia}, hoje BRT: ${hoje}).`
     );
   }
+}
+
+// Carimba `iniciada_em` (server-side) na TRANSIÇÃO para em_andamento — em
+// qualquer caminho de gravação (profissional, painel, create direto). É a
+// referência de "quando o serviço começou" usada pelo cron cleanStaleEndereco;
+// sem ela, o corte por data_hora varreria o endereço de uma OS de ontem que
+// foi iniciada hoje. Nunca re-carimba em saves repetidos em em_andamento.
+function stampIniciadaEm(record) {
+  if (String(record.get("status")) !== "em_andamento") return;
+  const orig = record.original ? record.original() : null;
+  if (orig && String(orig.get("status")) === "em_andamento") return; // sem transição
+  const nowStr = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  record.set("iniciada_em", nowStr);
+}
+
+// Corte do cron cleanStaleEndereco: uma OS em_andamento é "stale" quando o
+// serviço COMEÇOU num dia BRT anterior a `todayBRT`. Usa `iniciada_em`;
+// OS legadas (anteriores ao carimbo) caem no fallback `data_hora`.
+// Defensivo: sem nenhuma data → não é stale (não varre o que não dá pra datar).
+function isStaleEmAndamento(record, todayBRT) {
+  const raw = record.getString("iniciada_em") || record.getString("data_hora");
+  if (!raw) return false;
+  const diaBRT = new Date(new Date(raw).getTime() - 3 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  return diaBRT < todayBRT;
 }
 
 /**
@@ -417,6 +447,9 @@ function guardOrdemUpdateRequest(e) {
     "aviso_5min_em",
     "aviso_1min_em",
     "cheguei_em",
+    // carimbo server-side de quando o serviço começou (stampIniciadaEm) —
+    // referência do corte do cron cleanStaleEndereco; nunca via PATCH.
+    "iniciada_em",
     // NB: checklist_exec, adicionais e observacoes_prof ficam de FORA da denylist
     //     de propósito — são o TRABALHO do profissional na OS (campos editáveis).
   ];
@@ -437,9 +470,9 @@ function guardOrdemUpdateRequest(e) {
     if (!ok) {
       throw new ForbiddenError(`Transição de status inválida: ${from} -> ${to}`);
     }
-    // ao Iniciar: precisa ser o dia do serviço.
+    // ao Iniciar: o dia do serviço precisa ter chegado (hoje ou passado).
     if (to === "em_andamento") {
-      assertServiceIsToday(e.record);
+      assertServiceDayReached(e.record);
     }
     // ao Concluir: o pagamento já tem que estar gravado.
     if (to === "concluida") {
@@ -555,7 +588,9 @@ module.exports = {
   manageEndereco,
   assertPaymentIfConcluida,
   setRepasseIfConcluida,
-  assertServiceIsToday,
+  assertServiceDayReached,
+  stampIniciadaEm,
+  isStaleEmAndamento,
   assertHorarioNaoCongelado,
   guardOrdemUpdateRequest,
   triggerRatingWebhookIfConcluida,
