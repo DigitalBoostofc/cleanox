@@ -22,12 +22,14 @@ import 'meus_servicos/meus_servicos_screen.dart';
 import 'os_execucao/os_execucao_screen.dart';
 import 'perfil/perfil_screen.dart';
 import 'prof_shell.dart';
+import 'resumo/resumo_screen.dart';
 
 /// Constrói o `StatefulShellRoute.indexedStack` do `/app`.
 ///
-/// Branches fixos: Serviços(0) · Financeiro(1) · Mapa(2) · Perfil(3).
-/// A aba Financeiro só aparece na bottom nav se o profissional tiver comissão
-/// ativa ([ProfShell] mapeia os índices).
+/// Branches fixos: Serviços(0) · Financeiro(1) · Mapa(2) · Perfil(3) · Resumo(4).
+/// A ORDEM na bottom nav é outra (Serviços · [Carteira] · Mapa · Resumo · Perfil)
+/// — o [ProfShell] mapeia posição de nav ↔ índice de branch. A aba Financeiro
+/// só aparece se o profissional tiver comissão ativa.
 ///
 /// [rootNavigatorKey] é o navigator RAIZ: a execução da OS sobe nele (tela cheia
 /// sobre a bottom nav).
@@ -85,6 +87,16 @@ StatefulShellRoute profShellRoute(GlobalKey<NavigatorState> rootNavigatorKey) {
             path: '/app/perfil',
             name: 'app-perfil',
             builder: (context, state) => const PerfilScreen(),
+          ),
+        ],
+      ),
+      // ── Resumo (indicadores). Branch 4; na nav aparece ANTES do Perfil. ──
+      StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: '/app/resumo',
+            name: 'app-resumo',
+            builder: (context, state) => const ProfResumoScreen(),
           ),
         ],
       ),
