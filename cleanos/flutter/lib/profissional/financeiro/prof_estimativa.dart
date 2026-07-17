@@ -90,21 +90,28 @@ class EstimativaGanho {
     required this.linhas,
     required this.totalRealizado,
     required this.totalPrevisto,
+    required this.totalPago,
   });
 
   const EstimativaGanho.vazia(this.periodo)
     : linhas = const [],
       totalRealizado = 0,
-      totalPrevisto = 0;
+      totalPrevisto = 0,
+      totalPago = 0;
 
   final EstimativaPeriodo periodo;
   final List<EstimativaOsLinha> linhas;
 
-  /// Soma dos valores CONGELADOS (OS concluídas). Dinheiro garantido.
+  /// Soma dos valores CONGELADOS (OS concluídas). Dinheiro garantido —
+  /// inclui o que já foi pago e o que ainda está a receber.
   final double totalRealizado;
 
   /// Soma das ESTIMATIVAS (OS ainda não fechadas). Pode mudar.
   final double totalPrevisto;
+
+  /// Subconjunto do [totalRealizado] cuja comissão o admin já marcou como
+  /// PAGA (`prof_comissoes.status == paga`). Nunca maior que o garantido.
+  final double totalPago;
 
   /// Perspectiva do período: realizado + previsto.
   double get totalGeral =>
@@ -157,6 +164,7 @@ EstimativaGanho buildEstimativa({
   final linhas = <EstimativaOsLinha>[];
   var realizado = 0.0;
   var previsto = 0.0;
+  var pago = 0.0;
 
   for (final os in ordens) {
     if (os.status == OSStatus.cancelada) continue;
@@ -189,6 +197,8 @@ EstimativaGanho buildEstimativa({
 
     if (origem == ComissaoOrigem.congelada) {
       realizado += valor;
+      // "Pago" é o subconjunto do garantido que o admin já quitou.
+      if (congelada!.status == ComissaoStatus.paga) pago += valor;
     } else {
       previsto += valor;
     }
@@ -201,5 +211,6 @@ EstimativaGanho buildEstimativa({
     linhas: linhas,
     totalRealizado: r(realizado),
     totalPrevisto: r(previsto),
+    totalPago: r(pago),
   );
 }

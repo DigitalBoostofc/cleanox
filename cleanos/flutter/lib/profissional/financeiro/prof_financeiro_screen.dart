@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
-import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
@@ -84,7 +83,6 @@ class ProfFinanceiroScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     final me = ref.watch(currentUserProvider);
-    final asyncCom = ref.watch(_profComissoesProvider);
     final asyncCarteira = ref.watch(_carteiraProvider);
     final periodo = ref.watch(_estimativaPeriodoProvider);
 
@@ -122,32 +120,6 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                                 .read(_estimativaPeriodoProvider.notifier)
                                 .state = p,
                           ),
-                        ),
-                        const SizedBox(height: ClxSpace.x5),
-                        Text(
-                          'Extrato de comissões',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: ClxSpace.x1),
-                        Text(
-                          'Valores gerados ao concluir o serviço.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: clx.ink2),
-                        ),
-                        const SizedBox(height: ClxSpace.x3),
-                        asyncCom.when(
-                          loading: () => const Padding(
-                            padding: EdgeInsets.all(ClxSpace.x6),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                          error: (e, _) => ErrorBanner(
-                            message: 'Não foi possível carregar o extrato.',
-                            onRetry: () =>
-                                ref.invalidate(_profComissoesProvider),
-                          ),
-                          data: (items) =>
-                              _ExtratoSection(items: items, clx: clx),
                         ),
                         const SizedBox(height: ClxSpace.x8),
                       ],
@@ -333,10 +305,11 @@ class _EstimativaSection extends StatelessWidget {
                       ),
                       const SizedBox(height: ClxSpace.x3),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: _MiniStat(
-                              label: 'Estimativa (em aberto)',
+                              label: 'Estimativa',
                               value: formatCurrency(est.totalPrevisto),
                               color: clx.warning,
                             ),
@@ -347,6 +320,14 @@ class _EstimativaSection extends StatelessWidget {
                               label: 'Já garantido',
                               value: formatCurrency(est.totalRealizado),
                               color: clx.success,
+                            ),
+                          ),
+                          const SizedBox(width: ClxSpace.x2),
+                          Expanded(
+                            child: _MiniStat(
+                              label: 'Pago',
+                              value: formatCurrency(est.totalPago),
+                              color: clx.primary,
                             ),
                           ),
                         ],
@@ -460,7 +441,7 @@ class _OsEstimativaTile extends StatelessWidget {
               ),
               ClxChip(
                 label: os.status.label,
-                color: linha.isConcluida ? clx.success : clx.primary,
+                color: clx.statusColor(os.status),
                 dense: true,
               ),
             ],
@@ -508,142 +489,6 @@ class _OsEstimativaTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ExtratoSection extends StatelessWidget {
-  const _ExtratoSection({required this.items, required this.clx});
-
-  final List<ProfComissao> items;
-  final CleanoxColors clx;
-
-  @override
-  Widget build(BuildContext context) {
-    final pendente = items
-        .where((c) => c.status == ComissaoStatus.pendente)
-        .fold<double>(0, (s, c) => s + c.valorComissao);
-    final paga = items
-        .where((c) => c.status == ComissaoStatus.paga)
-        .fold<double>(0, (s, c) => s + c.valorComissao);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ClxCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'A receber',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelMedium?.copyWith(color: clx.ink2),
-                    ),
-                    Text(
-                      formatCurrency(pendente),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: clx.warning,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: ClxSpace.x3),
-            Expanded(
-              child: ClxCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Já pago',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelMedium?.copyWith(color: clx.ink2),
-                    ),
-                    Text(
-                      formatCurrency(paga),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: clx.success,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: ClxSpace.x3),
-        if (items.isEmpty)
-          ClxCard(
-            child: Text(
-              'Nenhuma comissão ainda. Ao concluir um serviço, o valor aparece aqui.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
-            ),
-          )
-        else
-          for (final c in items) ...[
-            ClxCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          c.descricao.isNotEmpty
-                              ? c.descricao
-                              : 'Comissão de OS',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      ClxChip(
-                        label: c.status.label,
-                        color: c.status == ComissaoStatus.paga
-                            ? clx.success
-                            : clx.warning,
-                        dense: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    c.data != null && c.data!.isNotEmpty
-                        ? formatDate(c.data!)
-                        : '—',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: clx.ink2),
-                  ),
-                  const SizedBox(height: ClxSpace.x2),
-                  Text(
-                    formatCurrency(c.valorComissao),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: clx.primary,
-                    ),
-                  ),
-                  Text(
-                    'Serviço ${formatCurrency(c.valorOs)}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: clx.ink2),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x2),
-          ],
-      ],
     );
   }
 }
