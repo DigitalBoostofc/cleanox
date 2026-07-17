@@ -636,7 +636,7 @@ class _BlocoOSState extends State<_BlocoOS> {
         children: [
           Padding(
             // reserva o canto do avatar para o texto não passar por baixo dele
-            padding: EdgeInsets.only(right: temProf ? 18 : 0),
+            padding: EdgeInsets.only(right: temProf ? 24 : 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -693,7 +693,7 @@ class _BlocoOSState extends State<_BlocoOS> {
                 ),
                 child: Tooltip(
                   message: prof.displayName,
-                  child: UserAvatar(user: prof, radius: 8),
+                  child: UserAvatar(user: prof, radius: 10),
                 ),
               ),
             ),
