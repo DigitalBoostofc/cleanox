@@ -9,15 +9,18 @@ import 'package:flutter_test/flutter_test.dart';
 /// Comissão CONGELADA em `prof_comissoes` — o que o hook gravou quando a OS
 /// fechou. É o valor que o profissional vai receber, independente do que o
 /// admin configurar depois.
-ProfComissao congelada({required String os, required double valor}) =>
-    ProfComissao(
-      id: 'c-$os',
-      profissional: 'p1',
-      os: os,
-      valorComissao: valor,
-      valorOs: 300,
-      status: ComissaoStatus.pendente,
-    );
+ProfComissao congelada({
+  required String os,
+  required double valor,
+  ComissaoStatus status = ComissaoStatus.pendente,
+}) => ProfComissao(
+  id: 'c-$os',
+  profissional: 'p1',
+  os: os,
+  valorComissao: valor,
+  valorOs: 300,
+  status: status,
+);
 
 void main() {
   const mePct = User(
@@ -102,6 +105,36 @@ void main() {
       expect(est.totalPrevisto, 10); // OS 'a' — ainda aberta
       expect(est.totalRealizado, 10); // OS 'b' — valor congelado
       expect(est.totalGeral, 20);
+    });
+
+    test('totalPago = subconjunto do garantido já marcado como pago', () {
+      final ordens = [
+        OrdemServico(id: 'paga', status: OSStatus.concluida, valorPago: 300),
+        OrdemServico(id: 'aberta', status: OSStatus.concluida, valorPago: 300),
+      ];
+      final est = buildEstimativa(
+        me: mePct,
+        ordens: ordens,
+        comissoes: [
+          congelada(os: 'paga', valor: 30, status: ComissaoStatus.paga),
+          congelada(os: 'aberta', valor: 30), // pendente
+        ],
+        periodo: EstimativaPeriodo.mes,
+      );
+      expect(est.totalRealizado, 60, reason: 'as duas comissões congeladas');
+      expect(est.totalPago, 30, reason: 'só a que o admin quitou');
+    });
+
+    test('nada pago → totalPago = 0', () {
+      final est = buildEstimativa(
+        me: mePct,
+        ordens: [
+          OrdemServico(id: 'b', status: OSStatus.concluida, valorPago: 300),
+        ],
+        comissoes: [congelada(os: 'b', valor: 30)], // pendente
+        periodo: EstimativaPeriodo.mes,
+      );
+      expect(est.totalPago, 0);
     });
   });
 
