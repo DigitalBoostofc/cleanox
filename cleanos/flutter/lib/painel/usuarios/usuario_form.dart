@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pocketbase/pocketbase.dart' show ClientException;
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
@@ -197,10 +198,30 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     }
   }
 
+  Future<void> _openResetSenha() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(ClxSpace.x4),
+        shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: _ResetSenhaDialog(target: widget.editing!),
+        ),
+      ),
+    );
+    if (ok == true && mounted) {
+      showClxToast(context, 'Senha redefinida.', type: ToastType.success);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final myId = ref.watch(currentUserProvider)?.id;
+    final me = ref.watch(currentUserProvider);
+    final myId = me?.id;
     final self = _isSelf(myId);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -363,7 +384,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                     obscure: true,
                   ),
                 ],
-                if (_isEdit) _resetSenhaNote(clx),
+                if (_isEdit) _resetSenhaSection(clx, me?.role),
               ],
             ),
           ),
@@ -433,18 +454,34 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     );
   }
 
-  Widget _resetSenhaNote(CleanoxColors clx) {
-    return Container(
-      padding: const EdgeInsets.all(ClxSpace.x3),
-      decoration: BoxDecoration(
-        color: clx.warningBg,
-        borderRadius: ClxRadii.rMd,
-        border: Border.all(color: clx.warning.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        'Para redefinir a senha deste usuário, use o Admin UI do PocketBase (/_/). '
-        'Apenas o próprio usuário pode trocar a própria senha pelo painel.',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink2, height: 1.5),
+  /// Redefinição de senha (só admin). O gerente vê uma nota; o admin vê o botão
+  /// que abre o dialog — a redefinição é server-side (rota com privilégio
+  /// elevado + reconfirmação da senha do próprio admin).
+  Widget _resetSenhaSection(CleanoxColors clx, Role? myRole) {
+    if (myRole != Role.admin) {
+      return Container(
+        padding: const EdgeInsets.all(ClxSpace.x3),
+        decoration: BoxDecoration(
+          color: clx.warningBg,
+          borderRadius: ClxRadii.rMd,
+          border: Border.all(color: clx.warning.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          'Redefinir a senha de outra conta é exclusivo de administradores. '
+          'Cada usuário também pode trocar a própria senha em Conta.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: clx.ink2, height: 1.5),
+        ),
+      );
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ClxButton(
+        label: 'Redefinir senha',
+        icon: Icons.lock_reset_rounded,
+        variant: ClxButtonVariant.ghost,
+        onPressed: _saving ? null : _openResetSenha,
       ),
     );
   }
@@ -505,6 +542,246 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
               errorText: err,
               helperText: helper,
               helperMaxLines: 3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Traduz o erro da rota de redefinição para PT-BR. As mensagens do backend já
+/// são amigáveis ("Senha do admin incorreta.", etc.), então passam direto.
+String redefinirSenhaErro(Object err) {
+  if (err is ClientException) {
+    final msg = err.response['message'];
+    if (msg is String && msg.trim().isNotEmpty) return msg;
+    if (err.statusCode == 0) return 'Sem conexão. Verifique a internet.';
+    if (err.statusCode == 403) {
+      return 'Apenas administradores podem redefinir senhas.';
+    }
+  }
+  return 'Não foi possível redefinir a senha.';
+}
+
+/// Dialog de redefinição de senha de OUTRA conta (admin). Três campos: nova
+/// senha, confirmação e a senha do PRÓPRIO admin (reconfirmação). Resolve `true`
+/// quando a rota confirma. Erros do servidor aparecem no banner.
+class _ResetSenhaDialog extends ConsumerStatefulWidget {
+  const _ResetSenhaDialog({required this.target});
+
+  final User target;
+
+  @override
+  ConsumerState<_ResetSenhaDialog> createState() => _ResetSenhaDialogState();
+}
+
+class _ResetSenhaDialogState extends ConsumerState<_ResetSenhaDialog> {
+  final TextEditingController _nova = TextEditingController();
+  final TextEditingController _confirm = TextEditingController();
+  final TextEditingController _adminSenha = TextEditingController();
+
+  bool _saving = false;
+  String? _error;
+  final Map<String, String> _errs = {};
+
+  @override
+  void dispose() {
+    _nova.dispose();
+    _confirm.dispose();
+    _adminSenha.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> _validate() {
+    final errs = <String, String>{};
+    if (_nova.text.length < 8) {
+      errs['nova'] = 'Mínimo 8 caracteres';
+    }
+    if (_nova.text != _confirm.text) {
+      errs['confirm'] = 'Senhas não coincidem';
+    }
+    if (_adminSenha.text.isEmpty) {
+      errs['admin'] = 'Informe sua senha de admin';
+    }
+    return errs;
+  }
+
+  Future<void> _submit() async {
+    final errs = _validate();
+    if (errs.isNotEmpty) {
+      setState(() {
+        _errs
+          ..clear()
+          ..addAll(errs);
+      });
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+      _errs.clear();
+    });
+    try {
+      await ref
+          .read(usuariosRepositoryProvider)
+          .redefinirSenha(
+            userId: widget.target.id,
+            novaSenha: _nova.text,
+            adminSenha: _adminSenha.text,
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (err) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = redefinirSenhaErro(err);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final nome = widget.target.name.isNotEmpty
+        ? widget.target.name
+        : (widget.target.nome ?? widget.target.email);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            ClxSpace.x5,
+            ClxSpace.x4,
+            ClxSpace.x3,
+            ClxSpace.x2,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Redefinir senha',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Fechar',
+                icon: const Icon(Icons.close_rounded),
+                color: clx.ink3,
+                onPressed: _saving
+                    ? null
+                    : () => Navigator.of(context).maybePop(),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: clx.line),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(ClxSpace.x5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Você está definindo uma nova senha para $nome. A sessão atual '
+                  'dessa pessoa será encerrada — ela entra de novo com a senha nova.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink2, height: 1.4),
+                ),
+                const SizedBox(height: ClxSpace.x4),
+                if (_error != null) ...[
+                  ErrorBanner(message: _error!),
+                  const SizedBox(height: ClxSpace.x4),
+                ],
+                _senhaField(
+                  label: 'Nova senha',
+                  controller: _nova,
+                  errorKey: 'nova',
+                  hint: 'Mínimo 8 caracteres',
+                ),
+                _senhaField(
+                  label: 'Confirmar nova senha',
+                  controller: _confirm,
+                  errorKey: 'confirm',
+                  hint: 'Repita a nova senha',
+                ),
+                _senhaField(
+                  label: 'Sua senha de admin',
+                  controller: _adminSenha,
+                  errorKey: 'admin',
+                  hint: 'Confirme com a sua senha',
+                ),
+              ],
+            ),
+          ),
+        ),
+        Divider(height: 1, color: clx.line),
+        Padding(
+          padding: const EdgeInsets.all(ClxSpace.x4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ClxButton(
+                label: 'Cancelar',
+                variant: ClxButtonVariant.ghost,
+                onPressed: _saving
+                    ? null
+                    : () => Navigator.of(context).maybePop(),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              ClxButton(
+                label: 'Redefinir',
+                icon: Icons.lock_reset_rounded,
+                loading: _saving,
+                onPressed: _saving ? null : _submit,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _senhaField({
+    required String label,
+    required TextEditingController controller,
+    required String errorKey,
+    String? hint,
+  }) {
+    final clx = context.clx;
+    final err = _errs[errorKey];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: ClxSpace.x1),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextField(
+            controller: controller,
+            enabled: !_saving,
+            obscureText: true,
+            onChanged: (_) {
+              if (err != null) setState(() => _errs.remove(errorKey));
+            },
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: hint,
+              errorText: err,
             ),
           ),
         ],

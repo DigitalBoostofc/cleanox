@@ -20,6 +20,16 @@ abstract class UsuariosRepository {
     AvatarUpload? avatar,
   });
   Future<void> delete(String id);
+
+  /// Admin redefine a senha de OUTRA conta (rota server-side com privilégio
+  /// elevado — `POST /api/cleanos/users/{id}/senha`). Exige [adminSenha] (a
+  /// senha do próprio admin) para autorizar. Erros do PB (403/400/404) sobem
+  /// como `ClientException` para a UI traduzir.
+  Future<void> redefinirSenha({
+    required String userId,
+    required String novaSenha,
+    required String adminSenha,
+  });
 }
 
 /// Stub congelado (Fase 1). Impl real na Fase 2 (Time A / Painel).
@@ -45,4 +55,10 @@ class UnimplementedUsuariosRepository implements UsuariosRepository {
       _todo();
   @override
   Future<void> delete(String id) => _todo();
+  @override
+  Future<void> redefinirSenha({
+    required String userId,
+    required String novaSenha,
+    required String adminSenha,
+  }) => _todo();
 }

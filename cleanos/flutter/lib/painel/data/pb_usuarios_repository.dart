@@ -66,4 +66,19 @@ class PbUsuariosRepository implements UsuariosRepository {
 
   @override
   Future<void> delete(String id) => _col.delete(id);
+
+  @override
+  Future<void> redefinirSenha({
+    required String userId,
+    required String novaSenha,
+    required String adminSenha,
+  }) => _pb.send<dynamic>(
+    '/api/cleanos/users/$userId/senha',
+    method: 'POST',
+    body: {
+      'password': novaSenha,
+      'passwordConfirm': novaSenha,
+      'adminPassword': adminSenha,
+    },
+  );
 }
