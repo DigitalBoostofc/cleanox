@@ -40,19 +40,24 @@ class _ProfShellState extends ConsumerState<ProfShell> {
     }
   }
 
+  /// Ordem das abas na bottom nav → índice de branch do go_router.
+  /// Branches: 0 Serviços · 1 Financeiro · 2 Mapa · 3 Perfil · 4 Resumo.
+  /// Nav: Serviços · [Carteira] · Mapa · Resumo · Perfil (Carteira condicional).
+  List<int> _navOrder({required bool hasFin}) => [
+    0, // Serviços
+    if (hasFin) 1, // Carteira
+    2, // Mapa
+    4, // Resumo
+    3, // Perfil
+  ];
+
   /// Mapeia índice da bottom nav → branch do shell.
-  int _branchForNav(int navIndex, {required bool hasFin}) {
-    if (hasFin) return navIndex;
-    if (navIndex == 0) return 0;
-    return navIndex + 1; // 1→2 mapa, 2→3 perfil
-  }
+  int _branchForNav(int navIndex, {required bool hasFin}) =>
+      _navOrder(hasFin: hasFin)[navIndex];
 
   int _navForBranch(int branch, {required bool hasFin}) {
-    if (hasFin) return branch.clamp(0, 3);
-    if (branch <= 0) return 0;
-    if (branch == 1) return 0;
-    if (branch == 2) return 1;
-    return 2;
+    final i = _navOrder(hasFin: hasFin).indexOf(branch);
+    return i < 0 ? 0 : i;
   }
 
   void _onTap(int navIndex, {required bool hasFin}) {
@@ -81,6 +86,7 @@ class _ProfShellState extends ConsumerState<ProfShell> {
       1 => 'Carteira',
       2 => 'Mapa',
       3 => 'Perfil',
+      4 => 'Resumo',
       _ => kAppDisplayName,
     };
   }
@@ -92,6 +98,7 @@ class _ProfShellState extends ConsumerState<ProfShell> {
       1 => 'Comissões e ganhos',
       2 => 'Serviço em andamento',
       3 => 'Seus dados e ajustes',
+      4 => 'Seus números',
       _ => '',
     };
   }
@@ -122,6 +129,11 @@ class _ProfShellState extends ConsumerState<ProfShell> {
         icon: Icons.map_rounded,
         label: 'Mapa',
         keyName: 'prof-nav-mapa',
+      ),
+      const _NavSpec(
+        icon: Icons.insights_rounded,
+        label: 'Resumo',
+        keyName: 'prof-nav-resumo',
       ),
       const _NavSpec(
         icon: Icons.person_rounded,
