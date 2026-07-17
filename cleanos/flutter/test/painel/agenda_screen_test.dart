@@ -6,6 +6,7 @@ import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/painel/agenda/agenda_controller.dart';
 import 'package:cleanos/painel/agenda/agenda_screen.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes_onda2.dart' show FakeOrdens;
@@ -166,6 +167,20 @@ void main() {
           findsWidgets,
           reason: 'o avatar do bloco deve identificar o profissional',
         );
+
+        // Canto INFERIOR direito (pedido do dono, 16/07): no superior o
+        // avatar brigava com a linha do horário.
+        final pos = tester.widget<Positioned>(
+          find
+              .ancestor(
+                of: find.byTooltip('Bia Prof').first,
+                matching: find.byType(Positioned),
+              )
+              .first,
+        );
+        expect(pos.bottom, 0, reason: 'avatar ancorado embaixo');
+        expect(pos.right, 0, reason: 'avatar ancorado à direita');
+        expect(pos.top, isNull, reason: 'não pode voltar pro topo');
       },
     );
 

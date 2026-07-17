@@ -678,8 +678,10 @@ class _BlocoOSState extends State<_BlocoOS> {
             ),
           ),
           if (temProf)
+            // Canto INFERIOR direito (pedido do dono, 16/07): no superior o
+            // avatar brigava com a linha do horário.
             Positioned(
-              top: 0,
+              bottom: 0,
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
