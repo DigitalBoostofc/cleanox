@@ -170,7 +170,13 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       await ref.read(financeiroRepositoryProvider).updateLancamento(l.id, {
         'status': novo.wire,
       });
-      await _refreshAfterMutation();
+      // Só atualiza o item no lugar + revalida os totais/rodapé/banner (que são
+      // providers à parte). NÃO recarrega a lista — senão o scroll pula pro topo.
+      ref.read(finLancControllerProvider.notifier).applyStatusLocally(l.id, novo);
+      ref.invalidate(finContasProvider);
+      ref.invalidate(finPeriodLancamentosProvider);
+      ref.invalidate(finPrevPeriodResumoProvider);
+      ref.invalidate(finPendentesProvider);
       if (mounted) {
         showClxToast(
           context,

@@ -154,6 +154,18 @@ class FinLancController extends StateNotifier<FinLancState> {
     await refresh();
   }
 
+  /// Atualiza o status de UM lançamento já carregado, SEM recarregar a lista
+  /// (a mãozinha pago↔pendente não pode fazer a página pular pro topo). Os
+  /// totais/rodapé/banner são providers à parte — a tela revalida só eles.
+  void applyStatusLocally(String id, LancamentoStatus novo) {
+    state = state.copyWith(
+      items: [
+        for (final l in state.items)
+          if (l.id == id) l.copyWith(status: novo) else l,
+      ],
+    );
+  }
+
   Future<void> loadMore() async {
     if (state.loadingMore || state.loading || !state.hasMore) return;
     state = state.copyWith(loadingMore: true);
