@@ -72,6 +72,29 @@ void main() {
         expect(ordens.lastSort, 'nome_curto');
       },
     );
+
+    testWidgets('período virou dropdown: padrão "Esta semana", troca p/ "Tudo"', (
+      tester,
+    ) async {
+      await pumpPainel(
+        tester,
+        const OrdensScreen(),
+        overrides: overridesFor(ordens: FakeOrdens(seed: [_os('a')])),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Default do dono (16/07): semana corrente.
+      expect(find.text('Esta semana'), findsOneWidget);
+
+      // Abre o dropdown e escolhe "Tudo".
+      await tester.tap(find.text('Esta semana'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tudo').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Tudo'), findsOneWidget);
+      expect(find.text('Esta semana'), findsNothing);
+    });
   });
 
   group('OrdensScreen', () {

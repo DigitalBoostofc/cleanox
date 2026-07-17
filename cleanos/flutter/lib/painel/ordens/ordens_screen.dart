@@ -176,11 +176,6 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
           onSelect: (s) =>
               ref.read(ordensControllerProvider.notifier).setStatus(s),
         ),
-        _PeriodoChips(
-          active: state.filter.periodo,
-          onSelect: (p) =>
-              ref.read(ordensControllerProvider.notifier).setPeriodo(p),
-        ),
         Expanded(child: _body(state)),
       ],
     );
@@ -390,6 +385,39 @@ class _Toolbar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x3),
+          // Filtro de período (server-side): janela de data_hora na lista e nas
+          // contagens. Era uma linha de chips; virou dropdown ao lado do
+          // ordenador (pedido do dono, 16/07).
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 190),
+            child: DropdownButtonFormField<OrdensPeriodo>(
+              initialValue: filter.periodo,
+              isExpanded: true,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: clx.bg2,
+                prefixIcon: const Icon(Icons.event_outlined, size: 18),
+                border: const OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: [
+                for (final p in OrdensPeriodo.values)
+                  DropdownMenuItem(
+                    value: p,
+                    child: Text(p.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (p) {
+                if (p != null) {
+                  ref.read(ordensControllerProvider.notifier).setPeriodo(p);
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: ClxSpace.x3),
           // Ordenação (server-side): data mais próxima primeiro por padrão.
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
@@ -475,67 +503,6 @@ class _StatusTabs extends ConsumerWidget {
   }
 }
 
-/// Chips de período (Hoje | Esta semana | Este mês | Tudo) — janela de
-/// `data_hora` aplicada NO SERVIDOR à lista e às contagens das abas.
-class _PeriodoChips extends StatelessWidget {
-  const _PeriodoChips({required this.active, required this.onSelect});
-
-  final OrdensPeriodo active;
-  final ValueChanged<OrdensPeriodo> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: ClxSpace.x6,
-          vertical: ClxSpace.x2,
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.event_outlined, size: 15, color: clx.ink3),
-            const SizedBox(width: ClxSpace.x2),
-            for (final p in OrdensPeriodo.values)
-              Padding(
-                padding: const EdgeInsets.only(right: ClxSpace.x2),
-                child: Material(
-                  color: active == p
-                      ? clx.primary.withValues(alpha: 0.14)
-                      : Colors.transparent,
-                  borderRadius: ClxRadii.rPill,
-                  child: InkWell(
-                    onTap: () => onSelect(p),
-                    borderRadius: ClxRadii.rPill,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: ClxSpace.x3,
-                        vertical: ClxSpace.x1,
-                      ),
-                      child: Text(
-                        p.label,
-                        style: tt.bodyMedium?.copyWith(
-                          color: active == p ? clx.primary : clx.ink2,
-                          fontWeight: active == p
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _Tab extends StatelessWidget {
   const _Tab({
