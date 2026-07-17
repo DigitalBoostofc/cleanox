@@ -161,6 +161,23 @@ String formatDate(String iso) {
   return DateFormat('dd/MM/yyyy').format(utc.subtract(kBrtOffset));
 }
 
+/// Cabeçalho de dia amigável em BRT: "Hoje · 14/07", "Amanhã · 15/07" ou
+/// "qua · 16/07". Usado nos separadores de dia (ex.: "Próximos" do dashboard).
+String formatDayHeaderBrt(String iso, {DateTime? now}) {
+  final utc = parsePbUtc(iso);
+  if (utc == null) return '—';
+  final brt = utc.subtract(kBrtOffset);
+  final dia = DateFormat('dd/MM').format(brt);
+  final hojeBrt = _brtWallClock(now ?? DateTime.now());
+  final hoje = DateTime.utc(hojeBrt.year, hojeBrt.month, hojeBrt.day);
+  final alvo = DateTime.utc(brt.year, brt.month, brt.day);
+  final delta = alvo.difference(hoje).inDays;
+  if (delta == 0) return 'Hoje · $dia';
+  if (delta == 1) return 'Amanhã · $dia';
+  const semana = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+  return '${semana[brt.weekday - 1]} · $dia';
+}
+
 /// dd/MM/yyyy HH:mm em BRT (espelha `formatDateTime`).
 String formatDateTime(String iso) {
   final utc = parsePbUtc(iso);

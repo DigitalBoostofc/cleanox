@@ -106,6 +106,32 @@ void main() {
     });
   });
 
+  group('formatDayHeaderBrt (separador de dia, BRT)', () {
+    // "agora" fixo: 16/07/2026 12:00 BRT (15:00 UTC).
+    final now = DateTime.utc(2026, 7, 16, 15);
+
+    test('mesmo dia → "Hoje · dd/MM"', () {
+      expect(formatDayHeaderBrt('2026-07-16 13:00:00.000Z', now: now),
+          'Hoje · 16/07');
+    });
+    test('dia seguinte → "Amanhã · dd/MM"', () {
+      expect(formatDayHeaderBrt('2026-07-17 13:00:00.000Z', now: now),
+          'Amanhã · 17/07');
+    });
+    test('outro dia → "abrev · dd/MM" (18/07 é sábado)', () {
+      expect(formatDayHeaderBrt('2026-07-18 13:00:00.000Z', now: now),
+          'sáb · 18/07');
+    });
+    test('conversão de fuso: 02:00Z cai no dia BRT anterior', () {
+      // 16/07 02:00Z = 15/07 23:00 BRT → ontem em relação a "hoje" 16/07.
+      expect(formatDayHeaderBrt('2026-07-16 02:00:00.000Z', now: now),
+          'qua · 15/07');
+    });
+    test('vazio/inválido → placeholder', () {
+      expect(formatDayHeaderBrt(''), '—');
+    });
+  });
+
   group('moeda', () {
     test('formata BRL pt-BR', () {
       final s = formatCurrency(1234.5);

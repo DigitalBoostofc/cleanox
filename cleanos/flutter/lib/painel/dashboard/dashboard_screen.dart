@@ -93,6 +93,19 @@ class _EasypayDashboard extends ConsumerWidget {
     final tt = Theme.of(context).textTheme;
     final kpis = data.kpis;
     final upcoming = data.upcoming;
+    // Próximos (teto 8) agrupados por dia BRT: cada troca de dia insere um
+    // separador. A lista já vem ordenada por data_hora, então basta detectar a
+    // mudança de dia (pedido do dono, 16/07).
+    final upcomingRows = <({String? header, OrdemServico? os})>[];
+    String? lastDay;
+    for (final os in upcoming.take(8)) {
+      final day = formatDate(os.dataHora); // dd/MM/yyyy BRT = chave do dia
+      if (day != lastDay) {
+        upcomingRows.add((header: formatDayHeaderBrt(os.dataHora), os: null));
+        lastDay = day;
+      }
+      upcomingRows.add((header: null, os: os));
+    }
 
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(dashboardDataProvider.future),
@@ -280,14 +293,18 @@ class _EasypayDashboard extends ConsumerWidget {
                 ClxSpace.x12,
               ),
               sliver: SliverList.builder(
-                itemCount: upcoming.length.clamp(0, 8),
+                itemCount: upcomingRows.length,
                 itemBuilder: (context, i) {
+                  final row = upcomingRows[i];
+                  if (row.header != null) {
+                    return _DaySeparator(label: row.header!, first: i == 0);
+                  }
                   return ClxFadeSlide(
                     delay: Duration(milliseconds: 260 + i * 40),
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: ClxSpace.x2),
                       child: _TxCard(
-                        os: upcoming[i],
+                        os: row.os!,
                         onTap: () => _go(context, PainelSection.ordens),
                       ),
                     ),
@@ -581,6 +598,41 @@ class _MiniKpi extends StatelessWidget {
   }
 }
 
+/// Separador de dia entre os cards de "Próximos" (ex.: "Hoje · 16/07").
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.label, required this.first});
+
+  final String label;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: EdgeInsets.only(
+        top: first ? 0 : ClxSpace.x3,
+        bottom: ClxSpace.x2,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.event_rounded, size: 14, color: clx.ink3),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: tt.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: clx.ink2,
+            ),
+          ),
+          const SizedBox(width: ClxSpace.x3),
+          Expanded(child: Divider(color: clx.line, height: 1)),
+        ],
+      ),
+    );
+  }
+}
+
 class _TxCard extends StatelessWidget {
   const _TxCard({required this.os, required this.onTap});
 
@@ -630,24 +682,12 @@ class _TxCard extends StatelessWidget {
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      formatTime(os.dataHora),
-                      style: tt.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: clx.accent,
-                      ),
-                    ),
-                    Text(
-                      formatDate(os.dataHora).substring(0, 5),
-                      style: tt.labelSmall?.copyWith(
-                        color: clx.ink3,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  formatTime(os.dataHora),
+                  style: tt.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.accent,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -666,14 +706,34 @@ class _TxCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      [
-                        os.tipoServicoNome ?? '—',
-                        money,
-                        if (prof != null) prof.displayName,
-                      ].join(' · '),
+                      '${os.tipoServicoNome ?? '—'} · $money',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: tt.bodySmall?.copyWith(color: clx.ink3),
+                    ),
+                    const SizedBox(height: 4),
+                    // Profissional em linha própria — antes ficava no fim da
+                    // linha do serviço e o ellipsis cortava (feedback do dono).
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_rounded,
+                          size: 13,
+                          color: prof != null ? clx.primary : clx.ink3,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            prof?.displayName ?? 'Sem profissional',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tt.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: prof != null ? clx.ink2 : clx.ink3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

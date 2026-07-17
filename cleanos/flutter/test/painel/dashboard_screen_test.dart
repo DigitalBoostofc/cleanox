@@ -1,8 +1,12 @@
 /// dashboard_screen_test.dart — Dashboard do Painel: dados / vazio / erro.
 library;
 
+import 'package:cleanos/app.dart' show AppSurface;
+import 'package:cleanos/core/design/app_surface_provider.dart';
 import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/models/collections.dart';
+import 'package:cleanos/core/models/ordem_servico.dart';
+import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/dashboard/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,6 +75,58 @@ void main() {
       // KPIs ainda renderizam (todos zerados).
       expect(find.text('Faturamento hoje'), findsOneWidget);
     });
+
+    testWidgets(
+      'mobile: "Próximos" agrupa por dia (separador) e mostra o profissional',
+      (tester) async {
+        OrdemServico up(String id, String dataHora, {String? prof}) =>
+            OrdemServico(
+              id: id,
+              nomeCurto: 'Cliente $id',
+              bairro: 'Centro',
+              tipoServicoNome: 'Higienização',
+              dataHora: dataHora,
+              status: OSStatus.atribuida,
+              valorServico: 200,
+              expand: prof == null
+                  ? null
+                  : OSExpand(
+                      profissional: User(
+                        id: 'u$id',
+                        name: prof,
+                        role: Role.profissional,
+                      ),
+                    ),
+            );
+
+        final repo = FakePainelOrdens(
+          byIndex: (i) => i == 0
+              ? const []
+              : [
+                  up('a', '2026-07-16 13:00:00Z', prof: 'Ana Prof'),
+                  up('b', '2026-07-18 16:00:00Z'), // outro dia, sem profissional
+                ],
+        );
+
+        await pumpPainel(
+          tester,
+          const DashboardScreen(),
+          overrides: [
+            ...painelOverrides(user: painelUser(), repo: repo),
+            // Força o hub mobile (easypay), onde vivem os cards "Próximos".
+            appSurfaceProvider.overrideWithValue(AppSurface.android),
+          ],
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Dois dias distintos → dois separadores (ícone de calendário).
+        expect(find.byIcon(Icons.event_rounded), findsNWidgets(2));
+        // Profissional numa linha própria; ausência é explícita.
+        expect(find.text('Ana Prof'), findsOneWidget);
+        expect(find.text('Sem profissional'), findsOneWidget);
+      },
+    );
 
     testWidgets('erro: mostra banner com retry', (tester) async {
       await pumpPainel(
