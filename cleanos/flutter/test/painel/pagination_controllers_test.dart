@@ -187,6 +187,38 @@ void main() {
       expect(ids.length, 90);
       expect(ids.toSet().length, ids.length, reason: 'sem duplicatas');
     });
+
+    test('applyStatusLocally troca 1 item sem re-fetch (scroll não pula)',
+        () async {
+      final fake = PagingFinanceiro(_lancs(90));
+      final ctrl = container(fake).read(finLancControllerProvider.notifier);
+      await ctrl.refresh();
+      await ctrl.loadMore();
+      await ctrl.loadMore(); // 90 itens, 3 páginas carregadas
+      final fetchAntes = fake.fetchCount;
+      final ordemAntes = ctrl.state.items.map((l) => l.id).toList();
+
+      // fakeLanc nasce pago; a mãozinha marca pendente.
+      ctrl.applyStatusLocally('l45', LancamentoStatus.pendente);
+
+      // Sem re-fetch → a lista não é reconstruída → scroll preservado.
+      expect(fake.fetchCount, fetchAntes, reason: 'não recarrega a lista');
+      expect(ctrl.state.items.length, 90);
+      expect(
+        ctrl.state.items.map((l) => l.id).toList(),
+        ordemAntes,
+        reason: 'mesma ordem e tamanho',
+      );
+      expect(
+        ctrl.state.items.firstWhere((l) => l.id == 'l45').status,
+        LancamentoStatus.pendente,
+      );
+      // Só o alvo mudou.
+      expect(
+        ctrl.state.items.where((l) => l.status == LancamentoStatus.pendente).length,
+        1,
+      );
+    });
   });
 
   /* ─────────────────── Avaliações (AvaliacoesController) ─────────────────── */
