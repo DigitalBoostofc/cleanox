@@ -40,7 +40,7 @@ _$OrdemServicoImpl _$$OrdemServicoImplFromJson(
     unknownValue: JsonKey.nullForUndefinedEnumValue,
   ),
   repasseValor: (json['repasse_valor'] as num?)?.toDouble(),
-  avisoACaminhoEm: json['aviso_a_caminho_em'] as String?,
+  avisoACaminhoEm: _emptyDateToNull(json['aviso_a_caminho_em']),
   avaliacaoNota: (json['avaliacao_nota'] as num?)?.toDouble(),
   avaliacaoMotivo: json['avaliacao_motivo'] as String?,
   avaliacaoEm: json['avaliacao_em'] as String?,
