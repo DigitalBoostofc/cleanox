@@ -493,7 +493,7 @@ class OSCard extends StatelessWidget {
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
               label: 'Cancelar OS',
-              variant: ClxButtonVariant.ghost,
+              variant: ClxButtonVariant.danger,
               icon: Icons.cancel_outlined,
               expand: true,
               onPressed: onCancelar,
