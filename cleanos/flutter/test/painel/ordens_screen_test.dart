@@ -14,6 +14,7 @@ import 'package:cleanos/painel/ordens/os_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes_onda2.dart';
 import 'painel_test_helpers.dart';
@@ -48,6 +49,11 @@ void main() {
       .at(i);
 
   group('OrdensScreen — ordenação (feedback do dono 16/07)', () {
+    setUp(() async {
+      // Prefs limpas: cada teste começa sem sort por aba.
+      SharedPreferences.setMockInitialValues({});
+    });
+
     testWidgets(
       'padrão é data mais próxima primeiro (data_hora asc); trocar reordena',
       (tester) async {
@@ -59,6 +65,7 @@ void main() {
         );
         await tester.pump();
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
 
         // Default: mais próximo primeiro → ascendente, NÃO '-data_hora'.
         expect(ordens.lastSort, 'data_hora');
@@ -70,6 +77,48 @@ void main() {
         await tester.tap(find.text('Cliente — A a Z').last);
         await tester.pumpAndSettle();
         expect(ordens.lastSort, 'nome_curto');
+      },
+    );
+
+    testWidgets(
+      'ordenação é por ABA: Agendada ≠ Concluída (e volta ao voltar de aba)',
+      (tester) async {
+        final ordens = _FakeOrdensSortSpy(seed: [_os('a')]);
+        await pumpPainel(
+          tester,
+          const OrdensScreen(),
+          overrides: overridesFor(ordens: ordens),
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        // Em Agendada: Cliente A→Z.
+        await tester.tap(find.text('Data — mais próxima primeiro'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cliente — A a Z').last);
+        await tester.pumpAndSettle();
+        expect(ordens.lastSort, 'nome_curto');
+
+        // Vai pra Concluída → volta ao default (data_hora), não herda A→Z.
+        // `.first` = aba (pode haver outro "Concluída" em empty/state).
+        await tester.tap(find.text('Concluída').first);
+        await tester.pumpAndSettle();
+        expect(ordens.lastSort, 'data_hora');
+        expect(find.text('Data — mais próxima primeiro'), findsOneWidget);
+
+        // Em Concluída escolhe mais distante.
+        await tester.tap(find.text('Data — mais próxima primeiro'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Data — mais distante primeiro').last);
+        await tester.pumpAndSettle();
+        expect(ordens.lastSort, '-data_hora');
+
+        // Volta pra Agendada → ainda A→Z (salva por aba).
+        await tester.tap(find.text('Agendada').first);
+        await tester.pumpAndSettle();
+        expect(ordens.lastSort, 'nome_curto');
+        expect(find.text('Cliente — A a Z'), findsOneWidget);
       },
     );
 

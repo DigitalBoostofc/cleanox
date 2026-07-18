@@ -31,7 +31,10 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Auth token seguro (Keychain / EncryptedSharedPreferences) — NUNCA SharedPreferences
+  # para token de sessão. Prefs não-secretas (ex.: ordenação por aba de OS) usam
+  # shared_preferences (localStorage na web).
   flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.3.0
 
   # Diretório app-private (cópia estável das evidências enfileiradas — o cache do
   # image_picker pode ser limpo pelo SO após um kill).
