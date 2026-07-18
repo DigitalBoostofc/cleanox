@@ -17,6 +17,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/agenda/agenda_layout.dart';
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
@@ -105,15 +106,15 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
   }
 }
 
-/// Legenda horizontal do esquema de cores da agenda: a cor de um bloco é o
-/// STATUS da OS (quem é o profissional vem pelo avatar no canto do bloco).
-class _StatusLegenda extends StatelessWidget {
+/// Legenda: cor = profissional; foto só em atribuída/em andamento; check = concluída.
+class _StatusLegenda extends ConsumerWidget {
   const _StatusLegenda();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
+    final profs = ref.watch(agendaControllerProvider).profissionais;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -128,21 +129,40 @@ class _StatusLegenda extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Icon(Icons.circle, size: 8, color: clx.ink3),
-            const SizedBox(width: ClxSpace.x2),
             Text(
-              'Cor = status:',
+              'Cor = profissional:',
               style: tt.labelSmall?.copyWith(color: clx.ink3),
             ),
             const SizedBox(width: ClxSpace.x3),
-            for (final s in OSStatus.all) ...[
-              _LegendaItem(cor: clx.statusColor(s), label: s.label),
-              const SizedBox(width: ClxSpace.x4),
-            ],
+            if (profs.isEmpty)
+              Text(
+                'sem profissionais',
+                style: tt.labelSmall?.copyWith(color: clx.ink3),
+              )
+            else
+              for (final p in profs) ...[
+                _LegendaItem(
+                  cor: corAgendaProfissional(p),
+                  label: p.displayName,
+                ),
+                const SizedBox(width: ClxSpace.x4),
+              ],
             Icon(Icons.person, size: 13, color: clx.ink3),
             const SizedBox(width: 4),
             Text(
-              'foto no canto = profissional',
+              'foto = atribuída/em andamento',
+              style: tt.labelSmall?.copyWith(color: clx.ink3),
+            ),
+            const SizedBox(width: ClxSpace.x4),
+            Icon(Icons.check_circle, size: 13, color: clx.ink3),
+            const SizedBox(width: 4),
+            Text(
+              'check = concluída',
+              style: tt.labelSmall?.copyWith(color: clx.ink3),
+            ),
+            const SizedBox(width: ClxSpace.x4),
+            Text(
+              'cancelada oculta',
               style: tt.labelSmall?.copyWith(color: clx.ink3),
             ),
           ],
@@ -271,7 +291,8 @@ class _Toolbar extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                width: 220,
+                // 260: "Todos os profissionais" + prefixIcon cabem sem cortar.
+                width: 260,
                 child: DropdownButtonFormField<String?>(
                   initialValue: state.filterProfId,
                   isExpanded: true,
@@ -285,11 +306,17 @@ class _Toolbar extends ConsumerWidget {
                       borderSide: BorderSide.none,
                     ),
                   ),
-                  hint: const Text('Todos os profissionais'),
+                  hint: const Text(
+                    'Todos os profissionais',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   items: [
                     const DropdownMenuItem(
                       value: null,
-                      child: Text('Todos os profissionais'),
+                      child: Text(
+                        'Todos os profissionais',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     for (final p in state.profissionais)
                       DropdownMenuItem(
@@ -673,7 +700,7 @@ class _WeekDayHeader extends StatelessWidget {
   }
 }
 
-/// Evento compacto (mês): hora + nome curto, cor do status.
+/// Evento compacto (mês): hora + nome curto, cor do profissional.
 class _EventChip extends StatelessWidget {
   const _EventChip({required this.os, required this.onTap});
   final OrdemServico os;
@@ -682,27 +709,34 @@ class _EventChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final cor = corAgendaOs(os);
     final prof = os.expand?.profissional;
-    final temProf = prof != null && prof.displayName != '—';
+    final mostraAvatar =
+        agendaMostraAvatar(os) && prof != null && prof.displayName != '—';
+    final concluida = agendaMostraCheckConcluida(os);
     return GestureDetector(
       onTap: () => onTap(os),
       child: Container(
         margin: const EdgeInsets.only(bottom: 2),
         padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x2, vertical: 2),
         decoration: BoxDecoration(
-          color: clx.statusBg(os.status),
+          color: corAgendaBg(cor),
           borderRadius: ClxRadii.rSm,
           border: Border(
-            left: BorderSide(color: clx.statusColor(os.status), width: 3),
+            left: BorderSide(color: cor, width: 3),
           ),
         ),
         child: Row(
           children: [
-            if (temProf) ...[
+            if (mostraAvatar) ...[
               Tooltip(
                 message: prof.displayName,
                 child: UserAvatar(user: prof, radius: 7),
               ),
+              const SizedBox(width: 4),
+            ],
+            if (concluida) ...[
+              Icon(Icons.check_circle, size: 12, color: cor),
               const SizedBox(width: 4),
             ],
             Expanded(
@@ -1008,7 +1042,12 @@ class _AgendaMiniCard extends StatelessWidget {
 
   Widget _card(BuildContext context) {
     final clx = context.clx;
-    final prof = os.expand?.profissional?.displayName;
+    final cor = corAgendaOs(os);
+    final profUser = os.expand?.profissional;
+    final prof = profUser?.displayName;
+    final mostraAvatar =
+        agendaMostraAvatar(os) && prof != null && prof != '—';
+    final concluida = agendaMostraCheckConcluida(os);
     // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
     // tabela — R4.
     final faixa = faixaHorariaDaOs(os, disp);
@@ -1018,7 +1057,7 @@ class _AgendaMiniCard extends StatelessWidget {
         child: ClxFadeSlide(
           child: EasypayListCard(
             onTap: () => onTap(os),
-            stripeColor: clx.statusColor(os.status),
+            stripeColor: cor,
             leading: Container(
               width: 48,
               height: 48,
@@ -1026,19 +1065,21 @@ class _AgendaMiniCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 gradient: LinearGradient(
                   colors: [
-                    clx.primary.withValues(alpha: 0.18),
-                    clx.accent.withValues(alpha: 0.1),
+                    cor.withValues(alpha: 0.22),
+                    cor.withValues(alpha: 0.08),
                   ],
                 ),
               ),
               alignment: Alignment.center,
-              child: Text(
-                formatTime(os.dataHora),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: clx.accent,
-                ),
-              ),
+              child: concluida
+                  ? Icon(Icons.check_circle, color: cor, size: 22)
+                  : Text(
+                      formatTime(os.dataHora),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: cor,
+                      ),
+                    ),
             ),
             title: os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
             subtitle:
@@ -1061,19 +1102,22 @@ class _AgendaMiniCard extends StatelessWidget {
           vertical: ClxSpace.x2,
         ),
         decoration: BoxDecoration(
-          color: clx.statusBg(os.status),
+          color: corAgendaBg(cor),
           borderRadius: ClxRadii.rMd,
           border: Border(
-            left: BorderSide(color: clx.statusColor(os.status), width: 3),
+            left: BorderSide(color: cor, width: 3),
           ),
         ),
         child: Row(
           children: [
-            if (prof != null && prof != '—') ...[
+            if (mostraAvatar && profUser != null) ...[
               Tooltip(
-                message: prof,
-                child: UserAvatar(user: os.expand?.profissional, radius: 14),
+                message: profUser.displayName,
+                child: UserAvatar(user: profUser, radius: 14),
               ),
+              const SizedBox(width: ClxSpace.x2),
+            ] else if (concluida) ...[
+              Icon(Icons.check_circle, size: 20, color: cor),
               const SizedBox(width: ClxSpace.x2),
             ],
             Text(
@@ -1419,15 +1463,25 @@ class _MobileMonthDay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final os in events.take(3))
-                    Container(
-                      width: 5,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                      decoration: BoxDecoration(
-                        color: clx.statusColor(os.status),
-                        shape: BoxShape.circle,
+                    if (agendaMostraCheckConcluida(os))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 0.5),
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 7,
+                          color: corAgendaOs(os),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 5,
+                        height: 5,
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          color: corAgendaOs(os),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
                 ],
               )
             else

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/models/user.dart';
@@ -72,6 +73,9 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   List<int>? _avatarBytes;
   String? _avatarFilename;
 
+  /// Cor na agenda (`#RRGGBB`). Só relevante para profissional.
+  Color? _corAgenda;
+
   bool get _isEdit => widget.editing != null;
 
   @override
@@ -83,6 +87,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       _email.text = u.email;
       _whatsapp.text = u.whatsapp ?? '';
       _role = u.role;
+      _corAgenda = parseHexCorAgenda(u.corAgenda);
     }
   }
 
@@ -161,6 +166,9 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       final avatar = (_avatarBytes != null && _avatarFilename != null)
           ? AvatarUpload(bytes: _avatarBytes!, filename: _avatarFilename!)
           : null;
+      final corWire = _role == Role.profissional
+          ? (_corAgenda != null ? hexCorAgenda(_corAgenda!) : '')
+          : '';
       if (_isEdit) {
         await repo.update(
           widget.editing!.id,
@@ -168,6 +176,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'name': _nome.text.trim(),
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
+            'cor_agenda': corWire,
           },
           avatar: avatar,
         );
@@ -178,6 +187,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'email': _email.text.trim(),
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
+            'cor_agenda': corWire,
             'password': _senha.text,
             'passwordConfirm': _senhaConfirm.text,
             'emailVisibility': true,
@@ -357,6 +367,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                 _roleField(clx, self),
+                if (_role == Role.profissional) _corAgendaField(clx),
                 _field(
                   label: 'WhatsApp',
                   controller: _whatsapp,
@@ -449,6 +460,84 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.warning),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Seletor de cor da agenda (só profissional). Vazio = paleta automática por id.
+  Widget _corAgendaField(CleanoxColors clx) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label('Cor na agenda'),
+          Text(
+            'Aparece nos blocos e bolinhas da Agenda. '
+            'Azul e verde são as cores sugeridas (ex.: João Pedro / Hendrio).',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: clx.ink3,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // “Automática”
+              Tooltip(
+                message: 'Automática',
+                child: InkWell(
+                  onTap: _saving ? null : () => setState(() => _corAgenda = null),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _corAgenda == null ? clx.primary : clx.line,
+                        width: _corAgenda == null ? 2.5 : 1,
+                      ),
+                      color: clx.bg2,
+                    ),
+                    child: Icon(Icons.auto_awesome, size: 16, color: clx.ink3),
+                  ),
+                ),
+              ),
+              for (final c in kAgendaCoresEscolha)
+                Tooltip(
+                  message: hexCorAgenda(c),
+                  child: InkWell(
+                    onTap: _saving
+                        ? null
+                        : () => setState(() => _corAgenda = c),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _corAgenda != null &&
+                                  hexCorAgenda(_corAgenda!) == hexCorAgenda(c)
+                              ? clx.ink
+                              : Colors.white.withValues(alpha: 0.6),
+                          width: _corAgenda != null &&
+                                  hexCorAgenda(_corAgenda!) == hexCorAgenda(c)
+                              ? 2.5
+                              : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

@@ -44,6 +44,10 @@ mixin _$User {
 
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   String get avatar => throw _privateConstructorUsedError;
+
+  /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
+  @JsonKey(name: 'cor_agenda')
+  String get corAgenda => throw _privateConstructorUsedError;
   bool get verified => throw _privateConstructorUsedError;
   @JsonKey(name: 'emailVisibility')
   bool get emailVisibility => throw _privateConstructorUsedError;
@@ -75,6 +79,7 @@ abstract class $UserCopyWith<$Res> {
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
     String avatar,
+    @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -106,6 +111,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
     Object? avatar = null,
+    Object? corAgenda = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -149,6 +155,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.avatar
                 : avatar // ignore: cast_nullable_to_non_nullable
                       as String,
+            corAgenda: null == corAgenda
+                ? _value.corAgenda
+                : corAgenda // ignore: cast_nullable_to_non_nullable
+                      as String,
             verified: null == verified
                 ? _value.verified
                 : verified // ignore: cast_nullable_to_non_nullable
@@ -190,6 +200,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
     String avatar,
+    @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -218,6 +229,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
     Object? avatar = null,
+    Object? corAgenda = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -261,6 +273,10 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.avatar
             : avatar // ignore: cast_nullable_to_non_nullable
                   as String,
+        corAgenda: null == corAgenda
+            ? _value.corAgenda
+            : corAgenda // ignore: cast_nullable_to_non_nullable
+                  as String,
         verified: null == verified
             ? _value.verified
             : verified // ignore: cast_nullable_to_non_nullable
@@ -296,6 +312,7 @@ class _$UserImpl extends _User {
     this.comissaoTipo = ComissaoTipo.nenhuma,
     @JsonKey(name: 'comissao_valor') this.comissaoValor = 0,
     this.avatar = '',
+    @JsonKey(name: 'cor_agenda') this.corAgenda = '',
     this.verified = false,
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
@@ -340,6 +357,11 @@ class _$UserImpl extends _User {
   @override
   @JsonKey()
   final String avatar;
+
+  /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
+  @override
+  @JsonKey(name: 'cor_agenda')
+  final String corAgenda;
   @override
   @JsonKey()
   final bool verified;
@@ -353,7 +375,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, avatar: $avatar, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -373,6 +395,8 @@ class _$UserImpl extends _User {
             (identical(other.comissaoValor, comissaoValor) ||
                 other.comissaoValor == comissaoValor) &&
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
+            (identical(other.corAgenda, corAgenda) ||
+                other.corAgenda == corAgenda) &&
             (identical(other.verified, verified) ||
                 other.verified == verified) &&
             (identical(other.emailVisibility, emailVisibility) ||
@@ -394,6 +418,7 @@ class _$UserImpl extends _User {
     comissaoTipo,
     comissaoValor,
     avatar,
+    corAgenda,
     verified,
     emailVisibility,
     created,
@@ -426,6 +451,7 @@ abstract class _User extends User {
     final ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') final double comissaoValor,
     final String avatar,
+    @JsonKey(name: 'cor_agenda') final String corAgenda,
     final bool verified,
     @JsonKey(name: 'emailVisibility') final bool emailVisibility,
     final String? created,
@@ -467,6 +493,11 @@ abstract class _User extends User {
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   @override
   String get avatar;
+
+  /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
+  @override
+  @JsonKey(name: 'cor_agenda')
+  String get corAgenda;
   @override
   bool get verified;
   @override

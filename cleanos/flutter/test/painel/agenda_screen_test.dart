@@ -3,6 +3,7 @@ library;
 
 import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/formatters/formatters.dart';
+import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/painel/agenda/agenda_controller.dart';
 import 'package:cleanos/painel/agenda/agenda_screen.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
@@ -125,7 +126,7 @@ void main() {
     });
 
     testWidgets(
-      'legenda de status + avatar do profissional no bloco (pedido do dono)',
+      'legenda por profissional + avatar em OS atribuída (pedido do dono)',
       (tester) async {
         await pumpPainel(
           tester,
@@ -140,6 +141,7 @@ void main() {
                     profissionalId: 'p1',
                     nomeCurto: 'Carlos S.',
                     dataHoraUtc: hojeAs('13:00'),
+                    status: OSStatus.atribuida,
                     profExpand: fakeUser(id: 'p1', name: 'Bia Prof'),
                   ),
                 ],
@@ -154,13 +156,12 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // Legenda explica que a cor é o status.
-        expect(find.text('Cor = status:'), findsOneWidget);
-        expect(find.text('Agendada'), findsWidgets);
-        expect(find.text('Concluída'), findsWidgets);
+        // Legenda: cor = profissional (não mais status).
+        expect(find.text('Cor = profissional:'), findsOneWidget);
+        expect(find.text('Bia Prof'), findsWidgets);
+        expect(find.textContaining('check = concluída'), findsOneWidget);
 
-        // Avatar do profissional presente no evento (via UserAvatar) — o
-        // tooltip carrega o nome dele.
+        // Avatar do profissional presente no evento (OS atribuída).
         expect(find.byType(UserAvatar), findsWidgets);
         expect(
           find.byTooltip('Bia Prof'),
@@ -168,8 +169,7 @@ void main() {
           reason: 'o avatar do bloco deve identificar o profissional',
         );
 
-        // Canto INFERIOR direito (pedido do dono, 16/07): no superior o
-        // avatar brigava com a linha do horário.
+        // Canto INFERIOR direito (pedido do dono, 16/07).
         final pos = tester.widget<Positioned>(
           find
               .ancestor(
