@@ -191,6 +191,29 @@ class FakeUsuariosFull implements UsuariosRepository {
   Future<void> delete(String id) async {
     deleteCount++;
   }
+
+  // Redefinição de senha por admin.
+  int redefinirCount = 0;
+  String? lastRedefinirUserId;
+  String? lastRedefinirNovaSenha;
+  String? lastRedefinirAdminSenha;
+
+  /// Se setado, `redefinirSenha` lança (simula 400/403 do PB).
+  Object? redefinirError;
+
+  @override
+  Future<void> redefinirSenha({
+    required String userId,
+    required String novaSenha,
+    required String adminSenha,
+  }) async {
+    redefinirCount++;
+    lastRedefinirUserId = userId;
+    lastRedefinirNovaSenha = novaSenha;
+    lastRedefinirAdminSenha = adminSenha;
+    final err = redefinirError;
+    if (err != null) throw err;
+  }
 }
 
 /// Fake de `UsuariosRepository` que bloqueia o delete com um 400 do PocketBase

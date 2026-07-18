@@ -51,6 +51,12 @@ class FakeUsuariosRepo implements UsuariosRepository {
   Future<User> update(String id, Map<String, dynamic> data, {AvatarUpload? avatar}) => _unused();
   @override
   Future<void> delete(String id) => _unused();
+  @override
+  Future<void> redefinirSenha({
+    required String userId,
+    required String novaSenha,
+    required String adminSenha,
+  }) => _unused();
 }
 
 /// Fake de `WhatsAppRepository` (status/connect/disconnect) configurável.
