@@ -2,6 +2,8 @@
 ///
 /// Bug real (2026-07): `startOfWeek` começava na segunda e `kDowShort` era
 /// Dom-first — sábado 18/07/2026 caía na coluna "Sex".
+library;
+
 import 'package:cleanos/painel/agenda/agenda_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
