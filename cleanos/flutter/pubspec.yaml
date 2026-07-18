@@ -66,6 +66,10 @@ dependencies:
   # Abrir Google Maps / links externos
   url_launcher: ^6.3.1
 
+  # Mapa do dia (pins numerados) — tiles OSM, sem chave no client
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
   cupertino_icons: ^1.0.8
 
   # --- Fase 2 (time B) — GPS/tracking (doc 09). TUDO atrás de Env.trackingEnabled. ---
