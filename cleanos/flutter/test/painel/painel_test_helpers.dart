@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../profissional/fakes.dart';
 
@@ -68,6 +69,9 @@ Future<GoRouter> pumpPainelApp(
   String location = '/painel/dashboard',
   Size size = const Size(1400, 900),
 }) async {
+  // OrdensController lê SharedPreferences (sort por aba) — sem mock a
+  // getInstance() trava em testes e a lista fica em loading eterno.
+  SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -130,6 +134,9 @@ Future<void> pumpPainel(
   required List<Override> overrides,
   Size size = const Size(1400, 900),
 }) async {
+  // OrdensController lê SharedPreferences (sort por aba) — sem mock a
+  // getInstance() trava em testes e a lista fica em loading eterno.
+  SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
