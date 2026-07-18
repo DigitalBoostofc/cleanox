@@ -258,12 +258,36 @@ void main() {
       expect(r.end, day.tomorrowStart);
     });
 
-    test('semana = 7 dias a partir de hoje', () {
-      final now = DateTime.utc(2026, 7, 9, 15);
+    test('semana = semana civil BRT (seg → próxima seg)', () {
+      // 2026-07-18 sábado 12:00 BRT → semana começa na seg 13/07
+      final now = DateTime.utc(2026, 7, 18, 15);
       final r = EstimativaPeriodo.semana.toRange(now: now);
-      final f = getBrtForwardDaysRange(7, now: now);
-      expect(r.start, f.start);
-      expect(r.end, f.end);
+      final week = getBrtWeekBounds(now: now);
+      expect(r.start, week.start);
+      expect(r.end, week.end);
+      // Passado da semana (ex.: 16/07) entra — não é só "a partir de hoje".
+      expect(r.start, isNot(getBrtDayBounds(now: now).todayStart));
+    });
+
+    test('15 dias = span com passado e futuro em torno de hoje', () {
+      final now = DateTime.utc(2026, 7, 18, 15);
+      final r = EstimativaPeriodo.dias15.toRange(now: now);
+      final span = getBrtSpanDaysRange(15, now: now);
+      expect(r.start, span.start);
+      expect(r.end, span.end);
+      // Começa antes de hoje (inclui concluídas recentes).
+      expect(
+        r.start.compareTo(getBrtDayBounds(now: now).todayStart),
+        lessThan(0),
+      );
+    });
+
+    test('mês = mês civil BRT', () {
+      final now = DateTime.utc(2026, 7, 18, 15);
+      final r = EstimativaPeriodo.mes.toRange(now: now);
+      final m = getBrtCurrentMonthRange(now: now);
+      expect(r.start, m.start);
+      expect(r.end, m.end);
     });
   });
 }
