@@ -248,22 +248,28 @@ function clearTrackingCoords(record) {
 }
 
 // libera/limpa o endereço efêmero conforme o status.
-// SOMENTE `em_andamento` tem endereço. Telefone NUNCA é tocado aqui.
 //
-// F-401: só PREENCHE na TRANSIÇÃO para em_andamento (status anterior !== 'em_andamento').
-// Se a OS já estava em_andamento e continua (ex.: save do cron, update de pagamento),
-// não mexe — a limpeza do cron passa a "colar".
+// Pedido do dono (2026-07-18): o profissional precisa VER o endereço ANTES de
+// Iniciar (planejar rota / chegar). Por isso o endereço é liberado em
+// `atribuida` E `em_andamento` — some em agendada/concluida/cancelada.
+// Telefone NUNCA é escrito na OS (contato via rota /contato-cliente).
+//
+// F-401: só PREENCHE na TRANSIÇÃO para um status que libera (ou CREATE).
+// Se já estava no mesmo status e continua (save de cron/pagamento), não mexe
+// — a limpeza do cron (em_andamento stale) passa a "colar".
 // F-402: cliente órfão não trava o save.
 function manageEndereco(app, record) {
   const newStatus = String(record.get("status") || "");
   const orig      = record.original ? record.original() : null;
   const oldStatus = orig ? String(orig.get("status") || "") : null;
+  const libera =
+    newStatus === "em_andamento" || newStatus === "atribuida";
 
-  if (newStatus === "em_andamento") {
-    // Se já estava em_andamento e permanece (sem transição) → não mexe no campo
-    if (oldStatus === "em_andamento") return;
+  if (libera) {
+    // Já estava no mesmo status liberador → não re-preenche (F-401).
+    if (oldStatus === newStatus) return;
 
-    // Transição para em_andamento (ou CREATE direto com em_andamento) → preenche
+    // Transição para atribuida/em_andamento (ou CREATE nesse status) → preenche
     const cid = relId(record.get("cliente"));
     if (!cid) {
       record.set("endereco_liberado", "");
@@ -277,7 +283,7 @@ function manageEndereco(app, record) {
     }
   } else {
     record.set("endereco_liberado", "");
-    // doc 09 §3: coords são efêmeras — somem ao sair de em_andamento (concluir/cancelar).
+    // coords efêmeras — somem fora de em_andamento (e também se cancelar de atribuida).
     clearTrackingCoords(record);
   }
 }

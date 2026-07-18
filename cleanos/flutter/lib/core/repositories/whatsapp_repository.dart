@@ -28,9 +28,19 @@ class WhatsAppStatus {
   final String? profileName;
 }
 
+/// Link wa.me para o profissional falar com o cliente (rota server-side).
+class ContatoClienteResult {
+  const ContatoClienteResult({required this.waUrl});
+  final String waUrl;
+}
+
 abstract class WhatsAppRepository {
   /// POST /os/{id}/a-caminho — profissional dono, em_andamento. 409 se desconectado.
   Future<AvisoResult> avisarACaminho(String osId);
+
+  /// GET /os/{id}/contato-cliente — profissional dono, atribuida|em_andamento.
+  /// Devolve URL `wa.me` (telefone lido no servidor; nunca grava na OS).
+  Future<ContatoClienteResult> contatoCliente(String osId);
 
   /// POST /os/{id}/relatorio — admin/gerente ou prof dono.
   Future<void> enviarRelatorio(String osId);
@@ -71,6 +81,8 @@ class UnimplementedWhatsAppRepository implements WhatsAppRepository {
 
   @override
   Future<AvisoResult> avisarACaminho(String osId) => _todo();
+  @override
+  Future<ContatoClienteResult> contatoCliente(String osId) => _todo();
   @override
   Future<void> enviarRelatorio(String osId) => _todo();
   @override

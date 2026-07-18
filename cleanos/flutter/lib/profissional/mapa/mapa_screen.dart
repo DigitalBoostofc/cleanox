@@ -87,7 +87,7 @@ class MapaScreen extends ConsumerWidget {
                   icon: Icons.map_outlined,
                   title: 'Nenhum serviço ativo',
                   message:
-                      'O mapa é liberado quando você toca em "Iniciar '
+                      'O mapa mostra OS com endereço liberado (atribuídas e em andamento). "Iniciar '
                       'serviço" na aba Serviços.',
                 ),
               ],

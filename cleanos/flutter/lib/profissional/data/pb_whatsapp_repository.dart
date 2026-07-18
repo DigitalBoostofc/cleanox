@@ -28,6 +28,23 @@ class PbWhatsAppRepository implements WhatsAppRepository {
   }
 
   @override
+  Future<ContatoClienteResult> contatoCliente(String osId) async {
+    final res = await _pb.send<Map<String, dynamic>>(
+      '$_base/os/$osId/contato-cliente',
+      method: 'GET',
+    );
+    final url = (res['waUrl'] as String?)?.trim() ?? '';
+    if (url.isEmpty) {
+      throw ClientException(
+        url: Uri.parse('$_base/os/$osId/contato-cliente'),
+        statusCode: 500,
+        response: const {'message': 'Link de WhatsApp indisponível.'},
+      );
+    }
+    return ContatoClienteResult(waUrl: url);
+  }
+
+  @override
   Future<void> enviarRelatorio(String osId) async {
     await _pb.send<dynamic>('$_base/os/$osId/relatorio', method: 'POST');
   }

@@ -138,6 +138,10 @@ class FakeWhatsAppRepository implements WhatsAppRepository {
   }
 
   @override
+  Future<ContatoClienteResult> contatoCliente(String osId) async =>
+      const ContatoClienteResult(waUrl: 'https://wa.me/5511999999999');
+
+  @override
   Future<void> enviarRelatorio(String osId) async {}
   @override
   Future<WhatsAppStatus> status() async =>
