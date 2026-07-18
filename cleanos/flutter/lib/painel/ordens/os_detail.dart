@@ -17,6 +17,7 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
+import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import 'ordens_controller.dart';
 import 'os_rebaixar_confirm.dart';
 
@@ -146,26 +147,12 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   }
 
   Future<void> _cancelar() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancelar OS'),
-        content: const Text('Deseja cancelar esta ordem de serviço?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Voltar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Cancelar OS'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final motivo = await showCancelarOsDialog(context, os: _os);
+    if (motivo == null || motivo.isEmpty) return;
     try {
-      await ref.read(ordensControllerProvider.notifier).cancelar(_os.id);
+      await ref
+          .read(ordensControllerProvider.notifier)
+          .cancelar(_os.id, motivo: motivo);
       if (mounted) {
         Navigator.of(context).pop(const OSDetailResult(changed: true));
       }
@@ -295,6 +282,30 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   if ((_os.observacoes ?? '').isNotEmpty)
                     _row(clx, 'Observações', _os.observacoes!),
                 ]),
+                if (_os.status == OSStatus.cancelada)
+                  _section(clx, 'Cancelamento', [
+                    _row(
+                      clx,
+                      'Motivo',
+                      (_os.motivoCancelamento ?? '').trim().isEmpty
+                          ? '—'
+                          : _os.motivoCancelamento!,
+                    ),
+                    _row(
+                      clx,
+                      'Cancelado por',
+                      (_os.canceladoPorNome ?? '').trim().isEmpty
+                          ? '—'
+                          : _os.canceladoPorNome!,
+                    ),
+                    _row(
+                      clx,
+                      'Quando',
+                      (_os.canceladoEm ?? '').trim().isEmpty
+                          ? '—'
+                          : formatDateTime(_os.canceladoEm!),
+                    ),
+                  ]),
                 if (_os.status == OSStatus.emAndamento &&
                     (_os.enderecoLiberado ?? '').isNotEmpty)
                   _section(clx, 'Endereço (liberado)', [

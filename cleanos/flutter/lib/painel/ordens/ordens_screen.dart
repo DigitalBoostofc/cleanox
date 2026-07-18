@@ -15,6 +15,7 @@ import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import 'ordens_controller.dart';
 import 'os_detail.dart';
 import 'os_form.dart';
@@ -90,33 +91,14 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
     }
   }
 
-  /// Cancela uma OS inline (confirmação + toast). Espelha `handleCancel` do React.
+  /// Cancela uma OS inline (motivo + auditoria + toast).
   Future<void> _cancelar(OrdemServico os) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.clx.bg,
-        shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
-        title: const Text('Cancelar OS'),
-        content: const Text('Deseja cancelar esta ordem de serviço?'),
-        actions: [
-          ClxButton(
-            label: 'Voltar',
-            variant: ClxButtonVariant.ghost,
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          ClxButton(
-            label: 'Cancelar OS',
-            variant: ClxButtonVariant.danger,
-            icon: Icons.cancel_outlined,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final motivo = await showCancelarOsDialog(context, os: os);
+    if (motivo == null || motivo.isEmpty) return;
     try {
-      await ref.read(ordensControllerProvider.notifier).cancelar(os.id);
+      await ref
+          .read(ordensControllerProvider.notifier)
+          .cancelar(os.id, motivo: motivo);
       ref.invalidate(ordensCountsProvider);
       if (mounted) {
         showClxToast(context, 'OS cancelada.', type: ToastType.success);

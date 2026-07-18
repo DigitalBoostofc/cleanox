@@ -255,6 +255,12 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
     _upsert(updated);
   }
 
+  /// Cancela a OS com motivo (some da lista do profissional).
+  Future<void> cancelar(OrdemServico os, {required String motivo}) async {
+    await _repo.cancelar(os.id, motivo: motivo);
+    _removeById(os.id);
+  }
+
   /// Avisa o cliente "a caminho" (rota custom). Marca `aviso_a_caminho_em`.
   Future<AvisoResult> avisarACaminho(OrdemServico os) async {
     final res = await _whats.avisarACaminho(os.id);

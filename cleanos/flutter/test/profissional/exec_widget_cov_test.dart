@@ -73,7 +73,8 @@ Widget _wrapCard(OrdemServico os) => MaterialApp(
         os: os,
         onIniciar: () {},
         onAvisar: () {},
-            onCheguei: () {},
+        onCheguei: () {},
+        onCancelar: () {},
         onPagar: () {},
         onConcluir: () {},
         onChecklist: () {},
@@ -153,7 +154,9 @@ void main() {
     testWidgets('atribuida COM endereco mostra "Ver rota"', (tester) async {
       await tester.pumpWidget(_wrapCard(_os(status: OSStatus.atribuida)));
       expect(find.text('Ver rota'), findsOneWidget);
-      expect(find.text('WhatsApp cliente'), findsOneWidget);
+      // dataHora fixa em 2020 → não é "hoje"; WhatsApp só no dia do serviço.
+      expect(find.text('WhatsApp cliente'), findsNothing);
+      expect(find.text('Cancelar OS'), findsOneWidget);
     });
 
     testWidgets(

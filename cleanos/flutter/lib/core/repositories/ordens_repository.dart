@@ -32,6 +32,10 @@ abstract class OrdensRepository {
   /// Avança o status (atribuida → em_andamento → concluida).
   Future<OrdemServico> updateStatus(String osId, OSStatus novo);
 
+  /// Cancela a OS com motivo (auditoria server-side: quem + quando).
+  /// POST /api/cleanos/os/{id}/cancelar — admin, gerente ou prof dono.
+  Future<OrdemServico> cancelar(String osId, {required String motivo});
+
   /// Stream realtime da coleção. `topic` = '*' (todas) ou id de uma OS.
   Stream<OrdemServicoEvent> subscribe({String topic, String? filter});
 
@@ -117,6 +121,17 @@ class PbOrdensRepository implements OrdensRepository {
       expand: kExecExpand,
     );
     return OrdemServico.fromRecord(rec);
+  }
+
+  @override
+  Future<OrdemServico> cancelar(String osId, {required String motivo}) async {
+    await _pb.send<Map<String, dynamic>>(
+      '/api/cleanos/os/$osId/cancelar',
+      method: 'POST',
+      body: {'motivo': motivo},
+    );
+    // Recarrega a OS com expand para a UI.
+    return getOne(osId, expand: kExecExpand);
   }
 
   @override

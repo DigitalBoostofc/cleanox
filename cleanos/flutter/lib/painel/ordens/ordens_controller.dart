@@ -344,11 +344,11 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
-  /// Cancela uma OS (status → cancelada) e recarrega.
-  Future<void> cancelar(String osId) async {
-    await _ref.read(ordensRepositoryProvider).update(osId, {
-      'status': OSStatus.cancelada.wire,
-    });
+  /// Cancela uma OS com motivo (auditoria server-side) e recarrega.
+  Future<void> cancelar(String osId, {required String motivo}) async {
+    await _ref
+        .read(ordensRepositoryProvider)
+        .cancelar(osId, motivo: motivo);
     await refresh();
   }
 

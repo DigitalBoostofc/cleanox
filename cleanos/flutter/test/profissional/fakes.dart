@@ -74,6 +74,20 @@ class FakeOrdensRepository implements OrdensRepository {
     return base.copyWith(status: novo);
   }
 
+  /// Chamadas de [cancelar] gravadas (motivo).
+  final List<String> cancelCalls = [];
+
+  @override
+  Future<OrdemServico> cancelar(String osId, {required String motivo}) async {
+    cancelCalls.add(motivo);
+    final base = execOS ?? _bare(osId);
+    return base.copyWith(
+      status: OSStatus.cancelada,
+      motivoCancelamento: motivo,
+      canceladoPorNome: 'Teste',
+    );
+  }
+
   @override
   Future<PageResult<OrdemServico>> list({
     int page = 1,

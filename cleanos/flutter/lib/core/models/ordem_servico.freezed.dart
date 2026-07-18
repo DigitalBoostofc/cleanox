@@ -320,6 +320,22 @@ mixin _$OrdemServico {
   @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull)
   String? get chegueiEm => throw _privateConstructorUsedError;
 
+  /// Motivo do cancelamento (obrigatório ao cancelar).
+  @JsonKey(name: 'motivo_cancelamento')
+  String? get motivoCancelamento => throw _privateConstructorUsedError;
+
+  /// Quem cancelou (id de users). Server-side.
+  @JsonKey(name: 'cancelado_por')
+  String? get canceladoPor => throw _privateConstructorUsedError;
+
+  /// Nome denormalizado de quem cancelou.
+  @JsonKey(name: 'cancelado_por_nome')
+  String? get canceladoPorNome => throw _privateConstructorUsedError;
+
+  /// Quando cancelou. R2: `""` → null.
+  @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+  String? get canceladoEm => throw _privateConstructorUsedError;
+
   /// Avaliação (preenchida pelo backend após pesquisa).
   @JsonKey(name: 'avaliacao_nota')
   double? get avaliacaoNota => throw _privateConstructorUsedError;
@@ -399,6 +415,11 @@ abstract class $OrdemServicoCopyWith<$Res> {
     @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
     String? avisoACaminhoEm,
     @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull) String? chegueiEm,
+    @JsonKey(name: 'motivo_cancelamento') String? motivoCancelamento,
+    @JsonKey(name: 'cancelado_por') String? canceladoPor,
+    @JsonKey(name: 'cancelado_por_nome') String? canceladoPorNome,
+    @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+    String? canceladoEm,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -454,6 +475,10 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? repasseValor = freezed,
     Object? avisoACaminhoEm = freezed,
     Object? chegueiEm = freezed,
+    Object? motivoCancelamento = freezed,
+    Object? canceladoPor = freezed,
+    Object? canceladoPorNome = freezed,
+    Object? canceladoEm = freezed,
     Object? avaliacaoNota = freezed,
     Object? avaliacaoMotivo = freezed,
     Object? avaliacaoEm = freezed,
@@ -546,6 +571,22 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
             chegueiEm: freezed == chegueiEm
                 ? _value.chegueiEm
                 : chegueiEm // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            motivoCancelamento: freezed == motivoCancelamento
+                ? _value.motivoCancelamento
+                : motivoCancelamento // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            canceladoPor: freezed == canceladoPor
+                ? _value.canceladoPor
+                : canceladoPor // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            canceladoPorNome: freezed == canceladoPorNome
+                ? _value.canceladoPorNome
+                : canceladoPorNome // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            canceladoEm: freezed == canceladoEm
+                ? _value.canceladoEm
+                : canceladoEm // ignore: cast_nullable_to_non_nullable
                       as String?,
             avaliacaoNota: freezed == avaliacaoNota
                 ? _value.avaliacaoNota
@@ -676,6 +717,11 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
     String? avisoACaminhoEm,
     @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull) String? chegueiEm,
+    @JsonKey(name: 'motivo_cancelamento') String? motivoCancelamento,
+    @JsonKey(name: 'cancelado_por') String? canceladoPor,
+    @JsonKey(name: 'cancelado_por_nome') String? canceladoPorNome,
+    @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+    String? canceladoEm,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -732,6 +778,10 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? repasseValor = freezed,
     Object? avisoACaminhoEm = freezed,
     Object? chegueiEm = freezed,
+    Object? motivoCancelamento = freezed,
+    Object? canceladoPor = freezed,
+    Object? canceladoPorNome = freezed,
+    Object? canceladoEm = freezed,
     Object? avaliacaoNota = freezed,
     Object? avaliacaoMotivo = freezed,
     Object? avaliacaoEm = freezed,
@@ -824,6 +874,22 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
         chegueiEm: freezed == chegueiEm
             ? _value.chegueiEm
             : chegueiEm // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        motivoCancelamento: freezed == motivoCancelamento
+            ? _value.motivoCancelamento
+            : motivoCancelamento // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        canceladoPor: freezed == canceladoPor
+            ? _value.canceladoPor
+            : canceladoPor // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        canceladoPorNome: freezed == canceladoPorNome
+            ? _value.canceladoPorNome
+            : canceladoPorNome // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        canceladoEm: freezed == canceladoEm
+            ? _value.canceladoEm
+            : canceladoEm // ignore: cast_nullable_to_non_nullable
                   as String?,
         avaliacaoNota: freezed == avaliacaoNota
             ? _value.avaliacaoNota
@@ -920,6 +986,10 @@ class _$OrdemServicoImpl extends _OrdemServico {
     @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
     this.avisoACaminhoEm,
     @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull) this.chegueiEm,
+    @JsonKey(name: 'motivo_cancelamento') this.motivoCancelamento,
+    @JsonKey(name: 'cancelado_por') this.canceladoPor,
+    @JsonKey(name: 'cancelado_por_nome') this.canceladoPorNome,
+    @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull) this.canceladoEm,
     @JsonKey(name: 'avaliacao_nota') this.avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') this.avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') this.avaliacaoEm,
@@ -1041,6 +1111,26 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull)
   final String? chegueiEm;
 
+  /// Motivo do cancelamento (obrigatório ao cancelar).
+  @override
+  @JsonKey(name: 'motivo_cancelamento')
+  final String? motivoCancelamento;
+
+  /// Quem cancelou (id de users). Server-side.
+  @override
+  @JsonKey(name: 'cancelado_por')
+  final String? canceladoPor;
+
+  /// Nome denormalizado de quem cancelou.
+  @override
+  @JsonKey(name: 'cancelado_por_nome')
+  final String? canceladoPorNome;
+
+  /// Quando cancelou. R2: `""` → null.
+  @override
+  @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+  final String? canceladoEm;
+
   /// Avaliação (preenchida pelo backend após pesquisa).
   @override
   @JsonKey(name: 'avaliacao_nota')
@@ -1106,7 +1196,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1147,6 +1237,14 @@ class _$OrdemServicoImpl extends _OrdemServico {
                 other.avisoACaminhoEm == avisoACaminhoEm) &&
             (identical(other.chegueiEm, chegueiEm) ||
                 other.chegueiEm == chegueiEm) &&
+            (identical(other.motivoCancelamento, motivoCancelamento) ||
+                other.motivoCancelamento == motivoCancelamento) &&
+            (identical(other.canceladoPor, canceladoPor) ||
+                other.canceladoPor == canceladoPor) &&
+            (identical(other.canceladoPorNome, canceladoPorNome) ||
+                other.canceladoPorNome == canceladoPorNome) &&
+            (identical(other.canceladoEm, canceladoEm) ||
+                other.canceladoEm == canceladoEm) &&
             (identical(other.avaliacaoNota, avaliacaoNota) ||
                 other.avaliacaoNota == avaliacaoNota) &&
             (identical(other.avaliacaoMotivo, avaliacaoMotivo) ||
@@ -1203,6 +1301,10 @@ class _$OrdemServicoImpl extends _OrdemServico {
     repasseValor,
     avisoACaminhoEm,
     chegueiEm,
+    motivoCancelamento,
+    canceladoPor,
+    canceladoPorNome,
+    canceladoEm,
     avaliacaoNota,
     avaliacaoMotivo,
     avaliacaoEm,
@@ -1265,6 +1367,11 @@ abstract class _OrdemServico extends OrdemServico {
     final String? avisoACaminhoEm,
     @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull)
     final String? chegueiEm,
+    @JsonKey(name: 'motivo_cancelamento') final String? motivoCancelamento,
+    @JsonKey(name: 'cancelado_por') final String? canceladoPor,
+    @JsonKey(name: 'cancelado_por_nome') final String? canceladoPorNome,
+    @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+    final String? canceladoEm,
     @JsonKey(name: 'avaliacao_nota') final double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') final String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') final String? avaliacaoEm,
@@ -1382,6 +1489,26 @@ abstract class _OrdemServico extends OrdemServico {
   @override
   @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull)
   String? get chegueiEm;
+
+  /// Motivo do cancelamento (obrigatório ao cancelar).
+  @override
+  @JsonKey(name: 'motivo_cancelamento')
+  String? get motivoCancelamento;
+
+  /// Quem cancelou (id de users). Server-side.
+  @override
+  @JsonKey(name: 'cancelado_por')
+  String? get canceladoPor;
+
+  /// Nome denormalizado de quem cancelou.
+  @override
+  @JsonKey(name: 'cancelado_por_nome')
+  String? get canceladoPorNome;
+
+  /// Quando cancelou. R2: `""` → null.
+  @override
+  @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
+  String? get canceladoEm;
 
   /// Avaliação (preenchida pelo backend após pesquisa).
   @override
