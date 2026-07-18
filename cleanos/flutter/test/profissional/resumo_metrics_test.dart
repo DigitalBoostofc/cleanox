@@ -8,7 +8,7 @@ OrdemServico os(String id, OSStatus status) =>
 
 void main() {
   group('buildResumo', () {
-    test('conta agendados, canceladas e realizados', () {
+    test('agendados = total do período (abertos + realizados + canceladas)', () {
       final r = buildResumo(
         ordens: [
           os('1', OSStatus.agendada),
@@ -21,9 +21,11 @@ void main() {
         ],
         kmDeslocamento: 12.34,
       );
-      expect(r.agendados, 3);
+      // 3 abertos + 2 realizados + 2 canceladas = 7
+      expect(r.agendados, 7);
       expect(r.realizados, 2);
       expect(r.canceladas, 2);
+      expect(r.agendados, r.realizados + r.canceladas + 3);
       expect(r.kmDeslocamento, 12.3);
     });
 
