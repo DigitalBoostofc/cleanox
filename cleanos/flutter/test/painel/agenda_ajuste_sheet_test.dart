@@ -111,6 +111,9 @@ class _OrdensSpy implements OrdensRepository {
   @override
   Future<OrdemServico> updateStatus(String osId, OSStatus novo) => _naoUsado();
   @override
+  Future<OrdemServico> cancelar(String osId, {required String motivo}) =>
+      _naoUsado();
+  @override
   Stream<OrdemServicoEvent> subscribe({String topic = '*', String? filter}) =>
       const Stream.empty();
   @override

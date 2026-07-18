@@ -21,6 +21,7 @@ class OSCard extends StatelessWidget {
     required this.onIniciar,
     required this.onAvisar,
     required this.onCheguei,
+    required this.onCancelar,
     required this.onPagar,
     required this.onConcluir,
     required this.onChecklist,
@@ -36,6 +37,7 @@ class OSCard extends StatelessWidget {
   final VoidCallback onIniciar;
   final VoidCallback onAvisar;
   final VoidCallback onCheguei;
+  final VoidCallback onCancelar;
   final VoidCallback onPagar;
   final VoidCallback onConcluir;
   final VoidCallback onChecklist;
@@ -488,6 +490,14 @@ class OSCard extends StatelessWidget {
                 ).textTheme.bodySmall?.copyWith(color: clx.ink3, height: 1.35),
               ),
             ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: 'Cancelar OS',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.cancel_outlined,
+              expand: true,
+              onPressed: onCancelar,
+            ),
           ],
         );
       case OSStatus.emAndamento:
@@ -568,15 +578,48 @@ class OSCard extends StatelessWidget {
                   ).textTheme.bodySmall?.copyWith(color: clx.ink3),
                 ),
               ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: 'Cancelar OS',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.cancel_outlined,
+              expand: true,
+              onPressed: onCancelar,
+            ),
           ],
         );
       case OSStatus.cancelada:
-        return Text(
-          'Serviço cancelado.',
-          textAlign: TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
+        final motivo = (os.motivoCancelamento ?? '').trim();
+        final por = (os.canceladoPorNome ?? '').trim();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Serviço cancelado.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
+            ),
+            if (motivo.isNotEmpty) ...[
+              const SizedBox(height: ClxSpace.x2),
+              Text(
+                'Motivo: $motivo',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: clx.ink2,
+                ),
+              ),
+            ],
+            if (por.isNotEmpty)
+              Text(
+                'Por: $por',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: clx.ink3,
+                ),
+              ),
+          ],
         );
       case OSStatus.concluida:
         // O serviço fechou, mas o profissional ainda pode REVER o que fez

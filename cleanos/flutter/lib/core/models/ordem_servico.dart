@@ -101,6 +101,18 @@ class OrdemServico with _$OrdemServico {
     /// Carimbo "Cheguei ao local" (doc 09). R2: `""` → null.
     @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull) String? chegueiEm,
 
+    /// Motivo do cancelamento (obrigatório ao cancelar).
+    @JsonKey(name: 'motivo_cancelamento') String? motivoCancelamento,
+
+    /// Quem cancelou (id de users). Server-side.
+    @JsonKey(name: 'cancelado_por') String? canceladoPor,
+
+    /// Nome denormalizado de quem cancelou.
+    @JsonKey(name: 'cancelado_por_nome') String? canceladoPorNome,
+
+    /// Quando cancelou. R2: `""` → null.
+    @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull) String? canceladoEm,
+
     /// Avaliação (preenchida pelo backend após pesquisa).
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,

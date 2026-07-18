@@ -345,6 +345,44 @@ function stampIniciadaEm(record) {
 // Carimba `concluida_em` na TRANSIÇÃO para concluida (qualquer caminho).
 // Usado na lista do painel (aba Concluída: mais recente primeiro). Nunca
 // sobrescreve em saves seguintes (repasse, etc.).
+/**
+ * Na transição → cancelada: exige motivo e carimba quem cancelou (se vazio).
+ * Preferir a rota POST /os/{id}/cancelar; este stamp cobre PATCH do painel.
+ */
+function stampCancelamento(app, record, auth) {
+  if (String(record.get("status")) !== "cancelada") return;
+  const orig = record.original ? record.original() : null;
+  if (orig && String(orig.get("status")) === "cancelada") return;
+
+  const motivo = String(record.get("motivo_cancelamento") || "").trim();
+  if (!motivo) {
+    throw new BadRequestError(
+      "Informe o motivo do cancelamento."
+    );
+  }
+
+  if (!String(record.get("cancelado_em") || "").trim()) {
+    record.set(
+      "cancelado_em",
+      new Date().toISOString().replace("T", " ").slice(0, 23) + "Z"
+    );
+  }
+
+  if (!relId(record.get("cancelado_por")) && auth && auth.id) {
+    record.set("cancelado_por", String(auth.id));
+    try {
+      const u = app.findRecordById("users", String(auth.id));
+      const nome =
+        String(u.get("nome") || "").trim() ||
+        String(u.get("name") || "").trim() ||
+        String(u.get("email") || "").trim();
+      if (nome) record.set("cancelado_por_nome", nome);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
 function stampConcluidaEm(record) {
   if (String(record.get("status")) !== "concluida") return;
   const orig = record.original ? record.original() : null;
@@ -501,6 +539,12 @@ function guardOrdemUpdateRequest(e) {
     "iniciada_em",
     // carimbo de conclusão (stampConcluidaEm) — ordenação da aba Concluída.
     "concluida_em",
+    // auditoria de cancelamento — só via POST /os/{id}/cancelar (server-side).
+    "cancelado_por",
+    "cancelado_por_nome",
+    "cancelado_em",
+    // motivo_cancelamento liberado no PATCH de cancelamento com status,
+    // mas cancelado_por* é sempre server-side.
     // NB: checklist_exec, adicionais e observacoes_prof ficam de FORA da denylist
     //     de propósito — são o TRABALHO do profissional na OS (campos editáveis).
   ];
@@ -517,9 +561,22 @@ function guardOrdemUpdateRequest(e) {
   if (from !== to) {
     const ok =
       (from === "atribuida" && to === "em_andamento") ||
-      (from === "em_andamento" && to === "concluida");
+      (from === "em_andamento" && to === "concluida") ||
+      // Cancelamento: preferir POST /os/{id}/cancelar (motivo + auditoria).
+      // PATCH direto com motivo também permitido se campos de auditoria
+      // vierem vazios (carimbo no hook de modelo).
+      ((from === "atribuida" || from === "em_andamento") &&
+        to === "cancelada");
     if (!ok) {
       throw new ForbiddenError(`Transição de status inválida: ${from} -> ${to}`);
+    }
+    if (to === "cancelada") {
+      const motivo = String(e.record.get("motivo_cancelamento") || "").trim();
+      if (!motivo) {
+        throw new BadRequestError(
+          "Informe o motivo do cancelamento (use Cancelar OS com o formulário)."
+        );
+      }
     }
     // ao Iniciar: o dia do serviço precisa ter chegado (hoje ou passado).
     if (to === "em_andamento") {
@@ -643,6 +700,7 @@ module.exports = {
   assertServiceDayReached,
   stampIniciadaEm,
   stampConcluidaEm,
+  stampCancelamento,
   isStaleEmAndamento,
   assertHorarioNaoCongelado,
   guardOrdemUpdateRequest,

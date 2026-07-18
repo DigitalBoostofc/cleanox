@@ -57,6 +57,7 @@ onRecordUpdate((e) => {
   lib.manageEndereco(e.app, e.record);
   lib.stampIniciadaEm(e.record); // carimbo de início na transição → em_andamento
   lib.stampConcluidaEm(e.record); // carimbo de conclusão na transição → concluida
+  lib.stampCancelamento(e.app, e.record, e.auth); // motivo + quem cancelou
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);

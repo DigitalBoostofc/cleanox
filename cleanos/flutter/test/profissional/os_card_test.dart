@@ -51,6 +51,7 @@ void main() {
             onIniciar: () {},
             onAvisar: () {},
             onCheguei: () {},
+            onCancelar: () {},
             onPagar: () {},
             onConcluir: () {},
             onChecklist: () {},
@@ -60,6 +61,7 @@ void main() {
       );
 
       expect(find.text('Iniciar serviço'), findsOneWidget);
+      expect(find.text('Cancelar OS'), findsOneWidget);
       expect(find.text('WhatsApp cliente'), findsOneWidget);
       expect(find.text('Em deslocamento'), findsOneWidget);
       expect(find.textContaining('Rua Liberada'), findsWidgets);
@@ -81,6 +83,7 @@ void main() {
             onIniciar: () {},
             onAvisar: () {},
             onCheguei: () {},
+            onCancelar: () {},
             onPagar: () {},
             onConcluir: () {},
             onChecklist: () {},
@@ -102,7 +105,8 @@ void main() {
           os: _os(status: OSStatus.emAndamento, endereco: 'Rua Liberada, 456'),
           onIniciar: () {},
           onAvisar: () {},
-            onCheguei: () {},
+          onCheguei: () {},
+          onCancelar: () {},
           onPagar: () {},
           onConcluir: () {},
           onChecklist: () {},
@@ -129,6 +133,7 @@ void main() {
           onIniciar: () {},
           onAvisar: () {},
           onCheguei: () {},
+          onCancelar: () {},
           onPagar: () {},
           onConcluir: () {},
           onChecklist: () {},
@@ -150,7 +155,8 @@ void main() {
           os: _os(status: OSStatus.emAndamento, endereco: 'Rua X'),
           onIniciar: () {},
           onAvisar: () {},
-            onCheguei: () {},
+          onCheguei: () {},
+          onCancelar: () {},
           onPagar: () {},
           onConcluir: () => concluiu = true,
           onChecklist: () {},
@@ -181,7 +187,8 @@ void main() {
           ),
           onIniciar: () {},
           onAvisar: () {},
-            onCheguei: () {},
+          onCheguei: () {},
+          onCancelar: () {},
           onPagar: () {},
           onConcluir: () => concluiu = true,
           onChecklist: () {},
@@ -210,6 +217,7 @@ void main() {
             onIniciar: () {},
             onAvisar: () {},
             onCheguei: () {},
+            onCancelar: () {},
             onPagar: () {},
             onConcluir: () {},
             onChecklist: () => abriu = true,

@@ -22,6 +22,7 @@ import '../data/server_error.dart';
 import '../location/location_tracking_service.dart';
 import '../location/tracking_providers.dart';
 import '../mapa/nav_chooser.dart';
+import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import 'meus_servicos_controller.dart';
 import 'os_card.dart';
 import 'pagamento_modal.dart';
@@ -139,6 +140,19 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     }
   }
 
+  Future<void> _cancelar(OrdemServico os) async {
+    final motivo = await showCancelarOsDialog(context, os: os);
+    if (motivo == null || motivo.isEmpty) return;
+    try {
+      await _ctrl.cancelar(os, motivo: motivo);
+      if (mounted) {
+        _toast('OS cancelada.', ToastType.success);
+      }
+    } catch (err) {
+      _toast(describeOSError(err).message, ToastType.error);
+    }
+  }
+
   Future<void> _cheguei(OrdemServico os) async {
     setState(() => _chegueiLoading[os.id] = true);
     try {
@@ -227,6 +241,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       onIniciar: () => _iniciar(os),
       onAvisar: () => _avisar(os),
       onCheguei: () => _cheguei(os),
+      onCancelar: () => _cancelar(os),
       onPagar: () => _pagar(os),
       onConcluir: () => _concluir(os),
       onChecklist: () => _abrirExecucao(os),
