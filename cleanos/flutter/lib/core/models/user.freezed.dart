@@ -51,6 +51,15 @@ mixin _$User {
   PagamentoFrequencia? get pagamentoFrequencia =>
       throw _privateConstructorUsedError;
 
+  /// Dia âncora do repasse (migration 37). 0 = default do tipo.
+  /// Semanal: 1–7 (seg…dom). Quinzenal/mensal: 1–31.
+  @JsonKey(name: 'pagamento_dia')
+  int get pagamentoDia => throw _privateConstructorUsedError;
+
+  /// 2º dia quinzenal (migration 37). 0 = último dia do mês.
+  @JsonKey(name: 'pagamento_dia_2')
+  int get pagamentoDia2 => throw _privateConstructorUsedError;
+
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   String get avatar => throw _privateConstructorUsedError;
 
@@ -92,6 +101,8 @@ abstract class $UserCopyWith<$Res> {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     PagamentoFrequencia? pagamentoFrequencia,
+    @JsonKey(name: 'pagamento_dia') int pagamentoDia,
+    @JsonKey(name: 'pagamento_dia_2') int pagamentoDia2,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
@@ -125,6 +136,8 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
     Object? pagamentoFrequencia = freezed,
+    Object? pagamentoDia = null,
+    Object? pagamentoDia2 = null,
     Object? avatar = null,
     Object? corAgenda = null,
     Object? verified = null,
@@ -170,6 +183,14 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.pagamentoFrequencia
                 : pagamentoFrequencia // ignore: cast_nullable_to_non_nullable
                       as PagamentoFrequencia?,
+            pagamentoDia: null == pagamentoDia
+                ? _value.pagamentoDia
+                : pagamentoDia // ignore: cast_nullable_to_non_nullable
+                      as int,
+            pagamentoDia2: null == pagamentoDia2
+                ? _value.pagamentoDia2
+                : pagamentoDia2 // ignore: cast_nullable_to_non_nullable
+                      as int,
             avatar: null == avatar
                 ? _value.avatar
                 : avatar // ignore: cast_nullable_to_non_nullable
@@ -223,6 +244,8 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     PagamentoFrequencia? pagamentoFrequencia,
+    @JsonKey(name: 'pagamento_dia') int pagamentoDia,
+    @JsonKey(name: 'pagamento_dia_2') int pagamentoDia2,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
@@ -253,6 +276,8 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
     Object? pagamentoFrequencia = freezed,
+    Object? pagamentoDia = null,
+    Object? pagamentoDia2 = null,
     Object? avatar = null,
     Object? corAgenda = null,
     Object? verified = null,
@@ -298,6 +323,14 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.pagamentoFrequencia
             : pagamentoFrequencia // ignore: cast_nullable_to_non_nullable
                   as PagamentoFrequencia?,
+        pagamentoDia: null == pagamentoDia
+            ? _value.pagamentoDia
+            : pagamentoDia // ignore: cast_nullable_to_non_nullable
+                  as int,
+        pagamentoDia2: null == pagamentoDia2
+            ? _value.pagamentoDia2
+            : pagamentoDia2 // ignore: cast_nullable_to_non_nullable
+                  as int,
         avatar: null == avatar
             ? _value.avatar
             : avatar // ignore: cast_nullable_to_non_nullable
@@ -345,6 +378,8 @@ class _$UserImpl extends _User {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     this.pagamentoFrequencia,
+    @JsonKey(name: 'pagamento_dia') this.pagamentoDia = 0,
+    @JsonKey(name: 'pagamento_dia_2') this.pagamentoDia2 = 0,
     this.avatar = '',
     @JsonKey(name: 'cor_agenda') this.corAgenda = '',
     this.verified = false,
@@ -396,6 +431,17 @@ class _$UserImpl extends _User {
   )
   final PagamentoFrequencia? pagamentoFrequencia;
 
+  /// Dia âncora do repasse (migration 37). 0 = default do tipo.
+  /// Semanal: 1–7 (seg…dom). Quinzenal/mensal: 1–31.
+  @override
+  @JsonKey(name: 'pagamento_dia')
+  final int pagamentoDia;
+
+  /// 2º dia quinzenal (migration 37). 0 = último dia do mês.
+  @override
+  @JsonKey(name: 'pagamento_dia_2')
+  final int pagamentoDia2;
+
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   @override
   @JsonKey()
@@ -418,7 +464,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -439,6 +485,10 @@ class _$UserImpl extends _User {
                 other.comissaoValor == comissaoValor) &&
             (identical(other.pagamentoFrequencia, pagamentoFrequencia) ||
                 other.pagamentoFrequencia == pagamentoFrequencia) &&
+            (identical(other.pagamentoDia, pagamentoDia) ||
+                other.pagamentoDia == pagamentoDia) &&
+            (identical(other.pagamentoDia2, pagamentoDia2) ||
+                other.pagamentoDia2 == pagamentoDia2) &&
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.corAgenda, corAgenda) ||
                 other.corAgenda == corAgenda) &&
@@ -463,6 +513,8 @@ class _$UserImpl extends _User {
     comissaoTipo,
     comissaoValor,
     pagamentoFrequencia,
+    pagamentoDia,
+    pagamentoDia2,
     avatar,
     corAgenda,
     verified,
@@ -501,6 +553,8 @@ abstract class _User extends User {
       unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
     )
     final PagamentoFrequencia? pagamentoFrequencia,
+    @JsonKey(name: 'pagamento_dia') final int pagamentoDia,
+    @JsonKey(name: 'pagamento_dia_2') final int pagamentoDia2,
     final String avatar,
     @JsonKey(name: 'cor_agenda') final String corAgenda,
     final bool verified,
@@ -549,6 +603,17 @@ abstract class _User extends User {
     unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
   )
   PagamentoFrequencia? get pagamentoFrequencia;
+
+  /// Dia âncora do repasse (migration 37). 0 = default do tipo.
+  /// Semanal: 1–7 (seg…dom). Quinzenal/mensal: 1–31.
+  @override
+  @JsonKey(name: 'pagamento_dia')
+  int get pagamentoDia;
+
+  /// 2º dia quinzenal (migration 37). 0 = último dia do mês.
+  @override
+  @JsonKey(name: 'pagamento_dia_2')
+  int get pagamentoDia2;
 
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   @override

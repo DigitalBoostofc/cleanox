@@ -9,12 +9,14 @@ abstract class ComissaoRepository {
   /// Lista profissionais (users role=profissional) com config de comissão.
   Future<List<User>> listProfissionais();
 
-  /// Atualiza comissão + frequência de pagamento no user.
+  /// Atualiza comissão + frequência + dia(s) de pagamento no user.
   Future<User> setComissao({
     required String profissionalId,
     required ComissaoTipo tipo,
     required double valor,
     PagamentoFrequencia? pagamentoFrequencia,
+    int pagamentoDia = 0,
+    int pagamentoDia2 = 0,
   });
 
   /// Extrato de comissões (admin: todos ou filtro; prof: só as próprias via rule).
