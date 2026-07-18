@@ -279,11 +279,12 @@ class _MapaDiaBody extends StatelessWidget {
                           for (final p in comCoords)
                             Marker(
                               point: LatLng(p.lat!, p.lng!),
-                              width: 36,
-                              height: 36,
+                              width: 40,
+                              height: 40,
                               child: _NumberPin(
                                 n: p.seq,
-                                active: p.status == OSStatus.emAndamento.wire,
+                                emAndamento:
+                                    p.status == OSStatus.emAndamento.wire,
                               ),
                             ),
                         ],
@@ -343,35 +344,65 @@ class _MapaDiaBody extends StatelessWidget {
   }
 }
 
+/// Cores distintas por sequência (1, 2, 3… cicla se passar de 8).
+Color pinColorForSeq(int n) {
+  const palette = <Color>[
+    Color(0xFF0D9488), // teal
+    Color(0xFF2563EB), // blue
+    Color(0xFFD97706), // amber
+    Color(0xFFDC2626), // red
+    Color(0xFF7C3AED), // violet
+    Color(0xFF059669), // green
+    Color(0xFFDB2777), // pink
+    Color(0xFFEA580C), // orange
+  ];
+  final i = n <= 0 ? 0 : (n - 1) % palette.length;
+  return palette[i];
+}
+
+/// Círculo com o número da sequência — mesmo visual no mapa e no card.
 class _NumberPin extends StatelessWidget {
-  const _NumberPin({required this.n, this.active = false});
+  const _NumberPin({
+    required this.n,
+    this.emAndamento = false,
+    this.size = 36,
+  });
+
   final int n;
-  final bool active;
+  final bool emAndamento;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    final clx = context.clx;
-    final bg = active ? clx.statusEmAndamento : clx.primary;
-    return Container(
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: bg,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+    final bg = pinColorForSeq(n);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: emAndamento ? const Color(0xFFFBBF24) : Colors.white,
+            width: emAndamento ? 3 : 2,
           ),
-        ],
-      ),
-      child: Text(
-        '$n',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-          fontSize: 13,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Text(
+          '$n',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: size >= 36 ? 15 : 13,
+            height: 1,
+          ),
         ),
       ),
     );
@@ -388,6 +419,7 @@ class _PinListTile extends StatelessWidget {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final emAndamento = pin.status == OSStatus.emAndamento.wire;
+    final pinColor = pinColorForSeq(pin.seq);
     return Material(
       color: clx.bg,
       borderRadius: ClxRadii.rMd,
@@ -398,12 +430,16 @@ class _PinListTile extends StatelessWidget {
           padding: const EdgeInsets.all(ClxSpace.x3),
           decoration: BoxDecoration(
             borderRadius: ClxRadii.rMd,
-            border: Border.all(color: clx.line),
+            border: Border.all(
+              color: emAndamento ? pinColor : clx.line,
+              width: emAndamento ? 1.5 : 1,
+            ),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _NumberPin(n: pin.seq, active: emAndamento),
+              // Número no lugar do ícone quebrado — mesma cor do pin do mapa.
+              _NumberPin(n: pin.seq, emAndamento: emAndamento, size: 40),
               const SizedBox(width: ClxSpace.x3),
               Expanded(
                 child: Column(
@@ -437,7 +473,6 @@ class _PinListTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.open_in_new_rounded, size: 18, color: clx.ink3),
             ],
           ),
         ),
