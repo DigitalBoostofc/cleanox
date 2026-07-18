@@ -215,4 +215,27 @@ void main() {
     expect(s.today.map((o) => o.id), isNot(contains('a')));
     expect(s.upcoming.map((o) => o.id), isNot(contains('a')));
   });
+
+  test('OS cancelada some da lista do profissional', () async {
+    final repo = FakeOrdensRepository();
+    final c = _container(repo);
+    await _settle();
+
+    repo.emit(_ev(OSEventAction.create, _os('a', dataHora: _todayVal)));
+    await _settle();
+    expect(_read(c).today.map((o) => o.id), contains('a'));
+
+    repo.emit(
+      _ev(
+        OSEventAction.update,
+        _os('a', dataHora: _todayVal, status: OSStatus.cancelada),
+      ),
+    );
+    await _settle();
+
+    final s = _read(c);
+    expect(s.today.map((o) => o.id), isNot(contains('a')));
+    expect(s.upcoming.map((o) => o.id), isNot(contains('a')));
+    expect(s.pastOpen.map((o) => o.id), isNot(contains('a')));
+  });
 }

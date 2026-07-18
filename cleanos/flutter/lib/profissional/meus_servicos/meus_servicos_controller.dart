@@ -192,9 +192,11 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
   }
 
   /// Bucket ao qual a OS pertence AGORA — espelha os 3 filtros do [refresh].
-  /// `none` = não é do profissional, ou é passada e já encerrada (fora das janelas).
+  /// `none` = não é do profissional, cancelada, ou passada e já encerrada.
   _Bucket _bucketFor(OrdemServico rec) {
     if (rec.profissional != _profId) return _Bucket.none;
+    // Cancelada some da lista do prof (fetch e realtime).
+    if (rec.status == OSStatus.cancelada) return _Bucket.none;
     final bounds = getBrtDayBounds();
     final dh = rec.dataHora;
     if (dh.isEmpty) return _Bucket.none;

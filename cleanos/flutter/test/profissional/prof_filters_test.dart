@@ -23,11 +23,12 @@ void main() {
     expect(
       profOrdensHojeFilter('p1', bounds),
       "profissional = 'p1' && data_hora >= '2026-07-02 03:00:00' "
-      "&& data_hora < '2026-07-03 03:00:00'",
+      "&& data_hora < '2026-07-03 03:00:00' && status != 'cancelada'",
     );
     expect(
       profOrdensProximasFilter('p1', bounds),
-      "profissional = 'p1' && data_hora >= '2026-07-03 03:00:00'",
+      "profissional = 'p1' && data_hora >= '2026-07-03 03:00:00' "
+      "&& status != 'cancelada'",
     );
     expect(
       profOrdensAtrasadasAbertasFilter('p1', bounds),
