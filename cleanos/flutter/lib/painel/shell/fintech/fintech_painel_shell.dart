@@ -206,8 +206,11 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
     if (_showMais) return 'Menu';
     final user = ref.read(currentUserProvider);
     if (widget.section == PainelSection.dashboard) {
-      final raw = (user?.nome ?? user?.name ?? '').trim();
-      final first = raw.isEmpty ? '' : raw.split(RegExp(r'\s+')).first;
+      // R2: `nome` no PB costuma ser "" (não null) — não usar `??` cego.
+      final raw = user == null ? '' : user.displayName.trim();
+      final first = (raw.isEmpty || raw == '—')
+          ? ''
+          : raw.split(RegExp(r'\s+')).first;
       return first.isEmpty ? 'Olá 👋' : 'Olá, $first 👋';
     }
     return switch (widget.section) {

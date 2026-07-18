@@ -78,8 +78,11 @@ class _ProfShellState extends ConsumerState<ProfShell> {
   String _headerTitle(User? user) {
     final branch = widget.navigationShell.currentIndex;
     if (branch == 0) {
-      final raw = (user?.nome ?? user?.name ?? '').trim();
-      final first = raw.isEmpty ? '' : raw.split(RegExp(r'\s+')).first;
+      // R2: `nome` no PB costuma ser "" (não null) — não usar `??` cego.
+      final raw = user == null ? '' : user.displayName.trim();
+      final first = (raw.isEmpty || raw == '—')
+          ? ''
+          : raw.split(RegExp(r'\s+')).first;
       return first.isEmpty ? 'Olá 👋' : 'Olá, $first 👋';
     }
     return switch (branch) {
