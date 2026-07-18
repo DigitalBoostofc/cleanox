@@ -16,6 +16,7 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../painel/data/painel_providers.dart';
 import 'prof_estimativa.dart';
+import 'prof_pagamento.dart';
 
 final _profComissoesProvider = FutureProvider.autoDispose<List<ProfComissao>>((
   ref,
@@ -26,6 +27,17 @@ final _profComissoesProvider = FutureProvider.autoDispose<List<ProfComissao>>((
       .watch(comissaoRepositoryProvider)
       .listComissoes(profissionalId: me.id);
 });
+
+/// A receber + próximo pagamento (ciclo configurado no perfil).
+final _pagamentoSnapshotProvider =
+    FutureProvider.autoDispose<ProfPagamentoSnapshot>((ref) async {
+      final me = ref.watch(currentUserProvider);
+      if (me == null) {
+        return const ProfPagamentoSnapshot(aReceber: 0, qtdPendentes: 0);
+      }
+      final list = await ref.watch(_profComissoesProvider.future);
+      return buildPagamentoSnapshot(me: me, comissoes: list);
+    });
 
 final _estimativaPeriodoProvider = StateProvider.autoDispose<EstimativaPeriodo>(
   (ref) => EstimativaPeriodo.semana,
@@ -73,7 +85,11 @@ Future<void> _refreshCarteira(WidgetRef ref) async {
   await ref.read(authServiceProvider).refresh();
   ref.invalidate(_profComissoesProvider);
   ref.invalidate(_profOsPeriodoProvider);
-  await ref.read(_carteiraProvider.future);
+  ref.invalidate(_pagamentoSnapshotProvider);
+  await Future.wait([
+    ref.read(_carteiraProvider.future),
+    ref.read(_pagamentoSnapshotProvider.future),
+  ]);
 }
 
 class ProfFinanceiroScreen extends ConsumerWidget {
@@ -84,6 +100,7 @@ class ProfFinanceiroScreen extends ConsumerWidget {
     final clx = context.clx;
     final me = ref.watch(currentUserProvider);
     final asyncCarteira = ref.watch(_carteiraProvider);
+    final asyncPagamento = ref.watch(_pagamentoSnapshotProvider);
     final periodo = ref.watch(_estimativaPeriodoProvider);
 
     return Scaffold(
@@ -112,7 +129,26 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ClxFadeSlide(
-                          delay: const Duration(milliseconds: 60),
+                          delay: const Duration(milliseconds: 40),
+                          child: asyncPagamento.when(
+                            loading: () => const ClxCard(
+                              child: Padding(
+                                padding: EdgeInsets.all(ClxSpace.x4),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ),
+                            error: (_, __) => const SizedBox.shrink(),
+                            data: (snap) => _ProximoPagamentoCard(
+                              me: me,
+                              snap: snap,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: ClxSpace.x5),
+                        ClxFadeSlide(
+                          delay: const Duration(milliseconds: 80),
                           child: _EstimativaSection(
                             periodo: periodo,
                             asyncCarteira: asyncCarteira,
@@ -128,6 +164,95 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                 ],
               ),
             ),
+    );
+  }
+}
+
+/// Card principal: quanto tem a receber e quando é o próximo repasse.
+class _ProximoPagamentoCard extends StatelessWidget {
+  const _ProximoPagamentoCard({required this.me, required this.snap});
+
+  final User me;
+  final ProfPagamentoSnapshot snap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    final dataLabel = snap.proximoPagamento != null
+        ? formatProximoPagamento(snap.proximoPagamento!)
+        : '—';
+    final ciclo = snap.frequencia?.label ?? 'não configurado';
+
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'A RECEBER',
+            style: tt.labelSmall?.copyWith(
+              color: clx.ink3,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            formatCurrency(snap.aReceber),
+            style: tt.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: clx.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            snap.qtdPendentes == 0
+                ? 'Nenhuma comissão pendente'
+                : '${snap.qtdPendentes} lançamento${snap.qtdPendentes == 1 ? '' : 's'} pendente${snap.qtdPendentes == 1 ? '' : 's'}',
+            style: tt.bodySmall?.copyWith(color: clx.ink2),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(ClxSpace.x3),
+            decoration: BoxDecoration(
+              color: clx.bg3,
+              borderRadius: ClxRadii.rMd,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.event_available_rounded, color: clx.ink2, size: 22),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Próximo pagamento',
+                        style: tt.labelMedium?.copyWith(
+                          color: clx.ink2,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        snap.temCiclo ? dataLabel : 'Defina o ciclo no painel',
+                        style: tt.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: clx.ink,
+                        ),
+                      ),
+                      Text(
+                        'Ciclo: $ciclo · ${me.comissaoResumo}',
+                        style: tt.bodySmall?.copyWith(color: clx.ink3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -188,7 +313,9 @@ class _ComissaoHero extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Estimativa + extrato das suas comissões',
+                    me.pagamentoFrequencia != null
+                        ? 'Repasse ${me.pagamentoFrequencia!.label.toLowerCase()} · ${me.comissaoResumo}'
+                        : 'Estimativa + extrato das suas comissões',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white.withValues(alpha: 0.8),
                     ),

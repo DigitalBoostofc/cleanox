@@ -269,17 +269,13 @@ void main() {
       expect(r.start, isNot(getBrtDayBounds(now: now).todayStart));
     });
 
-    test('15 dias = span com passado e futuro em torno de hoje', () {
+    test('quinzena = metade civil do mês BRT', () {
+      // 18/07 → 2ª quinzena (16 → 1º do mês seguinte)
       final now = DateTime.utc(2026, 7, 18, 15);
-      final r = EstimativaPeriodo.dias15.toRange(now: now);
-      final span = getBrtSpanDaysRange(15, now: now);
-      expect(r.start, span.start);
-      expect(r.end, span.end);
-      // Começa antes de hoje (inclui concluídas recentes).
-      expect(
-        r.start.compareTo(getBrtDayBounds(now: now).todayStart),
-        lessThan(0),
-      );
+      final r = EstimativaPeriodo.quinzena.toRange(now: now);
+      final q = getBrtCurrentQuinzenaRange(now: now);
+      expect(r.start, q.start);
+      expect(r.end, q.end);
     });
 
     test('mês = mês civil BRT', () {

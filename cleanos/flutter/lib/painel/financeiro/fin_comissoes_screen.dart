@@ -1152,7 +1152,7 @@ class _ConfigSheet extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Configurar comissão por profissional',
+                        'Equipe · comissão e pagamento',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
@@ -1161,7 +1161,7 @@ class _ConfigSheet extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Percentual ou valor fixo por OS concluída',
+                        '% / fixo por OS, diária por dia trabalhado e ciclo de repasse',
                         style: Theme.of(
                           context,
                         ).textTheme.bodySmall?.copyWith(color: clx.ink2),
@@ -1248,6 +1248,7 @@ class _ProfComissaoCard extends ConsumerStatefulWidget {
 
 class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
   late ComissaoTipo _tipo;
+  late PagamentoFrequencia? _freq;
   late TextEditingController _valor;
   bool _saving = false;
 
@@ -1255,6 +1256,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
   void initState() {
     super.initState();
     _tipo = widget.user.comissaoTipo;
+    _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
     _valor = TextEditingController(
       text: widget.user.comissaoValor > 0
           ? (widget.user.comissaoValor ==
@@ -1270,8 +1272,11 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.user.id != widget.user.id ||
         oldWidget.user.comissaoTipo != widget.user.comissaoTipo ||
-        oldWidget.user.comissaoValor != widget.user.comissaoValor) {
+        oldWidget.user.comissaoValor != widget.user.comissaoValor ||
+        oldWidget.user.pagamentoFrequencia !=
+            widget.user.pagamentoFrequencia) {
       _tipo = widget.user.comissaoTipo;
+      _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
       _valor.text = widget.user.comissaoValor > 0
           ? widget.user.comissaoValor.toStringAsFixed(
               widget.user.comissaoValor ==
@@ -1288,6 +1293,19 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
     _valor.dispose();
     super.dispose();
   }
+
+  String get _valorLabel => switch (_tipo) {
+    ComissaoTipo.percentual => 'Percentual (%)',
+    ComissaoTipo.diaria => 'Valor da diária (R\$)',
+    ComissaoTipo.fixo => 'Valor fixo por OS (R\$)',
+    ComissaoTipo.nenhuma => 'Valor',
+  };
+
+  String get _valorHint => switch (_tipo) {
+    ComissaoTipo.percentual => 'ex: 30',
+    ComissaoTipo.diaria => 'ex: 150',
+    _ => 'ex: 50',
+  };
 
   Future<void> _save() async {
     final raw = _valor.text.trim().replaceAll(',', '.');
@@ -1308,6 +1326,14 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
       );
       return;
     }
+    if (_tipo != ComissaoTipo.nenhuma && _freq == null) {
+      showClxToast(
+        context,
+        'Escolha a frequência de pagamento.',
+        type: ToastType.warning,
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await ref
@@ -1316,6 +1342,8 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             profissionalId: widget.user.id,
             tipo: _tipo,
             valor: _tipo == ComissaoTipo.nenhuma ? 0 : v,
+            pagamentoFrequencia:
+                _tipo == ComissaoTipo.nenhuma ? null : _freq,
           );
       widget.onSaved();
     } catch (_) {
@@ -1379,7 +1407,12 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
                 ),
               ),
               if (u.hasComissaoAtiva)
-                ClxChip(label: u.comissaoResumo, color: clx.success),
+                ClxChip(
+                  label:
+                      '${u.comissaoResumo}'
+                      '${u.pagamentoFrequencia != null ? ' · ${u.pagamentoFrequencia!.label}' : ''}',
+                  color: clx.success,
+                ),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -1387,7 +1420,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             // ignore: deprecated_member_use
             value: _tipo,
             decoration: const InputDecoration(
-              labelText: 'Tipo de comissão',
+              labelText: 'Tipo de remuneração',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -1413,13 +1446,35 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
               decoration: InputDecoration(
-                labelText: _tipo == ComissaoTipo.percentual
-                    ? 'Percentual (%)'
-                    : 'Valor fixo (R\$)',
+                labelText: _valorLabel,
                 border: const OutlineInputBorder(),
                 isDense: true,
-                hintText: _tipo == ComissaoTipo.percentual ? 'ex: 10' : 'ex: 30',
+                hintText: _valorHint,
+                helperText: _tipo == ComissaoTipo.diaria
+                    ? '1 diária por dia BRT com pelo menos 1 OS concluída'
+                    : null,
               ),
+            ),
+            const SizedBox(height: ClxSpace.x3),
+            DropdownButtonFormField<PagamentoFrequencia>(
+              // ignore: deprecated_member_use
+              value: _freq,
+              decoration: const InputDecoration(
+                labelText: 'Forma de pagamento (repasse)',
+                border: OutlineInputBorder(),
+                isDense: true,
+                helperText:
+                    'Diário · Semanal (sexta) · Quinzenal (1 e 16) · Mensal',
+              ),
+              items: [
+                for (final f in PagamentoFrequencia.values)
+                  DropdownMenuItem(value: f, child: Text(f.label)),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (f) {
+                      if (f != null) setState(() => _freq = f);
+                    },
             ),
           ],
           const SizedBox(height: ClxSpace.x3),

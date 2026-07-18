@@ -27,6 +27,11 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
       ) ??
       ComissaoTipo.nenhuma,
   comissaoValor: (json['comissao_valor'] as num?)?.toDouble() ?? 0,
+  pagamentoFrequencia: $enumDecodeNullable(
+    _$PagamentoFrequenciaEnumMap,
+    json['pagamento_frequencia'],
+    unknownValue: JsonKey.nullForUndefinedEnumValue,
+  ),
   avatar: json['avatar'] as String? ?? '',
   corAgenda: json['cor_agenda'] as String? ?? '',
   verified: json['verified'] as bool? ?? false,
@@ -45,6 +50,8 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'whatsapp': instance.whatsapp,
       'comissao_tipo': _$ComissaoTipoEnumMap[instance.comissaoTipo]!,
       'comissao_valor': instance.comissaoValor,
+      'pagamento_frequencia':
+          _$PagamentoFrequenciaEnumMap[instance.pagamentoFrequencia],
       'avatar': instance.avatar,
       'cor_agenda': instance.corAgenda,
       'verified': instance.verified,
@@ -63,4 +70,12 @@ const _$ComissaoTipoEnumMap = {
   ComissaoTipo.nenhuma: 'nenhuma',
   ComissaoTipo.percentual: 'percentual',
   ComissaoTipo.fixo: 'fixo',
+  ComissaoTipo.diaria: 'diaria',
+};
+
+const _$PagamentoFrequenciaEnumMap = {
+  PagamentoFrequencia.diario: 'diario',
+  PagamentoFrequencia.semanal: 'semanal',
+  PagamentoFrequencia.quinzenal: 'quinzenal',
+  PagamentoFrequencia.mensal: 'mensal',
 };

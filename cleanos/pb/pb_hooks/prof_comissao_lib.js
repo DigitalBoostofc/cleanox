@@ -109,6 +109,63 @@ function removerComissoesDaOs(app, osId) {
   }
 }
 
+/**
+ * Próximo dia civil a partir de YYYY-MM-DD (string data parede).
+ */
+function nextDayYmd(ymd) {
+  const p = String(ymd || "").slice(0, 10).split("-");
+  if (p.length !== 3) return "";
+  const d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  d.setUTCDate(d.getUTCDate() + 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    d.getUTCFullYear() +
+    "-" +
+    pad(d.getUTCMonth() + 1) +
+    "-" +
+    pad(d.getUTCDate())
+  );
+}
+
+/**
+ * Já existe comissão diária do profissional na data parede (YYYY-MM-DD)?
+ */
+function jaTemDiariaNoDia(app, profId, ymd) {
+  const day = String(ymd || "").slice(0, 10);
+  if (!day || !profId) return false;
+  const next = nextDayYmd(day);
+  if (!next) return false;
+  try {
+    const list = app.findRecordsByFilter(
+      "prof_comissoes",
+      'profissional = "' +
+        String(profId).replace(/"/g, '\\"') +
+        '" && tipo_aplicado = "diaria" && data >= "' +
+        day +
+        ' 00:00:00.000Z" && data < "' +
+        next +
+        ' 00:00:00.000Z"',
+      "",
+      1,
+      0,
+    );
+    return !!(list && list.length);
+  } catch (_) {
+    return false;
+  }
+}
+
+function salvarComissao(app, fields) {
+  const col = app.findCollectionByNameOrId("prof_comissoes");
+  const rec = new Record(col);
+  const keys = Object.keys(fields);
+  for (let i = 0; i < keys.length; i++) {
+    rec.set(keys[i], fields[keys[i]]);
+  }
+  app.save(rec);
+  return rec;
+}
+
 function criarComissaoProfissional(app, record, origStatus) {
   const newStatus = String(record.get("status") || "");
   if (newStatus !== "concluida") return;
@@ -120,16 +177,8 @@ function criarComissaoProfissional(app, record, origStatus) {
     const orig = record.original ? record.original() : null;
     prevStatus = orig ? String(orig.get("status") || "") : "";
   }
-  // Idempotente: se já concluída, não recria (anti-duplicata abaixo cobre).
-  // Ainda assim, se a comissão foi apagada manualmente, permite recriar?
-  // Mantém: só na transição para concluida (prev !== concluida).
+  // Só na transição para concluida (prev !== concluida).
   if (prevStatus === "concluida") return;
-
-  const valorPago = Number(record.get("valor_pago") || 0);
-  if (!(valorPago > 0)) {
-    console.log("[comissao] OS sem valor_pago > 0; skip.");
-    return;
-  }
 
   const profId = String(record.get("profissional") || "");
   if (!profId) {
@@ -139,7 +188,75 @@ function criarComissaoProfissional(app, record, origStatus) {
 
   const osId = record.id;
 
-  // Anti-duplicata (findFirst lança se não achar)
+  let prof;
+  try {
+    prof = app.findRecordById("users", profId);
+  } catch (e) {
+    console.log("[comissao] profissional não encontrado: " + profId);
+    return;
+  }
+
+  const tipo = String(prof.get("comissao_tipo") || "nenhuma").toLowerCase();
+  const base = Number(prof.get("comissao_valor") || 0);
+  if (!(base > 0)) {
+    console.log("[comissao] comissao_valor inválido; skip.");
+    return;
+  }
+
+  // ── Diária: 1× por dia BRT se ≥1 OS concluída (não exige valor_pago) ─────
+  if (tipo === "diaria") {
+    const ymd = dataParedeDaOs(record);
+    if (jaTemDiariaNoDia(app, profId, ymd)) {
+      console.log(
+        "[comissao] diária já existe p/ " + profId + " em " + ymd + "; skip.",
+      );
+      return;
+    }
+    const valorComissao = Math.round(base * 100) / 100;
+    const valorPago = Number(record.get("valor_pago") || 0);
+    const nomeCurto = String(record.get("nome_curto") || "");
+    try {
+      salvarComissao(app, {
+        profissional: profId,
+        profissional_nome: String(prof.get("name") || ""),
+        os: osId,
+        valor_os: valorPago,
+        valor_comissao: valorComissao,
+        tipo_aplicado: "diaria",
+        base_valor: base,
+        status: "pendente",
+        data: ymd,
+        descricao:
+          "Diária · " +
+          ymd +
+          (nomeCurto ? " · " + nomeCurto : ""),
+      });
+      console.log(
+        "[comissao] diária " +
+          ymd +
+          " → R$ " +
+          valorComissao +
+          " para " +
+          profId,
+      );
+    } catch (e) {
+      console.error("[comissao] falha ao salvar diária: " + e);
+    }
+    return;
+  }
+
+  if (tipo !== "percentual" && tipo !== "fixo") {
+    console.log("[comissao] prof " + profId + " sem comissão configurada.");
+    return;
+  }
+
+  const valorPago = Number(record.get("valor_pago") || 0);
+  if (!(valorPago > 0)) {
+    console.log("[comissao] OS sem valor_pago > 0; skip.");
+    return;
+  }
+
+  // Anti-duplicata por OS (percentual/fixo)
   try {
     app.findFirstRecordByFilter(
       "prof_comissoes",
@@ -151,26 +268,6 @@ function criarComissaoProfissional(app, record, origStatus) {
     /* not found */
   }
 
-  let prof;
-  try {
-    prof = app.findRecordById("users", profId);
-  } catch (e) {
-    console.log("[comissao] profissional não encontrado: " + profId);
-    return;
-  }
-
-  const tipo = String(prof.get("comissao_tipo") || "nenhuma").toLowerCase();
-  if (tipo !== "percentual" && tipo !== "fixo") {
-    console.log("[comissao] prof " + profId + " sem comissão configurada.");
-    return;
-  }
-
-  const base = Number(prof.get("comissao_valor") || 0);
-  if (!(base > 0)) {
-    console.log("[comissao] comissao_valor inválido; skip.");
-    return;
-  }
-
   let valorComissao = 0;
   if (tipo === "percentual") {
     valorComissao = Math.round(((valorPago * base) / 100) * 100) / 100;
@@ -179,33 +276,21 @@ function criarComissaoProfissional(app, record, origStatus) {
   }
   if (!(valorComissao > 0)) return;
 
-  const col = app.findCollectionByNameOrId("prof_comissoes");
-  const rec = new Record(col);
-  rec.set("profissional", profId);
-  // F-225: nome DESNORMALIZADO. A relação `profissional` é opcional justamente
-  // para o extrato sobreviver à exclusão do profissional — mas sem o nome em
-  // texto o histórico ficaria anônimo ("comissão de R$60 pra ninguém").
-  rec.set("profissional_nome", String(prof.get("name") || ""));
-  rec.set("os", osId);
-  rec.set("valor_os", valorPago);
-  rec.set("valor_comissao", valorComissao);
-  rec.set("tipo_aplicado", tipo);
-  rec.set("base_valor", base);
-  rec.set("status", "pendente");
-  // Data = dia parede BRT da OS (data_hora), IGUAL à receita via_os.
-  // NÃO usar "agora": backfill ou conclusão em lote colocaria todas as
-  // comissões no mesmo dia (ex.: 15) e sumiria da sequência de cada OS.
-  rec.set("data", dataParedeDaOs(record));
-
   const nomeCurto = String(record.get("nome_curto") || "");
   const servico = String(record.get("tipo_servico_nome") || "");
-  rec.set(
-    "descricao",
-    (servico || "OS") + (nomeCurto ? " · " + nomeCurto : ""),
-  );
-
   try {
-    app.save(rec);
+    salvarComissao(app, {
+      profissional: profId,
+      profissional_nome: String(prof.get("name") || ""),
+      os: osId,
+      valor_os: valorPago,
+      valor_comissao: valorComissao,
+      tipo_aplicado: tipo,
+      base_valor: base,
+      status: "pendente",
+      data: dataParedeDaOs(record),
+      descricao: (servico || "OS") + (nomeCurto ? " · " + nomeCurto : ""),
+    });
     console.log(
       "[comissao] OS " +
         osId +

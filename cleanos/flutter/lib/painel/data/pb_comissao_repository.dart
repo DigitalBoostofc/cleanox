@@ -29,16 +29,19 @@ class PbComissaoRepository implements ComissaoRepository {
     required String profissionalId,
     required ComissaoTipo tipo,
     required double valor,
+    PagamentoFrequencia? pagamentoFrequencia,
   }) async {
+    final body = <String, dynamic>{
+      'comissao_tipo': tipo.wire,
+      'comissao_valor': tipo == ComissaoTipo.nenhuma ? 0 : valor,
+      // R2: select vazio = "" no PB.
+      'pagamento_frequencia': tipo == ComissaoTipo.nenhuma
+          ? ''
+          : (pagamentoFrequencia?.wire ?? ''),
+    };
     final rec = await _pb
         .collection(Collections.users)
-        .update(
-          profissionalId,
-          body: {
-            'comissao_tipo': tipo.wire,
-            'comissao_valor': tipo == ComissaoTipo.nenhuma ? 0 : valor,
-          },
-        );
+        .update(profissionalId, body: body);
     return User.fromRecord(rec);
   }
 

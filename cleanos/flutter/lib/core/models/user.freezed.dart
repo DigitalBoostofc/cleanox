@@ -34,13 +34,22 @@ mixin _$User {
   /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
   String? get whatsapp => throw _privateConstructorUsedError;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   ComissaoTipo get comissaoTipo => throw _privateConstructorUsedError;
 
-  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @JsonKey(name: 'comissao_valor')
   double get comissaoValor => throw _privateConstructorUsedError;
+
+  /// Como a empresa repassa: diário / semanal / quinzenal / mensal (migration 36).
+  /// Null/omitido = sem frequência configurada.
+  @JsonKey(
+    name: 'pagamento_frequencia',
+    unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+  )
+  PagamentoFrequencia? get pagamentoFrequencia =>
+      throw _privateConstructorUsedError;
 
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   String get avatar => throw _privateConstructorUsedError;
@@ -78,6 +87,11 @@ abstract class $UserCopyWith<$Res> {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
+    @JsonKey(
+      name: 'pagamento_frequencia',
+      unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+    )
+    PagamentoFrequencia? pagamentoFrequencia,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
@@ -110,6 +124,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
+    Object? pagamentoFrequencia = freezed,
     Object? avatar = null,
     Object? corAgenda = null,
     Object? verified = null,
@@ -151,6 +166,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.comissaoValor
                 : comissaoValor // ignore: cast_nullable_to_non_nullable
                       as double,
+            pagamentoFrequencia: freezed == pagamentoFrequencia
+                ? _value.pagamentoFrequencia
+                : pagamentoFrequencia // ignore: cast_nullable_to_non_nullable
+                      as PagamentoFrequencia?,
             avatar: null == avatar
                 ? _value.avatar
                 : avatar // ignore: cast_nullable_to_non_nullable
@@ -199,6 +218,11 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
+    @JsonKey(
+      name: 'pagamento_frequencia',
+      unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+    )
+    PagamentoFrequencia? pagamentoFrequencia,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
     bool verified,
@@ -228,6 +252,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
     Object? comissaoValor = null,
+    Object? pagamentoFrequencia = freezed,
     Object? avatar = null,
     Object? corAgenda = null,
     Object? verified = null,
@@ -269,6 +294,10 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.comissaoValor
             : comissaoValor // ignore: cast_nullable_to_non_nullable
                   as double,
+        pagamentoFrequencia: freezed == pagamentoFrequencia
+            ? _value.pagamentoFrequencia
+            : pagamentoFrequencia // ignore: cast_nullable_to_non_nullable
+                  as PagamentoFrequencia?,
         avatar: null == avatar
             ? _value.avatar
             : avatar // ignore: cast_nullable_to_non_nullable
@@ -311,6 +340,11 @@ class _$UserImpl extends _User {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     this.comissaoTipo = ComissaoTipo.nenhuma,
     @JsonKey(name: 'comissao_valor') this.comissaoValor = 0,
+    @JsonKey(
+      name: 'pagamento_frequencia',
+      unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+    )
+    this.pagamentoFrequencia,
     this.avatar = '',
     @JsonKey(name: 'cor_agenda') this.corAgenda = '',
     this.verified = false,
@@ -343,15 +377,24 @@ class _$UserImpl extends _User {
   @override
   final String? whatsapp;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
   @override
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   final ComissaoTipo comissaoTipo;
 
-  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @override
   @JsonKey(name: 'comissao_valor')
   final double comissaoValor;
+
+  /// Como a empresa repassa: diário / semanal / quinzenal / mensal (migration 36).
+  /// Null/omitido = sem frequência configurada.
+  @override
+  @JsonKey(
+    name: 'pagamento_frequencia',
+    unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+  )
+  final PagamentoFrequencia? pagamentoFrequencia;
 
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   @override
@@ -375,7 +418,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -394,6 +437,8 @@ class _$UserImpl extends _User {
                 other.comissaoTipo == comissaoTipo) &&
             (identical(other.comissaoValor, comissaoValor) ||
                 other.comissaoValor == comissaoValor) &&
+            (identical(other.pagamentoFrequencia, pagamentoFrequencia) ||
+                other.pagamentoFrequencia == pagamentoFrequencia) &&
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.corAgenda, corAgenda) ||
                 other.corAgenda == corAgenda) &&
@@ -417,6 +462,7 @@ class _$UserImpl extends _User {
     whatsapp,
     comissaoTipo,
     comissaoValor,
+    pagamentoFrequencia,
     avatar,
     corAgenda,
     verified,
@@ -450,6 +496,11 @@ abstract class _User extends User {
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     final ComissaoTipo comissaoTipo,
     @JsonKey(name: 'comissao_valor') final double comissaoValor,
+    @JsonKey(
+      name: 'pagamento_frequencia',
+      unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+    )
+    final PagamentoFrequencia? pagamentoFrequencia,
     final String avatar,
     @JsonKey(name: 'cor_agenda') final String corAgenda,
     final bool verified,
@@ -480,15 +531,24 @@ abstract class _User extends User {
   @override
   String? get whatsapp;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
   @override
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   ComissaoTipo get comissaoTipo;
 
-  /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+  /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @override
   @JsonKey(name: 'comissao_valor')
   double get comissaoValor;
+
+  /// Como a empresa repassa: diário / semanal / quinzenal / mensal (migration 36).
+  /// Null/omitido = sem frequência configurada.
+  @override
+  @JsonKey(
+    name: 'pagamento_frequencia',
+    unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+  )
+  PagamentoFrequencia? get pagamentoFrequencia;
 
   /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
   @override
