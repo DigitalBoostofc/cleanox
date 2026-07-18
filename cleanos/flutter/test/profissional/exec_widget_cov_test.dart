@@ -76,6 +76,7 @@ Widget _wrapCard(OrdemServico os) => MaterialApp(
         onPagar: () {},
         onConcluir: () {},
         onChecklist: () {},
+        onWhatsAppCliente: () {},
       ),
     ),
   ),
@@ -112,44 +113,46 @@ Future<void> _pumpExec(
 }
 
 void main() {
-  group('ANTI-DESVIO — endereço oculto fora de em_andamento (card)', () {
-    // ⭐ Trava central: em NENHUM status != em_andamento o endereço completo
-    // pode ser exibido, mesmo com `endereco_liberado` populado pelo servidor.
+  group('Endereço no card (dono 18/07: atribuida + em_andamento)', () {
     for (final status in const [
-      OSStatus.atribuida,
       OSStatus.agendada,
       OSStatus.concluida,
       OSStatus.cancelada,
     ]) {
-      testWidgets('$status esconde endereço completo e PII do cliente', (
+      testWidgets('$status esconde endereço completo e id do cliente', (
         tester,
       ) async {
         await tester.pumpWidget(_wrapCard(_os(status: status)));
 
-        // Nada do endereço completo / telefone pode vazar.
         expect(find.textContaining('Rua das Palmeiras'), findsNothing);
         expect(find.textContaining('99876-5432'), findsNothing);
-        // Id opaco do cliente NUNCA é renderizado.
         expect(find.textContaining(_clienteIdOpaco), findsNothing);
-        // Visão-de-job permanece: nome_curto + bairro.
         expect(find.text('Carlos S.'), findsOneWidget);
         expect(find.text('Centro'), findsOneWidget);
       });
     }
 
+    testWidgets('atribuida LIBERA o endereço (ver antes de Iniciar)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrapCard(_os(status: OSStatus.atribuida)));
+      expect(find.textContaining('Rua das Palmeiras'), findsWidgets);
+      expect(find.textContaining(_clienteIdOpaco), findsNothing);
+    });
+
     testWidgets('em_andamento LIBERA o endereço completo', (tester) async {
       await tester.pumpWidget(_wrapCard(_os(status: OSStatus.emAndamento)));
 
       expect(find.textContaining('Rua das Palmeiras'), findsWidgets);
-      // Ainda assim, o id opaco do cliente não é exibido.
       expect(find.textContaining(_clienteIdOpaco), findsNothing);
     });
   });
 
-  group('Ver rota / deep-link só com endereço liberado (card)', () {
-    testWidgets('atribuida NÃO mostra "Ver rota"', (tester) async {
+  group('Ver rota / deep-link com endereço liberado (card)', () {
+    testWidgets('atribuida COM endereco mostra "Ver rota"', (tester) async {
       await tester.pumpWidget(_wrapCard(_os(status: OSStatus.atribuida)));
-      expect(find.text('Ver rota'), findsNothing);
+      expect(find.text('Ver rota'), findsOneWidget);
+      expect(find.text('WhatsApp cliente'), findsOneWidget);
     });
 
     testWidgets(
@@ -158,8 +161,7 @@ void main() {
         await tester.pumpWidget(
           _wrapCard(_os(status: OSStatus.emAndamento, endereco: null)),
         );
-        // Está em andamento (Checklist aparece), mas sem endereço → sem rota.
-        expect(find.text('Checklist e fotos'), findsOneWidget);
+        expect(find.text('Checklist, pagamento e concluir'), findsOneWidget);
         expect(find.text('Ver rota'), findsNothing);
       },
     );

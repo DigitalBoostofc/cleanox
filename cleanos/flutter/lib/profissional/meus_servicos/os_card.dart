@@ -1,9 +1,9 @@
 /// os_card.dart — Card de uma OS na lista do profissional (visão-de-job).
 ///
-/// 🔒 ANTI-DESVIO: mostra APENAS nome_curto, bairro, tipo, horário, valor e
-/// status. NUNCA telefone/cliente/e-mail. O endereço só aparece quando a OS está
-/// `em_andamento` (campo `endereco_liberado`, liberado pelo servidor). Porte do
-/// `OSCard` de `MeusServicos.tsx`.
+/// Mostra nome_curto, bairro, tipo, horário, valor e status. O endereço
+/// (`endereco_liberado`) aparece em `atribuida` e `em_andamento` (pedido do
+/// dono 18/07: ver localização ANTES de Iniciar). Telefone não fica no card —
+/// contato via botão WhatsApp (rota server-side `contato-cliente`).
 library;
 
 import 'package:flutter/material.dart';
@@ -23,9 +23,11 @@ class OSCard extends StatelessWidget {
     required this.onPagar,
     required this.onConcluir,
     required this.onChecklist,
+    required this.onWhatsAppCliente,
     this.actionLoading = false,
     this.actionError,
     this.avisoLoading = false,
+    this.contatoLoading = false,
   });
 
   final OrdemServico os;
@@ -34,9 +36,17 @@ class OSCard extends StatelessWidget {
   final VoidCallback onPagar;
   final VoidCallback onConcluir;
   final VoidCallback onChecklist;
+  final VoidCallback onWhatsAppCliente;
   final bool actionLoading;
   final String? actionError;
   final bool avisoLoading;
+  final bool contatoLoading;
+
+  bool get _temEndereco => (os.enderecoLiberado ?? '').trim().isNotEmpty;
+
+  bool get _mostraEndereco =>
+      _temEndereco &&
+      (os.status == OSStatus.atribuida || os.status == OSStatus.emAndamento);
 
   bool get _hoje {
     final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -198,9 +208,8 @@ class OSCard extends StatelessWidget {
                         ),
                       ),
 
-                  // Endereço liberado (só em_andamento).
-                  if (os.status == OSStatus.emAndamento &&
-                      (os.enderecoLiberado ?? '').isNotEmpty)
+                  // Endereço (atribuida + em_andamento) — ver antes de Iniciar.
+                  if (_mostraEndereco)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                         ClxSpace.x4,
@@ -228,7 +237,7 @@ class OSCard extends StatelessWidget {
                             const SizedBox(width: ClxSpace.x2),
                             Expanded(
                               child: Text(
-                                os.enderecoLiberado!,
+                                os.enderecoLiberado!.trim(),
                                 style: tt.bodyLarge?.copyWith(color: clx.ink),
                               ),
                             ),
@@ -286,22 +295,65 @@ class OSCard extends StatelessWidget {
     final clx = context.clx;
     switch (os.status) {
       case OSStatus.atribuida:
-        return ClxButton(
-          label: _podeIniciar
-              ? 'Iniciar serviço'
-              : 'Iniciar (disponível no dia)',
-          variant: ClxButtonVariant.secondary,
-          icon: Icons.play_arrow_rounded,
-          expand: true,
-          loading: actionLoading,
-          onPressed: _podeIniciar ? onIniciar : null,
+        // Fluxo: ver detalhes (endereço/rota/WhatsApp) → Iniciar só quando for
+        // começar → app leva ao checklist.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (_temEndereco) ...[
+                  Expanded(
+                    child: ClxButton(
+                      label: 'Ver rota',
+                      variant: ClxButtonVariant.ghost,
+                      icon: Icons.map_outlined,
+                      onPressed: () =>
+                          _abrirRota(context, os.enderecoLiberado!.trim()),
+                    ),
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                ],
+                Expanded(
+                  child: ClxButton(
+                    label: 'WhatsApp cliente',
+                    variant: ClxButtonVariant.ghost,
+                    icon: Icons.chat_rounded,
+                    loading: contatoLoading,
+                    onPressed: contatoLoading ? null : onWhatsAppCliente,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: _podeIniciar
+                  ? 'Iniciar serviço'
+                  : 'Iniciar (disponível no dia)',
+              variant: ClxButtonVariant.secondary,
+              icon: Icons.play_arrow_rounded,
+              expand: true,
+              loading: actionLoading,
+              onPressed: _podeIniciar ? onIniciar : null,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: ClxSpace.x1),
+              child: Text(
+                'Inicie só quando for começar o serviço. Depois você preenche '
+                'checklist, pagamento e conclui.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: clx.ink3, height: 1.35),
+              ),
+            ),
+          ],
         );
       case OSStatus.emAndamento:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ClxButton(
-              label: 'Checklist e fotos',
+              label: 'Checklist, pagamento e concluir',
               variant: ClxButtonVariant.secondary,
               icon: Icons.checklist_rounded,
               expand: true,
@@ -310,32 +362,41 @@ class OSCard extends StatelessWidget {
             const SizedBox(height: ClxSpace.x2),
             Row(
               children: [
-                // "Ver rota" — só quando o endereço já foi liberado (em_andamento).
-                if ((os.enderecoLiberado ?? '').isNotEmpty) ...[
+                if (_temEndereco) ...[
                   Expanded(
                     child: ClxButton(
                       label: 'Ver rota',
                       variant: ClxButtonVariant.ghost,
                       icon: Icons.map_outlined,
                       onPressed: () =>
-                          _abrirRota(context, os.enderecoLiberado!),
+                          _abrirRota(context, os.enderecoLiberado!.trim()),
                     ),
                   ),
                   const SizedBox(width: ClxSpace.x2),
                 ],
                 Expanded(
                   child: ClxButton(
-                    label: os.avisoACaminhoEm != null
-                        ? 'Cliente avisado ✓'
-                        : 'Avisar a caminho',
+                    label: 'WhatsApp',
                     variant: ClxButtonVariant.ghost,
-                    icon: Icons.near_me_outlined,
-                    loading: avisoLoading && os.avisoACaminhoEm == null,
-                    onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+                    icon: Icons.chat_rounded,
+                    loading: contatoLoading,
+                    onPressed: contatoLoading ? null : onWhatsAppCliente,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: os.avisoACaminhoEm != null
+                  ? 'Cliente avisado ✓'
+                  : 'Avisar a caminho (empresa)',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.near_me_outlined,
+              expand: true,
+              loading: avisoLoading && os.avisoACaminhoEm == null,
+              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+            ),
+            // Atalhos de pagamento/concluir ainda no card (quem não abre o checklist).
             const SizedBox(height: ClxSpace.x2),
             if (!_pagamentoRegistrado)
               ClxButton(
@@ -367,7 +428,7 @@ class OSCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: ClxSpace.x1),
                 child: Text(
-                  'Registre o pagamento antes de concluir.',
+                  'Registre o pagamento antes de concluir (ou faça no checklist).',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: clx.ink3),

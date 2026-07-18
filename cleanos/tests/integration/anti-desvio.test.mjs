@@ -204,13 +204,15 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       assert.strictEqual(leaky.length, 0, 'Campos sensíveis encontrados nas OS')
     })
 
-    it('C2 · agendada/atribuida/concluida/cancelada: endereco_liberado vazio', async () => {
+    it('C2 · agendada/concluida/cancelada: endereco_liberado vazio (atribuida/em_andamento liberam — dono 18/07)', async () => {
       const { body } = await GET(
         '/api/collections/ordens_servico/records?perPage=200',
         s.profTok
       )
+      // Pedido dono 18/07: endereço também em `atribuida` (ver rota antes de Iniciar).
+      const libera = new Set(['em_andamento', 'atribuida'])
       const bad = (body?.items ?? []).filter(
-        os => os.status !== 'em_andamento' &&
+        os => !libera.has(os.status) &&
               os.endereco_liberado && os.endereco_liberado !== ''
       )
       assert.strictEqual(

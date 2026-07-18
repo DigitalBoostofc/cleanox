@@ -268,6 +268,61 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
   return e.json(200, { ok: true, sentAt });
 }, $apis.requireAuth());
 
+// ── GET /api/cleanos/os/{id}/contato-cliente ─────────────────────────────────
+// Pedido do dono (2026-07-18): profissional dono da OS abre WhatsApp do CLIENTE
+// (wa.me) para combinar horário/chegada ANTES ou DEPOIS de Iniciar.
+//
+// - só profissional dono da OS;
+// - só em `atribuida` ou `em_andamento` (não em concluída/cancelada/agendada);
+// - telefone lido do COFRE `clientes` na hora — NÃO grava na OS;
+// - resposta: { ok, waUrl } (o app abre externo). O número vai na URL do wa.me
+//   (inevitável para deep-link); não devolvemos o telefone cru em outro campo.
+routerAdd("GET", "/api/cleanos/os/{id}/contato-cliente", (e) => {
+  const uazapi = require(`${__hooks}/uazapi.js`);
+  const lib = require(`${__hooks}/os_logic.js`);
+
+  if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+  if (String(e.auth.get("role")) !== "profissional") {
+    throw new ForbiddenError("Rota exclusiva para o papel profissional.");
+  }
+
+  const osId = e.request.pathValue("id");
+  const os = $app.findRecordById("ordens_servico", osId);
+
+  const profId = lib.relId(os.get("profissional"));
+  if (profId !== String(e.auth.id)) {
+    throw new ForbiddenError("Você não está atribuído a esta OS.");
+  }
+
+  const status = os.getString("status");
+  if (status !== "atribuida" && status !== "em_andamento") {
+    throw new BadRequestError(
+      "Contato com o cliente só está disponível em OS atribuída ou em andamento."
+    );
+  }
+
+  const clienteId = lib.relId(os.get("cliente"));
+  if (!clienteId) {
+    throw new BadRequestError("Esta OS não possui cliente associado.");
+  }
+  const cliente = $app.findRecordById("clientes", clienteId);
+  const numero = uazapi.normalizePhone(cliente.getString("telefone"));
+  if (!numero) {
+    throw new BadRequestError(
+      "O cliente desta OS não possui telefone válido para WhatsApp."
+    );
+  }
+
+  // Prefill curto, sem PII extra; o profissional completa a conversa.
+  const nome = os.getString("nome_curto") || "cliente";
+  const texto = encodeURIComponent(
+    "Olá, " + nome + "! Aqui é o profissional da Cleanox."
+  );
+  const waUrl = "https://wa.me/" + numero + "?text=" + texto;
+
+  return e.json(200, { ok: true, waUrl: waUrl });
+}, $apis.requireAuth());
+
 // ── POST /api/cleanos/os/{id}/relatorio ──────────────────────────────────────
 // Envia o RELATÓRIO FINAL da OS ao cliente por WhatsApp (uazapi) e grava
 // relatorio_enviado_em na OS. A mensagem é montada server-side a partir dos

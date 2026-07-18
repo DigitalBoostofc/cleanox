@@ -10,11 +10,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/repositories/whatsapp_repository.dart';
+import '../data/prof_providers.dart';
 import '../data/server_error.dart';
 import 'meus_servicos_controller.dart';
 import 'os_card.dart';
@@ -31,6 +34,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
   final Map<String, bool> _actionLoading = {};
   final Map<String, String?> _actionError = {};
   final Map<String, bool> _avisoLoading = {};
+  final Map<String, bool> _contatoLoading = {};
 
   MeusServicosController get _ctrl => ref.read(meusServicosProvider.notifier);
 
@@ -42,13 +46,40 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     _setError(os.id, null);
     try {
       await _ctrl.iniciar(os);
-      _toast('Serviço iniciado! Endereço liberado.', ToastType.success);
+      if (!mounted) return;
+      _toast(
+        'Serviço iniciado! Preencha o checklist e o pagamento.',
+        ToastType.success,
+      );
+      // Fluxo pedido pelo dono: Iniciar → tela de execução (checklist/pagamento).
+      _abrirExecucao(os);
     } catch (err) {
       final msg = describeOSError(err).message;
       _setError(os.id, msg);
       _toast(msg, ToastType.error);
     } finally {
       _setLoading(os.id, false);
+    }
+  }
+
+  Future<void> _whatsAppCliente(OrdemServico os) async {
+    setState(() => _contatoLoading[os.id] = true);
+    try {
+      final WhatsAppRepository wa = ref.read(whatsappRepositoryProvider);
+      final res = await wa.contatoCliente(os.id);
+      final uri = Uri.tryParse(res.waUrl);
+      if (uri == null) {
+        _toast('Link de WhatsApp inválido.', ToastType.error);
+        return;
+      }
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        _toast('Não foi possível abrir o WhatsApp.', ToastType.error);
+      }
+    } catch (err) {
+      _toast(describeOSError(err).message, ToastType.error);
+    } finally {
+      if (mounted) setState(() => _contatoLoading[os.id] = false);
     }
   }
 
@@ -144,9 +175,11 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       onPagar: () => _pagar(os),
       onConcluir: () => _concluir(os),
       onChecklist: () => _abrirExecucao(os),
+      onWhatsAppCliente: () => _whatsAppCliente(os),
       actionLoading: _actionLoading[os.id] ?? false,
       actionError: _actionError[os.id],
       avisoLoading: _avisoLoading[os.id] ?? false,
+      contatoLoading: _contatoLoading[os.id] ?? false,
     ),
   );
 

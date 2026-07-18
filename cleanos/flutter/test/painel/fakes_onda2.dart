@@ -269,6 +269,8 @@ class FakeWhatsApp implements WhatsAppRepository {
   @override
   Future<AvisoResult> avisarACaminho(String osId) => _unused();
   @override
+  Future<ContatoClienteResult> contatoCliente(String osId) => _unused();
+  @override
   Future<WhatsAppStatus> status() => _unused();
   @override
   Future<WhatsAppStatus> connect() => _unused();

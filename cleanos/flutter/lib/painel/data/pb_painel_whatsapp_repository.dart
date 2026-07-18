@@ -61,9 +61,13 @@ class PbPainelWhatsAppRepository implements WhatsAppRepository {
   );
 
   Never _soDoProfissional() => throw UnimplementedError(
-    'A rota /a-caminho é exclusiva do app do profissional (em_andamento, dono da OS).',
+    'Rota exclusiva do app do profissional (dono da OS).',
   );
 
   @override
   Future<AvisoResult> avisarACaminho(String osId) => _soDoProfissional();
+
+  @override
+  Future<ContatoClienteResult> contatoCliente(String osId) =>
+      _soDoProfissional();
 }

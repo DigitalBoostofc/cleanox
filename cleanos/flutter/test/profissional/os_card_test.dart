@@ -1,7 +1,7 @@
 /// os_card_test.dart — Fluxos críticos do card de OS:
 ///  - ações por status (atribuida → Iniciar; em_andamento → Checklist/Concluir),
 ///  - conclusão exige pagamento (botão Concluir desabilitado sem pagamento),
-///  - ANTI-DESVIO: endereço só aparece em em_andamento; nunca telefone/cliente.
+///  - endereço em atribuida e em_andamento; nunca id bruto de cliente.
 library;
 
 import 'package:cleanos/core/design/theme.dart';
@@ -38,31 +38,32 @@ Widget _wrap(Widget child) => MaterialApp(
 );
 
 void main() {
-  testWidgets('atribuida mostra "Iniciar serviço" e esconde o endereço', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _wrap(
-        OSCard(
-          os: _os(status: OSStatus.atribuida, endereco: 'Rua Secreta, 123'),
-          onIniciar: () {},
-          onAvisar: () {},
-          onPagar: () {},
-          onConcluir: () {},
-          onChecklist: () {},
+  testWidgets(
+    'atribuida mostra endereço, WhatsApp e Iniciar (pedido dono 18/07)',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          OSCard(
+            os: _os(status: OSStatus.atribuida, endereco: 'Rua Liberada, 123'),
+            onIniciar: () {},
+            onAvisar: () {},
+            onPagar: () {},
+            onConcluir: () {},
+            onChecklist: () {},
+            onWhatsAppCliente: () {},
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Iniciar serviço'), findsOneWidget);
-    // ANTI-DESVIO: endereço NÃO pode aparecer fora de em_andamento.
-    expect(find.textContaining('Rua Secreta'), findsNothing);
-    // Visão-de-job: nome_curto/bairro/tipo aparecem; cliente-id nunca.
-    expect(find.text('Carlos S.'), findsOneWidget);
-    expect(find.textContaining('cliente_secreto_id'), findsNothing);
-  });
+      expect(find.text('Iniciar serviço'), findsOneWidget);
+      expect(find.text('WhatsApp cliente'), findsOneWidget);
+      expect(find.textContaining('Rua Liberada'), findsWidgets);
+      expect(find.text('Carlos S.'), findsOneWidget);
+      expect(find.textContaining('cliente_secreto_id'), findsNothing);
+    },
+  );
 
-  testWidgets('em_andamento libera endereço e Checklist e fotos', (
+  testWidgets('em_andamento libera endereço e checklist principal', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -74,12 +75,14 @@ void main() {
           onPagar: () {},
           onConcluir: () {},
           onChecklist: () {},
+          onWhatsAppCliente: () {},
         ),
       ),
     );
 
-    expect(find.text('Checklist e fotos'), findsOneWidget);
+    expect(find.text('Checklist, pagamento e concluir'), findsOneWidget);
     expect(find.textContaining('Rua Liberada, 456'), findsWidgets);
+    expect(find.text('WhatsApp'), findsOneWidget);
   });
 
   testWidgets('conclusão exige pagamento — botão desabilitado sem pagamento', (
@@ -95,6 +98,7 @@ void main() {
           onPagar: () {},
           onConcluir: () => concluiu = true,
           onChecklist: () {},
+          onWhatsAppCliente: () {},
         ),
       ),
     );
@@ -124,6 +128,7 @@ void main() {
           onPagar: () {},
           onConcluir: () => concluiu = true,
           onChecklist: () {},
+          onWhatsAppCliente: () {},
         ),
       ),
     );
@@ -150,6 +155,7 @@ void main() {
             onPagar: () {},
             onConcluir: () {},
             onChecklist: () => abriu = true,
+            onWhatsAppCliente: () {},
           ),
         ),
       );
