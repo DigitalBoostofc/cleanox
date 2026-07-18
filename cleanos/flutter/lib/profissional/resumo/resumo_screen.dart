@@ -206,6 +206,28 @@ class _ResumoBody extends StatelessWidget {
               const SizedBox(width: ClxSpace.x3),
               Expanded(
                 child: _MetricCard(
+                  icon: Icons.pending_actions_rounded,
+                  label: 'Pendentes',
+                  value: '${resumo.pendentes}',
+                  color: clx.warning,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricCard(
+                  icon: Icons.check_circle_rounded,
+                  label: 'Realizados',
+                  value: '${resumo.realizados}',
+                  color: clx.statusConcluida,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: _MetricCard(
                   icon: Icons.cancel_outlined,
                   label: 'Canceladas',
                   value: '${resumo.canceladas}',
@@ -213,14 +235,6 @@ class _ResumoBody extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: ClxSpace.x3),
-          _MetricCard(
-            icon: Icons.check_circle_rounded,
-            label: 'Realizados',
-            value: '${resumo.realizados}',
-            color: clx.statusConcluida,
-            expand: true,
           ),
           const SizedBox(height: ClxSpace.x5),
           Text(
@@ -284,14 +298,12 @@ class _MetricCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
-    this.expand = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color color;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {

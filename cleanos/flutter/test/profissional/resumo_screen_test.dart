@@ -72,6 +72,7 @@ void main() {
     expect(find.text('Semana'), findsOneWidget);
     expect(find.text('Mês'), findsOneWidget);
     expect(find.text('Agendados'), findsOneWidget);
+    expect(find.text('Pendentes'), findsOneWidget);
     expect(find.text('Canceladas'), findsOneWidget);
     expect(find.text('Realizados'), findsOneWidget);
     expect(find.text('Deslocamento'), findsOneWidget);

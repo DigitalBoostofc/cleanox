@@ -4,8 +4,9 @@
 /// devolve contagens + deslocamento. Sem rede/Riverpod.
 ///
 /// Definições:
-///  * **Agendados** — total de OS do período (abertas + realizadas + canceladas).
-///  * **Canceladas** — OS canceladas com data no período.
+///  * **Agendados** — total = realizados + canceladas + pendentes.
+///  * **Pendentes** — ainda não encerradas (agendada / atribuída / em andamento).
+///  * **Canceladas** — OS canceladas no período.
 ///  * **Realizados** — OS concluídas no período.
 ///  * **Km** — soma do deslocamento planejado dos dias do período.
 library;
@@ -61,6 +62,7 @@ String _pbUtcToBrtDia(String pbUtc) {
 class ProfResumo {
   const ProfResumo({
     required this.agendados,
+    required this.pendentes,
     required this.canceladas,
     required this.realizados,
     required this.kmDeslocamento,
@@ -69,11 +71,17 @@ class ProfResumo {
 
   const ProfResumo.vazio({this.periodo = ResumoPeriodo.hoje})
     : agendados = 0,
+      pendentes = 0,
       canceladas = 0,
       realizados = 0,
       kmDeslocamento = 0;
 
+  /// Total do período (realizados + canceladas + pendentes).
   final int agendados;
+
+  /// Ainda não encerradas.
+  final int pendentes;
+
   final int canceladas;
   final int realizados;
 
@@ -85,12 +93,13 @@ class ProfResumo {
 
 /// Monta os indicadores a partir das OS do período e do km total.
 ///
-/// **Agendados** = total do período = realizados + canceladas + ainda em aberto.
+/// **Agendados** = realizados + canceladas + pendentes.
 ProfResumo buildResumo({
   required List<OrdemServico> ordens,
   double kmDeslocamento = 0,
   ResumoPeriodo periodo = ResumoPeriodo.hoje,
 }) {
+  var pendentes = 0;
   var canceladas = 0;
   var realizados = 0;
 
@@ -103,16 +112,16 @@ ProfResumo buildResumo({
       case OSStatus.agendada:
       case OSStatus.atribuida:
       case OSStatus.emAndamento:
-        break;
+        pendentes++;
     }
   }
 
-  // Total agendados no período = tudo que entrou na agenda (abertos + feitos + cancelados).
-  final agendados = ordens.length;
+  final agendados = realizados + canceladas + pendentes;
   final km = (kmDeslocamento * 10).roundToDouble() / 10;
 
   return ProfResumo(
     agendados: agendados,
+    pendentes: pendentes,
     canceladas: canceladas,
     realizados: realizados,
     kmDeslocamento: km,
