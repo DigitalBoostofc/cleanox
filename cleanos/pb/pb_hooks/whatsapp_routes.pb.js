@@ -309,6 +309,20 @@ routerAdd("GET", "/api/cleanos/os/{id}/contato-cliente", (e) => {
     );
   }
 
+  // Só no dia BRT do serviço (pedido dono: WhatsApp só nas OS do dia).
+  const rawDh = String(os.get("data_hora") || "");
+  if (rawDh) {
+    const nowBRT = new Date(Date.now() - 3 * 3600 * 1000);
+    const hoje = nowBRT.toISOString().slice(0, 10);
+    const dataBRT = new Date(new Date(rawDh).getTime() - 3 * 3600 * 1000);
+    const dia = dataBRT.toISOString().slice(0, 10);
+    if (dia !== hoje) {
+      throw new ForbiddenError(
+        "WhatsApp do cliente só está liberado no dia do serviço."
+      );
+    }
+  }
+
   const clienteId = lib.relId(os.get("cliente"));
   if (!clienteId) {
     throw new BadRequestError("Esta OS não possui cliente associado.");

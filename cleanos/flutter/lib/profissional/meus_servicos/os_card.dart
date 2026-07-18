@@ -439,31 +439,33 @@ class OSCard extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                if (_temEndereco) ...[
-                  Expanded(
-                    child: ClxButton(
-                      label: 'Ver rota',
-                      variant: ClxButtonVariant.ghost,
-                      icon: Icons.map_outlined,
-                      onPressed: () => _abrirRota(context),
+            // WhatsApp só no dia da OS (anti-desvio / não contatar antes da hora).
+            if (_temEndereco || _hoje)
+              Row(
+                children: [
+                  if (_temEndereco)
+                    Expanded(
+                      child: ClxButton(
+                        label: 'Ver rota',
+                        variant: ClxButtonVariant.ghost,
+                        icon: Icons.map_outlined,
+                        onPressed: () => _abrirRota(context),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: ClxSpace.x2),
+                  if (_temEndereco && _hoje) const SizedBox(width: ClxSpace.x2),
+                  if (_hoje)
+                    Expanded(
+                      child: ClxButton(
+                        label: 'WhatsApp cliente',
+                        variant: ClxButtonVariant.ghost,
+                        icon: Icons.chat_rounded,
+                        loading: contatoLoading,
+                        onPressed: contatoLoading ? null : onWhatsAppCliente,
+                      ),
+                    ),
                 ],
-                Expanded(
-                  child: ClxButton(
-                    label: 'WhatsApp cliente',
-                    variant: ClxButtonVariant.ghost,
-                    icon: Icons.chat_rounded,
-                    loading: contatoLoading,
-                    onPressed: contatoLoading ? null : onWhatsAppCliente,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: ClxSpace.x2),
+              ),
+            if (_temEndereco || _hoje) const SizedBox(height: ClxSpace.x2),
             ..._deslocamentoBlock(context, clx),
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
@@ -501,31 +503,33 @@ class OSCard extends StatelessWidget {
               expand: true,
               onPressed: onChecklist,
             ),
-            const SizedBox(height: ClxSpace.x2),
-            Row(
-              children: [
-                if (_temEndereco) ...[
-                  Expanded(
-                    child: ClxButton(
-                      label: 'Ver rota',
-                      variant: ClxButtonVariant.ghost,
-                      icon: Icons.map_outlined,
-                      onPressed: () => _abrirRota(context),
+            if (_temEndereco || _hoje) ...[
+              const SizedBox(height: ClxSpace.x2),
+              Row(
+                children: [
+                  if (_temEndereco)
+                    Expanded(
+                      child: ClxButton(
+                        label: 'Ver rota',
+                        variant: ClxButtonVariant.ghost,
+                        icon: Icons.map_outlined,
+                        onPressed: () => _abrirRota(context),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: ClxSpace.x2),
+                  if (_temEndereco && _hoje) const SizedBox(width: ClxSpace.x2),
+                  if (_hoje)
+                    Expanded(
+                      child: ClxButton(
+                        label: 'WhatsApp',
+                        variant: ClxButtonVariant.ghost,
+                        icon: Icons.chat_rounded,
+                        loading: contatoLoading,
+                        onPressed: contatoLoading ? null : onWhatsAppCliente,
+                      ),
+                    ),
                 ],
-                Expanded(
-                  child: ClxButton(
-                    label: 'WhatsApp',
-                    variant: ClxButtonVariant.ghost,
-                    icon: Icons.chat_rounded,
-                    loading: contatoLoading,
-                    onPressed: contatoLoading ? null : onWhatsAppCliente,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
             // Atalhos de pagamento/concluir ainda no card.
             const SizedBox(height: ClxSpace.x2),
             if (!_pagamentoRegistrado)

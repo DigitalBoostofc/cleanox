@@ -16,14 +16,16 @@ OrdemServico _os({
   double? valorPago,
   FormaPagamento? forma,
   String? endereco,
+  /// null = agora (hoje BRT) — WhatsApp liberado; string fixa para “outro dia”.
+  String? dataHora,
 }) => OrdemServico(
   id: 'os_abc123',
   cliente: 'cliente_secreto_id',
   nomeCurto: 'Carlos S.',
   bairro: 'Centro',
   tipoServicoNome: 'Higienização',
-  // Data no passado → podeIniciar determinístico.
-  dataHora: '2020-01-01 13:00:00Z',
+  // Default: hoje → WhatsApp liberado; use dataHora: passado/futuro nos testes.
+  dataHora: dataHora ?? DateTime.now().toUtc().toIso8601String(),
   profissional: 'p1',
   status: status,
   valorServico: 150,
@@ -113,6 +115,29 @@ void main() {
     expect(find.text('Checklist, pagamento e concluir'), findsOneWidget);
     expect(find.textContaining('Rua Liberada, 456'), findsWidgets);
     expect(find.text('WhatsApp'), findsOneWidget);
+  });
+
+  testWidgets('WhatsApp NÃO aparece em OS de outro dia', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        OSCard(
+          os: _os(
+            status: OSStatus.atribuida,
+            endereco: 'Rua Futura, 1',
+            dataHora: '2030-06-15 12:00:00Z',
+          ),
+          onIniciar: () {},
+          onAvisar: () {},
+          onCheguei: () {},
+          onPagar: () {},
+          onConcluir: () {},
+          onChecklist: () {},
+          onWhatsAppCliente: () {},
+        ),
+      ),
+    );
+    expect(find.text('WhatsApp cliente'), findsNothing);
+    expect(find.text('Ver rota'), findsOneWidget);
   });
 
   testWidgets('conclusão exige pagamento — botão desabilitado sem pagamento', (
