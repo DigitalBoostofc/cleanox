@@ -71,9 +71,34 @@ void main() {
       // índice 0=hoje, 1=próximas, 2=atrasadas (mesma ordem de Future.wait
       // no MeusServicosController.refresh).
       listByIndex: (i) => switch (i) {
-        0 => [_os('hoje1', status: OSStatus.emAndamento, dataHora: '2026-07-03 09:00:00Z')],
-        1 => [_os('prox1', status: OSStatus.atribuida, dataHora: '2026-07-10 09:00:00Z')],
-        2 => [_os('atraso1', status: OSStatus.atribuida, dataHora: '2020-01-01 09:00:00Z')],
+        0 => [
+          _os(
+            'hoje1',
+            status: OSStatus.emAndamento,
+            dataHora: '2026-07-03 09:00:00Z',
+          ),
+        ],
+        1 => [
+          _os(
+            'prox1',
+            status: OSStatus.atribuida,
+            dataHora: '2026-07-10 09:00:00Z',
+            nome: 'Prox A',
+          ),
+          _os(
+            'prox2',
+            status: OSStatus.atribuida,
+            dataHora: '2026-07-11 14:00:00Z',
+            nome: 'Prox B',
+          ),
+        ],
+        2 => [
+          _os(
+            'atraso1',
+            status: OSStatus.atribuida,
+            dataHora: '2020-01-01 09:00:00Z',
+          ),
+        ],
         _ => [],
       },
     );
@@ -88,6 +113,8 @@ void main() {
     // "Próximos agendamentos" fica mais abaixo na lista — rola até ele.
     await tester.scrollUntilVisible(find.text('Próximos agendamentos'), 300);
     expect(find.text('Próximos agendamentos'), findsOneWidget);
+    // Dois dias distintos → dois cabeçalhos de dia (ícone event + label).
+    expect(find.byIcon(Icons.event_rounded), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
