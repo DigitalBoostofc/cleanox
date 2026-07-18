@@ -857,16 +857,12 @@ class _OrdemCard extends StatelessWidget {
                         children: [
                           if (aberta)
                             Expanded(
-                              child: OutlinedButton.icon(
+                              child: ClxButton(
+                                label: 'Cancelar',
+                                variant: ClxButtonVariant.danger,
+                                icon: Icons.cancel_outlined,
+                                expand: true,
                                 onPressed: onCancelar,
-                                icon: const Icon(Icons.close_rounded, size: 16),
-                                label: const Text('Cancelar'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: clx.error,
-                                  side: BorderSide(
-                                    color: clx.error.withValues(alpha: 0.35),
-                                  ),
-                                ),
                               ),
                             ),
                           if (aberta) const SizedBox(width: 8),
