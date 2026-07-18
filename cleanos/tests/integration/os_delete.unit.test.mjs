@@ -92,7 +92,7 @@ function spyNext(order) {
   return fn
 }
 
-const osRec = (id = 'osTEST') => rec({ status: 'concluida' }, id)
+const osRec = (id = 'osTEST', status = 'cancelada') => rec({ status }, id)
 
 // ── (a) OS concluída: receita + comissão somem ANTES de next() ───────────────
 
@@ -168,5 +168,37 @@ describe('(c) falha ao apagar a receita aborta a exclusão', () => {
     const next = spyNext(order)
     assert.throws(() => osDelete.handleDelete(app, osRec(), next), /disk I\/O error/)
     assert.strictEqual(next.calls, 0, 'falha na limpeza financeira NÃO pode comitar a exclusão')
+  })
+})
+
+// ── (d) só cancelada pode ser excluída ───────────────────────────────────────
+
+describe('(d) só OS cancelada pode ser excluída', () => {
+  it('concluida → throw e next() não roda', () => {
+    const { app, deleted, order } = mockApp({})
+    const next = spyNext(order)
+    assert.throws(
+      () => osDelete.handleDelete(app, osRec('os1', 'concluida'), next),
+      /cancelada/,
+    )
+    assert.strictEqual(next.calls, 0)
+    assert.strictEqual(deleted.length, 0)
+  })
+
+  it('atribuida → throw', () => {
+    const { app, order } = mockApp({})
+    const next = spyNext(order)
+    assert.throws(
+      () => osDelete.handleDelete(app, osRec('os1', 'atribuida'), next),
+      /cancelada/,
+    )
+    assert.strictEqual(next.calls, 0)
+  })
+
+  it('cancelada → next() 1x', () => {
+    const { app, order } = mockApp({})
+    const next = spyNext(order)
+    osDelete.handleDelete(app, osRec('os1', 'cancelada'), next)
+    assert.strictEqual(next.calls, 1)
   })
 })

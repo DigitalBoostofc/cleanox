@@ -1,12 +1,6 @@
 /// os_excluir_test.dart — Excluir OS pelo detalhe do Painel.
 ///
-/// A exclusão é definitiva e o estorno financeiro é do SERVIDOR
-/// (os_delete.pb.js); aqui provamos o contrato do cliente:
-///   - o botão "Excluir OS" existe em qualquer status (inclusive concluída);
-///   - o dialog de OS concluída AVISA do estorno de receita/comissão antes
-///     de o admin confirmar;
-///   - confirmar dispara exatamente 1 delete no repositório e fecha o detalhe;
-///   - "Voltar" não deleta nada.
+/// Contrato: botão "Excluir OS" só em status cancelada; confirmar deleta 1x.
 library;
 
 import 'package:cleanos/core/models/collections.dart';
@@ -31,6 +25,7 @@ OrdemServico _os(OSStatus status) => OrdemServico(
   status: status,
   valorServico: 200,
   valorPago: status == OSStatus.concluida ? 200 : null,
+  motivoCancelamento: status == OSStatus.cancelada ? 'Cliente desistiu' : null,
 );
 
 Future<FakeOrdens> _abrirDetalhe(WidgetTester tester, OSStatus status) async {
@@ -51,23 +46,18 @@ Future<FakeOrdens> _abrirDetalhe(WidgetTester tester, OSStatus status) async {
 
 void main() {
   group('Excluir OS pelo detalhe', () {
-    testWidgets('concluída: dialog avisa do estorno e confirmar deleta 1x', (
+    testWidgets('cancelada: botão aparece e confirmar deleta 1x', (
       tester,
     ) async {
-      final ordens = await _abrirDetalhe(tester, OSStatus.concluida);
+      final ordens = await _abrirDetalhe(tester, OSStatus.cancelada);
 
-      // Concluída não tem "Cancelar OS", mas TEM "Excluir OS".
+      expect(find.text('Excluir OS'), findsOneWidget);
       expect(find.text('Cancelar OS'), findsNothing);
+
       await tester.tap(find.text('Excluir OS'));
       await tester.pumpAndSettle();
 
-      // O aviso de OS concluída nomeia as consequências financeiras.
-      expect(
-        find.textContaining('estorno do saldo'),
-        findsOneWidget,
-        reason: 'admin precisa saber que o caixa muda antes de confirmar',
-      );
-      expect(find.textContaining('comissão'), findsOneWidget);
+      expect(find.textContaining('não pode ser desfeita'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, 'Excluir OS'));
       await tester.pumpAndSettle();
@@ -77,27 +67,24 @@ void main() {
       expect(find.byType(OSDetail), findsNothing, reason: 'detalhe fecha');
     });
 
-    testWidgets('agendada: aviso genérico (sem estorno) e delete funciona', (
+    testWidgets('concluída: NÃO mostra Excluir OS', (tester) async {
+      await _abrirDetalhe(tester, OSStatus.concluida);
+      expect(find.text('Excluir OS'), findsNothing);
+      expect(find.text('Cancelar OS'), findsNothing);
+    });
+
+    testWidgets('agendada: NÃO mostra Excluir OS (só Cancelar)', (
       tester,
     ) async {
-      final ordens = await _abrirDetalhe(tester, OSStatus.agendada);
-
-      await tester.tap(find.text('Excluir OS'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('estorno do saldo'), findsNothing);
-      expect(find.textContaining('não pode ser desfeita'), findsOneWidget);
-
-      await tester.tap(find.widgetWithText(TextButton, 'Excluir OS'));
-      await tester.pumpAndSettle();
-
-      expect(ordens.deleteCount, 1);
+      await _abrirDetalhe(tester, OSStatus.agendada);
+      expect(find.text('Excluir OS'), findsNothing);
+      expect(find.text('Cancelar OS'), findsOneWidget);
     });
 
     testWidgets('"Voltar" no dialog não deleta nada e mantém o detalhe', (
       tester,
     ) async {
-      final ordens = await _abrirDetalhe(tester, OSStatus.concluida);
+      final ordens = await _abrirDetalhe(tester, OSStatus.cancelada);
 
       await tester.tap(find.text('Excluir OS'));
       await tester.pumpAndSettle();

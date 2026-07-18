@@ -60,7 +60,24 @@ function apagarReceitasDaOs(app, osId) {
  *      o prof_comissao_lib apaga junto a despesa ligada, com estorno de saldo;
  *   3) next() apaga a OS; os_evidencias caem por cascadeDelete do schema.
  */
+/**
+ * Só OS cancelada pode ser excluída (UI + API/Admin).
+ * Concluída/aberta: use cancelar primeiro se for o caso.
+ */
+function assertPodeExcluir(record) {
+  const status = String(record.get("status") || "");
+  if (status !== "cancelada") {
+    const msg =
+      "Só é possível excluir OS cancelada. Cancele a OS antes de excluí-la.";
+    if (typeof BadRequestError !== "undefined") {
+      throw new BadRequestError(msg);
+    }
+    throw new Error(msg);
+  }
+}
+
 function handleDelete(app, record, next) {
+  assertPodeExcluir(record);
   const osId = record.id;
   apagarReceitasDaOs(app, osId);
   require(`${__hooks}/prof_comissao_lib.js`).removerComissoesDaOs(app, osId);
@@ -70,5 +87,6 @@ function handleDelete(app, record, next) {
 
 module.exports = {
   apagarReceitasDaOs,
+  assertPodeExcluir,
   handleDelete,
 };

@@ -2,7 +2,7 @@
 ///
 /// Espelha o modal "view" de `OrdensServico.tsx`: identificação, endereço liberado
 /// (só em_andamento), profissional com REATRIBUIÇÃO (admin/gerente), financeiro e
-/// avaliação. Ações: abrir Execução (admin), Editar, Cancelar OS, Excluir OS.
+/// avaliação. Ações: Execução, Editar, Cancelar; Excluir só se cancelada.
 ///
 /// Mostrado via [showOSDetail]. Resolve um [OSDetailResult] dizendo ao caller se
 /// algo mudou (recarregar a lista) e/ou se o usuário pediu para editar/executar.
@@ -168,22 +168,16 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   }
 
   Future<void> _excluir() async {
-    // O aviso muda para OS concluída: ela tem dinheiro atrelado, e o hook do
-    // servidor vai estornar receita (saldo) e apagar a comissão junto.
-    final concluida = _os.status == OSStatus.concluida;
+    // Só OS cancelada pode ser excluída (UI + hook server-side).
+    if (_os.status != OSStatus.cancelada) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir OS'),
-        content: Text(
-          concluida
-              ? 'Esta OS está concluída: a receita dela será removida do '
-                    'financeiro (com estorno do saldo da conta) e a comissão '
-                    'do profissional será apagada. As fotos de evidência '
-                    'também serão excluídas.\n\n'
-                    'Esta ação não pode ser desfeita.'
-              : 'A OS e suas fotos de evidência serão excluídas.\n\n'
-                    'Esta ação não pode ser desfeita.',
+        content: const Text(
+          'A OS cancelada e suas fotos de evidência serão excluídas '
+          'definitivamente.\n\n'
+          'Esta ação não pode ser desfeita.',
         ),
         actions: [
           TextButton(
@@ -373,12 +367,14 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   icon: Icons.cancel_outlined,
                   onPressed: _cancelar,
                 ),
-              ClxButton(
-                label: 'Excluir OS',
-                variant: ClxButtonVariant.danger,
-                icon: Icons.delete_outline_rounded,
-                onPressed: _excluir,
-              ),
+              // Exclusão definitiva só em OS já cancelada (servidor também bloqueia).
+              if (_os.status == OSStatus.cancelada)
+                ClxButton(
+                  label: 'Excluir OS',
+                  variant: ClxButtonVariant.danger,
+                  icon: Icons.delete_outline_rounded,
+                  onPressed: _excluir,
+                ),
             ],
           ),
         ),
