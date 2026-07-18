@@ -75,4 +75,12 @@ class PbComissaoRepository implements ComissaoRepository {
         .update(id, body: {'status': status.wire});
     return ProfComissao.fromRecord(rec);
   }
+
+  @override
+  Future<void> marcarLotePagas(List<String> ids) async {
+    for (final id in ids) {
+      if (id.isEmpty) continue;
+      await setStatus(id, ComissaoStatus.paga);
+    }
+  }
 }

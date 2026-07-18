@@ -19,6 +19,7 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../data/painel_providers.dart';
 import 'charts/fin_charts.dart';
+import 'fin_fechar_ciclo.dart';
 
 /// Percentual legível (F-230): 10.0 → "10%", 12.5 → "12,5%".
 String formatPercent(double v) {
@@ -92,7 +93,29 @@ class FinComissoesScreen extends ConsumerWidget {
               ),
               const SizedBox(width: ClxSpace.x2),
               IconButton(
-                tooltip: 'Configurar comissão',
+                tooltip: 'Fechar ciclo de pagamento',
+                onPressed: () {
+                  final items = extrato.asData?.value ?? const <ProfComissao>[];
+                  final profList = profs.asData?.value ?? const <User>[];
+                  openFecharCicloSheet(
+                    context,
+                    profs: profList,
+                    comissoes: items,
+                    onPaid: () {
+                      ref.invalidate(_comissoesExtratoProvider);
+                      ref.invalidate(_comissoesProfissionaisProvider);
+                    },
+                  );
+                },
+                icon: Icon(Icons.playlist_add_check_rounded, color: clx.ink2),
+                style: IconButton.styleFrom(
+                  backgroundColor: clx.bg2,
+                  side: BorderSide(color: clx.line),
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x1),
+              IconButton(
+                tooltip: 'Configurar comissão e ciclo',
                 onPressed: () => _openConfigSheet(context),
                 icon: Icon(Icons.settings_rounded, color: clx.ink2),
                 style: IconButton.styleFrom(
@@ -126,6 +149,15 @@ class FinComissoesScreen extends ConsumerWidget {
                   profs: profList,
                   filtro: filtro,
                   profId: profId,
+                ),
+                onFecharCiclo: () => openFecharCicloSheet(
+                  context,
+                  profs: profList,
+                  comissoes: items,
+                  onPaid: () {
+                    ref.invalidate(_comissoesExtratoProvider);
+                    ref.invalidate(_comissoesProfissionaisProvider);
+                  },
                 ),
               );
             },
@@ -257,6 +289,7 @@ class _Dashboard extends StatelessWidget {
     required this.narrow,
     required this.onToggle,
     required this.onOpenSheet,
+    required this.onFecharCiclo,
   });
 
   final List<ProfComissao> items;
@@ -264,6 +297,7 @@ class _Dashboard extends StatelessWidget {
   final bool narrow;
   final Future<void> Function(ProfComissao) onToggle;
   final void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet;
+  final VoidCallback onFecharCiclo;
 
   String nomeProf(String id) {
     for (final u in profs) {
@@ -353,9 +387,62 @@ class _Dashboard extends StatelessWidget {
       ),
     ];
 
+    final cicloLinhas = buildFecharCicloLinhas(profs: profs, comissoes: items);
+    final totalCiclo = cicloLinhas.fold<double>(0, (s, l) => s + l.total);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // CTA fechar ciclo
+        if (cicloLinhas.isNotEmpty) ...[
+          Material(
+            color: clx.warning.withValues(alpha: 0.1),
+            borderRadius: ClxRadii.rLg,
+            child: InkWell(
+              borderRadius: ClxRadii.rLg,
+              onTap: onFecharCiclo,
+              child: Container(
+                padding: const EdgeInsets.all(ClxSpace.x4),
+                decoration: BoxDecoration(
+                  borderRadius: ClxRadii.rLg,
+                  border: Border.all(
+                    color: clx.warning.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.playlist_add_check_rounded,
+                      color: clx.warning,
+                      size: 28,
+                    ),
+                    const SizedBox(width: ClxSpace.x3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fechar ciclo de pagamento',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            '${cicloLinhas.length} profissional${cicloLinhas.length == 1 ? '' : 'is'} · '
+                            '${formatCurrency(totalCiclo)} pendente',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: clx.ink2),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: clx.ink3),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+        ],
         if (narrow)
           Column(
             children: [
