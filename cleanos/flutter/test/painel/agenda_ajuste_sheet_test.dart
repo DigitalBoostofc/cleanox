@@ -374,24 +374,24 @@ void main() {
       expect(find.text('Ajustar horário'), findsOneWidget);
     });
 
-    testWidgets('long-press em concluida/cancelada/em_andamento NÃO abre (D6)', (
+    testWidgets('long-press em concluida/em_andamento NÃO abre (D6)', (
       tester,
     ) async {
+      // cancelada some da agenda (filtro de produto) — só testa o que aparece.
       await _pumpAgenda(tester, [
         _os('a', 'Ana', '08:00', duracaoMin: 60), // controle: essa ajusta
         _os('c', 'Carla', '10:00', status: OSStatus.concluida),
-        _os('d', 'Duda', '14:00', status: OSStatus.cancelada),
         _os('e', 'Elis', '16:00', status: OSStatus.emAndamento),
       ]);
 
       // Só a `agendada` tem a afordância de long-press (nem gesto, nem promessa).
       expect(find.byKey(const ValueKey('agenda-card-lp-a')), findsOneWidget);
-      for (final id in ['c', 'd', 'e']) {
+      for (final id in ['c', 'e']) {
         expect(find.byKey(ValueKey('agenda-card-lp-$id')), findsNothing);
       }
 
       // E segurar o card travado não abre nada.
-      for (final id in ['c', 'd', 'e']) {
+      for (final id in ['c', 'e']) {
         await tester.longPress(find.byKey(ValueKey('agenda-card-$id')));
         await tester.pumpAndSettle();
         expect(
