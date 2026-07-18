@@ -19,6 +19,9 @@ import '../../core/models/ordem_servico.dart';
 import '../../core/repositories/whatsapp_repository.dart';
 import '../data/prof_providers.dart';
 import '../data/server_error.dart';
+import '../location/location_tracking_service.dart';
+import '../location/tracking_providers.dart';
+import '../mapa/nav_chooser.dart';
 import 'meus_servicos_controller.dart';
 import 'os_card.dart';
 import 'pagamento_modal.dart';
@@ -35,6 +38,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
   final Map<String, String?> _actionError = {};
   final Map<String, bool> _avisoLoading = {};
   final Map<String, bool> _contatoLoading = {};
+  final Map<String, bool> _chegueiLoading = {};
 
   MeusServicosController get _ctrl => ref.read(meusServicosProvider.notifier);
 
@@ -92,14 +96,35 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
           'Cliente avisado: você está a caminho ✓',
           ToastType.success,
         );
+        // GPS em background (avisos 5 min / 1 min no servidor).
+        try {
+          final trackRes = await ref
+              .read(locationTrackingServiceProvider)
+              .start(os.id);
+          if (trackRes == TrackingStartResult.permissaoNegada && mounted) {
+            _toast(
+              'Permita a localização para avisar o cliente a 5 min e 1 min.',
+              ToastType.warning,
+            );
+          }
+        } catch (_) {
+          /* tracking best-effort */
+        }
+        // Chooser: Waze / Google Maps com destino.
+        if (mounted) {
+          final addr = (os.enderecoLiberado ?? '').trim();
+          if (addr.isNotEmpty) {
+            await showNavChooser(
+              context,
+              dest: NavDestino(endereco: addr),
+            );
+          }
+        }
       } else {
         _toast('Não foi possível avisar o cliente.', ToastType.error);
       }
     } catch (err) {
       final info = describeOSError(err);
-      // Espelha o handleAvisar de MeusServicos.tsx: 409 (WhatsApp da empresa não
-      // conectado) e 403 (não autorizado) têm mensagens fixas; demais caem no
-      // `{error}` do corpo do backend.
       final String msg;
       if (err is ClientException && err.statusCode == 409) {
         msg = 'WhatsApp da empresa não está conectado. Avise o administrador.';
@@ -111,6 +136,32 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       _toast(msg, ToastType.error);
     } finally {
       if (mounted) setState(() => _avisoLoading[os.id] = false);
+    }
+  }
+
+  Future<void> _cheguei(OrdemServico os) async {
+    setState(() => _chegueiLoading[os.id] = true);
+    try {
+      // Para o GPS se estiver rodando e chama /cheguei (WhatsApp + carimbo).
+      try {
+        await ref
+            .read(locationTrackingServiceProvider)
+            .chegou(osId: os.id);
+      } catch (_) {
+        await _ctrl.chegueiAoLocal(os);
+      }
+      // Atualiza estado local (cheguei_em) se o service não upsertou.
+      await _ctrl.refresh();
+      if (mounted) {
+        _toast(
+          'Chegada registrada — cliente avisado ✓',
+          ToastType.success,
+        );
+      }
+    } catch (err) {
+      _toast(describeOSError(err).message, ToastType.error);
+    } finally {
+      if (mounted) setState(() => _chegueiLoading[os.id] = false);
     }
   }
 
@@ -175,6 +226,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       os: os,
       onIniciar: () => _iniciar(os),
       onAvisar: () => _avisar(os),
+      onCheguei: () => _cheguei(os),
       onPagar: () => _pagar(os),
       onConcluir: () => _concluir(os),
       onChecklist: () => _abrirExecucao(os),
@@ -183,6 +235,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       actionError: _actionError[os.id],
       avisoLoading: _avisoLoading[os.id] ?? false,
       contatoLoading: _contatoLoading[os.id] ?? false,
+      chegueiLoading: _chegueiLoading[os.id] ?? false,
     ),
   );
 

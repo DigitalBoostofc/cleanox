@@ -98,6 +98,9 @@ class OrdemServico with _$OrdemServico {
     @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
     String? avisoACaminhoEm,
 
+    /// Carimbo "Cheguei ao local" (doc 09). R2: `""` → null.
+    @JsonKey(name: 'cheguei_em', fromJson: _emptyDateToNull) String? chegueiEm,
+
     /// Avaliação (preenchida pelo backend após pesquisa).
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,

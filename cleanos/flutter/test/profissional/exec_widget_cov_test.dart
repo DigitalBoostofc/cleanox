@@ -73,6 +73,7 @@ Widget _wrapCard(OrdemServico os) => MaterialApp(
         os: os,
         onIniciar: () {},
         onAvisar: () {},
+            onCheguei: () {},
         onPagar: () {},
         onConcluir: () {},
         onChecklist: () {},

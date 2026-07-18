@@ -20,6 +20,7 @@ class OSCard extends StatelessWidget {
     required this.os,
     required this.onIniciar,
     required this.onAvisar,
+    required this.onCheguei,
     required this.onPagar,
     required this.onConcluir,
     required this.onChecklist,
@@ -28,11 +29,13 @@ class OSCard extends StatelessWidget {
     this.actionError,
     this.avisoLoading = false,
     this.contatoLoading = false,
+    this.chegueiLoading = false,
   });
 
   final OrdemServico os;
   final VoidCallback onIniciar;
   final VoidCallback onAvisar;
+  final VoidCallback onCheguei;
   final VoidCallback onPagar;
   final VoidCallback onConcluir;
   final VoidCallback onChecklist;
@@ -41,6 +44,7 @@ class OSCard extends StatelessWidget {
   final String? actionError;
   final bool avisoLoading;
   final bool contatoLoading;
+  final bool chegueiLoading;
 
   bool get _temEndereco => (os.enderecoLiberado ?? '').trim().isNotEmpty;
 
@@ -51,6 +55,11 @@ class OSCard extends StatelessWidget {
   /// R2: DateField opcional no PB volta `""` (não null). Só conta se houver data.
   bool get _jaAvisouDeslocamento =>
       (os.avisoACaminhoEm ?? '').trim().isNotEmpty;
+
+  bool get _jaChegou => (os.chegueiEm ?? '').trim().isNotEmpty;
+
+  /// Em deslocamento ativo: avisou e ainda não marcou chegada.
+  bool get _emDeslocamentoAtivo => _jaAvisouDeslocamento && !_jaChegou;
 
   bool get _hoje {
     final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -69,6 +78,94 @@ class OSCard extends StatelessWidget {
   /// Abre a rota **dentro do app** (mapa + distância/tempo). Sem sair do APK.
   Future<void> _abrirRota(BuildContext context) async {
     await openRotaInApp(context, os);
+  }
+
+  /// Bloco Em deslocamento → Cheguei (compartilhado atribuída / em andamento).
+  List<Widget> _deslocamentoBlock(BuildContext context, CleanoxColors clx) {
+    if (_jaChegou) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(ClxSpace.x3),
+          decoration: BoxDecoration(
+            color: clx.successBg,
+            borderRadius: ClxRadii.rMd,
+            border: Border.all(color: clx.success.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.flag_rounded, size: 18, color: clx.success),
+              const SizedBox(width: ClxSpace.x2),
+              Expanded(
+                child: Text(
+                  'Chegada registrada — cliente avisado.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: clx.success,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+    if (_emDeslocamentoAtivo) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(ClxSpace.x3),
+          decoration: BoxDecoration(
+            color: clx.infoBg,
+            borderRadius: ClxRadii.rMd,
+          ),
+          child: Text(
+            'Em deslocamento — o cliente será avisado a 5 min e 1 min da chegada.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: clx.ink2,
+              height: 1.35,
+            ),
+          ),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        ClxButton(
+          label: 'Cheguei ao local',
+          variant: ClxButtonVariant.secondary,
+          icon: Icons.flag_outlined,
+          expand: true,
+          loading: chegueiLoading,
+          onPressed: onCheguei,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: ClxSpace.x1),
+          child: Text(
+            'Avisamos o cliente pelo WhatsApp da empresa que você chegou.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: clx.ink3,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      ClxButton(
+        label: 'Em deslocamento',
+        variant: ClxButtonVariant.secondary,
+        icon: Icons.directions_car_filled_outlined,
+        expand: true,
+        loading: avisoLoading,
+        onPressed: onAvisar,
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: ClxSpace.x1),
+        child: Text(
+          'Avisa o cliente e abre o app de mapa (Waze/Google) com o destino.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: clx.ink3,
+            height: 1.35,
+          ),
+        ),
+      ),
+    ];
   }
 
   @override
@@ -367,27 +464,7 @@ class OSCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: ClxSpace.x2),
-            ClxButton(
-              label: _jaAvisouDeslocamento
-                  ? 'Em deslocamento ✓ (cliente avisado)'
-                  : 'Em deslocamento',
-              variant: ClxButtonVariant.secondary,
-              icon: Icons.directions_car_filled_outlined,
-              expand: true,
-              loading: avisoLoading && !_jaAvisouDeslocamento,
-              onPressed: _jaAvisouDeslocamento ? null : onAvisar,
-            ),
-            if (!_jaAvisouDeslocamento)
-              Padding(
-                padding: const EdgeInsets.only(top: ClxSpace.x1),
-                child: Text(
-                  'Avisa o cliente pelo WhatsApp da empresa que você está a caminho.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: clx.ink3,
-                    height: 1.35,
-                  ),
-                ),
-              ),
+            ..._deslocamentoBlock(context, clx),
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
               label: _podeIniciar
@@ -415,29 +492,8 @@ class OSCard extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ClxButton(
-              label: _jaAvisouDeslocamento
-                  ? 'Em deslocamento ✓ (cliente avisado)'
-                  : 'Em deslocamento',
-              variant: ClxButtonVariant.secondary,
-              icon: Icons.directions_car_filled_outlined,
-              expand: true,
-              loading: avisoLoading && !_jaAvisouDeslocamento,
-              onPressed: _jaAvisouDeslocamento ? null : onAvisar,
-            ),
-            if (!_jaAvisouDeslocamento)
-              Padding(
-                padding: const EdgeInsets.only(top: ClxSpace.x1, bottom: ClxSpace.x2),
-                child: Text(
-                  'Notifica o cliente (WhatsApp da empresa) que você está a caminho.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: clx.ink3,
-                    height: 1.35,
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: ClxSpace.x2),
+            ..._deslocamentoBlock(context, clx),
+            const SizedBox(height: ClxSpace.x2),
             ClxButton(
               label: 'Checklist, pagamento e concluir',
               variant: ClxButtonVariant.primary,

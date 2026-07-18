@@ -254,10 +254,16 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
   if (!temDestino) {
     try {
       const maps = require(`${__hooks}/maps.js`);
-      const coord = maps.geocode(lib.buildEndereco(cliente));
+      // Prefer endereço já liberado; senão monta do cofre.
+      let endGeo = String(os.get("endereco_liberado") || "").trim();
+      if (!endGeo) endGeo = lib.buildEndereco(cliente);
+      const coord = maps.geocode(endGeo);
       if (coord) {
         os.set("dest_lat", coord.lat);
         os.set("dest_lng", coord.lng);
+      }
+      if (endGeo && !String(os.get("endereco_liberado") || "").trim()) {
+        os.set("endereco_liberado", endGeo);
       }
     } catch (errGeo) {
       console.error("[a-caminho] geocode do destino falhou (ignorado): " + errGeo);
@@ -634,9 +640,20 @@ routerAdd("POST", "/api/cleanos/os/{id}/posicao", (e) => {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
-  // 4) Status.
-  if (os.getString("status") !== "em_andamento") {
-    throw new BadRequestError("A OS precisa estar em_andamento para enviar posição.");
+  // 4) Status: em deslocamento (atribuída ou em andamento) após a-caminho.
+  const stPos = os.getString("status");
+  if (stPos !== "em_andamento" && stPos !== "atribuida") {
+    throw new BadRequestError(
+      "A OS precisa estar atribuída ou em andamento para enviar posição."
+    );
+  }
+  if (!String(os.getString("aviso_a_caminho_em") || "").trim()) {
+    throw new BadRequestError(
+      "Inicie o deslocamento (Em deslocamento) antes de enviar posição."
+    );
+  }
+  if (String(os.getString("cheguei_em") || "").trim()) {
+    throw new BadRequestError("Chegada já registrada — tracking encerrado.");
   }
 
   // 5) Body {lat, lng} — valida números plausíveis.
@@ -699,8 +716,17 @@ routerAdd("POST", "/api/cleanos/os/{id}/cheguei", (e) => {
   if (lib.relId(os.get("profissional")) !== String(e.auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
-  if (os.getString("status") !== "em_andamento") {
-    throw new BadRequestError("A OS precisa estar em_andamento para registrar a chegada.");
+  // Atribuída ou em andamento (pode chegar antes de "Iniciar serviço").
+  const stCheg = os.getString("status");
+  if (stCheg !== "em_andamento" && stCheg !== "atribuida") {
+    throw new BadRequestError(
+      "A OS precisa estar atribuída ou em andamento para registrar a chegada."
+    );
+  }
+  if (!String(os.getString("aviso_a_caminho_em") || "").trim()) {
+    throw new BadRequestError(
+      "Registre o deslocamento (Em deslocamento) antes de marcar chegada."
+    );
   }
 
   // 2) Tenta avisar o cliente (best-effort). Telefone lido do cofre server-side.

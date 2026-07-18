@@ -262,6 +262,14 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
     return res;
   }
 
+  /// Cheguei ao local: WhatsApp ao cliente + encerra tracking.
+  Future<void> chegueiAoLocal(OrdemServico os) async {
+    final tracking = ref.read(trackingRepositoryProvider);
+    await tracking.cheguei(os.id);
+    final stamp = DateTime.now().toUtc().toIso8601String();
+    _upsert(os.copyWith(chegueiEm: stamp));
+  }
+
   /// Registra pagamento (valor + forma) — pré-requisito para concluir.
   Future<void> registrarPagamento(
     OrdemServico os, {

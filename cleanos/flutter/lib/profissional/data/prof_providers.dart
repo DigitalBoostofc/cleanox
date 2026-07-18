@@ -1,9 +1,7 @@
 /// prof_providers.dart — Providers Riverpod da camada de dados do PROFISSIONAL.
 ///
 /// Injeta as impls PB das interfaces congeladas do core (evidências, whatsapp,
-/// tracking) SEM tocar no core. O tracking respeita a feature flag
-/// `Env.trackingEnabled`: OFF → entrega o `UnimplementedTrackingRepository` do
-/// core (o app compila/roda sem o backend do doc 09).
+/// tracking) SEM tocar no core.
 library;
 
 import 'dart:io';
@@ -13,7 +11,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/auth/auth_providers.dart';
-import '../../core/env/env.dart';
 import '../../core/repositories/evidencias_repository.dart';
 import '../../core/repositories/repo_types.dart';
 import '../../core/repositories/whatsapp_repository.dart';
@@ -53,11 +50,14 @@ final whatsappRepositoryProvider = Provider<WhatsAppRepository>(
   (ref) => PbWhatsAppRepository(ref.watch(pocketBaseProvider)),
 );
 
-/// Repositório de tracking/push (doc 09). Só liga com `Env.trackingEnabled`.
-final trackingRepositoryProvider = Provider<TrackingRepository>((ref) {
-  if (!Env.trackingEnabled) return const UnimplementedTrackingRepository();
-  return PbTrackingRepository(ref.watch(pocketBaseProvider));
-});
+/// Repositório de tracking/push (doc 09).
+///
+/// Sempre a impl real: Em deslocamento + Cheguei + avisos 5min/1min dependem
+/// de `/posicao` e `/cheguei`. A flag [Env.trackingEnabled] só existia como
+/// gate antigo; o backend já está em produção.
+final trackingRepositoryProvider = Provider<TrackingRepository>(
+  (ref) => PbTrackingRepository(ref.watch(pocketBaseProvider)),
+);
 
 /// Realtime da coleção `ordens_servico` (SSE). A tela de serviços dedupe
 /// fetch×realtime por id. Fica em StreamProvider.autoDispose (cancela a SSE ao
