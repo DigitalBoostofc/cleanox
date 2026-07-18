@@ -7,12 +7,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
+import '../mapa/rota_in_app_sheet.dart';
 
 class OSCard extends StatelessWidget {
   const OSCard({
@@ -66,21 +66,9 @@ class OSCard extends StatelessWidget {
   bool get _pagamentoRegistrado =>
       (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
 
-  /// Abre a rota no Google Maps (endereço só liberado em `em_andamento`).
-  /// Espelha o link "Ver rota" do `OSCard` de `MeusServicos.tsx`.
-  Future<void> _abrirRota(BuildContext context, String address) async {
-    final uri = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query='
-      '${Uri.encodeComponent(address)}',
-    );
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
-      showClxToast(
-        context,
-        'Não foi possível abrir o Google Maps.',
-        type: ToastType.error,
-      );
-    }
+  /// Abre a rota **dentro do app** (mapa + distância/tempo). Sem sair do APK.
+  Future<void> _abrirRota(BuildContext context) async {
+    await openRotaInApp(context, os);
   }
 
   @override
@@ -362,8 +350,7 @@ class OSCard extends StatelessWidget {
                       label: 'Ver rota',
                       variant: ClxButtonVariant.ghost,
                       icon: Icons.map_outlined,
-                      onPressed: () =>
-                          _abrirRota(context, os.enderecoLiberado!.trim()),
+                      onPressed: () => _abrirRota(context),
                     ),
                   ),
                   const SizedBox(width: ClxSpace.x2),
@@ -467,8 +454,7 @@ class OSCard extends StatelessWidget {
                       label: 'Ver rota',
                       variant: ClxButtonVariant.ghost,
                       icon: Icons.map_outlined,
-                      onPressed: () =>
-                          _abrirRota(context, os.enderecoLiberado!.trim()),
+                      onPressed: () => _abrirRota(context),
                     ),
                   ),
                   const SizedBox(width: ClxSpace.x2),

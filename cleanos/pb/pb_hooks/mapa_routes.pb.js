@@ -154,3 +154,91 @@ routerAdd(
   },
   $apis.requireAuth(),
 );
+
+/**
+ * GET /api/cleanos/os/{id}/rota
+ *
+ * Destino geocodificado da OS (para mapa in-app "Ver rota").
+ * Profissional dono da OS ou admin/gerente.
+ * Resposta: { ok, osId, nome, endereco, lat, lng, status, bairro, tipoServico }
+ * Sem telefone.
+ */
+routerAdd(
+  "GET",
+  "/api/cleanos/os/{id}/rota",
+  (e) => {
+    const lib = require(`${__hooks}/os_logic.js`);
+    const maps = require(`${__hooks}/maps.js`);
+
+    if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+    const role = String(e.auth.get("role") || "");
+    const authId = String(e.auth.id);
+    const osId = String(e.request.pathValue("id") || "");
+    if (!osId) throw new BadRequestError("OS inválida.");
+
+    let os;
+    try {
+      os = $app.findRecordById("ordens_servico", osId);
+    } catch (_) {
+      throw new NotFoundError("OS não encontrada.");
+    }
+
+    const profId = lib.relId(os.get("profissional"));
+    if (role === "profissional" && profId !== authId) {
+      throw new ForbiddenError("Esta OS não é sua.");
+    }
+    if (role !== "profissional" && role !== "admin" && role !== "gerente") {
+      throw new ForbiddenError("Sem permissão.");
+    }
+
+    let endereco = String(os.get("endereco_liberado") || "").trim();
+    if (!endereco) {
+      try {
+        const cid = lib.relId(os.get("cliente"));
+        if (cid) {
+          const c = $app.findRecordById("clientes", cid);
+          endereco = lib.buildEndereco(c);
+          if (endereco && role !== "profissional") {
+            // Admin/gerente: não grava endereco_liberado aqui.
+          } else if (endereco) {
+            os.set("endereco_liberado", endereco);
+            $app.save(os);
+          }
+        }
+      } catch (_) {}
+    }
+    if (!endereco) {
+      throw new BadRequestError("Endereço indisponível para esta OS.");
+    }
+
+    let lat = Number(os.get("dest_lat") || 0);
+    let lng = Number(os.get("dest_lng") || 0);
+    if (!lat || !lng) {
+      const coord = maps.geocode(endereco);
+      if (coord && coord.lat && coord.lng) {
+        lat = coord.lat;
+        lng = coord.lng;
+        try {
+          os.set("dest_lat", lat);
+          os.set("dest_lng", lng);
+          $app.save(os);
+        } catch (errSave) {
+          console.error("[rota] save coords: " + errSave);
+        }
+      }
+    }
+
+    return e.json(200, {
+      ok: true,
+      osId: String(os.id),
+      nome: String(os.get("nome_curto") || "—"),
+      endereco: endereco,
+      status: String(os.get("status") || ""),
+      tipoServico: String(os.get("tipo_servico_nome") || ""),
+      bairro: String(os.get("bairro") || ""),
+      lat: lat || null,
+      lng: lng || null,
+    });
+  },
+  $apis.requireAuth(),
+);
