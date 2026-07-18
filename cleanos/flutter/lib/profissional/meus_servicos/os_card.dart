@@ -48,6 +48,10 @@ class OSCard extends StatelessWidget {
       _temEndereco &&
       (os.status == OSStatus.atribuida || os.status == OSStatus.emAndamento);
 
+  /// R2: DateField opcional no PB volta `""` (não null). Só conta se houver data.
+  bool get _jaAvisouDeslocamento =>
+      (os.avisoACaminhoEm ?? '').trim().isNotEmpty;
+
   bool get _hoje {
     final nowIso = DateTime.now().toUtc().toIso8601String();
     return formatDate(os.dataHora) == formatDate(nowIso);
@@ -377,16 +381,16 @@ class OSCard extends StatelessWidget {
             ),
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
-              label: os.avisoACaminhoEm != null
+              label: _jaAvisouDeslocamento
                   ? 'Em deslocamento ✓ (cliente avisado)'
                   : 'Em deslocamento',
               variant: ClxButtonVariant.secondary,
               icon: Icons.directions_car_filled_outlined,
               expand: true,
-              loading: avisoLoading && os.avisoACaminhoEm == null,
-              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+              loading: avisoLoading && !_jaAvisouDeslocamento,
+              onPressed: _jaAvisouDeslocamento ? null : onAvisar,
             ),
-            if (os.avisoACaminhoEm == null)
+            if (!_jaAvisouDeslocamento)
               Padding(
                 padding: const EdgeInsets.only(top: ClxSpace.x1),
                 child: Text(
@@ -425,16 +429,16 @@ class OSCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ClxButton(
-              label: os.avisoACaminhoEm != null
+              label: _jaAvisouDeslocamento
                   ? 'Em deslocamento ✓ (cliente avisado)'
                   : 'Em deslocamento',
               variant: ClxButtonVariant.secondary,
               icon: Icons.directions_car_filled_outlined,
               expand: true,
-              loading: avisoLoading && os.avisoACaminhoEm == null,
-              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+              loading: avisoLoading && !_jaAvisouDeslocamento,
+              onPressed: _jaAvisouDeslocamento ? null : onAvisar,
             ),
-            if (os.avisoACaminhoEm == null)
+            if (!_jaAvisouDeslocamento)
               Padding(
                 padding: const EdgeInsets.only(top: ClxSpace.x1, bottom: ClxSpace.x2),
                 child: Text(

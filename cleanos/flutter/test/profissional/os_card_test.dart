@@ -67,6 +67,28 @@ void main() {
     },
   );
 
+  testWidgets(
+    'aviso_a_caminho_em vazio ("") NÃO marca Em deslocamento (R2)',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          OSCard(
+            os: _os(status: OSStatus.atribuida, endereco: 'Rua X')
+                .copyWith(avisoACaminhoEm: ''),
+            onIniciar: () {},
+            onAvisar: () {},
+            onPagar: () {},
+            onConcluir: () {},
+            onChecklist: () {},
+            onWhatsAppCliente: () {},
+          ),
+        ),
+      );
+      expect(find.text('Em deslocamento'), findsOneWidget);
+      expect(find.textContaining('cliente avisado'), findsNothing);
+    },
+  );
+
   testWidgets('em_andamento: Em deslocamento + checklist principal', (
     tester,
   ) async {

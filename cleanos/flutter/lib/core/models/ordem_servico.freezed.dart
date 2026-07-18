@@ -310,7 +310,10 @@ mixin _$OrdemServico {
   RepasseStatus? get repasseStatus => throw _privateConstructorUsedError;
   @JsonKey(name: 'repasse_valor')
   double? get repasseValor => throw _privateConstructorUsedError;
-  @JsonKey(name: 'aviso_a_caminho_em')
+
+  /// Carimbo do aviso "a caminho". R2: PB manda `""` quando vazio — normalizar
+  /// no fromJson (`_emptyDateToNull`) para a UI não achar que já avisou.
+  @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
   String? get avisoACaminhoEm => throw _privateConstructorUsedError;
 
   /// Avaliação (preenchida pelo backend após pesquisa).
@@ -389,7 +392,8 @@ abstract class $OrdemServicoCopyWith<$Res> {
     )
     RepasseStatus? repasseStatus,
     @JsonKey(name: 'repasse_valor') double? repasseValor,
-    @JsonKey(name: 'aviso_a_caminho_em') String? avisoACaminhoEm,
+    @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
+    String? avisoACaminhoEm,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -659,7 +663,8 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     )
     RepasseStatus? repasseStatus,
     @JsonKey(name: 'repasse_valor') double? repasseValor,
-    @JsonKey(name: 'aviso_a_caminho_em') String? avisoACaminhoEm,
+    @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
+    String? avisoACaminhoEm,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -896,7 +901,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
     )
     this.repasseStatus,
     @JsonKey(name: 'repasse_valor') this.repasseValor,
-    @JsonKey(name: 'aviso_a_caminho_em') this.avisoACaminhoEm,
+    @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
+    this.avisoACaminhoEm,
     @JsonKey(name: 'avaliacao_nota') this.avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') this.avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') this.avaliacaoEm,
@@ -1006,8 +1012,11 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @override
   @JsonKey(name: 'repasse_valor')
   final double? repasseValor;
+
+  /// Carimbo do aviso "a caminho". R2: PB manda `""` quando vazio — normalizar
+  /// no fromJson (`_emptyDateToNull`) para a UI não achar que já avisou.
   @override
-  @JsonKey(name: 'aviso_a_caminho_em')
+  @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
   final String? avisoACaminhoEm;
 
   /// Avaliação (preenchida pelo backend após pesquisa).
@@ -1227,7 +1236,8 @@ abstract class _OrdemServico extends OrdemServico {
     )
     final RepasseStatus? repasseStatus,
     @JsonKey(name: 'repasse_valor') final double? repasseValor,
-    @JsonKey(name: 'aviso_a_caminho_em') final String? avisoACaminhoEm,
+    @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
+    final String? avisoACaminhoEm,
     @JsonKey(name: 'avaliacao_nota') final double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') final String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') final String? avaliacaoEm,
@@ -1334,8 +1344,11 @@ abstract class _OrdemServico extends OrdemServico {
   @override
   @JsonKey(name: 'repasse_valor')
   double? get repasseValor;
+
+  /// Carimbo do aviso "a caminho". R2: PB manda `""` quando vazio — normalizar
+  /// no fromJson (`_emptyDateToNull`) para a UI não achar que já avisou.
   @override
-  @JsonKey(name: 'aviso_a_caminho_em')
+  @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
   String? get avisoACaminhoEm;
 
   /// Avaliação (preenchida pelo backend após pesquisa).

@@ -93,7 +93,10 @@ class OrdemServico with _$OrdemServico {
     )
     RepasseStatus? repasseStatus,
     @JsonKey(name: 'repasse_valor') double? repasseValor,
-    @JsonKey(name: 'aviso_a_caminho_em') String? avisoACaminhoEm,
+    /// Carimbo do aviso "a caminho". R2: PB manda `""` quando vazio — normalizar
+    /// no fromJson (`_emptyDateToNull`) para a UI não achar que já avisou.
+    @JsonKey(name: 'aviso_a_caminho_em', fromJson: _emptyDateToNull)
+    String? avisoACaminhoEm,
 
     /// Avaliação (preenchida pelo backend após pesquisa).
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
@@ -202,6 +205,13 @@ int? _duracaoMinFromJson(Object? raw) {
     _ => 0,
   };
   return n > 0 ? n : null;
+}
+
+/// DateField/texto opcional do PB: `""` → `null` (R2).
+String? _emptyDateToNull(Object? raw) {
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  return s.isEmpty ? null : s;
 }
 
 RecordModel? _expandOne(RecordModel record, String key) {
