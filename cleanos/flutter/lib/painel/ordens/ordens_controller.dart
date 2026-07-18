@@ -65,13 +65,16 @@ DateRange? ordensPeriodoRange(OrdensPeriodo periodo, {DateTime? now}) {
 
 /// Ordenação da lista de OS. Aplicada NO SERVIDOR (campo `sort` do PB).
 ///
-/// Default (pedido do dono, 16/07): **data mais próxima primeiro** — antes a
-/// lista vinha `-data_hora` (mais distante primeiro), o inverso do útil.
+/// Defaults:
+/// - abas abertas: **data mais próxima primeiro** (pedido 16/07);
+/// - aba **Concluída**: **conclusão mais recente primeiro** (pedido 18/07) —
+///   usa `concluida_em` (carimbo da transição), fallback `-updated`.
 enum OrdensSort {
   dataAsc,
   dataDesc,
   clienteAsc,
-  clienteDesc;
+  clienteDesc,
+  conclusaoDesc;
 
   String get wire => switch (this) {
     OrdensSort.dataAsc => 'data_hora',
@@ -79,6 +82,8 @@ enum OrdensSort {
     // nome_curto é o nome do cliente denormalizado na OS (server-side).
     OrdensSort.clienteAsc => 'nome_curto',
     OrdensSort.clienteDesc => '-nome_curto',
+    // Ordem em que o profissional CONCLUIU (não a data agendada).
+    OrdensSort.conclusaoDesc => '-concluida_em,-updated',
   };
 
   String get label => switch (this) {
@@ -86,6 +91,7 @@ enum OrdensSort {
     OrdensSort.dataDesc => 'Data — mais distante primeiro',
     OrdensSort.clienteAsc => 'Cliente — A a Z',
     OrdensSort.clienteDesc => 'Cliente — Z a A',
+    OrdensSort.conclusaoDesc => 'Conclusão — mais recente primeiro',
   };
 
   /// Parse estável do [name] do enum (prefs). Null se desconhecido.
@@ -196,8 +202,17 @@ class OrdensController extends StateNotifier<OrdensState> {
   /// reloads; espelhada em SharedPreferences.
   final Map<String, OrdensSort> _sortByTab = {};
 
-  OrdensSort _sortFor(OSStatus? status) =>
-      _sortByTab[ordensSortTabKey(status)] ?? OrdensSort.dataAsc;
+  /// Preferência salva da aba, ou default.
+  ///
+  /// Aba **Concluída** é FIXA em [OrdensSort.conclusaoDesc] (pedido do dono
+  /// 18/07: ordem em que o profissional concluiu, mais recentes primeiro).
+  OrdensSort _sortFor(OSStatus? status) {
+    if (status == OSStatus.concluida) return OrdensSort.conclusaoDesc;
+    final key = ordensSortTabKey(status);
+    final saved = _sortByTab[key];
+    if (saved != null) return saved;
+    return OrdensSort.dataAsc;
+  }
 
   Future<void> _init() async {
     await _loadSortPrefs();
@@ -309,6 +324,10 @@ class OrdensController extends StateNotifier<OrdensState> {
   }
 
   Future<void> setSort(OrdensSort sort) async {
+    // Concluída: não deixa mudar — sempre mais recente primeiro.
+    if (state.filter.status == OSStatus.concluida) {
+      sort = OrdensSort.conclusaoDesc;
+    }
     final tab = ordensSortTabKey(state.filter.status);
     _sortByTab[tab] = sort;
     await _saveSortPref(tab, sort);

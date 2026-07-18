@@ -158,6 +158,54 @@ describe('(b) iniciada_em — carimbo na transição e denylist', () => {
   })
 })
 
+// ── concluida_em: carimbo de conclusão (aba Concluída do painel) ─────────────
+
+describe('concluida_em — carimbo na transição e denylist', () => {
+  it('stampConcluidaEm carimba na TRANSIÇÃO em_andamento → concluida', () => {
+    const orig = mockOS({ ...BASE, status: 'em_andamento' })
+    const rec = mockOS({ ...BASE, status: 'concluida' }, orig)
+    os.stampConcluidaEm(rec)
+    assert.ok(rec._fields.concluida_em, 'concluida_em deve ser preenchido')
+    assert.match(String(rec._fields.concluida_em), /^\d{4}-\d{2}-\d{2} /)
+  })
+
+  it('save repetido em concluida NÃO re-carimba', () => {
+    const orig = mockOS({ ...BASE, status: 'concluida', concluida_em: 'X' })
+    const rec = mockOS(
+      { ...BASE, status: 'concluida', concluida_em: 'X' },
+      orig
+    )
+    os.stampConcluidaEm(rec)
+    assert.equal(rec._fields.concluida_em, 'X')
+  })
+
+  it('create já concluída carimba se vazio', () => {
+    const rec = mockOS({ ...BASE, status: 'concluida' })
+    os.stampConcluidaEm(rec)
+    assert.ok(rec._fields.concluida_em)
+  })
+
+  it('profissional NÃO grava concluida_em via PATCH (denylist → 403)', () => {
+    const orig = mockOS({ ...BASE, status: 'em_andamento' })
+    const rec = mockOS(
+      {
+        ...BASE,
+        status: 'em_andamento',
+        concluida_em: '2026-07-16 12:00:00.000Z',
+      },
+      orig
+    )
+    assert.throws(
+      () => os.guardOrdemUpdateRequest(mockEvent('profissional', rec)),
+      (err) => {
+        assert.ok(err instanceof ForbiddenError)
+        assert.match(err.message, /concluida_em/)
+        return true
+      }
+    )
+  })
+})
+
 // ── (c) corte do cron: quando o serviço COMEÇOU, não a data agendada ─────────
 
 describe('(c) isStaleEmAndamento — cron não varre OS iniciada hoje', () => {

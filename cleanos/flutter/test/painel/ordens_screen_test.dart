@@ -100,19 +100,14 @@ void main() {
         await tester.pumpAndSettle();
         expect(ordens.lastSort, 'nome_curto');
 
-        // Vai pra Concluída → volta ao default (data_hora), não herda A→Z.
-        // `.first` = aba (pode haver outro "Concluída" em empty/state).
+        // Vai pra Concluída → FIXO: conclusão mais recente (não herda A→Z).
         await tester.tap(find.text('Concluída').first);
         await tester.pumpAndSettle();
-        expect(ordens.lastSort, 'data_hora');
-        expect(find.text('Data — mais próxima primeiro'), findsOneWidget);
-
-        // Em Concluída escolhe mais distante.
-        await tester.tap(find.text('Data — mais próxima primeiro'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Data — mais distante primeiro').last);
-        await tester.pumpAndSettle();
-        expect(ordens.lastSort, '-data_hora');
+        expect(ordens.lastSort, '-concluida_em,-updated');
+        expect(
+          find.text('Conclusão — mais recente primeiro'),
+          findsOneWidget,
+        );
 
         // Volta pra Agendada → ainda A→Z (salva por aba).
         await tester.tap(find.text('Agendada').first);

@@ -23,6 +23,7 @@ onRecordCreate((e) => {
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record); // limpa/define endereço conforme status
   lib.stampIniciadaEm(e.record); // carimbo de início (create direto em em_andamento)
+  lib.stampConcluidaEm(e.record); // carimbo de conclusão (create-as-concluida)
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: cobre create-as-concluida (OS nascendo concluida)
 
@@ -55,6 +56,7 @@ onRecordUpdate((e) => {
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
   lib.stampIniciadaEm(e.record); // carimbo de início na transição → em_andamento
+  lib.stampConcluidaEm(e.record); // carimbo de conclusão na transição → concluida
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);
