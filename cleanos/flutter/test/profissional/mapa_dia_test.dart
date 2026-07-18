@@ -90,4 +90,15 @@ void main() {
       expect(p.hasCoords, isFalse);
     });
   });
+
+  group('pinColorForSeq', () {
+    test('1 e 2 são cores diferentes', () {
+      expect(pinColorForSeq(1), isNot(equals(pinColorForSeq(2))));
+    });
+
+    test('cicla após 8', () {
+      expect(pinColorForSeq(1), pinColorForSeq(9));
+      expect(pinColorForSeq(2), pinColorForSeq(10));
+    });
+  });
 }
