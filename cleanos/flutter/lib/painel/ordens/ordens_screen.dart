@@ -418,10 +418,14 @@ class _Toolbar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x3),
-          // Ordenação (server-side): data mais próxima primeiro por padrão.
+          // Ordenação por ABA de status (salva em prefs — cada status independente).
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
             child: DropdownButtonFormField<OrdensSort>(
+              // Key força rebuild ao trocar de aba (initialValue não reage sozinho).
+              key: ValueKey(
+                'ordens-sort-${filter.status?.wire ?? 'all'}-${filter.sort.name}',
+              ),
               initialValue: filter.sort,
               isExpanded: true,
               decoration: InputDecoration(

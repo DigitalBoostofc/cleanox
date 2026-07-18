@@ -5,9 +5,14 @@
 /// infinito virtualizado (nunca `getFullList`). Consome a interface congelada
 /// `OrdensRepository` (core). Lookups de Nova OS (serviços/profissionais) num
 /// provider à parte; clientes são buscados sob demanda (server search).
+///
+/// Ordenação é **por aba de status** (pedido do dono, 18/07/2026): cada status
+/// (e "Todas") guarda a sua própria [OrdensSort], persistida em
+/// SharedPreferences — trocar a ordenação em Agendada não afeta Concluída.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
@@ -82,7 +87,22 @@ enum OrdensSort {
     OrdensSort.clienteAsc => 'Cliente — A a Z',
     OrdensSort.clienteDesc => 'Cliente — Z a A',
   };
+
+  /// Parse estável do [name] do enum (prefs). Null se desconhecido.
+  static OrdensSort? tryParse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    for (final s in OrdensSort.values) {
+      if (s.name == raw) return s;
+    }
+    return null;
+  }
 }
+
+/// Chave de aba para preferência de ordenação: wire do status ou `all`.
+String ordensSortTabKey(OSStatus? status) => status?.wire ?? 'all';
+
+/// Prefixo das chaves em SharedPreferences (`ordens_sort_agendada`, …).
+const String kOrdensSortPrefsPrefix = 'ordens_sort_';
 
 /// Filtro ativo da lista: um status (ou `null` = todas) + período +
 /// profissional opcional.
@@ -167,10 +187,53 @@ class OrdensState {
 
 class OrdensController extends StateNotifier<OrdensState> {
   OrdensController(this._ref) : super(const OrdensState()) {
-    refresh();
+    _init();
   }
 
   final Ref _ref;
+
+  /// Ordenação por aba (status wire | `all`). Sobrevive a trocas de aba e a
+  /// reloads; espelhada em SharedPreferences.
+  final Map<String, OrdensSort> _sortByTab = {};
+
+  OrdensSort _sortFor(OSStatus? status) =>
+      _sortByTab[ordensSortTabKey(status)] ?? OrdensSort.dataAsc;
+
+  Future<void> _init() async {
+    await _loadSortPrefs();
+    final sort = _sortFor(state.filter.status);
+    if (sort != state.filter.sort) {
+      state = state.copyWith(filter: state.filter.copyWith(sort: sort));
+    }
+    await refresh();
+  }
+
+  Future<void> _loadSortPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = <String>[
+        'all',
+        for (final s in OSStatus.all) s.wire,
+      ];
+      for (final k in keys) {
+        final parsed = OrdensSort.tryParse(
+          prefs.getString('$kOrdensSortPrefsPrefix$k'),
+        );
+        if (parsed != null) _sortByTab[k] = parsed;
+      }
+    } catch (_) {
+      /* prefs indisponíveis — segue com defaults */
+    }
+  }
+
+  Future<void> _saveSortPref(String tabKey, OrdensSort sort) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$kOrdensSortPrefsPrefix$tabKey', sort.name);
+    } catch (_) {
+      /* best-effort */
+    }
+  }
 
   String? get _filterExpr {
     final range = ordensPeriodoRange(state.filter.periodo);
@@ -231,7 +294,11 @@ class OrdensController extends StateNotifier<OrdensState> {
 
   Future<void> setStatus(OSStatus? status) async {
     if (status == state.filter.status) return;
-    state = state.copyWith(filter: state.filter.copyWith(status: status));
+    // Restaura a ordenação desta ABA (default: dataAsc se nunca escolheu).
+    final sort = _sortFor(status);
+    state = state.copyWith(
+      filter: state.filter.copyWith(status: status, sort: sort),
+    );
     await refresh();
   }
 
@@ -242,6 +309,9 @@ class OrdensController extends StateNotifier<OrdensState> {
   }
 
   Future<void> setSort(OrdensSort sort) async {
+    final tab = ordensSortTabKey(state.filter.status);
+    _sortByTab[tab] = sort;
+    await _saveSortPref(tab, sort);
     if (sort == state.filter.sort) return;
     state = state.copyWith(filter: state.filter.copyWith(sort: sort));
     await refresh();
