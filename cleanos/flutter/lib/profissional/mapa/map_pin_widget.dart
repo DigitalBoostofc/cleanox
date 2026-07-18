@@ -121,6 +121,58 @@ class _MapNumberPinState extends State<MapNumberPin>
   }
 }
 
+/// Pin com letra (ex.: "P" = partida do dia).
+class MapLetterPin extends StatelessWidget {
+  const MapLetterPin({
+    super.key,
+    required this.letter,
+    required this.color,
+    this.size = 44,
+    this.bounce = false,
+  });
+
+  final String letter;
+  final Color color;
+  final double size;
+  final bool bounce;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = size;
+    final h = size * 1.25;
+    return SizedBox(
+      width: w,
+      height: h,
+      child: CustomPaint(
+        painter: _PinPainter(
+          color: color,
+          borderColor: Colors.white,
+          borderWidth: 2,
+        ),
+        child: Align(
+          alignment: const Alignment(0, -0.35),
+          child: Text(
+            letter,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: w * 0.36,
+              height: 1,
+              shadows: const [
+                Shadow(
+                  color: Color(0x44000000),
+                  blurRadius: 2,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Pin de destino (sem número) — rota in-app.
 class MapDestPin extends StatefulWidget {
   const MapDestPin({

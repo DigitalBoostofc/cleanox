@@ -260,4 +260,79 @@ function etaMinutes(oLat, oLng, dLat, dLng) {
   return null;
 }
 
-module.exports = { geocode, etaMinutes, osrmRoute };
+/**
+ * Distância em linha reta (metros) — fallback se OSRM falhar.
+ */
+function haversineM(oLat, oLng, dLat, dLng) {
+  var R = 6371000;
+  var toRad = function (d) {
+    return (Number(d) * Math.PI) / 180;
+  };
+  var lat1 = toRad(oLat);
+  var lat2 = toRad(dLat);
+  var dLatR = toRad(Number(dLat) - Number(oLat));
+  var dLngR = toRad(Number(dLng) - Number(oLng));
+  var a =
+    Math.sin(dLatR / 2) * Math.sin(dLatR / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLngR / 2) * Math.sin(dLngR / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Circuito planejado: soma trechos consecutivos de `points` (lat/lng).
+ * Preferência OSRM por trecho; haversine se falhar.
+ * Retorna { metros, km, fonte: "osrm"|"haversine"|"misto" } | null.
+ */
+function routeCircuitKm(points) {
+  if (!points || points.length < 2) return null;
+  var total = 0;
+  var usedOsrm = 0;
+  var usedHav = 0;
+  for (var i = 0; i < points.length - 1; i++) {
+    var a = points[i];
+    var b = points[i + 1];
+    if (!a || !b) continue;
+    var oLat = Number(a.lat);
+    var oLng = Number(a.lng);
+    var dLat = Number(b.lat);
+    var dLng = Number(b.lng);
+    if (
+      isNaN(oLat) ||
+      isNaN(oLng) ||
+      isNaN(dLat) ||
+      isNaN(dLng) ||
+      !oLat ||
+      !oLng ||
+      !dLat ||
+      !dLng
+    ) {
+      continue;
+    }
+    var osrm = osrmRoute(oLat, oLng, dLat, dLng);
+    if (osrm && osrm.distanceM > 0) {
+      total += osrm.distanceM;
+      usedOsrm += 1;
+    } else {
+      var h = haversineM(oLat, oLng, dLat, dLng);
+      if (h > 0) {
+        total += h;
+        usedHav += 1;
+      }
+    }
+  }
+  if (!(total > 0)) return null;
+  var fonte = "osrm";
+  if (usedOsrm > 0 && usedHav > 0) fonte = "misto";
+  else if (usedHav > 0 && usedOsrm === 0) fonte = "haversine";
+  var km = Math.round((total / 1000) * 10) / 10;
+  return { metros: Math.round(total), km: km, fonte: fonte };
+}
+
+module.exports = {
+  geocode,
+  etaMinutes,
+  osrmRoute,
+  haversineM,
+  routeCircuitKm,
+};
