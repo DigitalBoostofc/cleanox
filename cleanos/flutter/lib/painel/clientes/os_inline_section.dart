@@ -3,8 +3,9 @@
 /// Espelha `OSFormSection.tsx` reaproveitado pelo `Clientes.tsx` quando o toggle
 /// "Gerar OS" está ligado: serviço (prefila nome+valor), profissional (define
 /// atribuída/agendada no save), data + slot de horário (mesma lógica de
-/// disponibilidade da Nova OS) e valor/observações. NÃO tem seletor de cliente —
-/// a OS é gerada para o cliente recém-criado.
+/// disponibilidade da Nova OS), **duração** (paridade com Nova OS — D9) e
+/// valor/observações. NÃO tem seletor de cliente — a OS é gerada para o cliente
+/// recém-criado.
 ///
 /// Reusa a função PURA [computeOSDaySlots] do formulário de OS (mesma lógica de
 /// slot da Agenda/Nova OS) e os providers/filtros já congelados. O estado dos
@@ -15,6 +16,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_layout.dart' show kDuracaoPadraoMin, labelDuracao;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/disponibilidade.dart';
@@ -23,7 +25,7 @@ import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
 import '../servicos/servicos_labels.dart';
 import '../ordens/ordens_controller.dart' show ordensLookupsProvider;
-import '../ordens/os_form.dart' show computeOSDaySlots;
+import '../ordens/os_form.dart' show computeOSDaySlots, kDuracaoOpcoes;
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 
 const List<String> _kMinutes = ['00', '15', '30', '45'];
@@ -52,6 +54,10 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   String _horaH = '08';
   String _horaM = '00';
 
+  /// Duração da OS (min). `null` → prefilada com a do profissional (D9).
+  int? _duracaoMin;
+  bool _duracaoTocada = false;
+
   // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx).
   Categoria? _catFiltro;
   Grupo? _grupoFiltro;
@@ -76,6 +82,13 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   String get valorServico => _valor.text.trim();
   String get profissionalId => _profissionalId;
   String get observacoes => _observacoes.text.trim();
+
+  /// Duração efetiva gravada na OS (OS > prof > 60), paridade com [OSForm].
+  int get duracaoMin {
+    if ((_duracaoMin ?? 0) > 0) return _duracaoMin!;
+    final doProf = _disp?.duracaoMin ?? 0;
+    return doProf > 0 ? doProf : kDuracaoPadraoMin;
+  }
 
   /// Valida os campos da OS (espelha `validateOSInlineForm`: serviço + data + valor).
   /// Atualiza os erros exibidos e retorna `true` se está tudo válido.
@@ -162,6 +175,15 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     _fetchOcupados();
   }
 
+  /// Prefilla duração com a do profissional enquanto o usuário não mexeu (D9).
+  void _prefillDuracao() {
+    if (_duracaoTocada) return;
+    final doProf = _disp?.duracaoMin ?? 0;
+    final nova = doProf > 0 ? doProf : kDuracaoPadraoMin;
+    if (nova == _duracaoMin) return;
+    setState(() => _duracaoMin = nova);
+  }
+
   /// Limites [start, end) do dia [date] em string UTC do PB (BRT centralizado).
   static ({String start, String end}) _dayBounds(String date) {
     final start = localInputToPBDate('${date}T00:00');
@@ -182,6 +204,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
         _dispState = _DispState.idle;
         _ocupados = const [];
       });
+      _prefillDuracao();
       return;
     }
     final seq = ++_dispSeq;
@@ -199,6 +222,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
         _disp = res.items.isEmpty ? null : res.items.first;
         _dispState = _DispState.loaded;
       });
+      _prefillDuracao();
       _autoSelectSlot();
     } catch (_) {
       if (!mounted || seq != _dispSeq) return;
@@ -468,6 +492,10 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           ),
           const SizedBox(height: ClxSpace.x4),
 
+          // Duração (paridade com Nova OS — pedida pelo dono quando "Gerar OS").
+          _duracaoField(clx),
+          const SizedBox(height: ClxSpace.x4),
+
           // Valor.
           _textField(
             label: 'Valor do serviço (R\$)',
@@ -541,6 +569,52 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Duração da OS — prefilada (visível) com a do profissional (D9).
+  Widget _duracaoField(CleanoxColors clx) {
+    final efetiva = duracaoMin;
+    final opcoes = <int>[
+      ...{...kDuracaoOpcoes, efetiva},
+    ]..sort();
+    final doProf = _disp?.duracaoMin ?? 0;
+    final prefilado = !_duracaoTocada && doProf > 0 && efetiva == doProf;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Duração'),
+        DropdownButtonFormField<int>(
+          key: ValueKey('os-inline-duracao-$efetiva'),
+          initialValue: efetiva,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: [
+            for (final min in opcoes)
+              DropdownMenuItem(value: min, child: Text(labelDuracao(min))),
+          ],
+          onChanged: !widget.enabled
+              ? null
+              : (v) {
+                  if (v == null) return;
+                  setState(() {
+                    _duracaoMin = v;
+                    _duracaoTocada = true;
+                  });
+                },
+        ),
+        if (prefilado)
+          Padding(
+            padding: const EdgeInsets.only(top: ClxSpace.x1),
+            child: Text(
+              'Duração padrão do profissional.',
+              key: const ValueKey('os-inline-duracao-prefill'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+            ),
+          ),
+      ],
     );
   }
 
