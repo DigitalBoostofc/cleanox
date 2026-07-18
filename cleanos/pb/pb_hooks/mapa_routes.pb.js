@@ -1,17 +1,51 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 /**
- * CleanOS — mapa do dia do profissional.
+ * CleanOS — mapa do dia do profissional + partida/deslocamento planejado.
  *
- *   GET /api/cleanos/prof/mapa-hoje
+ *   GET  /api/cleanos/prof/mapa-hoje
+ *   POST /api/cleanos/prof/deslocamento-dia/partida  { lat, lng }
+ *   GET  /api/cleanos/os/{id}/rota
  *
- * Lista as OS do profissional no dia BRT corrente (atribuída + em andamento)
- * com endereço, ordenadas por data_hora (sequência da agenda). Geocodifica
- * dest_lat/dest_lng se ainda faltarem (GOOGLE_MAPS_API_KEY; degrada sem chave).
- *
- * Resposta: { ok, dia, pins: [{ seq, osId, nome, hora, endereco, status, lat, lng }] }
+ * mapa-hoje: OS do dia BRT (atribuída | em_andamento | concluída) com pins,
+ * partida do 1º Em deslocamento e km planejado (partida → OS… → partida).
  * Sem PII de telefone.
  */
+
+function diaBrtHoje() {
+  const nowBRT = new Date(Date.now() - 3 * 3600 * 1000);
+  const y = nowBRT.getUTCFullYear();
+  const m = nowBRT.getUTCMonth();
+  const d = nowBRT.getUTCDate();
+  const dia =
+    y +
+    "-" +
+    String(m + 1).padStart(2, "0") +
+    "-" +
+    String(d).padStart(2, "0");
+  // meia-noite BRT = 03:00 UTC
+  const startUtc = new Date(Date.UTC(y, m, d, 3, 0, 0));
+  const endUtc = new Date(Date.UTC(y, m, d + 1, 3, 0, 0));
+  function fmtPb(dt) {
+    const p = (n) => String(n).padStart(2, "0");
+    return (
+      dt.getUTCFullYear() +
+      "-" +
+      p(dt.getUTCMonth() + 1) +
+      "-" +
+      p(dt.getUTCDate()) +
+      " " +
+      p(dt.getUTCHours()) +
+      ":" +
+      p(dt.getUTCMinutes()) +
+      ":" +
+      p(dt.getUTCSeconds()) +
+      ".000Z"
+    );
+  }
+  return { dia: dia, start: fmtPb(startUtc), end: fmtPb(endUtc) };
+}
+
 routerAdd(
   "GET",
   "/api/cleanos/prof/mapa-hoje",
@@ -24,49 +58,17 @@ routerAdd(
       throw new ForbiddenError("Rota exclusiva para o papel profissional.");
     }
     const profId = String(e.auth.id);
-
-    // Dia BRT corrente [start, end) em string UTC do PB.
-    const nowBRT = new Date(Date.now() - 3 * 3600 * 1000);
-    const y = nowBRT.getUTCFullYear();
-    const m = nowBRT.getUTCMonth();
-    const d = nowBRT.getUTCDate();
-    // meia-noite BRT = 03:00 UTC
-    const startUtc = new Date(Date.UTC(y, m, d, 3, 0, 0));
-    const endUtc = new Date(Date.UTC(y, m, d + 1, 3, 0, 0));
-    function fmtPb(dt) {
-      const p = (n) => String(n).padStart(2, "0");
-      return (
-        dt.getUTCFullYear() +
-        "-" +
-        p(dt.getUTCMonth() + 1) +
-        "-" +
-        p(dt.getUTCDate()) +
-        " " +
-        p(dt.getUTCHours()) +
-        ":" +
-        p(dt.getUTCMinutes()) +
-        ":" +
-        p(dt.getUTCSeconds()) +
-        ".000Z"
-      );
-    }
-    const start = fmtPb(startUtc);
-    const end = fmtPb(endUtc);
-    const dia =
-      y +
-      "-" +
-      String(m + 1).padStart(2, "0") +
-      "-" +
-      String(d).padStart(2, "0");
+    const bounds = diaBrtHoje();
+    const dia = bounds.dia;
 
     const filter =
       'profissional = "' +
       profId.replace(/"/g, '\\"') +
       '" && data_hora >= "' +
-      start +
+      bounds.start +
       '" && data_hora < "' +
-      end +
-      '" && (status = "atribuida" || status = "em_andamento")';
+      bounds.end +
+      '" && (status = "atribuida" || status = "em_andamento" || status = "concluida")';
 
     let rows = [];
     try {
@@ -86,12 +88,10 @@ routerAdd(
     let seq = 0;
     for (let i = 0; i < rows.length; i++) {
       const os = rows[i];
-      // Só dono (já filtrado por profissional=auth).
       if (lib.relId(os.get("profissional")) !== profId) continue;
 
       let endereco = String(os.get("endereco_liberado") || "").trim();
       if (!endereco) {
-        // Fallback: monta do cofre se o hook ainda não liberou (defensivo).
         try {
           const cid = lib.relId(os.get("cliente"));
           if (cid) {
@@ -104,7 +104,7 @@ routerAdd(
           }
         } catch (_) {}
       }
-      if (!endereco) continue; // sem endereço → fora do mapa
+      if (!endereco) continue;
 
       seq += 1;
       let lat = Number(os.get("dest_lat") || 0);
@@ -128,7 +128,6 @@ routerAdd(
       }
 
       const dataHora = String(os.get("data_hora") || "");
-      // Hora BRT a partir do UTC gravado.
       let hora = "—";
       try {
         const brt = new Date(new Date(dataHora).getTime() - 3 * 3600 * 1000);
@@ -150,7 +149,150 @@ routerAdd(
       });
     }
 
-    return e.json(200, { ok: true, dia: dia, pins: pins });
+    // Partida do dia (1º Em deslocamento).
+    let partida = null;
+    try {
+      const rec = $app.findFirstRecordByFilter(
+        "prof_deslocamento_dia",
+        'profissional = "' +
+          profId.replace(/"/g, '\\"') +
+          '" && dia = "' +
+          dia +
+          '"',
+      );
+      if (rec) {
+        const plat = Number(rec.get("partida_lat") || 0);
+        const plng = Number(rec.get("partida_lng") || 0);
+        if (plat && plng) {
+          partida = {
+            lat: plat,
+            lng: plng,
+            em: String(rec.get("partida_em") || ""),
+          };
+        }
+      }
+    } catch (_) {
+      /* sem partida ainda */
+    }
+
+    // Circuito: partida → pins com coords → partida.
+    let deslocamento = null;
+    if (partida) {
+      const points = [{ lat: partida.lat, lng: partida.lng }];
+      for (let i = 0; i < pins.length; i++) {
+        if (pins[i].lat && pins[i].lng) {
+          points.push({ lat: pins[i].lat, lng: pins[i].lng });
+        }
+      }
+      points.push({ lat: partida.lat, lng: partida.lng });
+      if (points.length >= 3) {
+        const circuit = maps.routeCircuitKm(points);
+        if (circuit) {
+          deslocamento = {
+            km: circuit.km,
+            metros: circuit.metros,
+            fonte: circuit.fonte,
+            incluiRetorno: true,
+          };
+          // Cache best-effort.
+          try {
+            const rec = $app.findFirstRecordByFilter(
+              "prof_deslocamento_dia",
+              'profissional = "' +
+                profId.replace(/"/g, '\\"') +
+                '" && dia = "' +
+                dia +
+                '"',
+            );
+            if (rec) {
+              rec.set("km_planejado", circuit.km);
+              $app.save(rec);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    return e.json(200, {
+      ok: true,
+      dia: dia,
+      pins: pins,
+      partida: partida,
+      deslocamento: deslocamento,
+    });
+  },
+  $apis.requireAuth(),
+);
+
+/**
+ * POST /api/cleanos/prof/deslocamento-dia/partida
+ * Body: { lat, lng }
+ * Idempotente: grava só no 1º Em deslocamento do dia BRT.
+ */
+routerAdd(
+  "POST",
+  "/api/cleanos/prof/deslocamento-dia/partida",
+  (e) => {
+    if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
+    if (String(e.auth.get("role")) !== "profissional") {
+      throw new ForbiddenError("Rota exclusiva para o papel profissional.");
+    }
+    const profId = String(e.auth.id);
+    const body = e.requestInfo().body || {};
+    const lat = Number(body.lat);
+    const lng = Number(body.lng);
+    if (isNaN(lat) || isNaN(lng) || !lat || !lng) {
+      throw new BadRequestError("Informe lat e lng válidos.");
+    }
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      throw new BadRequestError("Coordenadas fora do intervalo.");
+    }
+
+    const bounds = diaBrtHoje();
+    const dia = bounds.dia;
+
+    try {
+      const existing = $app.findFirstRecordByFilter(
+        "prof_deslocamento_dia",
+        'profissional = "' +
+          profId.replace(/"/g, '\\"') +
+          '" && dia = "' +
+          dia +
+          '"',
+      );
+      if (existing) {
+        return e.json(200, {
+          ok: true,
+          already: true,
+          dia: dia,
+          partida: {
+            lat: Number(existing.get("partida_lat")),
+            lng: Number(existing.get("partida_lng")),
+            em: String(existing.get("partida_em") || ""),
+          },
+        });
+      }
+    } catch (_) {
+      /* create below */
+    }
+
+    const col = $app.findCollectionByNameOrId("prof_deslocamento_dia");
+    const rec = new Record(col);
+    const now =
+      new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+    rec.set("profissional", profId);
+    rec.set("dia", dia);
+    rec.set("partida_lat", lat);
+    rec.set("partida_lng", lng);
+    rec.set("partida_em", now);
+    $app.save(rec);
+
+    return e.json(200, {
+      ok: true,
+      already: false,
+      dia: dia,
+      partida: { lat: lat, lng: lng, em: now },
+    });
   },
   $apis.requireAuth(),
 );
@@ -160,8 +302,6 @@ routerAdd(
  *
  * Destino geocodificado da OS (para mapa in-app "Ver rota").
  * Profissional dono da OS ou admin/gerente.
- * Resposta: { ok, osId, nome, endereco, lat, lng, status, bairro, tipoServico }
- * Sem telefone.
  */
 routerAdd(
   "GET",
@@ -198,9 +338,7 @@ routerAdd(
         if (cid) {
           const c = $app.findRecordById("clientes", cid);
           endereco = lib.buildEndereco(c);
-          if (endereco && role !== "profissional") {
-            // Admin/gerente: não grava endereco_liberado aqui.
-          } else if (endereco) {
+          if (endereco && role === "profissional") {
             os.set("endereco_liberado", endereco);
             $app.save(os);
           }

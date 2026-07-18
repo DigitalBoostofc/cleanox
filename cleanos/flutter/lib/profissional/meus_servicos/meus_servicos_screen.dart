@@ -8,10 +8,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
@@ -21,6 +23,7 @@ import '../data/prof_providers.dart';
 import '../data/server_error.dart';
 import '../location/location_tracking_service.dart';
 import '../location/tracking_providers.dart';
+import '../mapa/mapa_screen.dart';
 import '../mapa/nav_chooser.dart';
 import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import 'meus_servicos_controller.dart';
@@ -88,6 +91,37 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     }
   }
 
+  /// Grava ponto de partida do dia (1º Em deslocamento) — best-effort.
+  Future<void> _registrarPartidaDia() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      final pb = ref.read(pocketBaseProvider);
+      await pb.send(
+        '/api/cleanos/prof/deslocamento-dia/partida',
+        method: 'POST',
+        body: {'lat': pos.latitude, 'lng': pos.longitude},
+      );
+      ref.invalidate(mapaHojeProvider);
+    } catch (_) {
+      /* não bloqueia o fluxo Em deslocamento */
+    }
+  }
+
   Future<void> _avisar(OrdemServico os) async {
     setState(() => _avisoLoading[os.id] = true);
     try {
@@ -97,6 +131,9 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
           'Cliente avisado: você está a caminho ✓',
           ToastType.success,
         );
+        // Partida do dia (1º Em deslocamento) → km planejado no Mapa.
+        // ignore: discarded_futures
+        _registrarPartidaDia();
         // GPS em background (avisos 5 min / 1 min no servidor).
         try {
           final trackRes = await ref
