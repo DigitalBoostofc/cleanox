@@ -329,10 +329,57 @@ function routeCircuitKm(points) {
   return { metros: Math.round(total), km: km, fonte: fonte };
 }
 
+/**
+ * Dia BRT corrente + janela UTC [start, end) em string PB.
+ * Usar via require() DENTRO do handler (R9: VM isolada por rota).
+ */
+function diaBrtHoje() {
+  var nowBRT = new Date(Date.now() - 3 * 3600 * 1000);
+  var y = nowBRT.getUTCFullYear();
+  var m = nowBRT.getUTCMonth();
+  var d = nowBRT.getUTCDate();
+  var dia =
+    y +
+    "-" +
+    String(m + 1).padStart(2, "0") +
+    "-" +
+    String(d).padStart(2, "0");
+  var startUtc = new Date(Date.UTC(y, m, d, 3, 0, 0));
+  var endUtc = new Date(Date.UTC(y, m, d + 1, 3, 0, 0));
+  function fmtPb(dt) {
+    var p = function (n) {
+      return String(n).padStart(2, "0");
+    };
+    return (
+      dt.getUTCFullYear() +
+      "-" +
+      p(dt.getUTCMonth() + 1) +
+      "-" +
+      p(dt.getUTCDate()) +
+      " " +
+      p(dt.getUTCHours()) +
+      ":" +
+      p(dt.getUTCMinutes()) +
+      ":" +
+      p(dt.getUTCSeconds()) +
+      ".000Z"
+    );
+  }
+  return { dia: dia, start: fmtPb(startUtc), end: fmtPb(endUtc) };
+}
+
+function escFilter(s) {
+  return String(s || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+}
+
 module.exports = {
   geocode,
   etaMinutes,
   osrmRoute,
   haversineM,
   routeCircuitKm,
+  diaBrtHoje,
+  escFilter,
 };
