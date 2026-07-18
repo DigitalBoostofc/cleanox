@@ -340,19 +340,47 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
           for (var i = 0; i < state.today.length; i++)
             _card(state.today[i], index: i),
 
-        // Próximos.
+        // Próximos — agrupados por dia BRT (mais próximo → mais distante).
         if (state.upcoming.isNotEmpty) ...[
           const SizedBox(height: ClxSpace.x5),
           Divider(color: clx.line),
           const SizedBox(height: ClxSpace.x3),
-          _SectionHeader(title: 'Próximos agendamentos', titleColor: clx.ink),
+          _SectionHeader(
+            title: 'Próximos agendamentos',
+            titleColor: clx.ink,
+            trailing: ClxChip(
+              label:
+                  '${state.upcoming.length} serviço${state.upcoming.length != 1 ? 's' : ''}',
+              color: clx.ink3,
+            ),
+          ),
           const SizedBox(height: ClxSpace.x3),
-          for (var i = 0; i < state.upcoming.length; i++)
-            _card(state.upcoming[i], index: i),
+          ..._buildUpcomingByDay(state.upcoming),
         ],
         const SizedBox(height: ClxSpace.x8),
       ],
     );
+  }
+
+  /// Cards de "próximos" com separador de dia (lista já vem por `data_hora`).
+  List<Widget> _buildUpcomingByDay(List<OrdemServico> upcoming) {
+    final groups = groupOrdensByDayBrt(upcoming);
+    final out = <Widget>[];
+    var cardIndex = 0;
+    for (var g = 0; g < groups.length; g++) {
+      final group = groups[g];
+      out.add(
+        _DayGroupHeader(
+          label: group.header,
+          count: group.items.length,
+          first: g == 0,
+        ),
+      );
+      for (final os in group.items) {
+        out.add(_card(os, index: cardIndex++));
+      }
+    }
+    return out;
   }
 
   static String _capitalize(String s) =>
@@ -383,6 +411,73 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
       'dezembro',
     ];
     return '${dias[d.weekday - 1]}, ${d.day} de ${meses[d.month - 1]}';
+  }
+}
+
+/// Agrupa OS já ordenadas por `data_hora` em blocos por dia civil BRT
+/// (mais próximo → mais distante). Função pura para teste.
+List<({String header, List<OrdemServico> items})> groupOrdensByDayBrt(
+  List<OrdemServico> ordens, {
+  DateTime? now,
+}) {
+  final out = <({String header, List<OrdemServico> items})>[];
+  String? lastDayKey;
+  for (final os in ordens) {
+    final key = formatDate(os.dataHora); // dd/MM/yyyy BRT
+    if (key != lastDayKey) {
+      out.add((
+        header: formatDayHeaderBrt(os.dataHora, now: now),
+        items: <OrdemServico>[os],
+      ));
+      lastDayKey = key;
+    } else {
+      out.last.items.add(os);
+    }
+  }
+  return out;
+}
+
+/// Separador de dia nos próximos (ex.: "Amanhã · 19/07").
+class _DayGroupHeader extends StatelessWidget {
+  const _DayGroupHeader({
+    required this.label,
+    required this.count,
+    this.first = false,
+  });
+
+  final String label;
+  final int count;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: EdgeInsets.only(
+        top: first ? 0 : ClxSpace.x4,
+        bottom: ClxSpace.x2,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.event_rounded, size: 15, color: clx.ink3),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: tt.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: clx.ink2,
+              ),
+            ),
+          ),
+          Text(
+            count == 1 ? '1 serviço' : '$count serviços',
+            style: tt.labelSmall?.copyWith(color: clx.ink3),
+          ),
+        ],
+      ),
+    );
   }
 }
 
