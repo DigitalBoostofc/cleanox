@@ -12,15 +12,19 @@ import '../../core/models/collections.dart';
 import '../../core/pb/pb_filters.dart';
 
 /// OS do profissional HOJE (janela BRT [todayStart, tomorrowStart)).
+/// Canceladas nunca aparecem no app do profissional.
 String profOrdensHojeFilter(String profId, PbDayBounds bounds) =>
     'profissional = ${pbStringLiteral(profId)} '
     '&& data_hora >= ${pbStringLiteral(bounds.todayStart)} '
-    '&& data_hora < ${pbStringLiteral(bounds.tomorrowStart)}';
+    '&& data_hora < ${pbStringLiteral(bounds.tomorrowStart)} '
+    '&& status != ${pbStringLiteral(OSStatus.cancelada.wire)}';
 
 /// OS do profissional PRÓXIMAS (a partir de amanhã BRT).
+/// Canceladas nunca aparecem no app do profissional.
 String profOrdensProximasFilter(String profId, PbDayBounds bounds) =>
     'profissional = ${pbStringLiteral(profId)} '
-    '&& data_hora >= ${pbStringLiteral(bounds.tomorrowStart)}';
+    '&& data_hora >= ${pbStringLiteral(bounds.tomorrowStart)} '
+    '&& status != ${pbStringLiteral(OSStatus.cancelada.wire)}';
 
 /// OS do profissional ATRASADAS em aberto (antes de hoje BRT, ainda
 /// atribuída/em andamento).
