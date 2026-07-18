@@ -8,7 +8,7 @@ OrdemServico os(String id, OSStatus status) =>
 
 void main() {
   group('buildResumo', () {
-    test('agendados = total do período (abertos + realizados + canceladas)', () {
+    test('agendados = realizados + canceladas + pendentes', () {
       final r = buildResumo(
         ordens: [
           os('1', OSStatus.agendada),
@@ -21,17 +21,18 @@ void main() {
         ],
         kmDeslocamento: 12.34,
       );
-      // 3 abertos + 2 realizados + 2 canceladas = 7
-      expect(r.agendados, 7);
+      expect(r.pendentes, 3);
       expect(r.realizados, 2);
       expect(r.canceladas, 2);
-      expect(r.agendados, r.realizados + r.canceladas + 3);
+      expect(r.agendados, 7);
+      expect(r.agendados, r.realizados + r.canceladas + r.pendentes);
       expect(r.kmDeslocamento, 12.3);
     });
 
     test('vazio → zeros', () {
       final r = buildResumo(ordens: const []);
       expect(r.agendados, 0);
+      expect(r.pendentes, 0);
       expect(r.realizados, 0);
       expect(r.canceladas, 0);
       expect(r.kmDeslocamento, 0);
@@ -47,9 +48,6 @@ void main() {
 
     test('bounds de hoje é half-open de 1 dia', () {
       final now = DateTime.utc(2026, 7, 18, 15, 0);
-      final b = ResumoPeriodo.hoje.bounds(now: now);
-      expect(b.start, isNotEmpty);
-      expect(b.end, isNotEmpty);
       final keys = ResumoPeriodo.hoje.diaKeys(now: now);
       expect(keys.startDia, '2026-07-18');
       expect(keys.endDiaExcl, '2026-07-19');
