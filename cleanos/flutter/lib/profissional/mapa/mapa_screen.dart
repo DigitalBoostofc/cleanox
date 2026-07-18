@@ -20,6 +20,7 @@ import '../../core/models/collections.dart';
 import '../data/prof_providers.dart';
 import '../location/tracking_controls.dart';
 import '../../core/models/ordem_servico.dart';
+import 'map_pin_widget.dart';
 
 /// Pin do mapa do dia (DTO da rota /prof/mapa-hoje).
 class MapaDiaPin {
@@ -277,12 +278,16 @@ class _MapaDiaBody extends StatelessWidget {
                           for (final p in comCoords)
                             Marker(
                               point: LatLng(p.lat!, p.lng!),
-                              width: 40,
-                              height: 40,
-                              child: _NumberPin(
+                              width: 44,
+                              height: 56,
+                              // Ponta do pin no ponto geográfico.
+                              alignment: Alignment.bottomCenter,
+                              child: MapNumberPin(
                                 n: p.seq,
+                                color: pinColorForSeq(p.seq),
                                 emAndamento:
                                     p.status == OSStatus.emAndamento.wire,
+                                bounce: true,
                               ),
                             ),
                         ],
@@ -350,55 +355,6 @@ Color pinColorForSeq(int n) {
   return palette[i];
 }
 
-/// Círculo com o número da sequência — mesmo visual no mapa e no card.
-class _NumberPin extends StatelessWidget {
-  const _NumberPin({
-    required this.n,
-    this.emAndamento = false,
-    this.size = 36,
-  });
-
-  final int n;
-  final bool emAndamento;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = pinColorForSeq(n);
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Container(
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: emAndamento ? const Color(0xFFFBBF24) : Colors.white,
-            width: emAndamento ? 3 : 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Text(
-          '$n',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: size >= 36 ? 15 : 13,
-            height: 1,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PinListTile extends StatelessWidget {
   const _PinListTile({required this.pin, required this.onOpen});
   final MapaDiaPin pin;
@@ -428,8 +384,14 @@ class _PinListTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Número no lugar do ícone quebrado — mesma cor do pin do mapa.
-              _NumberPin(n: pin.seq, emAndamento: emAndamento, size: 40),
+              // Mini pin (sem bounce) — mesma cor do mapa.
+              MapNumberPin(
+                n: pin.seq,
+                color: pinColor,
+                emAndamento: emAndamento,
+                size: 36,
+                bounce: false,
+              ),
               const SizedBox(width: ClxSpace.x3),
               Expanded(
                 child: Column(
