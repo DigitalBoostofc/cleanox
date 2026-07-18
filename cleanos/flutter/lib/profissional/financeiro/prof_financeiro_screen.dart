@@ -229,7 +229,7 @@ class _ComissaoHero extends StatelessWidget {
   }
 }
 
-/// Card unificado: A receber + Perspectiva + próximo pagamento.
+/// Card unificado: A receber (clicável → detalhe) + Perspectiva.
 class _CarteiraCicloCard extends StatelessWidget {
   const _CarteiraCicloCard({required this.me, required this.snap});
 
@@ -248,31 +248,65 @@ class _CarteiraCicloCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'A RECEBER',
-            style: tt.labelSmall?.copyWith(
-              color: clx.ink3,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+          // Só o resumo — toque abre o menu flutuante com detalhes por data.
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: ClxRadii.rMd,
+              onTap: snap.pendentes.isEmpty
+                  ? null
+                  : () => _openAReceberDetalhe(context, snap),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'A RECEBER',
+                            style: tt.labelSmall?.copyWith(
+                              color: clx.ink3,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            formatCurrency(snap.aReceber),
+                            style: tt.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: clx.primary,
+                            ),
+                          ),
+                          Text(
+                            snap.qtdPendentes == 0
+                                ? 'Nenhuma comissão pendente'
+                                : '${snap.qtdPendentes} serviço${snap.qtdPendentes == 1 ? '' : 's'} '
+                                    'concluído${snap.qtdPendentes == 1 ? '' : 's'} aguardando repasse'
+                                    ' · toque para ver',
+                            style: tt.bodySmall?.copyWith(color: clx.ink2),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (snap.pendentes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: clx.ink3,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            formatCurrency(snap.aReceber),
-            style: tt.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: clx.primary,
-            ),
-          ),
-          Text(
-            snap.qtdPendentes == 0
-                ? 'Nenhuma comissão pendente'
-                : '${snap.qtdPendentes} serviço${snap.qtdPendentes == 1 ? '' : 's'} '
-                    'concluído${snap.qtdPendentes == 1 ? '' : 's'} aguardando repasse',
-            style: tt.bodySmall?.copyWith(color: clx.ink2),
           ),
           const SizedBox(height: ClxSpace.x3),
-          // Perspectiva no mesmo card
+          // Perspectiva no mesmo card (só resumo)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(ClxSpace.x3),
@@ -330,20 +364,205 @@ class _CarteiraCicloCard extends StatelessWidget {
               ],
             ),
           ),
-          if (snap.pendentes.isNotEmpty) ...[
-            const SizedBox(height: ClxSpace.x3),
-            Text(
-              'Pendente de repasse',
-              style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: ClxSpace.x2),
-            for (final c in snap.pendentes.take(8))
-              _ComissaoLinha(c: c, corValor: clx.primary),
-          ],
         ],
       ),
     );
   }
+}
+
+/// Agrupa pendentes por data de execução (campo `data` da comissão = dia BRT da OS).
+List<({String dayKey, String label, List<ProfComissao> itens, double total})>
+    groupPendentesPorData(List<ProfComissao> pendentes) {
+  final byDay = <String, List<ProfComissao>>{};
+  for (final c in pendentes) {
+    final raw = (c.data ?? '').trim();
+    final key = raw.length >= 10 ? raw.substring(0, 10) : (raw.isEmpty ? '—' : raw);
+    byDay.putIfAbsent(key, () => []).add(c);
+  }
+  final keys = byDay.keys.toList()..sort((a, b) => b.compareTo(a)); // mais recente primeiro
+  return [
+    for (final k in keys)
+      (
+        dayKey: k,
+        label: _labelDataExecucao(k),
+        itens: byDay[k]!,
+        total: byDay[k]!
+                .fold<int>(0, (s, c) => s + (c.valorComissao * 100).round()) /
+            100.0,
+      ),
+  ];
+}
+
+String _labelDataExecucao(String ymd) {
+  if (ymd.length < 10 || ymd == '—') return 'Sem data';
+  // YYYY-MM-DD → dd/MM/yyyy
+  return '${ymd.substring(8, 10)}/${ymd.substring(5, 7)}/${ymd.substring(0, 4)}';
+}
+
+void _openAReceberDetalhe(BuildContext context, ProfPagamentoSnapshot snap) {
+  final clx = context.clx;
+  final groups = groupPendentesPorData(snap.pendentes);
+
+  showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black.withValues(alpha: 0.45),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (ctx, anim, _) {
+      final size = MediaQuery.sizeOf(ctx);
+      final maxW = size.width < 640 ? size.width - 32 : 420.0;
+      final maxH = size.height * 0.78;
+      return SafeArea(
+        child: Center(
+          child: Material(
+            color: clx.bg,
+            elevation: 12,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'A receber',
+                                style: Theme.of(ctx).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              Text(
+                                '${formatCurrency(snap.aReceber)} · '
+                                '${snap.qtdPendentes} serviço${snap.qtdPendentes == 1 ? '' : 's'}',
+                                style: Theme.of(ctx).textTheme.bodySmall
+                                    ?.copyWith(color: clx.ink2),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Fechar',
+                          onPressed: () => Navigator.of(ctx).maybePop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(height: 1, color: clx.line),
+                  Flexible(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                      shrinkWrap: true,
+                      itemCount: groups.length,
+                      itemBuilder: (_, i) {
+                        final g = groups[i];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: i == groups.length - 1 ? 0 : ClxSpace.x4,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.event_rounded,
+                                    size: 16,
+                                    color: clx.ink3,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      g.label,
+                                      style: Theme.of(ctx)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: clx.ink2,
+                                          ),
+                                    ),
+                                  ),
+                                  Text(
+                                    formatCurrency(g.total),
+                                    style: Theme.of(ctx)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: clx.primary,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              for (final c in g.itens)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          c.descricao.isNotEmpty
+                                              ? c.descricao
+                                              : 'Serviço',
+                                          style: Theme.of(ctx)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        formatCurrency(c.valorComissao),
+                                        style: Theme.of(ctx)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              color: clx.primary,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (ctx, anim, _, child) {
+      return FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.96, end: 1.0).animate(
+            CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 class _MeusPagamentosSection extends StatelessWidget {
@@ -538,35 +757,4 @@ class _PagamentoTile extends StatelessWidget {
   }
 }
 
-class _ComissaoLinha extends StatelessWidget {
-  const _ComissaoLinha({required this.c, required this.corValor});
-  final ProfComissao c;
-  final Color corValor;
 
-  @override
-  Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: ClxSpace.x2),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              c.descricao.isNotEmpty ? c.descricao : 'Serviço',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          Text(
-            formatCurrency(c.valorComissao),
-            style: tt.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: corValor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
