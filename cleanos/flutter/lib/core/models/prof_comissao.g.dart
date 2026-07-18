@@ -54,6 +54,7 @@ const _$ComissaoTipoEnumMap = {
   ComissaoTipo.nenhuma: 'nenhuma',
   ComissaoTipo.percentual: 'percentual',
   ComissaoTipo.fixo: 'fixo',
+  ComissaoTipo.diaria: 'diaria',
 };
 
 const _$ComissaoStatusEnumMap = {

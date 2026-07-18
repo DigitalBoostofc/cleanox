@@ -32,13 +32,21 @@ class User with _$User {
     /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
     String? whatsapp,
 
-    /// Comissão: `nenhuma` | `percentual` | `fixo` (migration 23).
+    /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     @Default(ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
 
-    /// % (0–100) ou valor fixo em R$, conforme [comissaoTipo].
+    /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
     @JsonKey(name: 'comissao_valor') @Default(0) double comissaoValor,
+
+    /// Como a empresa repassa: diário / semanal / quinzenal / mensal (migration 36).
+    /// Null/omitido = sem frequência configurada.
+    @JsonKey(
+      name: 'pagamento_frequencia',
+      unknownEnumValue: JsonKey.nullForUndefinedEnumValue,
+    )
+    PagamentoFrequencia? pagamentoFrequencia,
 
     /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
     @Default('') String avatar,
@@ -64,6 +72,9 @@ class User with _$User {
     if (tipo == null || tipo == '') j['comissao_tipo'] = 'nenhuma';
     final val = j['comissao_valor'];
     if (val == null || val == '') j['comissao_valor'] = 0;
+    // R2: select vazio vira "" no PB — freezed enum não aceita "".
+    final freq = j['pagamento_frequencia'];
+    if (freq == null || freq == '') j.remove('pagamento_frequencia');
     if (j['avatar'] == null) j['avatar'] = '';
     if (j['cor_agenda'] == null) j['cor_agenda'] = '';
     return User.fromJson(j);
@@ -111,8 +122,15 @@ class User with _$User {
           : comissaoValor.toStringAsFixed(1);
       return '$v% por OS';
     }
+    if (comissaoTipo == ComissaoTipo.diaria) {
+      return 'R\$ ${comissaoValor.toStringAsFixed(2)} / dia';
+    }
     return 'R\$ ${comissaoValor.toStringAsFixed(2)} por OS';
   }
+
+  /// Resumo curto do ciclo de pagamento (ex.: "Quinzenal").
+  String get pagamentoFrequenciaResumo =>
+      pagamentoFrequencia?.label ?? 'Sem ciclo';
 }
 
 /// Nome de exibição a partir de campos soltos (espelha `userDisplayName`).

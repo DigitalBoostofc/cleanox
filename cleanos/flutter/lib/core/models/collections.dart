@@ -41,22 +41,56 @@ enum ComissaoTipo {
   @JsonValue('percentual')
   percentual,
   @JsonValue('fixo')
-  fixo;
+  fixo,
+  /// R$ fixo por dia civil BRT com ≥1 OS concluída (ex.: Hendrio).
+  @JsonValue('diaria')
+  diaria;
 
   String get wire => switch (this) {
     ComissaoTipo.nenhuma => 'nenhuma',
     ComissaoTipo.percentual => 'percentual',
     ComissaoTipo.fixo => 'fixo',
+    ComissaoTipo.diaria => 'diaria',
   };
 
   String get label => switch (this) {
     ComissaoTipo.nenhuma => 'Sem comissão',
     ComissaoTipo.percentual => 'Percentual (%)',
-    ComissaoTipo.fixo => 'Valor fixo (R\$)',
+    ComissaoTipo.fixo => 'Valor fixo (R\$ por OS)',
+    ComissaoTipo.diaria => 'Diária (R\$ por dia trabalhado)',
   };
 
-  /// Comissão configurada (percentual ou fixo com valor > 0).
-  bool get isAtiva => this == ComissaoTipo.percentual || this == ComissaoTipo.fixo;
+  /// Comissão configurada (percentual, fixo ou diária com valor > 0).
+  bool get isAtiva =>
+      this == ComissaoTipo.percentual ||
+      this == ComissaoTipo.fixo ||
+      this == ComissaoTipo.diaria;
+}
+
+/// Frequência de repasse ao profissional (config em Financeiro → Equipe).
+enum PagamentoFrequencia {
+  @JsonValue('diario')
+  diario,
+  @JsonValue('semanal')
+  semanal,
+  @JsonValue('quinzenal')
+  quinzenal,
+  @JsonValue('mensal')
+  mensal;
+
+  String get wire => switch (this) {
+    PagamentoFrequencia.diario => 'diario',
+    PagamentoFrequencia.semanal => 'semanal',
+    PagamentoFrequencia.quinzenal => 'quinzenal',
+    PagamentoFrequencia.mensal => 'mensal',
+  };
+
+  String get label => switch (this) {
+    PagamentoFrequencia.diario => 'Diário',
+    PagamentoFrequencia.semanal => 'Semanal',
+    PagamentoFrequencia.quinzenal => 'Quinzenal',
+    PagamentoFrequencia.mensal => 'Mensal',
+  };
 }
 
 enum ComissaoStatus {

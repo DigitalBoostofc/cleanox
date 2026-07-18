@@ -110,6 +110,21 @@ DateRange getBrtCurrentMonthRange({DateTime? now}) {
   return getBrtMonthBounds(brt.year, brt.month);
 }
 
+/// Quinzena civil BRT: dias 1–15 ou 16–fim do mês (half-open).
+DateRange getBrtCurrentQuinzenaRange({DateTime? now}) {
+  final brt = _brtWallClock(now ?? DateTime.now());
+  final y = brt.year;
+  final m = brt.month;
+  if (brt.day <= 15) {
+    final start = DateTime.utc(y, m, 1).add(kBrtOffset);
+    final end = DateTime.utc(y, m, 16).add(kBrtOffset);
+    return DateRange(_fmtPb(start), _fmtPb(end));
+  }
+  final start = DateTime.utc(y, m, 16).add(kBrtOffset);
+  final end = DateTime.utc(y, m + 1, 1).add(kBrtOffset);
+  return DateRange(_fmtPb(start), _fmtPb(end));
+}
+
 /// Offset explícito no fim do datetime: `+03:00`, `-0300`, `+0300`… (A-07:
 /// `.contains('+')` não reconhecia offset NEGATIVO e concatenava um 'Z' num
 /// string que já tinha `-03:00`, quebrando o parse). Não casa a data em si

@@ -27,14 +27,14 @@ import '../../core/models/user.dart';
 ///
 /// Janelas (BRT half-open) — incluem **passado do período** (comissões já
 /// realizadas) e o que ainda está aberto, espelhando o mês civil:
-///  * [dia]    → só o dia de hoje
-///  * [semana] → semana ISO (segunda 00:00 → próxima segunda)
-///  * [dias15] → 15 dias em torno de hoje (7 para trás + hoje + 7 à frente)
-///  * [mes]    → mês civil corrente
+///  * [dia]      → só o dia de hoje
+///  * [semana]   → semana ISO (segunda 00:00 → próxima segunda)
+///  * [quinzena] → metade do mês (1–15 ou 16–fim), alinhada ao ciclo quinzenal
+///  * [mes]      → mês civil corrente
 enum EstimativaPeriodo {
   dia(1, 'Dia'),
   semana(7, 'Semana'),
-  dias15(15, '15 dias'),
+  quinzena(15, 'Quinzena'),
   mes(0, 'Mês'); // 0 = mês civil (não N dias)
 
   const EstimativaPeriodo(this.days, this.label);
@@ -47,10 +47,9 @@ enum EstimativaPeriodo {
         final b = getBrtDayBounds(now: now);
         return DateRange(b.todayStart, b.tomorrowStart);
       case EstimativaPeriodo.semana:
-        // Semana civil (seg→seg): OS concluídas no início da semana entram.
         return getBrtWeekBounds(now: now);
-      case EstimativaPeriodo.dias15:
-        return getBrtSpanDaysRange(15, now: now);
+      case EstimativaPeriodo.quinzena:
+        return getBrtCurrentQuinzenaRange(now: now);
       case EstimativaPeriodo.mes:
         return getBrtCurrentMonthRange(now: now);
     }
@@ -151,6 +150,9 @@ double baseValorOs(OrdemServico os) {
 double estimarComissaoOs(User me, OrdemServico os) {
   if (os.status == OSStatus.cancelada) return 0;
   if (!me.comissaoTipo.isAtiva || me.comissaoValor <= 0) return 0;
+
+  // Diária só vira linha no extrato ao concluir (≥1 OS/dia) — não estima por OS.
+  if (me.comissaoTipo == ComissaoTipo.diaria) return 0;
 
   if (me.comissaoTipo == ComissaoTipo.fixo) {
     return (me.comissaoValor * 100).roundToDouble() / 100;
