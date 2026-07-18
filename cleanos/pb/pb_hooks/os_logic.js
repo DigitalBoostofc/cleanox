@@ -336,6 +336,20 @@ function stampIniciadaEm(record) {
   record.set("iniciada_em", nowStr);
 }
 
+// Carimba `concluida_em` na TRANSIÇÃO para concluida (qualquer caminho).
+// Usado na lista do painel (aba Concluída: mais recente primeiro). Nunca
+// sobrescreve em saves seguintes (repasse, etc.).
+function stampConcluidaEm(record) {
+  if (String(record.get("status")) !== "concluida") return;
+  const orig = record.original ? record.original() : null;
+  if (orig && String(orig.get("status")) === "concluida") return;
+  // Create já concluída: carimba se ainda vazio.
+  const ja = String(record.get("concluida_em") || "").trim();
+  if (ja) return;
+  const nowStr = new Date().toISOString().replace("T", " ").slice(0, 23) + "Z";
+  record.set("concluida_em", nowStr);
+}
+
 // Corte do cron cleanStaleEndereco: uma OS em_andamento é "stale" quando o
 // serviço COMEÇOU num dia BRT anterior a `todayBRT`. Usa `iniciada_em`;
 // OS legadas (anteriores ao carimbo) caem no fallback `data_hora`.
@@ -479,6 +493,8 @@ function guardOrdemUpdateRequest(e) {
     // carimbo server-side de quando o serviço começou (stampIniciadaEm) —
     // referência do corte do cron cleanStaleEndereco; nunca via PATCH.
     "iniciada_em",
+    // carimbo de conclusão (stampConcluidaEm) — ordenação da aba Concluída.
+    "concluida_em",
     // NB: checklist_exec, adicionais e observacoes_prof ficam de FORA da denylist
     //     de propósito — são o TRABALHO do profissional na OS (campos editáveis).
   ];
@@ -620,6 +636,7 @@ module.exports = {
   setRepasseIfConcluida,
   assertServiceDayReached,
   stampIniciadaEm,
+  stampConcluidaEm,
   isStaleEmAndamento,
   assertHorarioNaoCongelado,
   guardOrdemUpdateRequest,
