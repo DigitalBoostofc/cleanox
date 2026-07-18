@@ -325,6 +325,7 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
               'data_hora': localInputToPBDate(
                 '${os.dataDate}T${os.horaH}:${os.horaM}',
               ),
+              'duracao_min': os.duracaoMin,
               'valor_servico': valor,
               'profissional': hasProf ? os.profissionalId : null,
               'status': hasProf
