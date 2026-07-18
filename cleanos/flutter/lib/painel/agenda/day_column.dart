@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/agenda/agenda_drag.dart';
 import '../../core/agenda/agenda_layout.dart';
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/design/design.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
@@ -613,30 +614,28 @@ class _BlocoOSState extends State<_BlocoOS> {
     final faixa = faixaHoraria(p.startMin, p.duracaoMin);
     final curto = p.duracaoMin < 45;
 
-    // Avatar do profissional no canto — resposta ao "de quem é este
-    // agendamento?" na visão de todos os profissionais. A cor do bloco segue
-    // sendo o STATUS; o avatar diz QUEM. Só quando há profissional atribuído.
+    // Cor = profissional. Avatar só em atribuída/em andamento; check = concluída.
+    final cor = corAgendaOs(os);
     final prof = os.expand?.profissional;
-    final temProf = prof != null && prof.displayName != '—';
+    final mostraAvatar =
+        agendaMostraAvatar(os) && prof != null && prof.displayName != '—';
+    final concluida = agendaMostraCheckConcluida(os);
+    final reservaCanto = mostraAvatar || concluida;
 
     final conteudo = Container(
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: clx.statusColor(os.status), width: 3),
-          top: p.truncTop
-              ? BorderSide(color: clx.statusColor(os.status))
-              : BorderSide.none,
-          bottom: p.truncBottom
-              ? BorderSide(color: clx.statusColor(os.status))
-              : BorderSide.none,
+          left: BorderSide(color: cor, width: 3),
+          top: p.truncTop ? BorderSide(color: cor) : BorderSide.none,
+          bottom: p.truncBottom ? BorderSide(color: cor) : BorderSide.none,
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Stack(
         children: [
           Padding(
-            // reserva o canto do avatar para o texto não passar por baixo dele
-            padding: EdgeInsets.only(right: temProf ? 24 : 0),
+            // reserva o canto do avatar/check para o texto não passar por baixo
+            padding: EdgeInsets.only(right: reservaCanto ? 24 : 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -663,7 +662,9 @@ class _BlocoOSState extends State<_BlocoOS> {
                       style: tt.labelSmall?.copyWith(color: clx.ink2),
                     ),
                   ),
-                  if (temProf)
+                  if (prof != null &&
+                      prof.displayName != '—' &&
+                      !concluida)
                     Text(
                       prof.displayName,
                       maxLines: 1,
@@ -677,24 +678,29 @@ class _BlocoOSState extends State<_BlocoOS> {
               ],
             ),
           ),
-          if (temProf)
-            // Canto INFERIOR direito (pedido do dono, 16/07): no superior o
-            // avatar brigava com a linha do horário.
+          if (mostraAvatar)
+            // Canto INFERIOR direito (pedido do dono, 16/07).
             Positioned(
               bottom: 0,
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: clx.statusColor(os.status),
-                    width: 1.5,
-                  ),
+                  border: Border.all(color: cor, width: 1.5),
                 ),
                 child: Tooltip(
                   message: prof.displayName,
                   child: UserAvatar(user: prof, radius: 10),
                 ),
+              ),
+            )
+          else if (concluida)
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Tooltip(
+                message: 'Concluída',
+                child: Icon(Icons.check_circle, size: 18, color: cor),
               ),
             ),
         ],
@@ -708,7 +714,7 @@ class _BlocoOSState extends State<_BlocoOS> {
         child: Opacity(
           opacity: widget.pendente ? 0.55 : 1,
           child: Material(
-            color: clx.statusBg(os.status),
+            color: corAgendaBg(cor),
             borderRadius: ClxRadii.rSm,
             clipBehavior: Clip.antiAlias,
             child: InkWell(onTap: () => widget.onTap(os), child: conteudo),
@@ -731,7 +737,7 @@ class _BlocoOSState extends State<_BlocoOS> {
         child: Padding(
           padding: const EdgeInsets.only(right: 2, bottom: 1),
           child: Material(
-            color: clx.statusBg(os.status),
+            color: corAgendaBg(cor),
             borderRadius: ClxRadii.rSm,
             clipBehavior: Clip.antiAlias,
             child: Stack(
@@ -765,7 +771,7 @@ class _BlocoOSState extends State<_BlocoOS> {
                             width: 22,
                             height: 3,
                             decoration: BoxDecoration(
-                              color: clx.statusColor(os.status),
+                              color: cor,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),

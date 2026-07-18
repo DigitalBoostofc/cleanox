@@ -29,6 +29,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/agenda/agenda_drag.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
@@ -165,11 +166,15 @@ const List<String> _dowLong = [
 /// Dia da semana 0=Dom … 6=Sáb de um [DateTime].
 int _dow(DateTime d) => d.weekday % 7;
 
-/// Início da semana (segunda-feira) de [d] — espelha `startOfWeek` do React.
+/// Início da semana (**domingo**) de [d].
+///
+/// Alinha com [kDowShort] (`Dom…Sáb`) e com o grid de [monthCalendar].
+/// Antes começava na segunda e os cabeçalhos Dom-first — sábados caíam em
+/// "Sex", sextas em "Qui", etc. (off-by-one de coluna).
 DateTime startOfWeek(DateTime d) {
   final r = DateTime(d.year, d.month, d.day);
-  final day = r.weekday % 7; // 0=Dom
-  return r.subtract(Duration(days: day == 0 ? 6 : day - 1));
+  final day = r.weekday % 7; // 0=Dom … 6=Sáb (Dart weekday % 7)
+  return r.subtract(Duration(days: day));
 }
 
 /// [d] + [n] dias (aritmética date-only, imune a fuso).
@@ -298,10 +303,16 @@ class AgendaState {
   /// Filtro opcional: só um profissional (null = todos).
   final String? filterProfId;
 
-  /// OS após aplicar o filtro de profissional (em memória, como no React).
-  List<OrdemServico> get filteredOs => filterProfId == null
-      ? osList
-      : osList.where((o) => o.profissional == filterProfId).toList();
+  /// OS após filtro de profissional + exclusão de canceladas (não entram na agenda).
+  List<OrdemServico> get filteredOs {
+    Iterable<OrdemServico> list = osList.where(
+      (o) => o.status != OSStatus.cancelada,
+    );
+    if (filterProfId != null) {
+      list = list.where((o) => o.profissional == filterProfId);
+    }
+    return list.toList();
+  }
 
   /// OS de um [dia] específico (relógio BRT).
   List<OrdemServico> eventsForDay(DateTime dia) => filteredOs.where((o) {

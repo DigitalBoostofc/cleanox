@@ -43,6 +43,9 @@ class User with _$User {
     /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
     @Default('') String avatar,
 
+    /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
+    @JsonKey(name: 'cor_agenda') @Default('') String corAgenda,
+
     @Default(false) bool verified,
     @JsonKey(name: 'emailVisibility') @Default(false) bool emailVisibility,
     String? created,
@@ -62,6 +65,7 @@ class User with _$User {
     final val = j['comissao_valor'];
     if (val == null || val == '') j['comissao_valor'] = 0;
     if (j['avatar'] == null) j['avatar'] = '';
+    if (j['cor_agenda'] == null) j['cor_agenda'] = '';
     return User.fromJson(j);
   }
 
