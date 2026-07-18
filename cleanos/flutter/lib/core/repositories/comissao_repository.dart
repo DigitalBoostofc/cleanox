@@ -30,4 +30,8 @@ abstract class ComissaoRepository {
 
   /// Alterna status `pendente` ↔ `paga` (paga→pendente estorna despesa via hook).
   Future<ProfComissao> setStatus(String id, ComissaoStatus status);
+
+  /// Marca várias comissões como pagas (fecha ciclo em lote).
+  /// Cada uma dispara o hook de despesa (via_comissao).
+  Future<void> marcarLotePagas(List<String> ids);
 }
