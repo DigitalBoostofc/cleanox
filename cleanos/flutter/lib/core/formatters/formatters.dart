@@ -88,6 +88,22 @@ DateRange getBrtForwardDaysRange(int days, {DateTime? now}) {
   return DateRange(_fmtPb(start), _fmtPb(end));
 }
 
+/// Janela de [days] dias BRT **com passado e futuro** em torno de hoje.
+///
+/// Ex.: days=15 → [hoje−7, hoje+8) = 15 dias half-open (7 para trás + hoje + 7
+/// à frente). Serve à carteira: comissões já realizadas no passado recente e
+/// estimativas das OS ainda abertas.
+DateRange getBrtSpanDaysRange(int days, {DateTime? now}) {
+  assert(days >= 1);
+  final brt = _brtWallClock(now ?? DateTime.now());
+  final midnight = DateTime.utc(brt.year, brt.month, brt.day);
+  final past = days ~/ 2;
+  final future = days - past; // inclui o "hoje" no lado futuro
+  final start = midnight.subtract(Duration(days: past)).add(kBrtOffset);
+  final end = midnight.add(Duration(days: future)).add(kBrtOffset);
+  return DateRange(_fmtPb(start), _fmtPb(end));
+}
+
 /// Mês civil corrente em BRT (1º 00:00 → 1º do mês seguinte).
 DateRange getBrtCurrentMonthRange({DateTime? now}) {
   final brt = _brtWallClock(now ?? DateTime.now());

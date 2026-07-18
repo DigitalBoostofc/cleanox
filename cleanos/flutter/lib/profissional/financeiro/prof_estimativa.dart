@@ -24,6 +24,13 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 
 /// Filtro de período da estimativa de ganho.
+///
+/// Janelas (BRT half-open) — incluem **passado do período** (comissões já
+/// realizadas) e o que ainda está aberto, espelhando o mês civil:
+///  * [dia]    → só o dia de hoje
+///  * [semana] → semana ISO (segunda 00:00 → próxima segunda)
+///  * [dias15] → 15 dias em torno de hoje (7 para trás + hoje + 7 à frente)
+///  * [mes]    → mês civil corrente
 enum EstimativaPeriodo {
   dia(1, 'Dia'),
   semana(7, 'Semana'),
@@ -35,10 +42,18 @@ enum EstimativaPeriodo {
   final String label;
 
   DateRange toRange({DateTime? now}) {
-    if (this == EstimativaPeriodo.mes) {
-      return getBrtCurrentMonthRange(now: now);
+    switch (this) {
+      case EstimativaPeriodo.dia:
+        final b = getBrtDayBounds(now: now);
+        return DateRange(b.todayStart, b.tomorrowStart);
+      case EstimativaPeriodo.semana:
+        // Semana civil (seg→seg): OS concluídas no início da semana entram.
+        return getBrtWeekBounds(now: now);
+      case EstimativaPeriodo.dias15:
+        return getBrtSpanDaysRange(15, now: now);
+      case EstimativaPeriodo.mes:
+        return getBrtCurrentMonthRange(now: now);
     }
-    return getBrtForwardDaysRange(days, now: now);
   }
 }
 
