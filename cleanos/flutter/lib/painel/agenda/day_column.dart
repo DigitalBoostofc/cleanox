@@ -32,6 +32,7 @@ import '../../core/agenda/agenda_drag.dart';
 import '../../core/agenda/agenda_layout.dart';
 import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/design/design.dart';
+import '../../core/formatters/formatters.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 
@@ -478,8 +479,27 @@ const List<String> kDowShortDrag = [
   'Sáb',
 ];
 
-/// O bloco de uma OS na grade: cor do status, faixa "08:00–10:00" e nome curto.
-/// Quando [arrastavel], ganha a camada de gestos (corpo = mover, borda = resize).
+/// Serviço / valor / bairro (ou endereço liberado) para o miolo do bloco.
+///
+/// Campos denormalizados da OS — o painel já os tem sem expand extra. Preferimos
+/// `endereco_liberado` quando existe (só `em_andamento`); senão o bairro.
+({String? servico, String? valor, String? local}) _detalhesAgendaOs(
+  OrdemServico os,
+) {
+  final servico = (os.tipoServicoNome ?? '').trim();
+  final valor = os.valorServico;
+  final end = (os.enderecoLiberado ?? '').trim();
+  final bairro = os.bairro.trim();
+  return (
+    servico: servico.isEmpty ? null : servico,
+    valor: (valor == null || valor <= 0) ? null : formatCurrency(valor),
+    local: end.isNotEmpty ? end : (bairro.isEmpty ? null : bairro),
+  );
+}
+
+/// O bloco de uma OS na grade: faixa, cliente e (quando cabe) serviço / valor /
+/// bairro. Quando [arrastavel], ganha a camada de gestos (corpo = mover, borda =
+/// resize).
 class _BlocoOS extends StatefulWidget {
   const _BlocoOS({
     required this.os,
@@ -621,6 +641,25 @@ class _BlocoOSState extends State<_BlocoOS> {
         agendaMostraAvatar(os) && prof != null && prof.displayName != '—';
     final concluida = agendaMostraCheckConcluida(os);
     final reservaCanto = mostraAvatar || concluida;
+    final detalhes = _detalhesAgendaOs(os);
+    final cliente =
+        os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao;
+    // Valor + bairro/endereço numa linha só quando os dois existem (economiza
+    // altura nos blocos de 1h).
+    final metaParts = <String>[
+      if (detalhes.valor != null) detalhes.valor!,
+      if (detalhes.local != null) detalhes.local!,
+    ];
+    final meta = metaParts.isEmpty ? null : metaParts.join(' · ');
+    final styleFaixa = tt.labelSmall?.copyWith(
+      color: clx.ink,
+      fontWeight: FontWeight.w700,
+    );
+    final styleCliente = tt.labelSmall?.copyWith(color: clx.ink2);
+    final styleSec = tt.labelSmall?.copyWith(
+      color: clx.ink3,
+      fontWeight: FontWeight.w600,
+    );
 
     final conteudo = Container(
       decoration: BoxDecoration(
@@ -633,49 +672,48 @@ class _BlocoOSState extends State<_BlocoOS> {
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Stack(
         children: [
-          Padding(
-            // reserva o canto do avatar/check para o texto não passar por baixo
-            padding: EdgeInsets.only(right: reservaCanto ? 24 : 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  curto
-                      ? '$faixa ${os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao}'
-                      : faixa,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.labelSmall?.copyWith(
-                    color: clx.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (!curto) ...[
-                  Flexible(
-                    child: Text(
-                      os.clienteNomeExibicao.isEmpty
-                          ? '—'
-                          : os.clienteNomeExibicao,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.labelSmall?.copyWith(color: clx.ink2),
-                    ),
-                  ),
-                  if (prof != null &&
-                      prof.displayName != '—' &&
-                      !concluida)
-                    Text(
-                      prof.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.labelSmall?.copyWith(
-                        color: clx.ink3,
-                        fontWeight: FontWeight.w600,
+          // Positioned.fill: o LayoutBuilder precisa da ALTURA REAL do bloco
+          // (senão o Stack encolhe no filho e só cabem 1–2 linhas).
+          Positioned.fill(
+            child: Padding(
+              // reserva o canto do avatar/check para o texto não passar por baixo
+              padding: EdgeInsets.only(right: reservaCanto ? 24 : 0),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // ~13px por linha de labelSmall; piso 1 (só a faixa).
+                  final linhasCabem =
+                      (constraints.maxHeight / 13).floor().clamp(1, 6);
+                  // Ordem após a faixa: cliente → serviço → valor/bairro.
+                  // Nome do profissional NÃO entra no texto — a foto no canto
+                  // já identifica quem está atribuído (pedido do dono).
+                  final extras = <({String text, TextStyle? style})>[
+                    if (!curto) (text: cliente, style: styleCliente),
+                    if (!curto && detalhes.servico != null)
+                      (text: detalhes.servico!, style: styleSec),
+                    if (!curto && meta != null) (text: meta, style: styleSec),
+                  ];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        curto ? '$faixa $cliente' : faixa,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: styleFaixa,
                       ),
-                    ),
-                ],
-              ],
+                      for (final e
+                          in extras.take((linhasCabem - 1).clamp(0, 5)))
+                        Text(
+                          e.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: e.style,
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
           if (mostraAvatar)

@@ -174,6 +174,13 @@ class _OSFormState extends ConsumerState<OSForm> {
 
   bool get _isEdit => widget.editing != null;
 
+  /// OS concluída/cancelada: servidor congela `data_hora` e `duracao_min`.
+  /// O form deixa de enviar/editar esses campos (evita 400 no save).
+  bool get _horarioCongelado {
+    final s = widget.editing?.status;
+    return s == OSStatus.concluida || s == OSStatus.cancelada;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -489,19 +496,23 @@ class _OSFormState extends ConsumerState<OSForm> {
     });
 
     final valor = double.parse(_valor.text.trim().replaceAll(',', '.'));
-    final hora = hhmmDeMinutos(snap15(_horaMin!));
     final payload = <String, dynamic>{
       'cliente': _clienteId,
       'servico': _servicoId.isEmpty ? null : _servicoId,
       'tipo_servico_nome': _tipoServico.text.trim(),
-      'data_hora': localInputToPBDate('${_dataDate}T$hora'),
-      // Duração PRÓPRIA da OS: grava o que está VISÍVEL no campo (prefilado com a
-      // do profissional). Nada de herança invisível no servidor (D9).
-      'duracao_min': _duracaoEfetiva,
       'valor_servico': valor,
       'profissional': hasProf ? _profissionalId : null,
       'observacoes': _observacoes.text.trim(),
     };
+    // Concluída/cancelada: NÃO manda data/duração (congeladas no servidor).
+    // Qualquer reformatação de ISO viraria "mudança" e o hook devolveria 400.
+    if (!_horarioCongelado) {
+      final hora = hhmmDeMinutos(snap15(_horaMin!));
+      payload['data_hora'] = localInputToPBDate('${_dataDate}T$hora');
+      // Duração PRÓPRIA da OS: grava o que está VISÍVEL no campo (prefilado com a
+      // do profissional). Nada de herança invisível no servidor (D9).
+      payload['duracao_min'] = _duracaoEfetiva;
+    }
 
     // Status: DERIVADO do profissional que está sendo submetido, nunca deduzido
     // de uma transição a partir do registro em mãos — que pode estar velho.
@@ -677,6 +688,26 @@ class _OSFormState extends ConsumerState<OSForm> {
         children: [
           if (_saveError != null) ...[
             ErrorBanner(message: _saveError!),
+            const SizedBox(height: ClxSpace.x4),
+          ],
+          if (_horarioCongelado) ...[
+            Container(
+              padding: const EdgeInsets.all(ClxSpace.x3),
+              decoration: BoxDecoration(
+                color: clx.warning.withValues(alpha: 0.12),
+                borderRadius: ClxRadii.rMd,
+                border: Border.all(color: clx.warning.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                'OS ${widget.editing!.status.label.toLowerCase()}: data, hora e '
+                'duração estão congeladas (histórico financeiro). Você ainda '
+                'pode corrigir serviço, valor, profissional e observações. '
+                'Para itens da execução (adicionais/checklist), use Execução.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: clx.ink2,
+                ),
+              ),
+            ),
             const SizedBox(height: ClxSpace.x4),
           ],
 
@@ -910,23 +941,29 @@ class _OSFormState extends ConsumerState<OSForm> {
   Widget _dateField(CleanoxColors clx) {
     final err = _errs['data'];
     final display = _dataDate.isEmpty ? 'Selecionar…' : _brDate(_dataDate);
+    final locked = _saving || _horarioCongelado;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('Data', required: true),
         InkWell(
-          onTap: _saving ? null : _pickDate,
+          onTap: locked ? null : _pickDate,
           borderRadius: ClxRadii.rMd,
           child: InputDecorator(
             decoration: InputDecoration(
               isDense: true,
               errorText: err,
-              suffixIcon: const Icon(Icons.calendar_month_outlined, size: 18),
+              suffixIcon: Icon(
+                _horarioCongelado
+                    ? Icons.lock_outline
+                    : Icons.calendar_month_outlined,
+                size: 18,
+              ),
             ),
             child: Text(
               display,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: _dataDate.isEmpty ? clx.ink3 : clx.ink,
+                color: _dataDate.isEmpty || locked ? clx.ink3 : clx.ink,
               ),
             ),
           ),
@@ -947,7 +984,7 @@ class _OSFormState extends ConsumerState<OSForm> {
           key: const ValueKey('os-hora-input'),
           controller: _hora,
           focusNode: _horaFocus,
-          enabled: !_saving,
+          enabled: !_saving && !_horarioCongelado,
           keyboardType: TextInputType.datetime,
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
@@ -986,7 +1023,7 @@ class _OSFormState extends ConsumerState<OSForm> {
             for (final min in opcoes)
               DropdownMenuItem(value: min, child: Text(labelDuracao(min))),
           ],
-          onChanged: _saving
+          onChanged: (_saving || _horarioCongelado)
               ? null
               : (v) {
                   if (v == null) return;
@@ -996,7 +1033,17 @@ class _OSFormState extends ConsumerState<OSForm> {
                   });
                 },
         ),
-        if (prefilado)
+        if (_horarioCongelado)
+          Padding(
+            padding: const EdgeInsets.only(top: ClxSpace.x1),
+            child: Text(
+              'Congelada (OS finalizada).',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+            ),
+          )
+        else if (prefilado)
           Padding(
             padding: const EdgeInsets.only(top: ClxSpace.x1),
             child: Text(

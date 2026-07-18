@@ -24,11 +24,17 @@ OrdemServico _os({
   int? duracaoMin,
   String nomeCurto = 'Cliente',
   OSStatus status = OSStatus.agendada,
+  String? tipoServicoNome,
+  double? valorServico,
+  String bairro = '',
 }) => OrdemServico(
   id: id,
   nomeCurto: nomeCurto,
   status: status,
   duracaoMin: duracaoMin,
+  tipoServicoNome: tipoServicoNome,
+  valorServico: valorServico,
+  bairro: bairro,
   dataHora: localInputToPBDate(
     '${_dia.year.toString().padLeft(4, '0')}-'
     '${_dia.month.toString().padLeft(2, '0')}-'
@@ -156,6 +162,54 @@ void main() {
     expect(find.text('05:30–06:30'), findsOneWidget);
     // A régua ganhou a linha das 5h.
     expect(find.text('5h'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'bloco alto mostra serviço, valor e bairro além de horário/cliente',
+    (tester) async {
+      // 2h ≈ 112px → cabem faixa + cliente + serviço + valor·bairro.
+      await _pump(tester, [
+        _os(
+          id: 'cheia',
+          hhmm: '08:00',
+          duracaoMin: 120,
+          nomeCurto: 'Andreia Araujo',
+          tipoServicoNome: 'Higienização de sofá',
+          valorServico: 280,
+          bairro: 'Centro',
+        ),
+      ]);
+
+      expect(find.text('08:00–10:00'), findsOneWidget);
+      expect(find.text('Andreia Araujo'), findsOneWidget);
+      expect(find.text('Higienização de sofá'), findsOneWidget);
+      // Valor + bairro na mesma linha (meta).
+      expect(find.textContaining('Centro'), findsOneWidget);
+      expect(find.textContaining('R\$'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('bloco curto (<45min) não empilha serviço/valor/bairro', (
+    tester,
+  ) async {
+    await _pump(tester, [
+      _os(
+        id: 'curta',
+        hhmm: '08:00',
+        duracaoMin: 30,
+        nomeCurto: 'Ana',
+        tipoServicoNome: 'Higienização de sofá',
+        valorServico: 150,
+        bairro: 'Centro',
+      ),
+    ]);
+
+    // Compacto: faixa + cliente na mesma linha; sem linhas extras.
+    expect(find.text('08:00–08:30 Ana'), findsOneWidget);
+    expect(find.text('Higienização de sofá'), findsNothing);
+    expect(find.textContaining('Centro'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
