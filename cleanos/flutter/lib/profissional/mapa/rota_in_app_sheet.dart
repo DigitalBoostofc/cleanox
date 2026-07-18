@@ -19,6 +19,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/models/ordem_servico.dart';
+import 'map_pin_widget.dart';
 
 /// Abre a tela de rota in-app (fullscreen dialog).
 Future<void> openRotaInApp(BuildContext context, OrdemServico os) {
@@ -380,19 +381,13 @@ class _RotaInAppPageState extends ConsumerState<RotaInAppPage> {
               ),
             Marker(
               point: destPt,
-              width: 44,
-              height: 44,
-              child: Icon(
-                Icons.location_on_rounded,
-                size: 44,
+              width: 48,
+              height: 60,
+              alignment: Alignment.bottomCenter,
+              child: MapDestPin(
                 color: clx.primary,
-                shadows: [
-                  Shadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
+                size: 48,
+                bounce: true,
               ),
             ),
           ],
