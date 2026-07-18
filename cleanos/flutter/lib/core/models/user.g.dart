@@ -32,6 +32,8 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
     json['pagamento_frequencia'],
     unknownValue: JsonKey.nullForUndefinedEnumValue,
   ),
+  pagamentoDia: (json['pagamento_dia'] as num?)?.toInt() ?? 0,
+  pagamentoDia2: (json['pagamento_dia_2'] as num?)?.toInt() ?? 0,
   avatar: json['avatar'] as String? ?? '',
   corAgenda: json['cor_agenda'] as String? ?? '',
   verified: json['verified'] as bool? ?? false,
@@ -52,6 +54,8 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'comissao_valor': instance.comissaoValor,
       'pagamento_frequencia':
           _$PagamentoFrequenciaEnumMap[instance.pagamentoFrequencia],
+      'pagamento_dia': instance.pagamentoDia,
+      'pagamento_dia_2': instance.pagamentoDia2,
       'avatar': instance.avatar,
       'cor_agenda': instance.corAgenda,
       'verified': instance.verified,

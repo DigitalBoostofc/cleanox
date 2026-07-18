@@ -48,6 +48,13 @@ class User with _$User {
     )
     PagamentoFrequencia? pagamentoFrequencia,
 
+    /// Dia âncora do repasse (migration 37). 0 = default do tipo.
+    /// Semanal: 1–7 (seg…dom). Quinzenal/mensal: 1–31.
+    @JsonKey(name: 'pagamento_dia') @Default(0) int pagamentoDia,
+
+    /// 2º dia quinzenal (migration 37). 0 = último dia do mês.
+    @JsonKey(name: 'pagamento_dia_2') @Default(0) int pagamentoDia2,
+
     /// Nome do arquivo no storage PB (migration 24). `""` = sem foto.
     @Default('') String avatar,
 
@@ -75,6 +82,10 @@ class User with _$User {
     // R2: select vazio vira "" no PB — freezed enum não aceita "".
     final freq = j['pagamento_frequencia'];
     if (freq == null || freq == '') j.remove('pagamento_frequencia');
+    final pd = j['pagamento_dia'];
+    if (pd == null || pd == '') j['pagamento_dia'] = 0;
+    final pd2 = j['pagamento_dia_2'];
+    if (pd2 == null || pd2 == '') j['pagamento_dia_2'] = 0;
     if (j['avatar'] == null) j['avatar'] = '';
     if (j['cor_agenda'] == null) j['cor_agenda'] = '';
     return User.fromJson(j);

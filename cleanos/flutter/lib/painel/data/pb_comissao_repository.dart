@@ -30,6 +30,8 @@ class PbComissaoRepository implements ComissaoRepository {
     required ComissaoTipo tipo,
     required double valor,
     PagamentoFrequencia? pagamentoFrequencia,
+    int pagamentoDia = 0,
+    int pagamentoDia2 = 0,
   }) async {
     final body = <String, dynamic>{
       'comissao_tipo': tipo.wire,
@@ -38,6 +40,8 @@ class PbComissaoRepository implements ComissaoRepository {
       'pagamento_frequencia': tipo == ComissaoTipo.nenhuma
           ? ''
           : (pagamentoFrequencia?.wire ?? ''),
+      'pagamento_dia': tipo == ComissaoTipo.nenhuma ? 0 : pagamentoDia,
+      'pagamento_dia_2': tipo == ComissaoTipo.nenhuma ? 0 : pagamentoDia2,
     };
     final rec = await _pb
         .collection(Collections.users)

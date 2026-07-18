@@ -1249,6 +1249,8 @@ class _ProfComissaoCard extends ConsumerStatefulWidget {
 class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
   late ComissaoTipo _tipo;
   late PagamentoFrequencia? _freq;
+  late int _dia;
+  late int _dia2;
   late TextEditingController _valor;
   bool _saving = false;
 
@@ -1257,6 +1259,8 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
     super.initState();
     _tipo = widget.user.comissaoTipo;
     _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
+    _dia = widget.user.pagamentoDia;
+    _dia2 = widget.user.pagamentoDia2;
     _valor = TextEditingController(
       text: widget.user.comissaoValor > 0
           ? (widget.user.comissaoValor ==
@@ -1274,9 +1278,13 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
         oldWidget.user.comissaoTipo != widget.user.comissaoTipo ||
         oldWidget.user.comissaoValor != widget.user.comissaoValor ||
         oldWidget.user.pagamentoFrequencia !=
-            widget.user.pagamentoFrequencia) {
+            widget.user.pagamentoFrequencia ||
+        oldWidget.user.pagamentoDia != widget.user.pagamentoDia ||
+        oldWidget.user.pagamentoDia2 != widget.user.pagamentoDia2) {
       _tipo = widget.user.comissaoTipo;
       _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
+      _dia = widget.user.pagamentoDia;
+      _dia2 = widget.user.pagamentoDia2;
       _valor.text = widget.user.comissaoValor > 0
           ? widget.user.comissaoValor.toStringAsFixed(
               widget.user.comissaoValor ==
@@ -1344,6 +1352,8 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             valor: _tipo == ComissaoTipo.nenhuma ? 0 : v,
             pagamentoFrequencia:
                 _tipo == ComissaoTipo.nenhuma ? null : _freq,
+            pagamentoDia: _tipo == ComissaoTipo.nenhuma ? 0 : _dia,
+            pagamentoDia2: _tipo == ComissaoTipo.nenhuma ? 0 : _dia2,
           );
       widget.onSaved();
     } catch (_) {
@@ -1463,8 +1473,6 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
                 labelText: 'Forma de pagamento (repasse)',
                 border: OutlineInputBorder(),
                 isDense: true,
-                helperText:
-                    'Diário · Semanal (sexta) · Quinzenal (1 e 16) · Mensal',
               ),
               items: [
                 for (final f in PagamentoFrequencia.values)
@@ -1473,9 +1481,119 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
               onChanged: _saving
                   ? null
                   : (f) {
-                      if (f != null) setState(() => _freq = f);
+                      if (f != null) {
+                        setState(() {
+                          _freq = f;
+                          // Defaults sensatos ao trocar o ciclo.
+                          if (f == PagamentoFrequencia.semanal &&
+                              (_dia < 1 || _dia > 7)) {
+                            _dia = 5; // sexta
+                          }
+                          if (f == PagamentoFrequencia.mensal &&
+                              (_dia < 1 || _dia > 31)) {
+                            _dia = 1;
+                          }
+                          if (f == PagamentoFrequencia.quinzenal) {
+                            if (_dia < 1 || _dia > 31) _dia = 15;
+                            // 0 = último dia do mês
+                          }
+                        });
+                      }
                     },
             ),
+            if (_freq == PagamentoFrequencia.semanal) ...[
+              const SizedBox(height: ClxSpace.x3),
+              DropdownButtonFormField<int>(
+                // ignore: deprecated_member_use
+                value: (_dia >= 1 && _dia <= 7) ? _dia : 5,
+                decoration: const InputDecoration(
+                  labelText: 'Dia do pagamento (semana)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('Segunda')),
+                  DropdownMenuItem(value: 2, child: Text('Terça')),
+                  DropdownMenuItem(value: 3, child: Text('Quarta')),
+                  DropdownMenuItem(value: 4, child: Text('Quinta')),
+                  DropdownMenuItem(value: 5, child: Text('Sexta')),
+                  DropdownMenuItem(value: 6, child: Text('Sábado')),
+                  DropdownMenuItem(value: 7, child: Text('Domingo')),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) {
+                        if (v != null) setState(() => _dia = v);
+                      },
+              ),
+            ],
+            if (_freq == PagamentoFrequencia.mensal) ...[
+              const SizedBox(height: ClxSpace.x3),
+              DropdownButtonFormField<int>(
+                // ignore: deprecated_member_use
+                value: (_dia >= 1 && _dia <= 31) ? _dia : 1,
+                decoration: const InputDecoration(
+                  labelText: 'Dia do pagamento (mês)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  helperText: 'Se o mês não tiver o dia, usa o último dia',
+                ),
+                items: [
+                  for (var d = 1; d <= 31; d++)
+                    DropdownMenuItem(value: d, child: Text('Dia $d')),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) {
+                        if (v != null) setState(() => _dia = v);
+                      },
+              ),
+            ],
+            if (_freq == PagamentoFrequencia.quinzenal) ...[
+              const SizedBox(height: ClxSpace.x3),
+              DropdownButtonFormField<int>(
+                // ignore: deprecated_member_use
+                value: (_dia >= 1 && _dia <= 31) ? _dia : 15,
+                decoration: const InputDecoration(
+                  labelText: '1º corte da quinzena',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  for (var d = 1; d <= 28; d++)
+                    DropdownMenuItem(value: d, child: Text('Dia $d')),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) {
+                        if (v != null) setState(() => _dia = v);
+                      },
+              ),
+              const SizedBox(height: ClxSpace.x3),
+              DropdownButtonFormField<int>(
+                // ignore: deprecated_member_use
+                value: _dia2,
+                decoration: const InputDecoration(
+                  labelText: '2º corte da quinzena',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  helperText: 'Último dia = 30/31 conforme o mês',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: 0,
+                    child: Text('Último dia do mês'),
+                  ),
+                  for (var d = 16; d <= 31; d++)
+                    DropdownMenuItem(value: d, child: Text('Dia $d')),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) {
+                        if (v != null) setState(() => _dia2 = v);
+                      },
+              ),
+            ],
           ],
           const SizedBox(height: ClxSpace.x3),
           Align(
