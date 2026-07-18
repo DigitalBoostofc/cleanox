@@ -3,7 +3,7 @@
 /// Lista as OS de HOJE (atribuída + em andamento) com endereço, na ordem de
 /// `data_hora`, e fixa um pin numerado no mapa (OSM via flutter_map). Coords
 /// vêm da rota server-side `GET /api/cleanos/prof/mapa-hoje` (geocode se
-/// faltar). "Abrir rota do dia" monta o Google Maps multi-parada.
+/// faltar). Toque no card da sequência abre o endereço no Google Maps.
 library;
 
 import 'package:flutter/material.dart';
@@ -189,7 +189,6 @@ class MapaScreen extends ConsumerWidget {
               'https://www.google.com/maps/search/?api=1&query='
               '${Uri.encodeComponent(p.endereco)}',
             ),
-            onOpenRotaDia: () => _abrirUrl(context, mapsDirUrl(data.pins)),
           );
         },
       ),
@@ -201,12 +200,10 @@ class _MapaDiaBody extends StatelessWidget {
   const _MapaDiaBody({
     required this.data,
     required this.onOpenPin,
-    required this.onOpenRotaDia,
   });
 
   final MapaDiaResult data;
   final ValueChanged<MapaDiaPin> onOpenPin;
-  final VoidCallback onOpenRotaDia;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +244,8 @@ class _MapaDiaBody extends StatelessWidget {
                     padding: const EdgeInsets.all(ClxSpace.x4),
                     child: Text(
                       'Não foi possível posicionar os pins no mapa '
-                      '(geocode indisponível). Use a lista e “Abrir rota do dia”.',
+                      '(geocode indisponível). Toque um endereço na lista '
+                      'para abrir no Google Maps.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: clx.ink3,
@@ -293,14 +291,6 @@ class _MapaDiaBody extends StatelessWidget {
                   ),
           ),
         ),
-        const SizedBox(height: ClxSpace.x3),
-        ClxButton(
-          label: 'Abrir rota do dia no Google Maps',
-          variant: ClxButtonVariant.secondary,
-          icon: Icons.route_outlined,
-          expand: true,
-          onPressed: onOpenRotaDia,
-        ),
         const SizedBox(height: ClxSpace.x4),
         Text(
           'Sequência',
@@ -332,7 +322,7 @@ class _MapaDiaBody extends StatelessWidget {
         const SizedBox(height: ClxSpace.x3),
         Text(
           'Os números seguem o horário agendado. '
-          '“Abrir rota do dia” monta o trajeto 1 → 2 → … no Google Maps.',
+          'Toque um card da sequência para abrir o endereço no Google Maps.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: clx.ink3,
