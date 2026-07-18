@@ -1,106 +1,118 @@
-/// resumo_metrics.dart — Indicadores do painel "Resumo" do profissional.
+/// resumo_metrics.dart — Indicadores do dashboard "Resumo" do profissional.
 ///
-/// Função PURA (como `buildEstimativa`): recebe as OS do profissional e as
-/// comissões congeladas e devolve os cinco números que a tela mostra. Sem
-/// dependência de rede/Riverpod — dá pra testar o cálculo isolado.
+/// Função PURA: recebe as OS do período e o km planejado (soma dos dias) e
+/// devolve contagens + deslocamento. Sem rede/Riverpod.
 ///
-/// Definições (decididas com o dono, 16/07):
-///  * **Agendados** — OS ainda em aberto (agendada / atribuída / em andamento).
-///    Cancelada não conta; concluída vira "realizado".
-///  * **Realizados** — OS concluídas.
-///  * **A receber** — comissões geradas ainda `pendente`.
-///  * **Recebidos** — comissões já marcadas `paga` pelo admin.
-///  * **Avaliação média** — média das notas de OS avaliadas (`avaliacao_nota >= 1`).
+/// Definições:
+///  * **Agendados** — OS em aberto no período (agendada / atribuída / em andamento).
+///  * **Canceladas** — OS canceladas com data no período.
+///  * **Realizados** — OS concluídas no período.
+///  * **Km** — soma do deslocamento planejado dos dias do período.
 library;
 
+import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
-import '../../core/models/prof_comissao.dart';
 
-/// Snapshot dos indicadores do profissional.
+/// Filtro de período do dashboard Resumo.
+enum ResumoPeriodo { hoje, semana, mes }
+
+extension ResumoPeriodoX on ResumoPeriodo {
+  String get label => switch (this) {
+    ResumoPeriodo.hoje => 'Hoje',
+    ResumoPeriodo.semana => 'Semana',
+    ResumoPeriodo.mes => 'Mês',
+  };
+
+  /// Janela half-open [start, end) em string UTC do PB (BRT).
+  DateRange bounds({DateTime? now}) {
+    final n = now ?? DateTime.now();
+    switch (this) {
+      case ResumoPeriodo.hoje:
+        final b = getBrtDayBounds(now: n);
+        return DateRange(b.todayStart, b.tomorrowStart);
+      case ResumoPeriodo.semana:
+        return getBrtWeekBounds(now: n);
+      case ResumoPeriodo.mes:
+        return getBrtCurrentMonthRange(now: n);
+    }
+  }
+
+  /// Chaves `YYYY-MM-DD` (BRT) half-open [start, end) para filtrar
+  /// `prof_deslocamento_dia.dia`.
+  ({String startDia, String endDiaExcl}) diaKeys({DateTime? now}) {
+    final r = bounds(now: now);
+    return (
+      startDia: _pbUtcToBrtDia(r.start),
+      endDiaExcl: _pbUtcToBrtDia(r.end),
+    );
+  }
+}
+
+String _pbUtcToBrtDia(String pbUtc) {
+  final d = parsePbUtc(pbUtc);
+  if (d == null) return '';
+  final brt = d.subtract(kBrtOffset);
+  String p(int n) => n.toString().padLeft(2, '0');
+  return '${brt.year.toString().padLeft(4, '0')}-${p(brt.month)}-${p(brt.day)}';
+}
+
+/// Snapshot dos indicadores do dashboard.
 class ProfResumo {
   const ProfResumo({
     required this.agendados,
+    required this.canceladas,
     required this.realizados,
-    required this.aReceber,
-    required this.recebidos,
-    required this.avaliacaoMedia,
-    required this.totalAvaliacoes,
+    required this.kmDeslocamento,
+    this.periodo = ResumoPeriodo.hoje,
   });
 
-  const ProfResumo.vazio()
+  const ProfResumo.vazio({this.periodo = ResumoPeriodo.hoje})
     : agendados = 0,
+      canceladas = 0,
       realizados = 0,
-      aReceber = 0,
-      recebidos = 0,
-      avaliacaoMedia = null,
-      totalAvaliacoes = 0;
+      kmDeslocamento = 0;
 
-  /// OS em aberto (agendada / atribuída / em andamento).
   final int agendados;
-
-  /// OS concluídas.
+  final int canceladas;
   final int realizados;
 
-  /// Soma das comissões ainda `pendente`.
-  final double aReceber;
+  /// Km planejado somado no período (0 se sem partida/dias).
+  final double kmDeslocamento;
 
-  /// Soma das comissões já `paga`.
-  final double recebidos;
-
-  /// Média das notas (1–5); `null` quando nenhuma OS foi avaliada ainda.
-  final double? avaliacaoMedia;
-
-  /// Quantas OS entraram na média.
-  final int totalAvaliacoes;
+  final ResumoPeriodo periodo;
 }
 
-/// Monta os indicadores a partir das OS do profissional e das comissões.
+/// Monta os indicadores a partir das OS do período e do km total.
 ProfResumo buildResumo({
   required List<OrdemServico> ordens,
-  required List<ProfComissao> comissoes,
+  double kmDeslocamento = 0,
+  ResumoPeriodo periodo = ResumoPeriodo.hoje,
 }) {
   var agendados = 0;
+  var canceladas = 0;
   var realizados = 0;
-  var somaNotas = 0.0;
-  var nAvaliadas = 0;
 
   for (final os in ordens) {
     switch (os.status) {
       case OSStatus.concluida:
         realizados++;
       case OSStatus.cancelada:
-        break; // cancelada não entra em nenhuma contagem
+        canceladas++;
       case OSStatus.agendada:
       case OSStatus.atribuida:
       case OSStatus.emAndamento:
         agendados++;
     }
-    final nota = os.avaliacaoNota;
-    if (nota != null && nota >= 1) {
-      somaNotas += nota;
-      nAvaliadas++;
-    }
   }
 
-  var aReceber = 0.0;
-  var recebidos = 0.0;
-  for (final c in comissoes) {
-    if (c.status == ComissaoStatus.paga) {
-      recebidos += c.valorComissao;
-    } else {
-      aReceber += c.valorComissao;
-    }
-  }
-
-  double r(double v) => (v * 100).roundToDouble() / 100;
+  final km = (kmDeslocamento * 10).roundToDouble() / 10;
 
   return ProfResumo(
     agendados: agendados,
+    canceladas: canceladas,
     realizados: realizados,
-    aReceber: r(aReceber),
-    recebidos: r(recebidos),
-    avaliacaoMedia: nAvaliadas == 0 ? null : somaNotas / nAvaliadas,
-    totalAvaliacoes: nAvaliadas,
+    kmDeslocamento: km,
+    periodo: periodo,
   );
 }

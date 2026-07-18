@@ -1,8 +1,7 @@
 /// perfil_screen.dart — Aba "Perfil" (Slice B3).
 ///
-/// Espelha `Perfil.tsx`: card do usuário (média de avaliação), resumo do dia
-/// (agendados/concluídos), alterar senha, liberar localização (placeholder B4) e
-/// sair. As estatísticas são secundárias — falham em silêncio sem travar a tela.
+/// Card do usuário, avaliação (média + quantidade), alterar senha, liberar
+/// localização e sair. Atendimentos/km ficam no Dashboard (aba Resumo).
 library;
 
 import 'package:flutter/material.dart';
@@ -12,7 +11,6 @@ import 'package:pocketbase/pocketbase.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/env/env.dart';
-import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/repositories/usuarios_repository.dart';
 import '../../painel/data/painel_providers.dart';
@@ -20,61 +18,34 @@ import '../data/prof_filters.dart';
 import '../data/prof_providers.dart';
 import '../location/tracking_providers.dart';
 
-/// Estatísticas do perfil (resumo do dia + média de avaliação).
-class PerfilStats {
-  const PerfilStats({
-    required this.totalHoje,
-    required this.concluidasHoje,
-    this.media,
-    this.totalAvaliadas = 0,
-  });
+/// Avaliação do profissional (média + quantidade de notas).
+class PerfilAvaliacao {
+  const PerfilAvaliacao({this.media, this.totalAvaliadas = 0});
 
-  final int totalHoje;
-  final int concluidasHoje;
   final double? media;
   final int totalAvaliadas;
 }
 
-final perfilStatsProvider = FutureProvider.autoDispose<PerfilStats>((
+final perfilAvaliacaoProvider = FutureProvider.autoDispose<PerfilAvaliacao>((
   ref,
 ) async {
   final id = ref.watch(currentProfIdProvider);
-  if (id == null) return const PerfilStats(totalHoje: 0, concluidasHoje: 0);
+  if (id == null) return const PerfilAvaliacao();
   final repo = ref.watch(ordensRepositoryProvider);
-  final bounds = getBrtDayBounds();
-
-  // A-04: filtros via prof_filters (escaping pbStringLiteral, sem interpolação).
-  final hoje = await repo.list(
-    perPage: 100,
-    filter: profOrdensHojeFilter(id, bounds),
-  );
-  // ⚠️ A-08: teto de 200 — acima disso a média passa a considerar só as 200 OS
-  // avaliadas MAIS RECENTES (sort explícito abaixo, para o corte ser
-  // determinístico e enviesado pro presente, não arbitrário). Paginar tudo ou
-  // agregar server-side é over-engineering pro volume real (< ~50 OS/dia →
-  // anos até um profissional passar de 200 avaliadas); se estourar, agregação
-  // server-side é o caminho.
+  // ⚠️ A-08: teto de 200 — acima disso a média considera só as 200 OS
+  // avaliadas mais recentes.
   final avaliadas = await repo.list(
     perPage: 200,
     sort: '-data_hora',
     filter: profAvaliadasFilter(id),
   );
-
-  final concluidas = hoje.items
-      .where((o) => o.status == OSStatus.concluida)
-      .length;
-  double? media;
-  if (avaliadas.items.isNotEmpty) {
-    final soma = avaliadas.items.fold<double>(
-      0,
-      (acc, o) => acc + (o.avaliacaoNota ?? 0),
-    );
-    media = soma / avaliadas.items.length;
-  }
-  return PerfilStats(
-    totalHoje: hoje.totalItems,
-    concluidasHoje: concluidas,
-    media: media,
+  if (avaliadas.items.isEmpty) return const PerfilAvaliacao();
+  final soma = avaliadas.items.fold<double>(
+    0,
+    (acc, o) => acc + (o.avaliacaoNota ?? 0),
+  );
+  return PerfilAvaliacao(
+    media: soma / avaliadas.items.length,
     totalAvaliadas: avaliadas.items.length,
   );
 });
@@ -127,7 +98,7 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen> {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final user = ref.watch(currentUserProvider);
-    final statsAsync = ref.watch(perfilStatsProvider);
+    final avalAsync = ref.watch(perfilAvaliacaoProvider);
     final rawName = user?.displayName ?? '—';
     final displayName = rawName != '—' ? rawName : 'Profissional';
     final mode = ref.watch(themeModeControllerProvider);
@@ -251,28 +222,38 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen> {
                             ),
                           ),
                         ),
-                        statsAsync.maybeWhen(
+                        avalAsync.maybeWhen(
                           data: (s) => s.media != null
                               ? Padding(
                                   padding: const EdgeInsets.only(top: 12),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  child: Column(
                                     children: [
-                                      Text(
-                                        'Avaliação: ',
-                                        style: tt.bodyMedium?.copyWith(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.9,
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          StarRating(value: s.media!, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            s.media!
+                                                .toStringAsFixed(1)
+                                                .replaceAll('.', ','),
+                                            style: tt.titleMedium?.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                      StarRating(value: s.media!, size: 15),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(height: 4),
                                       Text(
-                                        s.media!.toStringAsFixed(1),
-                                        style: tt.bodyMedium?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
+                                        s.totalAvaliadas == 1
+                                            ? '1 avaliação'
+                                            : '${s.totalAvaliadas} avaliações',
+                                        style: tt.bodySmall?.copyWith(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.85,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -314,7 +295,7 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen> {
                   children: [
                     ClxFadeSlide(
                       delay: const Duration(milliseconds: 50),
-                      child: _ResumoDoDia(statsAsync: statsAsync),
+                      child: _AvaliacaoCard(avalAsync: avalAsync),
                     ),
                     const SizedBox(height: ClxSpace.x3),
                     ClxFadeSlide(
@@ -346,10 +327,11 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen> {
   }
 }
 
-class _ResumoDoDia extends StatelessWidget {
-  const _ResumoDoDia({required this.statsAsync});
+/// Card de avaliação no perfil (média + estrelas + quantidade).
+class _AvaliacaoCard extends StatelessWidget {
+  const _AvaliacaoCard({required this.avalAsync});
 
-  final AsyncValue<PerfilStats> statsAsync;
+  final AsyncValue<PerfilAvaliacao> avalAsync;
 
   @override
   Widget build(BuildContext context) {
@@ -368,7 +350,7 @@ class _ResumoDoDia extends StatelessWidget {
               ClxSpace.x2,
             ),
             child: Text(
-              'RESUMO DE HOJE',
+              'AVALIAÇÃO',
               style: tt.labelSmall?.copyWith(
                 color: clx.ink3,
                 fontWeight: FontWeight.w700,
@@ -379,64 +361,61 @@ class _ResumoDoDia extends StatelessWidget {
           Divider(height: 1, color: clx.line),
           Padding(
             padding: const EdgeInsets.all(ClxSpace.x4),
-            child: statsAsync.when(
+            child: avalAsync.when(
               loading: () => const Center(child: Spinner(size: 20)),
               error: (_, __) => Text(
-                'Não foi possível carregar o resumo.',
+                'Não foi possível carregar as avaliações.',
                 style: tt.bodyMedium?.copyWith(color: clx.ink3),
               ),
-              data: (s) => Row(
-                children: [
-                  Expanded(
-                    child: _Stat(
-                      value: '${s.totalHoje}',
-                      label: 'Agendados',
-                      color: clx.accent,
+              data: (s) {
+                if (s.media == null) {
+                  return Row(
+                    children: [
+                      Icon(Icons.star_outline_rounded, color: clx.ink3, size: 28),
+                      const SizedBox(width: ClxSpace.x3),
+                      Expanded(
+                        child: Text(
+                          'Ainda sem avaliações. Elas aparecem quando o '
+                          'cliente avalia um serviço concluído.',
+                          style: tt.bodyMedium?.copyWith(color: clx.ink2),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                final mediaStr =
+                    s.media!.toStringAsFixed(1).replaceAll('.', ',');
+                return Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mediaStr,
+                          style: tt.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: clx.ink,
+                          ),
+                        ),
+                        StarRating(value: s.media!, size: 20),
+                      ],
                     ),
-                  ),
-                  Expanded(
-                    child: _Stat(
-                      value: '${s.concluidasHoje}',
-                      label: 'Concluídos',
-                      color: clx.success,
+                    const SizedBox(width: ClxSpace.x4),
+                    Expanded(
+                      child: Text(
+                        s.totalAvaliadas == 1
+                            ? 'Média de 1 avaliação'
+                            : 'Média de ${s.totalAvaliadas} avaliações',
+                        style: tt.bodyMedium?.copyWith(color: clx.ink2),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.value, required this.label, required this.color});
-
-  final String value;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Text(
-          value,
-          style: tt.displaySmall?.copyWith(
-            color: color,
-            letterSpacing: -0.6,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: tt.labelMedium?.copyWith(color: clx.ink3),
-        ),
-      ],
     );
   }
 }
