@@ -4,7 +4,7 @@
 /// devolve contagens + deslocamento. Sem rede/Riverpod.
 ///
 /// Definições:
-///  * **Agendados** — OS em aberto no período (agendada / atribuída / em andamento).
+///  * **Agendados** — total de OS do período (abertas + realizadas + canceladas).
 ///  * **Canceladas** — OS canceladas com data no período.
 ///  * **Realizados** — OS concluídas no período.
 ///  * **Km** — soma do deslocamento planejado dos dias do período.
@@ -84,12 +84,13 @@ class ProfResumo {
 }
 
 /// Monta os indicadores a partir das OS do período e do km total.
+///
+/// **Agendados** = total do período = realizados + canceladas + ainda em aberto.
 ProfResumo buildResumo({
   required List<OrdemServico> ordens,
   double kmDeslocamento = 0,
   ResumoPeriodo periodo = ResumoPeriodo.hoje,
 }) {
-  var agendados = 0;
   var canceladas = 0;
   var realizados = 0;
 
@@ -102,10 +103,12 @@ ProfResumo buildResumo({
       case OSStatus.agendada:
       case OSStatus.atribuida:
       case OSStatus.emAndamento:
-        agendados++;
+        break;
     }
   }
 
+  // Total agendados no período = tudo que entrou na agenda (abertos + feitos + cancelados).
+  final agendados = ordens.length;
   final km = (kmDeslocamento * 10).roundToDouble() / 10;
 
   return ProfResumo(
