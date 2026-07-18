@@ -169,10 +169,12 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
-  // 4) Verifica status.
-  if (os.getString("status") !== "em_andamento") {
+  // 4) Verifica status — atribuída OU em andamento (pedido dono 18/07:
+  // botão "Em deslocamento" antes ou depois de Iniciar).
+  const stAviso = os.getString("status");
+  if (stAviso !== "em_andamento" && stAviso !== "atribuida") {
     throw new BadRequestError(
-      "A OS precisa estar em_andamento para disparar o aviso a caminho."
+      "A OS precisa estar atribuída ou em andamento para avisar que está a caminho."
     );
   }
 

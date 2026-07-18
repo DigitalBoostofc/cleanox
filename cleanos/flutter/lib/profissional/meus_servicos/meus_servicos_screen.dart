@@ -88,7 +88,10 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     try {
       final res = await _ctrl.avisarACaminho(os);
       if (res.ok) {
-        _toast('Cliente avisado pela OS Fácil ✓', ToastType.success);
+        _toast(
+          'Cliente avisado: você está a caminho ✓',
+          ToastType.success,
+        );
       } else {
         _toast('Não foi possível avisar o cliente.', ToastType.error);
       }

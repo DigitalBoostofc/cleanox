@@ -39,12 +39,13 @@ Widget _wrap(Widget child) => MaterialApp(
 
 void main() {
   testWidgets(
-    'atribuida mostra endereço, WhatsApp e Iniciar (pedido dono 18/07)',
+    'atribuida: endereço, observações, Em deslocamento, WhatsApp e Iniciar',
     (tester) async {
       await tester.pumpWidget(
         _wrap(
           OSCard(
-            os: _os(status: OSStatus.atribuida, endereco: 'Rua Liberada, 123'),
+            os: _os(status: OSStatus.atribuida, endereco: 'Rua Liberada, 123')
+                .copyWith(observacoes: 'Portão azul, interfone 12'),
             onIniciar: () {},
             onAvisar: () {},
             onPagar: () {},
@@ -57,13 +58,16 @@ void main() {
 
       expect(find.text('Iniciar serviço'), findsOneWidget);
       expect(find.text('WhatsApp cliente'), findsOneWidget);
+      expect(find.text('Em deslocamento'), findsOneWidget);
       expect(find.textContaining('Rua Liberada'), findsWidgets);
+      expect(find.text('Observações'), findsOneWidget);
+      expect(find.textContaining('Portão azul'), findsOneWidget);
       expect(find.text('Carlos S.'), findsOneWidget);
       expect(find.textContaining('cliente_secreto_id'), findsNothing);
     },
   );
 
-  testWidgets('em_andamento libera endereço e checklist principal', (
+  testWidgets('em_andamento: Em deslocamento + checklist principal', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -80,6 +84,7 @@ void main() {
       ),
     );
 
+    expect(find.text('Em deslocamento'), findsOneWidget);
     expect(find.text('Checklist, pagamento e concluir'), findsOneWidget);
     expect(find.textContaining('Rua Liberada, 456'), findsWidgets);
     expect(find.text('WhatsApp'), findsOneWidget);

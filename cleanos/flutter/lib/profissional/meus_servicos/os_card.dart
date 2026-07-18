@@ -246,6 +246,56 @@ class OSCard extends StatelessWidget {
                       ),
                     ),
 
+                  // Observações do painel (campo `observacoes` da OS) — o prof lê.
+                  if ((os.observacoes ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        ClxSpace.x4,
+                        0,
+                        ClxSpace.x4,
+                        ClxSpace.x2,
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(ClxSpace.x3),
+                        decoration: BoxDecoration(
+                          color: clx.bg2,
+                          borderRadius: ClxRadii.rMd,
+                          border: Border.all(color: clx.line),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.sticky_note_2_outlined,
+                                  size: 16,
+                                  color: clx.ink3,
+                                ),
+                                const SizedBox(width: ClxSpace.x2),
+                                Text(
+                                  'Observações',
+                                  style: tt.labelMedium?.copyWith(
+                                    color: clx.ink3,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: ClxSpace.x1),
+                            Text(
+                              os.observacoes!.trim(),
+                              style: tt.bodyMedium?.copyWith(
+                                color: clx.ink,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // Pagamento (concluida).
                   if (os.status == OSStatus.concluida &&
                       (os.valorPago ?? 0) > 0 &&
@@ -295,8 +345,8 @@ class OSCard extends StatelessWidget {
     final clx = context.clx;
     switch (os.status) {
       case OSStatus.atribuida:
-        // Fluxo: ver detalhes (endereço/rota/WhatsApp) → Iniciar só quando for
-        // começar → app leva ao checklist.
+        // Fluxo: detalhes (endereço/obs/rota/WhatsApp) → Em deslocamento
+        // (avisa cliente) → Iniciar (checklist).
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -327,10 +377,32 @@ class OSCard extends StatelessWidget {
             ),
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
+              label: os.avisoACaminhoEm != null
+                  ? 'Em deslocamento ✓ (cliente avisado)'
+                  : 'Em deslocamento',
+              variant: ClxButtonVariant.secondary,
+              icon: Icons.directions_car_filled_outlined,
+              expand: true,
+              loading: avisoLoading && os.avisoACaminhoEm == null,
+              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+            ),
+            if (os.avisoACaminhoEm == null)
+              Padding(
+                padding: const EdgeInsets.only(top: ClxSpace.x1),
+                child: Text(
+                  'Avisa o cliente pelo WhatsApp da empresa que você está a caminho.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: clx.ink3,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
               label: _podeIniciar
                   ? 'Iniciar serviço'
                   : 'Iniciar (disponível no dia)',
-              variant: ClxButtonVariant.secondary,
+              variant: ClxButtonVariant.primary,
               icon: Icons.play_arrow_rounded,
               expand: true,
               loading: actionLoading,
@@ -353,8 +425,31 @@ class OSCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ClxButton(
-              label: 'Checklist, pagamento e concluir',
+              label: os.avisoACaminhoEm != null
+                  ? 'Em deslocamento ✓ (cliente avisado)'
+                  : 'Em deslocamento',
               variant: ClxButtonVariant.secondary,
+              icon: Icons.directions_car_filled_outlined,
+              expand: true,
+              loading: avisoLoading && os.avisoACaminhoEm == null,
+              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
+            ),
+            if (os.avisoACaminhoEm == null)
+              Padding(
+                padding: const EdgeInsets.only(top: ClxSpace.x1, bottom: ClxSpace.x2),
+                child: Text(
+                  'Notifica o cliente (WhatsApp da empresa) que você está a caminho.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: clx.ink3,
+                    height: 1.35,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: 'Checklist, pagamento e concluir',
+              variant: ClxButtonVariant.primary,
               icon: Icons.checklist_rounded,
               expand: true,
               onPressed: onChecklist,
@@ -385,18 +480,7 @@ class OSCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: ClxSpace.x2),
-            ClxButton(
-              label: os.avisoACaminhoEm != null
-                  ? 'Cliente avisado ✓'
-                  : 'Avisar a caminho (empresa)',
-              variant: ClxButtonVariant.ghost,
-              icon: Icons.near_me_outlined,
-              expand: true,
-              loading: avisoLoading && os.avisoACaminhoEm == null,
-              onPressed: os.avisoACaminhoEm != null ? null : onAvisar,
-            ),
-            // Atalhos de pagamento/concluir ainda no card (quem não abre o checklist).
+            // Atalhos de pagamento/concluir ainda no card.
             const SizedBox(height: ClxSpace.x2),
             if (!_pagamentoRegistrado)
               ClxButton(
