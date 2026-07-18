@@ -111,15 +111,12 @@ class LocationTrackingService {
   }
 
   /// "Cheguei ao local": encerra o tracking e notifica o backend.
-  Future<void> chegou() async {
-    final id = _osId;
+  /// [osId] permite chamar sem ter o stream ativo (ex.: GPS negado).
+  Future<void> chegou({String? osId}) async {
+    final id = osId ?? _osId;
     await stop();
     if (id != null) {
-      try {
-        await _tracking.cheguei(id);
-      } catch (_) {
-        /* best-effort: o servidor também encerra por timeout */
-      }
+      await _tracking.cheguei(id);
     }
   }
 

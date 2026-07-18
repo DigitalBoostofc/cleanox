@@ -260,11 +260,28 @@ cronAdd("trackingAvisos", "* * * * *", () => {
     const lib    = require(`${__hooks}/os_logic.js`);
     const h      = require(`${__hooks}/whatsapp_helpers.js`);
 
-    // OS candidatas: em_andamento.
-    const records = $app.findAllRecords(
-      "ordens_servico",
-      $dbx.hashExp({ status: "em_andamento" })
-    );
+    // OS candidatas: em deslocamento (em_andamento OU atribuída com a-caminho).
+    let records = [];
+    try {
+      records = $app.findRecordsByFilter(
+        "ordens_servico",
+        '(status = "em_andamento" || status = "atribuida") && aviso_a_caminho_em != ""',
+        "-updated",
+        100,
+        0
+      );
+    } catch (errList) {
+      // Fallback antigo se filter falhar.
+      try {
+        records = $app.findAllRecords(
+          "ordens_servico",
+          $dbx.hashExp({ status: "em_andamento" })
+        );
+      } catch (_) {
+        records = [];
+      }
+      console.error(`[trackingAvisos] list filter falhou: ${errList}`);
+    }
     if (!records.length) return;
 
     // Config WhatsApp — resolve UMA vez por rodada. Sem instância/conexão, pula tudo.

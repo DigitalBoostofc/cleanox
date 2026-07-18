@@ -178,62 +178,86 @@ function geocode(endereco) {
 }
 
 /**
- * ETA em minutos (inteiro, arredondado p/ cima) da origem ao destino, com
- * trânsito atual (Distance Matrix, departure_time=now). Retorna null se a chave
- * faltar, as coords forem inválidas, ou a API falhar/não achar rota.
+ * Rota OSRM (público) → { distanceM, durationS } | null.
+ * Fallback quando não há Google Distance Matrix.
  */
-function etaMinutes(oLat, oLng, dLat, dLng) {
-  var key = apiKey();
-  if (!key) {
-    console.log("[maps] GOOGLE_MAPS_API_KEY ausente; etaMinutes pulado (degradação graciosa).");
-    return null;
-  }
-  var nums = [oLat, oLng, dLat, dLng].map(Number);
-  for (var i = 0; i < nums.length; i++) {
-    if (isNaN(nums[i])) {
-      console.log("[maps] etaMinutes com coordenada inválida; pulado.");
-      return null;
-    }
-  }
+function osrmRoute(oLat, oLng, dLat, dLng) {
   try {
-    var url = buildUrl(DM_URL, {
-      origins:        nums[0] + "," + nums[1],
-      destinations:   nums[2] + "," + nums[3],
-      key:            key,
-      mode:           "driving",
-      departure_time: "now",        // habilita duration_in_traffic
-      language:       "pt-BR",
-      region:         "br",
-    });
-    var res = $http.send({ method: "GET", url: url, timeout: 8 });
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      console.error("[maps] distancematrix HTTP " + res.statusCode + ": " +
-        (res.raw ? String(res.raw).slice(0, 200) : "(sem corpo)"));
-      return null;
-    }
+    var url =
+      "https://router.project-osrm.org/route/v1/driving/" +
+      oLng +
+      "," +
+      oLat +
+      ";" +
+      dLng +
+      "," +
+      dLat +
+      "?overview=false";
+    var res = $http.send({ method: "GET", url: url, timeout: 10 });
+    if (res.statusCode < 200 || res.statusCode >= 300) return null;
     var data = res.json || {};
-    if (data.status !== "OK" || !data.rows || !data.rows.length) {
-      console.error("[maps] distancematrix status=" + (data.status || "?") +
-        " (" + (data.error_message || "sem linhas") + ")");
-      return null;
-    }
-    var el = data.rows[0].elements && data.rows[0].elements[0];
-    if (!el || el.status !== "OK") {
-      console.error("[maps] distancematrix element status=" + (el ? el.status : "?"));
-      return null;
-    }
-    // Prefere duration_in_traffic (com trânsito); cai p/ duration se ausente.
-    var dur = el.duration_in_traffic || el.duration;
-    if (!dur || typeof dur.value === "undefined") {
-      console.error("[maps] distancematrix sem duration.");
-      return null;
-    }
-    var minutes = Math.ceil(Number(dur.value) / 60); // value em segundos
-    return isNaN(minutes) ? null : minutes;
+    if (!data.routes || !data.routes.length) return null;
+    var r0 = data.routes[0];
+    var dist = Number(r0.distance || 0);
+    var dur = Number(r0.duration || 0);
+    if (!(dist > 0) || !(dur > 0)) return null;
+    return { distanceM: dist, durationS: dur };
   } catch (err) {
-    console.error("[maps] etaMinutes falhou (ignorado): " + err);
+    console.error("[maps] osrm falhou: " + err);
     return null;
   }
 }
 
-module.exports = { geocode, etaMinutes };
+/**
+ * ETA em minutos (inteiro, arredondado p/ cima) da origem ao destino.
+ * 1) Google Distance Matrix (trânsito) se houver chave
+ * 2) OSRM (sem trânsito) como fallback gratuito
+ */
+function etaMinutes(oLat, oLng, dLat, dLng) {
+  var nums = [oLat, oLng, dLat, dLng].map(Number);
+  for (var i = 0; i < nums.length; i++) {
+    if (isNaN(nums[i]) || nums[i] === 0) {
+      console.log("[maps] etaMinutes com coordenada inválida; pulado.");
+      return null;
+    }
+  }
+  var key = apiKey();
+  if (key) {
+    try {
+      var url = buildUrl(DM_URL, {
+        origins:        nums[0] + "," + nums[1],
+        destinations:   nums[2] + "," + nums[3],
+        key:            key,
+        mode:           "driving",
+        departure_time: "now",
+        language:       "pt-BR",
+        region:         "br",
+      });
+      var res = $http.send({ method: "GET", url: url, timeout: 8 });
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        var data = res.json || {};
+        if (data.status === "OK" && data.rows && data.rows.length) {
+          var el = data.rows[0].elements && data.rows[0].elements[0];
+          if (el && el.status === "OK") {
+            var dur = el.duration_in_traffic || el.duration;
+            if (dur && typeof dur.value !== "undefined") {
+              var minutes = Math.ceil(Number(dur.value) / 60);
+              if (!isNaN(minutes)) return minutes;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[maps] etaMinutes Google falhou: " + err);
+    }
+  }
+  var osrm = osrmRoute(nums[0], nums[1], nums[2], nums[3]);
+  if (osrm) {
+    var m = Math.ceil(osrm.durationS / 60);
+    console.log("[maps] etaMinutes via OSRM: " + m + " min");
+    return m;
+  }
+  return null;
+}
+
+module.exports = { geocode, etaMinutes, osrmRoute };
