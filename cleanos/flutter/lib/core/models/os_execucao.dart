@@ -46,6 +46,10 @@ class ChecklistExecItem with _$ChecklistExecItem {
 
     /// Propagado do template: bloqueia conclusão da OS enquanto pendente.
     @Default(false) bool obrigatorio,
+
+    /// Quando preenchido, o item pertence ao checklist de um serviço EXTRA
+    /// (`adicionais[].id`) — a UI mostra em seção separada do checklist principal.
+    String? adicionalId,
   }) = _ChecklistExecItem;
 
   const ChecklistExecItem._();

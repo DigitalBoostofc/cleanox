@@ -147,4 +147,103 @@ void main() {
       expect(find.byTooltip('Adicionar observação'), findsNothing);
     },
   );
+
+  group('agruparChecklistSecoes', () {
+    test('principal e extra ficam em seções distintas', () {
+      const principal = [
+        ChecklistExecItem(id: 'p1', titulo: 'Aspirar'),
+        ChecklistExecItem(id: 'p2', titulo: 'Enxaguar'),
+      ];
+      const extra = [
+        ChecklistExecItem(
+          id: 'e1',
+          titulo: 'Fotos de antes',
+          adicionalId: 'add1',
+        ),
+        ChecklistExecItem(
+          id: 'e2',
+          titulo: 'Higienização',
+          adicionalId: 'add1',
+        ),
+      ];
+      const adicionais = [
+        ServicoAdicionalOS(id: 'add1', nome: 'Sofá 2 lugares', valor: 300),
+      ];
+      final secoes = agruparChecklistSecoes(
+        [...principal, ...extra],
+        adicionais: adicionais,
+      );
+      expect(secoes, hasLength(2));
+      expect(secoes[0].key, 'principal');
+      expect(secoes[0].items.map((e) => e.id), ['p1', 'p2']);
+      expect(secoes[1].extra, isTrue);
+      expect(secoes[1].titulo, 'Sofá 2 lugares');
+      expect(secoes[1].items.map((e) => e.id), ['e1', 'e2']);
+    });
+
+    test('legado "Nome: item" agrupa pelo nome do adicional', () {
+      const items = [
+        ChecklistExecItem(id: 'p1', titulo: 'Aspirar'),
+        ChecklistExecItem(
+          id: 'e1',
+          titulo: 'Sofá 2 lugares: Fotos de antes',
+        ),
+      ];
+      const adicionais = [
+        ServicoAdicionalOS(id: 'add1', nome: 'Sofá 2 lugares'),
+      ];
+      final secoes = agruparChecklistSecoes(items, adicionais: adicionais);
+      expect(secoes, hasLength(2));
+      expect(secoes[1].items.single.id, 'e1');
+      expect(
+        tituloChecklistExibicao(secoes[1].items.single, secaoTitulo: 'Sofá 2 lugares'),
+        'Fotos de antes',
+      );
+    });
+  });
+
+  testWidgets('UI mostra cabeçalho de serviço extra separado', (tester) async {
+    await _pump(
+      tester,
+      items: const [
+        ChecklistExecItem(id: 'p1', titulo: 'Aspirar'),
+        ChecklistExecItem(
+          id: 'e1',
+          titulo: 'Fotos de antes',
+          adicionalId: 'add1',
+        ),
+      ],
+      onChange: (_) {},
+    );
+    // _pump doesn't pass adicionais — re-pump with them.
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: buildLightTheme(),
+          home: Scaffold(
+            body: ChecklistExecucao(
+              items: const [
+                ChecklistExecItem(id: 'p1', titulo: 'Aspirar'),
+                ChecklistExecItem(
+                  id: 'e1',
+                  titulo: 'Fotos de antes',
+                  adicionalId: 'add1',
+                ),
+              ],
+              adicionais: const [
+                ServicoAdicionalOS(id: 'add1', nome: 'Sofá 2 lugares'),
+              ],
+              onChange: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Serviço principal'), findsOneWidget);
+    expect(find.text('Sofá 2 lugares'), findsOneWidget);
+    expect(find.text('Serviço extra'), findsWidgets);
+    expect(find.text('Fotos de antes'), findsOneWidget);
+    expect(find.text('Aspirar'), findsOneWidget);
+  });
 }

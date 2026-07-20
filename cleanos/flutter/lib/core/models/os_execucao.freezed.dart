@@ -37,6 +37,10 @@ mixin _$ChecklistExecItem {
   /// Propagado do template: bloqueia conclusão da OS enquanto pendente.
   bool get obrigatorio => throw _privateConstructorUsedError;
 
+  /// Quando preenchido, o item pertence ao checklist de um serviço EXTRA
+  /// (`adicionais[].id`) — a UI mostra em seção separada do checklist principal.
+  String? get adicionalId => throw _privateConstructorUsedError;
+
   /// Serializes this ChecklistExecItem to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -64,6 +68,7 @@ abstract class $ChecklistExecItemCopyWith<$Res> {
     String? concluidoPor,
     List<String> fotosIds,
     bool obrigatorio,
+    String? adicionalId,
   });
 }
 
@@ -90,6 +95,7 @@ class _$ChecklistExecItemCopyWithImpl<$Res, $Val extends ChecklistExecItem>
     Object? concluidoPor = freezed,
     Object? fotosIds = null,
     Object? obrigatorio = null,
+    Object? adicionalId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -125,6 +131,10 @@ class _$ChecklistExecItemCopyWithImpl<$Res, $Val extends ChecklistExecItem>
                 ? _value.obrigatorio
                 : obrigatorio // ignore: cast_nullable_to_non_nullable
                       as bool,
+            adicionalId: freezed == adicionalId
+                ? _value.adicionalId
+                : adicionalId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -150,6 +160,7 @@ abstract class _$$ChecklistExecItemImplCopyWith<$Res>
     String? concluidoPor,
     List<String> fotosIds,
     bool obrigatorio,
+    String? adicionalId,
   });
 }
 
@@ -175,6 +186,7 @@ class __$$ChecklistExecItemImplCopyWithImpl<$Res>
     Object? concluidoPor = freezed,
     Object? fotosIds = null,
     Object? obrigatorio = null,
+    Object? adicionalId = freezed,
   }) {
     return _then(
       _$ChecklistExecItemImpl(
@@ -210,6 +222,10 @@ class __$$ChecklistExecItemImplCopyWithImpl<$Res>
             ? _value.obrigatorio
             : obrigatorio // ignore: cast_nullable_to_non_nullable
                   as bool,
+        adicionalId: freezed == adicionalId
+            ? _value.adicionalId
+            : adicionalId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -228,6 +244,7 @@ class _$ChecklistExecItemImpl extends _ChecklistExecItem {
     this.concluidoPor,
     final List<String> fotosIds = const <String>[],
     this.obrigatorio = false,
+    this.adicionalId,
   }) : _fotosIds = fotosIds,
        super._();
 
@@ -269,9 +286,14 @@ class _$ChecklistExecItemImpl extends _ChecklistExecItem {
   @JsonKey()
   final bool obrigatorio;
 
+  /// Quando preenchido, o item pertence ao checklist de um serviço EXTRA
+  /// (`adicionais[].id`) — a UI mostra em seção separada do checklist principal.
+  @override
+  final String? adicionalId;
+
   @override
   String toString() {
-    return 'ChecklistExecItem(id: $id, titulo: $titulo, status: $status, observacao: $observacao, concluidoEm: $concluidoEm, concluidoPor: $concluidoPor, fotosIds: $fotosIds, obrigatorio: $obrigatorio)';
+    return 'ChecklistExecItem(id: $id, titulo: $titulo, status: $status, observacao: $observacao, concluidoEm: $concluidoEm, concluidoPor: $concluidoPor, fotosIds: $fotosIds, obrigatorio: $obrigatorio, adicionalId: $adicionalId)';
   }
 
   @override
@@ -290,7 +312,9 @@ class _$ChecklistExecItemImpl extends _ChecklistExecItem {
                 other.concluidoPor == concluidoPor) &&
             const DeepCollectionEquality().equals(other._fotosIds, _fotosIds) &&
             (identical(other.obrigatorio, obrigatorio) ||
-                other.obrigatorio == obrigatorio));
+                other.obrigatorio == obrigatorio) &&
+            (identical(other.adicionalId, adicionalId) ||
+                other.adicionalId == adicionalId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -305,6 +329,7 @@ class _$ChecklistExecItemImpl extends _ChecklistExecItem {
     concluidoPor,
     const DeepCollectionEquality().hash(_fotosIds),
     obrigatorio,
+    adicionalId,
   );
 
   /// Create a copy of ChecklistExecItem
@@ -335,6 +360,7 @@ abstract class _ChecklistExecItem extends ChecklistExecItem {
     final String? concluidoPor,
     final List<String> fotosIds,
     final bool obrigatorio,
+    final String? adicionalId,
   }) = _$ChecklistExecItemImpl;
   const _ChecklistExecItem._() : super._();
 
@@ -364,6 +390,11 @@ abstract class _ChecklistExecItem extends ChecklistExecItem {
   /// Propagado do template: bloqueia conclusão da OS enquanto pendente.
   @override
   bool get obrigatorio;
+
+  /// Quando preenchido, o item pertence ao checklist de um serviço EXTRA
+  /// (`adicionais[].id`) — a UI mostra em seção separada do checklist principal.
+  @override
+  String? get adicionalId;
 
   /// Create a copy of ChecklistExecItem
   /// with the given fields replaced by the non-null parameter values.

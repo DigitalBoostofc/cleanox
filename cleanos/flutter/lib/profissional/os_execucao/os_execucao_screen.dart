@@ -466,17 +466,15 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         const SizedBox(height: ClxSpace.x3),
 
         // (c) Checklist (auto-save; leitura quando a OS já fechou).
+        // Extras viram seções separadas (adicionalId / legado "Nome: item").
         ChecklistExecucao(
           items: state.checklist,
+          adicionais: os.adicionais,
           onChange: _ctrl.setChecklist,
           readOnly: readOnly,
           concluidoPor: os.expand?.profissional?.displayName ?? 'Profissional',
           onAddExtra: readOnly ? null : () => _adicionarExtra(context),
         ),
-        if (os.adicionais.isNotEmpty) ...[
-          const SizedBox(height: ClxSpace.x2),
-          _ExtrasChips(adicionais: os.adicionais),
-        ],
         const SizedBox(height: ClxSpace.x3),
 
         // (c2) Observações do serviço (ex.: tecido rasgado, mancha que não
@@ -532,41 +530,6 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           ),
         ),
         const SizedBox(height: ClxSpace.x8),
-      ],
-    );
-  }
-}
-
-/// Chips dos serviços extras já anexados à OS (somente leitura).
-class _ExtrasChips extends StatelessWidget {
-  const _ExtrasChips({required this.adicionais});
-  final List<ServicoAdicionalOS> adicionais;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    return Wrap(
-      spacing: ClxSpace.x2,
-      runSpacing: ClxSpace.x1,
-      children: [
-        for (final a in adicionais)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: clx.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: clx.primary.withValues(alpha: 0.25)),
-            ),
-            child: Text(
-              a.valor > 0
-                  ? '+ ${a.nome} · ${formatCurrency(a.valor)}'
-                  : '+ ${a.nome}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: clx.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
       ],
     );
   }

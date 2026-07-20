@@ -133,7 +133,7 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
           const SizedBox(height: ClxSpace.x1),
           Text(
             'Escolha categoria, grupo e o serviço. O checklist dele '
-            'entra na mesma lista de execução.',
+            'aparece em uma seção separada do serviço principal.',
             style: tt.bodySmall?.copyWith(color: clx.ink3, height: 1.35),
           ),
           const SizedBox(height: ClxSpace.x4),
@@ -239,9 +239,10 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
                 child: Text(
                   _selecionado!.checklistPadrao.isEmpty
                       ? 'Este serviço não tem checklist padrão — será '
-                          'adicionado um item com o nome do serviço.'
+                          'adicionado um item com o nome do serviço '
+                          'em seção própria.'
                       : '${_selecionado!.checklistPadrao.length} item(ns) de '
-                          'checklist serão anexados.',
+                          'checklist em seção própria (“${_selecionado!.nome}”).',
                   style: tt.bodySmall?.copyWith(color: clx.ink2, height: 1.35),
                 ),
               ),
