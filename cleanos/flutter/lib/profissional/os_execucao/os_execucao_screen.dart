@@ -60,7 +60,16 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   bool _podeConcluir(OSExecucaoState state) {
     final os = state.os;
     if (os == null || os.status != OSStatus.emAndamento) return false;
-    return !state.checklist.any((i) => i.obrigatorio && !i.concluido);
+    for (final i in state.checklist) {
+      if (i.obrigatorio && !i.concluido) return false;
+      // "Fotos de antes/depois": precisam de foto vinculada + check no item.
+      if (faseFotoExigida(i) != null) {
+        if (!i.concluido || !checklistItemPodeConcluir(i, state.fotos)) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   bool _pagamentoRegistrado(OSExecucaoState state) {
@@ -154,7 +163,10 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
     }
   }
 
-  Future<void> _pick(FaseFoto fase) async {
+  Future<void> _pick(
+    FaseFoto fase, {
+    String? checklistItemId,
+  }) async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       showDragHandle: true,
@@ -182,7 +194,11 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
       if (source == ImageSource.gallery) {
         final files = await _picker.pickMultiImage(imageQuality: 82);
         for (final x in files) {
-          await _ctrl.enqueueFoto(file: File(x.path), fase: fase);
+          await _ctrl.enqueueFoto(
+            file: File(x.path),
+            fase: fase,
+            checklistItemId: checklistItemId,
+          );
         }
       } else {
         final x = await _picker.pickImage(
@@ -190,7 +206,11 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           imageQuality: 82,
         );
         if (x != null) {
-          await _ctrl.enqueueFoto(file: File(x.path), fase: fase);
+          await _ctrl.enqueueFoto(
+            file: File(x.path),
+            fase: fase,
+            checklistItemId: checklistItemId,
+          );
         }
       }
     } catch (_) {
@@ -470,10 +490,20 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ChecklistExecucao(
           items: state.checklist,
           adicionais: os.adicionais,
+          fotos: state.fotos,
+          pendingIds: state.pendingIds,
           onChange: _ctrl.setChecklist,
           readOnly: readOnly,
           concluidoPor: os.expand?.profissional?.displayName ?? 'Profissional',
           onAddExtra: readOnly ? null : () => _adicionarExtra(context),
+          onPickFotoItem: readOnly
+              ? null
+              : (item, fase) => _pick(fase, checklistItemId: item.id),
+          onRemoveFoto: readOnly ? null : _removeFoto,
+          onBloqueioFoto: (msg) {
+            if (!mounted) return;
+            showClxToast(context, msg, type: ToastType.warning);
+          },
         ),
         const SizedBox(height: ClxSpace.x3),
 
