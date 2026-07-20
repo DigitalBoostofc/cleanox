@@ -29,8 +29,8 @@ OrdemServico _os({
   duracaoMin: duracaoMin,
 );
 
-Intervalo _iv(String id, int start, int end) =>
-    Intervalo(id: id, startMin: start, endMin: end);
+Intervalo _iv(String id, int start, int end, {String groupKey = ''}) =>
+    Intervalo(id: id, startMin: start, endMin: end, groupKey: groupKey);
 
 /// Minutos-BRT de 'HH:MM'.
 int _min(String hhmm) {
@@ -171,6 +171,50 @@ void main() {
       final byId = {for (final e in l.eventos) e.id: e};
       expect({byId['a']!.column, byId['b']!.column}, {0, 1});
       expect(byId['a']!.columnCount, 2);
+    });
+
+    test('mesmo horário: profissionais distintos ficam em colunas estáveis', () {
+      // Gabriela (g) e José (j) no mesmo slot → colunas 0 e 1 por groupKey.
+      final l = layoutDayEvents([
+        _iv('os-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+        _iv('os-j', _min('14:00'), _min('16:00'), groupKey: 'jose'),
+      ]);
+      final byId = {for (final e in l.eventos) e.id: e};
+      // groupKey lexicográfico: gabriela < jose → Gabriela à esquerda.
+      expect(byId['os-g']!.column, 0);
+      expect(byId['os-j']!.column, 1);
+      expect(byId['os-g']!.columnCount, 2);
+    });
+
+    test('no mesmo aglomerado, o mesmo profissional reusa a coluna', () {
+      // G 09–12 mantém o aglomerado aberto; J 09–10 e J 10:30–11:30 ficam
+      // no MESMO cluster (half-open: 11:00 encostando em 11:00 sairia).
+      final l = layoutDayEvents([
+        _iv('j1', _min('09:00'), _min('10:00'), groupKey: 'jose'),
+        _iv('g1', _min('09:00'), _min('12:00'), groupKey: 'gabriela'),
+        _iv('j2', _min('10:30'), _min('11:30'), groupKey: 'jose'),
+      ]);
+      final byId = {for (final e in l.eventos) e.id: e};
+      // gabriela < jose → G col 0, J col 1; j2 prefere a coluna 1 de jose.
+      expect(byId['g1']!.column, 0);
+      expect(byId['j1']!.column, 1);
+      expect(byId['j2']!.column, 1, reason: 'mesmo prof reusa a coluna dele');
+      for (final e in l.eventos) {
+        expect(e.columnCount, 2);
+      }
+    });
+
+    test('sem groupKey, cadeia clássica A/B/C não muda', () {
+      // Regressão: empacotamento antigo (sem profissional) continua válido.
+      final l = layoutDayEvents([
+        _iv('A', _min('09:00'), _min('12:00')),
+        _iv('B', _min('09:00'), _min('10:00')),
+        _iv('C', _min('10:00'), _min('11:00')),
+      ]);
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['A']!.column, 0);
+      expect(byId['B']!.column, 1);
+      expect(byId['C']!.column, 1);
     });
 
     test('cadeia A(9–12) / B(9–10) / C(10–11) → largura 1/2 em todas', () {

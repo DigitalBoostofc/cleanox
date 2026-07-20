@@ -270,6 +270,14 @@ Cada `routerAdd` roda em VM isolada.
 
 **R11 — Deploy de hook é cirúrgico (`scp` do arquivo). NUNCA rsyncar `pb_hooks/` inteiro.**
 
+**R13 — Deploy web do painel SEMPRE passa o gate da Agenda.**  
+Antes de `flutter build web` + rsync:  
+`bash cleanos/scripts/assert-agenda-features.sh`  
+Garante no tree: cards com serviço/valor/bairro (`_detalhesAgendaOs`), clique →
+`showOSDetail` + Editar (incl. concluída), colunas por profissional (`groupKey`).  
+**Causa (jul/2026):** features só em branch de feature → sumiam a cada deploy de
+outra branch. Elas precisam estar na **main** (não só em prod via build local).
+
 Estado **medido** em 14/07/2026 (revalidado nesta análise):
 
 ```bash
@@ -341,6 +349,7 @@ ssh hostinger "cd /opt/cleanos/pb && ./pocketbase migrate up"
 ssh hostinger "systemctl restart cleanos.service"
 
 # 5) Frontend web
+bash cleanos/scripts/assert-agenda-features.sh   # R13 — não rsyncar Agenda incompleta
 cd cleanos/flutter
 flutter build web --release -t lib/main_painel.dart
 # Validar: app.cleanox.com.br no main.dart.js; SEM 127.0.0.1:8090; sw.js presente
