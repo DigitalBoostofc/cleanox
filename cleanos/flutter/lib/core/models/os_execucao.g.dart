@@ -25,6 +25,7 @@ _$ChecklistExecItemImpl _$$ChecklistExecItemImplFromJson(
       (json['fotosIds'] as List<dynamic>?)?.map((e) => e as String).toList() ??
       const <String>[],
   obrigatorio: json['obrigatorio'] as bool? ?? false,
+  adicionalId: json['adicionalId'] as String?,
 );
 
 Map<String, dynamic> _$$ChecklistExecItemImplToJson(
@@ -38,6 +39,7 @@ Map<String, dynamic> _$$ChecklistExecItemImplToJson(
   'concluidoPor': instance.concluidoPor,
   'fotosIds': instance.fotosIds,
   'obrigatorio': instance.obrigatorio,
+  'adicionalId': instance.adicionalId,
 };
 
 const _$ChecklistExecStatusEnumMap = {

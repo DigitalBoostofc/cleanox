@@ -268,6 +268,7 @@ class _BodyState extends ConsumerState<_Body> {
         AbsorbPointer(
           child: ChecklistExecucao(
             items: os.checklistExec,
+            adicionais: os.adicionais,
             onChange: (_) {},
             concluidoPor:
                 os.expand?.profissional?.displayName ?? 'Profissional',

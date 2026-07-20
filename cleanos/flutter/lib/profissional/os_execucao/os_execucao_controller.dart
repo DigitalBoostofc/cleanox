@@ -575,7 +575,7 @@ class OSExecucaoController
   }
 
   /// Adiciona serviço extra do catálogo: grava em `adicionais` e anexa o
-  /// checklist padrão do serviço ao `checklist_exec` (mesmo checklist).
+  /// checklist padrão em itens com `adicionalId` (seção separada na UI).
   Future<void> adicionarServicoExtra(ServicoPB servico) async {
     final os = state.os;
     if (os == null) return;
@@ -593,8 +593,9 @@ class OSExecucaoController
       novosItens.add(
         ChecklistExecItem(
           id: 'cke_${stamp}_${rnd}_0',
-          titulo: 'Extra: ${servico.nome}',
+          titulo: servico.nome,
           obrigatorio: false,
+          adicionalId: addId,
         ),
       );
     } else {
@@ -602,12 +603,13 @@ class OSExecucaoController
         final it = template[i];
         final titulo = it.titulo.trim().isEmpty
             ? servico.nome
-            : '${servico.nome}: ${it.titulo.trim()}';
+            : it.titulo.trim();
         novosItens.add(
           ChecklistExecItem(
             id: 'cke_${stamp}_${rnd}_$i',
             titulo: titulo,
             obrigatorio: it.obrigatorio,
+            adicionalId: addId,
           ),
         );
       }
