@@ -54,22 +54,13 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   }
 
   /// Habilita o CTA fixo "Concluir serviço": nenhum item obrigatório pendente
-  /// no checklist AO VIVO. O pagamento NÃO trava mais o botão — se ainda não
-  /// foi registrado, o próprio fluxo do Concluir abre o sheet de pagamento
-  /// (pedido do dono, 16/07: encerrar por aqui, sem voltar à lista).
+  /// no checklist AO VIVO (exceto "Fotos de antes/depois" — foto só trava o
+  /// check do item, não a OS). O pagamento NÃO trava o botão — se ainda não
+  /// foi registrado, o próprio fluxo do Concluir abre o sheet de pagamento.
   bool _podeConcluir(OSExecucaoState state) {
     final os = state.os;
     if (os == null || os.status != OSStatus.emAndamento) return false;
-    for (final i in state.checklist) {
-      if (i.obrigatorio && !i.concluido) return false;
-      // "Fotos de antes/depois": precisam de foto vinculada + check no item.
-      if (faseFotoExigida(i) != null) {
-        if (!i.concluido || !checklistItemPodeConcluir(i, state.fotos)) {
-          return false;
-        }
-      }
-    }
-    return true;
+    return !state.checklist.any(checklistItemBloqueiaConclusaoOs);
   }
 
   bool _pagamentoRegistrado(OSExecucaoState state) {

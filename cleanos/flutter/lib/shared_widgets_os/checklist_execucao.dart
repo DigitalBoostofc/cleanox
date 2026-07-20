@@ -138,17 +138,11 @@ String tituloChecklistNu(String titulo) {
   return titulo.substring(sep + 2).trim();
 }
 
-/// Itens "Fotos de antes" / "Fotos de depois" exigem foto na própria linha.
+/// Itens "Fotos de antes" / "Fotos de depois" exigem foto na própria linha
+/// para **marcar** o check — não para concluir a OS.
 /// Devolve a [FaseFoto] exigida, ou `null` se o item não for de evidência.
-FaseFoto? faseFotoExigida(ChecklistExecItem item) {
-  final t = tituloChecklistNu(item.titulo).toLowerCase();
-  if (t.isEmpty) return null;
-  final temFoto = t.contains('foto');
-  if (!temFoto) return null;
-  if (t.contains('antes')) return FaseFoto.antes;
-  if (t.contains('depois')) return FaseFoto.depois;
-  return null;
-}
+FaseFoto? faseFotoExigida(ChecklistExecItem item) =>
+    faseFotoDoTituloChecklist(item.titulo);
 
 /// Fotos vinculadas a este item do checklist (por `checklistItemId`).
 List<EvidenciaFoto> fotosDoItemChecklist(
@@ -621,7 +615,11 @@ class _ChecklistTile extends StatelessWidget {
                                         : null,
                                   ),
                             ),
-                            if (item.obrigatorio && !concluido)
+                            // "Obrigatório" de OS: itens de foto antes/depois
+                            // não bloqueiam concluir a OS — só o check do item.
+                            if (item.obrigatorio &&
+                                !concluido &&
+                                !_exigeFoto)
                               ClxChip(
                                 label: 'Obrigatório',
                                 color: clx.error,
@@ -629,7 +627,9 @@ class _ChecklistTile extends StatelessWidget {
                               ),
                             if (_exigeFoto && !concluido)
                               ClxChip(
-                                label: semFoto ? 'Foto obrigatória' : 'Foto ok',
+                                label: semFoto
+                                    ? 'Foto p/ marcar'
+                                    : 'Foto ok',
                                 color: semFoto ? clx.warning : clx.success,
                                 dense: true,
                               ),
@@ -640,7 +640,7 @@ class _ChecklistTile extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 3),
                             child: Text(
                               'Anexe a foto de ${faseExigida == FaseFoto.depois ? 'depois' : 'antes'} '
-                              'aqui para liberar o check.',
+                              'para marcar este item (opcional para concluir a OS).',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: clx.warning),
                             ),

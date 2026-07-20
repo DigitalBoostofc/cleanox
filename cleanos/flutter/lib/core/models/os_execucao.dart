@@ -58,6 +58,29 @@ class ChecklistExecItem with _$ChecklistExecItem {
       _$ChecklistExecItemFromJson(json);
 
   bool get concluido => status == ChecklistExecStatus.concluido;
+
+  /// Item "Fotos de antes/depois" (inclui legado "Nome: Fotos de antes").
+  /// Foto é obrigatória para **marcar** o item; **não** bloqueia conclusão da OS.
+  bool get isFotoAntesOuDepois => faseFotoDoTituloChecklist(titulo) != null;
+}
+
+/// Detecta fase de evidência exigida pelo título do item de checklist.
+/// `null` = item normal (sem gate de foto no check).
+FaseFoto? faseFotoDoTituloChecklist(String titulo) {
+  var t = titulo.trim().toLowerCase();
+  final sep = t.indexOf(': ');
+  if (sep > 0) t = t.substring(sep + 2).trim();
+  if (t.isEmpty || !t.contains('foto')) return null;
+  if (t.contains('antes')) return FaseFoto.antes;
+  if (t.contains('depois')) return FaseFoto.depois;
+  return null;
+}
+
+/// Item obrigatório pendente que **bloqueia concluir a OS**.
+/// Itens de foto antes/depois ficam de fora (só gate de marcar o check).
+bool checklistItemBloqueiaConclusaoOs(ChecklistExecItem item) {
+  if (item.isFotoAntesOuDepois) return false;
+  return item.obrigatorio && !item.concluido;
 }
 
 /* ---- Serviços adicionais na OS ---- */
