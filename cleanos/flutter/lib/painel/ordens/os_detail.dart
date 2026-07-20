@@ -172,13 +172,12 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reabrir OS'),
+        title: const Text('Reabrir OS (Refazer)'),
         content: const Text(
-          'A OS voltará para Em agendamento com a etiqueta Refazer. '
-          'O valor e o pagamento serão zerados, a receita e a comissão '
-          'ligadas a esta conclusão serão removidas do financeiro, e o '
-          'profissional será desatribuído.\n\n'
-          'Deseja continuar?',
+          'Será criada uma NOVA OS em Em agendamento com a etiqueta Refazer, '
+          'copiando cliente, serviço, data e observações. '
+          'Valor e pagamento da cópia ficam zerados e sem profissional.\n\n'
+          'A OS concluída original permanece intacta (histórico e financeiro).',
         ),
         actions: [
           TextButton(
@@ -187,7 +186,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Reabrir'),
+            child: const Text('Duplicar e reabrir'),
           ),
         ],
       ),
@@ -199,7 +198,8 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       ref.invalidate(ordensCountsProvider);
       showClxToast(
         context,
-        'OS reaberta como Refazer (em agendamento).',
+        'Nova OS criada em Em agendamento (Refazer). '
+        'A concluída original foi mantida.',
         type: ToastType.success,
       );
       Navigator.of(context).pop(const OSDetailResult(changed: true));

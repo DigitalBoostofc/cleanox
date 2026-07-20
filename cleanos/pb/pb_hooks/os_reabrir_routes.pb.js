@@ -1,20 +1,22 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 /**
- * CleanOS — reabrir OS concluída.
+ * CleanOS — reabrir OS concluída = DUPLICAR para novo ciclo "Refazer".
  *
  *   POST /api/cleanos/os/{id}/reabrir
  *
- * Admin/gerente. Volta para status `agendada` com etiqueta `refazer=true`,
- * zera valores de pagamento/serviço, remove profissional, estorna receita
- * via_os (inclusive paga) e comissão. Mesma OS (mesmo id).
+ * Admin/gerente. A OS original (concluída) permanece intacta — histórico,
+ * pagamento, receita e comissão não são tocados.
+ *
+ * Cria uma NOVA OS em status `agendada` (rótulo Em agendamento) com
+ * `refazer=true`, mesmos cliente/serviço/agenda/obs, valor e pagamento zerados,
+ * sem profissional. O hook de create preenche snapshot + checklist padrão.
  */
 routerAdd(
   "POST",
   "/api/cleanos/os/{id}/reabrir",
   (e) => {
-    const delLib = require(`${__hooks}/os_delete_lib.js`);
-    const comLib = require(`${__hooks}/prof_comissao_lib.js`);
+    const lib = require(`${__hooks}/os_logic.js`);
 
     if (!e.auth) throw new UnauthorizedError("Autenticação necessária.");
     const role = String(e.auth.get("role") || "");
@@ -25,70 +27,63 @@ routerAdd(
     const osId = String(e.request.pathValue("id") || "");
     if (!osId) throw new BadRequestError("OS inválida.");
 
-    let os;
+    let orig;
     try {
-      os = $app.findRecordById("ordens_servico", osId);
+      orig = $app.findRecordById("ordens_servico", osId);
     } catch (_) {
       throw new NotFoundError("OS não encontrada.");
     }
 
-    if (String(os.get("status") || "") !== "concluida") {
-      throw new BadRequestError(
-        "Só é possível reabrir OS concluída.",
-      );
+    if (String(orig.get("status") || "") !== "concluida") {
+      throw new BadRequestError("Só é possível reabrir OS concluída.");
     }
 
-    // Estorna financeiro da conclusão (receita + comissão).
-    delLib.apagarReceitasDaOs($app, osId);
-    comLib.removerComissoesDaOs($app, osId);
+    const col = $app.findCollectionByNameOrId("ordens_servico");
+    const nova = new Record(col);
 
-    // Volta para "Em agendamento" (wire: agendada), mesma OS.
-    os.set("status", "agendada");
-    os.set("profissional", "");
-    os.set("refazer", true);
-    os.set("valor_pago", 0);
-    os.set("forma_pagamento", "");
-    os.set("forma_pagamento_outro", "");
-    os.set("valor_servico", 0);
-    os.set("descontos", 0);
-    os.set("endereco_liberado", "");
-    os.set("repasse_status", "");
-    os.set("repasse_valor", 0);
-    // Carimbos de execução — limpa para novo ciclo.
-    try {
-      os.set("concluida_em", "");
-    } catch (_) {}
-    try {
-      os.set("iniciada_em", "");
-    } catch (_) {}
-    try {
-      os.set("cheguei_em", "");
-    } catch (_) {}
-    try {
-      os.set("aviso_a_caminho_em", "");
-    } catch (_) {}
-    try {
-      os.set("aviso_5min_em", "");
-    } catch (_) {}
-    try {
-      os.set("aviso_1min_em", "");
-    } catch (_) {}
-    // Coords de tracking.
-    try {
-      os.set("prof_lat", null);
-      os.set("prof_lng", null);
-      os.set("prof_pos_em", "");
-      os.set("dest_lat", null);
-      os.set("dest_lng", null);
-    } catch (_) {}
+    // Copia dados de negócio (não financeiros / não de execução).
+    const cliente = lib.relId(orig.get("cliente"));
+    const servico = lib.relId(orig.get("servico"));
+    if (cliente) nova.set("cliente", cliente);
+    if (servico) nova.set("servico", servico);
 
-    $app.save(os);
+    nova.set("nome_curto", String(orig.get("nome_curto") || ""));
+    nova.set("bairro", String(orig.get("bairro") || ""));
+    nova.set("tipo_servico_nome", String(orig.get("tipo_servico_nome") || ""));
+    nova.set("data_hora", orig.get("data_hora"));
+    try {
+      const dur = Number(orig.get("duracao_min") || 0);
+      if (dur > 0) nova.set("duracao_min", dur);
+    } catch (_) {}
+    nova.set("observacoes", String(orig.get("observacoes") || ""));
+
+    // Novo ciclo operacional.
+    nova.set("status", "agendada");
+    nova.set("profissional", "");
+    nova.set("refazer", true);
+    nova.set("valor_servico", 0);
+    nova.set("valor_pago", 0);
+    nova.set("forma_pagamento", "");
+    nova.set("forma_pagamento_outro", "");
+    nova.set("descontos", 0);
+    nova.set("endereco_liberado", "");
+    nova.set("repasse_status", "");
+    nova.set("repasse_valor", 0);
+    nova.set("adicionais", []);
+    nova.set("observacoes_prof", []);
+    // checklist_exec / service_snapshot: hook fillServiceSnapshot no create
+    // preenche a partir do catálogo (checklist limpo, pendente).
+
+    // onRecordCreate: syncDenormalized, fillServiceSnapshot, manageEndereco…
+    $app.save(nova);
 
     return e.json(200, {
       ok: true,
-      osId: String(os.id),
+      osId: String(nova.id),
+      origemOsId: String(orig.id),
       status: "agendada",
       refazer: true,
+      duplicada: true,
     });
   },
   $apis.requireAuth(),
