@@ -161,13 +161,20 @@ class OSExecucaoController
       );
       return;
     }
-    final myId = ref.read(currentProfIdProvider);
-    if (os.profissional != null && myId != null && os.profissional != myId) {
-      state = state.copyWith(
-        loading: false,
-        loadError: 'Você não tem permissão para esta OS.',
-      );
-      return;
+    final me = ref.read(currentUserProvider);
+    // Admin/gerente: qualquer OS. Profissional: só as suas.
+    final isPainel = me?.role.isPainel == true;
+    if (!isPainel) {
+      final myId = me?.id;
+      if (os.profissional != null &&
+          myId != null &&
+          os.profissional != myId) {
+        state = state.copyWith(
+          loading: false,
+          loadError: 'Você não tem permissão para esta OS.',
+        );
+        return;
+      }
     }
     _lastSavedChecklist = _serialize(os.checklistExec);
     state = state.copyWith(
@@ -182,6 +189,18 @@ class OSExecucaoController
     await _restoreChecklistBuffer();
     _initQueue();
     await loadFotos();
+  }
+
+  /// Inicia o serviço (atribuida → em_andamento). Admin/gerente também usam.
+  Future<void> iniciar() async {
+    final updated = await _repo.updateStatus(_osId, OSStatus.emAndamento);
+    state = state.copyWith(
+      os: updated,
+      snapshot: updated.serviceSnapshot ?? state.snapshot,
+      checklist: updated.checklistExec.isNotEmpty
+          ? updated.checklistExec
+          : state.checklist,
+    );
   }
 
   /// Se há edição bufferizada (não confirmada no servidor), restaura no estado e

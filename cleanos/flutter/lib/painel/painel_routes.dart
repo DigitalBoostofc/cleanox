@@ -36,7 +36,8 @@ import 'avaliacoes/avaliacoes_screen.dart' deferred as avaliacoes;
 import 'clientes/clientes_screen.dart' deferred as clientes;
 import 'financeiro/fin_shell.dart' deferred as financeiro;
 import 'ordens/ordens_screen.dart' deferred as ordens;
-import 'os_execucao_admin/os_execucao_admin_screen.dart' deferred as os_exec;
+// Execução interativa (mesmo fluxo do profissional: checklist, fotos, pagamento).
+import '../profissional/os_execucao/os_execucao_screen.dart' deferred as os_exec;
 import 'servicos/servico_editor.dart' deferred as servico_editor;
 import 'servicos/servicos_list_screen.dart' deferred as servicos;
 import 'whatsapp/whatsapp_admin_screen.dart' deferred as whatsapp;
@@ -95,7 +96,7 @@ StatefulShellRoute painelShellRoute(
                   final osId = state.pathParameters['osId']!;
                   return LazySection(
                     load: os_exec.loadLibrary,
-                    builder: () => os_exec.OSExecucaoAdminScreen(osId: osId),
+                    builder: () => os_exec.OSExecucaoScreen(osId: osId),
                   );
                 },
               ),

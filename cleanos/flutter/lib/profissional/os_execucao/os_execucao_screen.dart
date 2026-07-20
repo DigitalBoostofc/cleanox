@@ -40,6 +40,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _gerandoLaudo = false;
   bool _concluindo = false;
+  bool _iniciando = false;
 
   OSExecucaoController get _ctrl =>
       ref.read(osExecucaoProvider(widget.osId).notifier);
@@ -65,6 +66,31 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
   bool _pagamentoRegistrado(OSExecucaoState state) {
     final os = state.os;
     return os != null && (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
+  }
+
+  Future<void> _iniciar() async {
+    if (_iniciando) return;
+    setState(() => _iniciando = true);
+    try {
+      await _ctrl.iniciar();
+      if (mounted) {
+        showClxToast(
+          context,
+          'Serviço iniciado.',
+          type: ToastType.success,
+        );
+      }
+    } catch (err) {
+      if (mounted) {
+        showClxToast(
+          context,
+          describeOSError(err).message,
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _iniciando = false);
+    }
   }
 
   Future<void> _concluir() async {
@@ -258,17 +284,24 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ],
       ),
       body: SafeArea(child: _buildBody(context, state, vinculoOptions)),
-      // CTA fixo "Concluir serviço" (espec tela 3, doc 12 Onda 2) — só quando
-      // a OS está em execução; some no modo leitura (concluída/cancelada) e
-      // nos estados de loading/erro do corpo.
-      bottomNavigationBar: os == null || os.status != OSStatus.emAndamento
+      // CTA: Iniciar (atribuída) ou Concluir (em andamento). Admin usa o mesmo.
+      bottomNavigationBar: os == null || _readOnly(state)
           ? null
-          : _StickyConcluirCta(
+          : os.status == OSStatus.atribuida
+          ? _StickyIniciarCta(loading: _iniciando, onPressed: _iniciar)
+          : os.status == OSStatus.emAndamento
+          ? _StickyConcluirCta(
               enabled: _podeConcluir(state),
               loading: _concluindo,
               pagamentoPendente: !_pagamentoRegistrado(state),
               onPressed: _concluir,
-            ),
+            )
+          : os.status == OSStatus.agendada
+          ? _StickyBannerCta(
+              message:
+                  'Atribua um profissional no detalhe da OS para iniciar a execução.',
+            )
+          : null,
     );
   }
 
@@ -535,6 +568,80 @@ class _ExtrasChips extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// CTA "Iniciar serviço" (atribuída → em andamento).
+class _StickyIniciarCta extends StatelessWidget {
+  const _StickyIniciarCta({required this.loading, required this.onPressed});
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg2,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            ClxSpace.x4,
+            ClxSpace.x3,
+            ClxSpace.x4,
+            ClxSpace.x3,
+          ),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: clx.line)),
+          ),
+          child: ClxButton(
+            label: 'Iniciar serviço',
+            icon: Icons.play_arrow_rounded,
+            expand: true,
+            loading: loading,
+            onPressed: onPressed,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Aviso no rodapé quando a OS ainda está só em agendamento.
+class _StickyBannerCta extends StatelessWidget {
+  const _StickyBannerCta({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg2,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(
+            ClxSpace.x4,
+            ClxSpace.x3,
+            ClxSpace.x4,
+            ClxSpace.x3,
+          ),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: clx.line)),
+            color: clx.warning.withValues(alpha: 0.08),
+          ),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: clx.ink2,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
