@@ -110,7 +110,7 @@ void main() {
         );
 
         // Volta pra Agendada → ainda A→Z (salva por aba).
-        await tester.tap(find.text('Agendada').first);
+        await tester.tap(find.text('Em agendamento').first);
         await tester.pumpAndSettle();
         expect(ordens.lastSort, 'nome_curto');
         expect(find.text('Cliente — A a Z'), findsOneWidget);
@@ -153,7 +153,7 @@ void main() {
 
       // Aba "Todas" + cada status.
       expect(find.text('Todas'), findsOneWidget);
-      expect(find.text('Agendada'), findsWidgets);
+      expect(find.text('Em agendamento'), findsWidgets);
       // Serviço da OS aparece.
       expect(find.text('Higienização'), findsWidgets);
     });
@@ -167,9 +167,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Default novo (16/07): a tela abre filtrando "Agendada" na semana
+      // Default novo (16/07): a tela abre filtrando "Em agendamento" na semana
       // corrente — o vazio informa o status e sugere trocar o período.
-      expect(find.text('Nenhuma OS com status "Agendada"'), findsOneWidget);
+      expect(find.text('Nenhuma OS com status "Em agendamento"'), findsOneWidget);
       expect(find.textContaining('Nada no período'), findsOneWidget);
     });
 
@@ -270,7 +270,7 @@ void main() {
       await tester.pump();
 
       // Vai pra aba Agendada (tabs vêm antes da lista na árvore).
-      await tester.tap(find.text('Agendada').first);
+      await tester.tap(find.text('Em agendamento').first);
       await tester.pump();
       await tester.pump();
       expect(find.text('Higienização'), findsWidgets);

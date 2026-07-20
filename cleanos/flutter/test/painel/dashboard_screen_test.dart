@@ -47,8 +47,8 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // KPI "Agendadas" = 2.
-        expect(find.text('Agendadas'), findsOneWidget);
+        // KPI "Em agendamento" = 2.
+        expect(find.text('Em agendamento'), findsOneWidget);
         expect(find.text('2'), findsOneWidget);
         // A OS próxima aparece na lista.
         expect(find.textContaining('Carlos S.'), findsOneWidget);

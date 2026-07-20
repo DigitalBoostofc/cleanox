@@ -63,7 +63,7 @@ void main() {
       await tester.pump();
 
       // Fica na aba Agendada (o filtro ativo é o que faz a OS sumir).
-      await tester.tap(find.text('Agendada').first);
+      await tester.tap(find.text('Em agendamento').first);
       await tester.pump();
       await tester.pump();
       expect(find.text('Higienização'), findsWidgets);
@@ -89,7 +89,7 @@ void main() {
       // E a lista NÃO pode ter deixado a OS sumir: seguiu pra aba do novo
       // status, onde ela aparece.
       expect(
-        find.text('Nenhuma OS com status "Agendada"'),
+        find.text('Nenhuma OS com status "Em agendamento"'),
         findsNothing,
         reason: 'a OS sumiu da tela sem aviso (empty-state) — F-232',
       );
@@ -116,7 +116,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // A tela agora abre em "Agendada" (semana) — a OS deste teste está
+      // A tela agora abre em "Em agendamento" (semana) — a OS deste teste está
       // em andamento, então muda de aba antes de interagir.
       await tester.tap(find.text('Em andamento'));
       await tester.pump();
@@ -168,7 +168,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // A tela agora abre em "Agendada" (semana) — a OS deste teste está
+      // A tela agora abre em "Em agendamento" (semana) — a OS deste teste está
       // em andamento, então muda de aba antes de interagir.
       await tester.tap(find.text('Em andamento'));
       await tester.pump();
