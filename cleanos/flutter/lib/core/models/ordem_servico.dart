@@ -209,6 +209,17 @@ class OrdemServico with _$OrdemServico {
     }
     return f.label;
   }
+
+  /// Pré-requisito de conclusão: OS normal exige valor_pago > 0 + forma.
+  /// OS [refazer] (reabertura/garantia) pode fechar com valor 0 e sem forma.
+  bool get pagamentoOkParaConcluir {
+    final valor = valorPago ?? 0;
+    if (refazer && valor <= 0) return true;
+    return valor > 0 && formaPagamento != null;
+  }
+
+  /// Refazer sem cobrança (valor zero / sem pagamento registrado com valor).
+  bool get refazerSemCobranca => refazer && (valorPago ?? 0) <= 0;
 }
 
 /// `duracao_min` do PB → minutos, ou `null` quando "sem duração própria".

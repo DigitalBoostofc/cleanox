@@ -65,7 +65,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
 
   bool _pagamentoRegistrado(OSExecucaoState state) {
     final os = state.os;
-    return os != null && (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
+    return os != null && os.pagamentoOkParaConcluir;
   }
 
   Future<void> _iniciar() async {

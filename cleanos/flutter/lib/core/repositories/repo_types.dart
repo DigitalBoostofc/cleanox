@@ -57,7 +57,8 @@ class OrdemServicoEvent {
 /// gera 403 mesmo "sem mudar nada" (footgun anti-desvio).
 ///
 /// NB: `updateStatus→concluida` exige `valor_pago > 0` + `forma_pagamento`
-/// (`assertPaymentIfConcluida`) — por isso ambos são graváveis aqui.
+/// (`assertPaymentIfConcluida`), exceto OS `refazer` que pode fechar com
+/// valor 0 — por isso ambos são graváveis aqui.
 class OSExecPatch {
   const OSExecPatch({
     this.status,

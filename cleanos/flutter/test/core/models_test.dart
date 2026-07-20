@@ -179,6 +179,42 @@ void main() {
       expect(os.temItensObrigatoriosPendentes, isTrue);
     });
 
+    test('pagamentoOkParaConcluir: OS normal exige valor > 0 + forma', () {
+      final sem = OrdemServico.fromJson(osFixture());
+      expect(sem.pagamentoOkParaConcluir, isFalse);
+      expect(sem.refazerSemCobranca, isFalse);
+
+      final com = OrdemServico.fromJson({
+        ...osFixture(),
+        'valor_pago': 150,
+        'forma_pagamento': 'pix',
+      });
+      expect(com.pagamentoOkParaConcluir, isTrue);
+    });
+
+    test('pagamentoOkParaConcluir: refazer aceita valor 0 sem forma', () {
+      final os = OrdemServico.fromJson({
+        ...osFixture(),
+        'refazer': true,
+        'valor_pago': 0,
+        'forma_pagamento': '',
+      });
+      expect(os.refazer, isTrue);
+      expect(os.refazerSemCobranca, isTrue);
+      expect(os.pagamentoOkParaConcluir, isTrue);
+    });
+
+    test('pagamentoOkParaConcluir: refazer com valor > 0 ainda exige forma', () {
+      final os = OrdemServico.fromJson({
+        ...osFixture(),
+        'refazer': true,
+        'valor_pago': 40,
+        'forma_pagamento': '',
+      });
+      expect(os.refazerSemCobranca, isFalse);
+      expect(os.pagamentoOkParaConcluir, isFalse);
+    });
+
     test('fromRecord resolve expand profissional/servico (sem cliente)', () {
       final data = osFixture()
         ..['expand'] = {

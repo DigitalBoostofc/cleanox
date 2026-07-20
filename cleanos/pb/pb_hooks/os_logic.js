@@ -289,15 +289,31 @@ function manageEndereco(app, record) {
 }
 
 // invariante: não conclui sem pagamento registrado.
+// Exceção: OS de "Refazer" (reabertura após conclusão) pode fechar com
+// valor_pago = 0 e sem forma — é cortesia/garantia, sem cobrança nova.
+// Nota: stampConcluidaEm zera `refazer` na transição → concluida; por isso
+// olhamos também o original() (estado pré-save).
 function assertPaymentIfConcluida(record) {
-  if (record.get("status") === "concluida") {
-    const valor = Number(record.get("valor_pago") || 0);
-    const forma = String(record.get("forma_pagamento") || "");
-    if (valor <= 0 || !forma) {
-      throw new BadRequestError(
-        "Não é possível concluir a OS sem registrar o pagamento (valor_pago > 0 e forma_pagamento)."
-      );
+  if (record.get("status") !== "concluida") return;
+
+  const valor = Number(record.get("valor_pago") || 0);
+  const forma = String(record.get("forma_pagamento") || "");
+
+  let refazer = !!record.get("refazer");
+  if (!refazer) {
+    try {
+      const orig = record.original ? record.original() : null;
+      if (orig) refazer = !!orig.get("refazer");
+    } catch (_) {
+      /* original indisponível (create / mock) */
     }
+  }
+  if (refazer && valor <= 0) return;
+
+  if (valor <= 0 || !forma) {
+    throw new BadRequestError(
+      "Não é possível concluir a OS sem registrar o pagamento (valor_pago > 0 e forma_pagamento)."
+    );
   }
 }
 

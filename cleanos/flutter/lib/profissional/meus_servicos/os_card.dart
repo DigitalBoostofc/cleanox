@@ -74,8 +74,7 @@ class OSCard extends StatelessWidget {
     return dt != null && dt.isBefore(DateTime.now().toUtc());
   }
 
-  bool get _pagamentoRegistrado =>
-      (os.valorPago ?? 0) > 0 && os.formaPagamento != null;
+  bool get _pagamentoRegistrado => os.pagamentoOkParaConcluir;
 
   /// Abre a rota **dentro do app** (mapa + distância/tempo). Sem sair do APK.
   Future<void> _abrirRota(BuildContext context) async {
@@ -554,6 +553,14 @@ class OSCard extends StatelessWidget {
                 expand: true,
                 onPressed: actionLoading ? null : onPagar,
               )
+            else if (os.refazerSemCobranca)
+              _InfoStrip(
+                color: clx.primary2,
+                bg: clx.successBg,
+                text: 'Refazer · sem cobrança (R\$ 0,00)',
+                margin: EdgeInsets.zero,
+                icon: Icons.replay_rounded,
+              )
             else
               _InfoStrip(
                 color: clx.primary2,
@@ -564,6 +571,17 @@ class OSCard extends StatelessWidget {
                 margin: EdgeInsets.zero,
                 icon: Icons.check_circle_rounded,
               ),
+            // Refazer ainda pode registrar valor se houver cobrança extra.
+            if (os.refazerSemCobranca) ...[
+              const SizedBox(height: ClxSpace.x2),
+              ClxButton(
+                label: 'Registrar pagamento (opcional)',
+                variant: ClxButtonVariant.ghost,
+                icon: Icons.payments_outlined,
+                expand: true,
+                onPressed: actionLoading ? null : onPagar,
+              ),
+            ],
             const SizedBox(height: ClxSpace.x2),
             ClxButton(
               label: 'Concluir serviço',

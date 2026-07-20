@@ -70,19 +70,30 @@ class _PagamentoFormState extends State<_PagamentoForm> {
   Future<void> _submit() async {
     if (_loading) return;
     final raw = _valorCtrl.text.trim().replaceAll('.', '').replaceAll(',', '.');
-    final valor = double.tryParse(raw) ?? 0;
-    if (valor <= 0) {
+    // Campo vazio em OS refazer = R$ 0 (cortesia/garantia).
+    final rawEmpty = _valorCtrl.text.trim().isEmpty;
+    final valor = rawEmpty && widget.os.refazer
+        ? 0.0
+        : (double.tryParse(raw) ?? 0);
+    // Refazer aceita valor 0; OS normal exige valor > 0.
+    if (valor < 0 || (valor == 0 && !widget.os.refazer)) {
       setState(() => _error = 'Informe o valor pago.');
       return;
     }
-    if (_forma == null) {
+    // Com valor > 0 a forma é obrigatória; valor 0 em refazer dispensa forma.
+    if (valor > 0 && _forma == null) {
       setState(() => _error = 'Selecione a forma de pagamento.');
       return;
     }
-    final outro = _forma == FormaPagamento.outros
-        ? _outroCtrl.text.trim()
+    final forma = _forma ?? FormaPagamento.outros;
+    final outro = forma == FormaPagamento.outros
+        ? (valor <= 0 && widget.os.refazer
+              ? (_outroCtrl.text.trim().isEmpty
+                    ? 'Refazer / sem cobrança'
+                    : _outroCtrl.text.trim())
+              : _outroCtrl.text.trim())
         : '';
-    if (_forma == FormaPagamento.outros && outro.isEmpty) {
+    if (valor > 0 && forma == FormaPagamento.outros && outro.isEmpty) {
       setState(() => _error = 'Descreva a forma de pagamento em "Outros".');
       return;
     }
@@ -91,7 +102,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
       _error = null;
     });
     try {
-      await widget.onSubmit(valor, _forma!, outro);
+      await widget.onSubmit(valor, forma, outro);
       if (mounted) Navigator.of(context).maybePop();
     } catch (err) {
       if (mounted) {
@@ -118,6 +129,13 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           'Valor pago (R\$)',
           style: tt.labelMedium?.copyWith(color: clx.ink2),
         ),
+        if (widget.os.refazer) ...[
+          const SizedBox(height: ClxSpace.x1),
+          Text(
+            'OS de Refazer: R\$ 0,00 é permitido (garantia/cortesia).',
+            style: tt.bodySmall?.copyWith(color: clx.ink3),
+          ),
+        ],
         const SizedBox(height: ClxSpace.x1),
         TextField(
           controller: _valorCtrl,
@@ -126,7 +144,9 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
           ],
-          decoration: const InputDecoration(hintText: '0,00'),
+          decoration: InputDecoration(
+            hintText: widget.os.refazer ? '0,00 (sem cobrança)' : '0,00',
+          ),
         ),
         const SizedBox(height: ClxSpace.x4),
         Text(
