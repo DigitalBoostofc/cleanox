@@ -54,8 +54,12 @@ Future<Uint8List> generateLaudoPdfBytes(RelatorioOS rel) async {
         'Relatório de Serviço${rel.numeroOS != null ? ' — ${rel.numeroOS}' : ''}',
   );
 
-  // Pré-resolve imagens por fase (na ordem antes/durante/depois).
-  final fases = [FaseFoto.antes, FaseFoto.durante, FaseFoto.depois];
+  // Pré-resolve imagens (antes/depois; durante só se houver legado).
+  final fases = [
+    FaseFoto.antes,
+    FaseFoto.depois,
+    if (rel.evidencias.any((e) => e.fase == FaseFoto.durante)) FaseFoto.durante,
+  ];
   final imagensPorFase = <FaseFoto, List<(pw.ImageProvider, String?)>>{};
   for (final fase in fases) {
     final doGrupo = rel.evidencias.where((e) => e.fase == fase);

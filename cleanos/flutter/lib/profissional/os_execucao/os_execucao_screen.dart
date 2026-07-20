@@ -518,22 +518,35 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ),
         const SizedBox(height: ClxSpace.x3),
 
-        // (d) Evidências.
-        EvidenciasSection(
-          fotos: state.fotos,
-          onPick: _pick,
-          onRemove: _removeFoto,
-          onLegenda: _ctrl.setLegenda,
-          onVinculo: _ctrl.setVinculo,
-          vinculoOptions: vinculoOptions,
-          pendingIds: state.pendingIds,
-          failedIds: state.failedIds,
-          deletingId: state.deletingId,
-          onRetry: _ctrl.retryFoto,
-          disabled: state.fotosLoading,
-          readOnly: readOnly,
+        // (d) Evidências — sem "Durante"; esconde antes/depois se o checklist
+        // já exige essas fotos no item (anexo fica só no checklist).
+        Builder(
+          builder: (context) {
+            final fasesEv = fasesEvidenciaSemChecklist(state.checklist);
+            if (fasesEv.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                EvidenciasSection(
+                  fotos: state.fotos,
+                  fases: fasesEv,
+                  onPick: _pick,
+                  onRemove: _removeFoto,
+                  onLegenda: _ctrl.setLegenda,
+                  onVinculo: _ctrl.setVinculo,
+                  vinculoOptions: vinculoOptions,
+                  pendingIds: state.pendingIds,
+                  failedIds: state.failedIds,
+                  deletingId: state.deletingId,
+                  onRetry: _ctrl.retryFoto,
+                  disabled: state.fotosLoading,
+                  readOnly: readOnly,
+                ),
+                const SizedBox(height: ClxSpace.x3),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: ClxSpace.x3),
 
         // (e) Gerar laudo.
         ClxCard(

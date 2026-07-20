@@ -285,19 +285,38 @@ class _BodyState extends ConsumerState<_Body> {
         _observacoesCard(clx),
         const SizedBox(height: ClxSpace.x3),
 
-        // Evidências (LEITURA).
-        ClxCard(
-          child: AbsorbPointer(
-            child: EvidenciasSection(
-              fotos: widget.data.evidencias,
-              onPick: (_) {},
-              onRemove: (_) {},
-              onLegenda: (_, __) {},
-              disabled: true,
-            ),
-          ),
+        // Evidências (LEITURA) — sem Durante; se o checklist cobre antes/depois
+        // e não há fotos soltas, a seção some (thumbs ficam no checklist).
+        Builder(
+          builder: (context) {
+            final fasesEv = fasesEvidenciaSemChecklist(os.checklistExec);
+            // Em leitura, ainda mostra fase se houver foto legada nela.
+            final fases = <FaseFoto>[
+              for (final f in [FaseFoto.antes, FaseFoto.depois])
+                if (fasesEv.contains(f) ||
+                    widget.data.evidencias.any((e) => e.fase == f))
+                  f,
+            ];
+            if (fases.isEmpty) return const SizedBox.shrink();
+            return Column(
+              children: [
+                ClxCard(
+                  child: AbsorbPointer(
+                    child: EvidenciasSection(
+                      fotos: widget.data.evidencias,
+                      fases: fases,
+                      onPick: (_) {},
+                      onRemove: (_) {},
+                      onLegenda: (_, __) {},
+                      disabled: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: ClxSpace.x3),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: ClxSpace.x3),
 
         // Resumo financeiro.
         _financeiroCard(clx),

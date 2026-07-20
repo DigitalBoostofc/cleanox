@@ -12,6 +12,7 @@ import 'package:cleanos/core/design/app_surface_provider.dart';
 import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/models/os_execucao.dart';
 import 'package:cleanos/shared_widgets_os/checklist_execucao.dart';
+import 'package:cleanos/shared_widgets_os/evidencias_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -147,6 +148,37 @@ void main() {
       expect(find.byTooltip('Adicionar observação'), findsNothing);
     },
   );
+
+  group('fasesEvidenciaSemChecklist', () {
+    test('sem itens de foto → antes e depois (sem durante)', () {
+      expect(
+        fasesEvidenciaSemChecklist(const [
+          ChecklistExecItem(id: '1', titulo: 'Aspirar'),
+        ]),
+        [FaseFoto.antes, FaseFoto.depois],
+      );
+    });
+
+    test('checklist com antes e depois → seção de evidências some', () {
+      expect(
+        fasesEvidenciaSemChecklist(const [
+          ChecklistExecItem(id: '1', titulo: 'Fotos de antes'),
+          ChecklistExecItem(id: '2', titulo: 'Aspirar'),
+          ChecklistExecItem(id: '3', titulo: 'Fotos de depois'),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('só antes no checklist → sobra depois', () {
+      expect(
+        fasesEvidenciaSemChecklist(const [
+          ChecklistExecItem(id: '1', titulo: 'Fotos de antes'),
+        ]),
+        [FaseFoto.depois],
+      );
+    });
+  });
 
   group('faseFotoExigida / checklistItemPodeConcluir', () {
     test('detecta fotos de antes e depois pelo título', () {
