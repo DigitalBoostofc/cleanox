@@ -555,6 +555,112 @@ class OSExecucaoController
     state = state.copyWith(os: updated);
   }
 
+  /// Adiciona serviço extra do catálogo: grava em `adicionais` e anexa o
+  /// checklist padrão do serviço ao `checklist_exec` (mesmo checklist).
+  Future<void> adicionarServicoExtra(ServicoPB servico) async {
+    final os = state.os;
+    if (os == null) return;
+
+    final stamp = DateTime.now().toUtc().millisecondsSinceEpoch.toRadixString(
+      36,
+    );
+    final rnd = _rand.nextInt(1 << 28).toRadixString(36);
+    final addId = 'add_${stamp}_$rnd';
+
+    final template = [...servico.checklistPadrao]
+      ..sort((a, b) => a.ordem.compareTo(b.ordem));
+    final novosItens = <ChecklistExecItem>[];
+    if (template.isEmpty) {
+      novosItens.add(
+        ChecklistExecItem(
+          id: 'cke_${stamp}_${rnd}_0',
+          titulo: 'Extra: ${servico.nome}',
+          obrigatorio: false,
+        ),
+      );
+    } else {
+      for (var i = 0; i < template.length; i++) {
+        final it = template[i];
+        final titulo = it.titulo.trim().isEmpty
+            ? servico.nome
+            : '${servico.nome}: ${it.titulo.trim()}';
+        novosItens.add(
+          ChecklistExecItem(
+            id: 'cke_${stamp}_${rnd}_$i',
+            titulo: titulo,
+            obrigatorio: it.obrigatorio,
+          ),
+        );
+      }
+    }
+
+    final adicional = ServicoAdicionalOS(
+      id: addId,
+      serviceId: servico.id,
+      nome: servico.nome,
+      categoria: servico.categoria,
+      grupo: servico.grupo,
+      valor: servico.valorBase,
+      tipoValor: servico.tipoValor,
+      quantidade: 1,
+      aprovacao: AprovacaoStatus.naoRequer,
+    );
+
+    final newChecklist = [...state.checklist, ...novosItens];
+    final newAdicionais = [...os.adicionais, adicional];
+
+    // Cancela debounce pendente — este save é imediato e inclui adicionais.
+    _saveTimer?.cancel();
+    state = state.copyWith(
+      checklist: newChecklist,
+      os: os.copyWith(adicionais: newAdicionais),
+      saveState: SaveState.saving,
+      saveError: null,
+    );
+
+    final serialized = _serialize(newChecklist);
+    try {
+      final updated = await _repo.patchExec(
+        _osId,
+        OSExecPatch(
+          checklistExec: newChecklist.map((e) => e.toJson()).toList(),
+          adicionais: newAdicionais.map((e) => e.toJson()).toList(),
+        ),
+      );
+      _lastSavedChecklist = serialized;
+      // ignore: discarded_futures
+      _clearChecklistBuffer();
+      state = state.copyWith(
+        os: updated.copyWith(
+          // Garante checklist/adicionais locais se o get não expandir tudo.
+          adicionais: updated.adicionais.isNotEmpty
+              ? updated.adicionais
+              : newAdicionais,
+        ),
+        checklist: updated.checklistExec.isNotEmpty
+            ? updated.checklistExec
+            : newChecklist,
+        saveState: SaveState.saved,
+        saveError: null,
+      );
+      _savedReset?.cancel();
+      _savedReset = Timer(const Duration(seconds: 2), () {
+        if (state.saveState == SaveState.saved) {
+          state = state.copyWith(saveState: SaveState.idle);
+        }
+      });
+    } catch (err) {
+      final info = describeOSError(err);
+      state = state.copyWith(
+        saveState: SaveState.error,
+        saveError: info.isPermission
+            ? 'Sem permissão para adicionar serviço nesta OS.'
+            : info.message,
+      );
+      rethrow;
+    }
+  }
+
   // ── conclusão ───────────────────────────────────────────────────────────
 
   /// Conclui a OS a partir do CTA fixo da tela de execução (reskin Fintech
