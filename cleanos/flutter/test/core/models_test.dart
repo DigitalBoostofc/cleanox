@@ -179,6 +179,31 @@ void main() {
       expect(os.temItensObrigatoriosPendentes, isTrue);
     });
 
+    test('Fotos de antes/depois não bloqueiam conclusão da OS', () {
+      final os = OrdemServico.fromJson({
+        ...osFixture(),
+        'checklist_exec': [
+          {
+            'id': 'cke1',
+            'titulo': 'Fotos de antes',
+            'status': 'pendente',
+            'obrigatorio': true,
+          },
+          {
+            'id': 'cke2',
+            'titulo': 'Aspirar',
+            'status': 'concluido',
+            'obrigatorio': true,
+          },
+        ],
+      });
+      expect(os.temItensObrigatoriosPendentes, isFalse);
+      expect(
+        checklistItemBloqueiaConclusaoOs(os.checklistExec.first),
+        isFalse,
+      );
+    });
+
     test('pagamentoOkParaConcluir: OS normal exige valor > 0 + forma', () {
       final sem = OrdemServico.fromJson(osFixture());
       expect(sem.pagamentoOkParaConcluir, isFalse);

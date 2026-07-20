@@ -288,6 +288,18 @@ function manageEndereco(app, record) {
   }
 }
 
+// Itens "Fotos de antes/depois" (e legado "Nome: Fotos de antes"): a UI exige
+// foto para marcar o check, mas NÃO bloqueiam a conclusão da OS.
+function isItemChecklistFotoAntesDepois(titulo) {
+  var t = String(titulo || "")
+    .trim()
+    .toLowerCase();
+  var sep = t.indexOf(": ");
+  if (sep > 0) t = t.slice(sep + 2).trim();
+  if (!t || t.indexOf("foto") < 0) return false;
+  return t.indexOf("antes") >= 0 || t.indexOf("depois") >= 0;
+}
+
 // invariante: não conclui sem pagamento registrado.
 // Exceção: OS de "Refazer" (reabertura após conclusão) pode fechar com
 // valor_pago = 0 e sem forma — é cortesia/garantia, sem cobrança nova.
@@ -606,11 +618,17 @@ function guardOrdemUpdateRequest(e) {
     if (to === "concluida") {
       assertPaymentIfConcluida(e.record);
       // itens obrigatórios pendentes bloqueiam a conclusão (server-side mirror do frontend).
+      // Exceção: "Fotos de antes/depois" — foto só trava o check do item na UI,
+      // não a conclusão da OS (pedido do dono).
       const checklistExec = readJsonField(e.record, "checklist_exec");
       if (Array.isArray(checklistExec)) {
         for (let i = 0; i < checklistExec.length; i++) {
           const it = checklistExec[i];
-          if (Boolean(it.obrigatorio) && String(it.status) !== "concluido") {
+          if (
+            Boolean(it.obrigatorio) &&
+            String(it.status) !== "concluido" &&
+            !isItemChecklistFotoAntesDepois(it.titulo)
+          ) {
             throw new BadRequestError(
               "Conclua os itens obrigatórios do checklist antes de finalizar a OS."
             );

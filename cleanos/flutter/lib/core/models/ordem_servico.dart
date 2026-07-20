@@ -181,9 +181,10 @@ class OrdemServico with _$OrdemServico {
     return total < 0 ? 0 : total;
   }
 
-  bool get temItensObrigatoriosPendentes => checklistExec.any(
-    (i) => i.obrigatorio && i.status != ChecklistExecStatus.concluido,
-  );
+  /// Itens obrigatórios pendentes que impedem concluir a OS.
+  /// "Fotos de antes/depois" não entram (foto só trava o check do item).
+  bool get temItensObrigatoriosPendentes =>
+      checklistExec.any(checklistItemBloqueiaConclusaoOs);
 
   /// Nome do cliente para EXIBIR — nome inteiro quando o cofre veio expandido
   /// (só o Painel expande `cliente`), senão o denormalizado `nome_curto`.
