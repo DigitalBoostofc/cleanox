@@ -11,6 +11,10 @@
 /// "Nome: item" casando com [adicionais]) formam blocos próprios.
 library;
 
+import 'dart:io' show File;
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -127,6 +131,44 @@ String tituloChecklistExibicao(ChecklistExecItem item, {String? secaoTitulo}) {
   return t;
 }
 
+/// Título “nu” (sem prefixo de serviço extra) para regras de foto.
+String tituloChecklistNu(String titulo) {
+  final sep = titulo.indexOf(': ');
+  if (sep <= 0) return titulo.trim();
+  return titulo.substring(sep + 2).trim();
+}
+
+/// Itens "Fotos de antes" / "Fotos de depois" exigem foto na própria linha.
+/// Devolve a [FaseFoto] exigida, ou `null` se o item não for de evidência.
+FaseFoto? faseFotoExigida(ChecklistExecItem item) {
+  final t = tituloChecklistNu(item.titulo).toLowerCase();
+  if (t.isEmpty) return null;
+  final temFoto = t.contains('foto');
+  if (!temFoto) return null;
+  if (t.contains('antes')) return FaseFoto.antes;
+  if (t.contains('depois')) return FaseFoto.depois;
+  return null;
+}
+
+/// Fotos vinculadas a este item do checklist (por `checklistItemId`).
+List<EvidenciaFoto> fotosDoItemChecklist(
+  List<EvidenciaFoto> fotos,
+  String itemId,
+) {
+  if (itemId.isEmpty) return const [];
+  return [for (final f in fotos) if (f.checklistItemId == itemId) f];
+}
+
+/// Pode marcar o item como concluído? Itens de foto exigem ≥1 evidência vinculada.
+bool checklistItemPodeConcluir(
+  ChecklistExecItem item,
+  List<EvidenciaFoto> fotos,
+) {
+  final fase = faseFotoExigida(item);
+  if (fase == null) return true;
+  return fotosDoItemChecklist(fotos, item.id).isNotEmpty;
+}
+
 class ChecklistExecucao extends StatefulWidget {
   const ChecklistExecucao({
     super.key,
@@ -137,6 +179,11 @@ class ChecklistExecucao extends StatefulWidget {
     this.nowIso,
     this.onAddExtra,
     this.adicionais = const [],
+    this.fotos = const [],
+    this.onPickFotoItem,
+    this.onRemoveFoto,
+    this.pendingIds = const {},
+    this.onBloqueioFoto,
   });
 
   final List<ChecklistExecItem> items;
@@ -144,6 +191,21 @@ class ChecklistExecucao extends StatefulWidget {
 
   /// Serviços extras da OS — definem seções e títulos do checklist separado.
   final List<ServicoAdicionalOS> adicionais;
+
+  /// Evidências da OS — para gate e thumbs nos itens "Fotos de antes/depois".
+  final List<EvidenciaFoto> fotos;
+
+  /// Anexar foto no item (fase + id do item). Só itens com [faseFotoExigida].
+  final void Function(ChecklistExecItem item, FaseFoto fase)? onPickFotoItem;
+
+  /// Remover foto a partir da miniatura no checklist.
+  final ValueChanged<String>? onRemoveFoto;
+
+  /// IDs ainda em upload (badge na miniatura).
+  final Set<String> pendingIds;
+
+  /// Aviso quando o usuário tenta marcar sem foto (toast no pai).
+  final ValueChanged<String>? onBloqueioFoto;
 
   /// Modo leitura (OS concluída): nenhum toggle/observação editável.
   final bool readOnly;
@@ -170,6 +232,15 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
 
   void _toggle(ChecklistExecItem item) {
     if (widget.readOnly) return;
+    // Marcar como feito: itens de foto exigem anexo no próprio item.
+    if (!item.concluido && !checklistItemPodeConcluir(item, widget.fotos)) {
+      final fase = faseFotoExigida(item);
+      final label = fase == FaseFoto.depois ? 'depois' : 'antes';
+      widget.onBloqueioFoto?.call(
+        'Anexe a foto de $label neste item antes de marcar como concluído.',
+      );
+      return;
+    }
     final next = widget.items.map((it) {
       if (it.id != item.id) return it;
       if (it.concluido) {
@@ -288,6 +359,10 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
                     it,
                     secaoTitulo: secoes[si].extra ? secoes[si].titulo : null,
                   ),
+                  faseExigida: faseFotoExigida(it),
+                  fotosItem: fotosDoItemChecklist(widget.fotos, it.id),
+                  pendingIds: widget.pendingIds,
+                  podeConcluir: checklistItemPodeConcluir(it, widget.fotos),
                   obsOpen: _openObs.contains(it.id),
                   readOnly: widget.readOnly,
                   onToggle: () => _toggle(it),
@@ -295,6 +370,14 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
                     if (!_openObs.add(it.id)) _openObs.remove(it.id);
                   }),
                   onObsChanged: (v) => _setObs(it, v),
+                  onPickFoto: widget.readOnly || widget.onPickFotoItem == null
+                      ? null
+                      : () {
+                          final fase = faseFotoExigida(it);
+                          if (fase == null) return;
+                          widget.onPickFotoItem!(it, fase);
+                        },
+                  onRemoveFoto: widget.readOnly ? null : widget.onRemoveFoto,
                 ),
                 const SizedBox(height: ClxSpace.x2),
               ],
@@ -395,29 +478,49 @@ class _ChecklistTile extends StatelessWidget {
   const _ChecklistTile({
     required this.item,
     required this.tituloExibicao,
+    required this.faseExigida,
+    required this.fotosItem,
+    required this.pendingIds,
+    required this.podeConcluir,
     required this.obsOpen,
     required this.readOnly,
     required this.onToggle,
     required this.onToggleObs,
     required this.onObsChanged,
+    this.onPickFoto,
+    this.onRemoveFoto,
   });
 
   final ChecklistExecItem item;
   final String tituloExibicao;
+  final FaseFoto? faseExigida;
+  final List<EvidenciaFoto> fotosItem;
+  final Set<String> pendingIds;
+  final bool podeConcluir;
   final bool obsOpen;
   final bool readOnly;
   final VoidCallback onToggle;
   final VoidCallback onToggleObs;
   final ValueChanged<String> onObsChanged;
+  final VoidCallback? onPickFoto;
+  final ValueChanged<String>? onRemoveFoto;
+
+  bool get _exigeFoto => faseExigida != null;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final concluido = item.concluido;
+    final semFoto = _exigeFoto && !podeConcluir;
     return Container(
+      key: ValueKey('checklist-tile-${item.id}'),
       decoration: BoxDecoration(
         border: Border.all(
-          color: concluido ? clx.success.withValues(alpha: 0.25) : clx.line,
+          color: concluido
+              ? clx.success.withValues(alpha: 0.25)
+              : semFoto
+              ? clx.warning.withValues(alpha: 0.55)
+              : clx.line,
         ),
         borderRadius: ClxRadii.rLg,
         color: concluido ? clx.successBg : clx.bg2,
@@ -443,6 +546,7 @@ class _ChecklistTile extends StatelessWidget {
                       child: Checkbox(
                         value: concluido,
                         activeColor: clx.success,
+                        // Sem foto: ainda chama onToggle (mostra bloqueio/toast).
                         onChanged: readOnly ? null : (_) => onToggle(),
                         materialTapTargetSize: MaterialTapTargetSize.padded,
                       ),
@@ -471,7 +575,11 @@ class _ChecklistTile extends StatelessWidget {
                                     : Colors.transparent,
                                 borderRadius: ClxRadii.rMd,
                                 border: Border.all(
-                                  color: concluido ? clx.success : clx.line2,
+                                  color: concluido
+                                      ? clx.success
+                                      : semFoto
+                                      ? clx.warning
+                                      : clx.line2,
                                   width: 2,
                                 ),
                               ),
@@ -519,8 +627,24 @@ class _ChecklistTile extends StatelessWidget {
                                 color: clx.error,
                                 dense: true,
                               ),
+                            if (_exigeFoto && !concluido)
+                              ClxChip(
+                                label: semFoto ? 'Foto obrigatória' : 'Foto ok',
+                                color: semFoto ? clx.warning : clx.success,
+                                dense: true,
+                              ),
                           ],
                         ),
+                        if (semFoto && !readOnly)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              'Anexe a foto de ${faseExigida == FaseFoto.depois ? 'depois' : 'antes'} '
+                              'aqui para liberar o check.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: clx.warning),
+                            ),
+                          ),
                         if (concluido && (item.concluidoEm ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 3),
@@ -577,6 +701,17 @@ class _ChecklistTile extends StatelessWidget {
                 ),
             ],
           ),
+          if (_exigeFoto) ...[
+            const SizedBox(height: ClxSpace.x2),
+            _FotosDoItemRow(
+              itemId: item.id,
+              fotos: fotosItem,
+              pendingIds: pendingIds,
+              readOnly: readOnly,
+              onPick: onPickFoto,
+              onRemove: onRemoveFoto,
+            ),
+          ],
           if (obsOpen)
             Padding(
               padding: const EdgeInsets.only(
@@ -597,6 +732,171 @@ class _ChecklistTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _FotosDoItemRow extends StatelessWidget {
+  const _FotosDoItemRow({
+    required this.itemId,
+    required this.fotos,
+    required this.pendingIds,
+    required this.readOnly,
+    this.onPick,
+    this.onRemove,
+  });
+
+  final String itemId;
+  final List<EvidenciaFoto> fotos;
+  final Set<String> pendingIds;
+  final bool readOnly;
+  final VoidCallback? onPick;
+  final ValueChanged<String>? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return SizedBox(
+      height: 72,
+      child: ListView(
+        key: ValueKey('checklist-fotos-$itemId'),
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (final f in fotos) ...[
+            _MiniThumb(
+              foto: f,
+              uploading: pendingIds.contains(f.id),
+              readOnly: readOnly,
+              onRemove: onRemove == null ? null : () => onRemove!(f.id),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+          ],
+          if (!readOnly && onPick != null)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: ValueKey('checklist-anexar-$itemId'),
+                onTap: onPick,
+                borderRadius: ClxRadii.rMd,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: clx.bg,
+                    borderRadius: ClxRadii.rMd,
+                    border: Border.all(color: clx.primary.withValues(alpha: 0.35)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_a_photo_outlined, color: clx.primary, size: 22),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Anexar',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: clx.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniThumb extends StatelessWidget {
+  const _MiniThumb({
+    required this.foto,
+    required this.uploading,
+    required this.readOnly,
+    this.onRemove,
+  });
+
+  final EvidenciaFoto foto;
+  final bool uploading;
+  final bool readOnly;
+  final VoidCallback? onRemove;
+
+  bool get _isNetwork =>
+      foto.url.startsWith('http://') || foto.url.startsWith('https://');
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: ClxRadii.rMd,
+          child: SizedBox(
+            width: 72,
+            height: 72,
+            child: _isNetwork
+                ? CachedNetworkImage(
+                    imageUrl: foto.url,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: clx.bg2),
+                    errorWidget: (_, __, ___) => Container(
+                      color: clx.bg2,
+                      child: Icon(Icons.broken_image_outlined, color: clx.ink3),
+                    ),
+                  )
+                : (!kIsWeb
+                      ? Image.file(
+                          File(foto.url),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: clx.bg2,
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: clx.ink3,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: clx.bg2,
+                          child: Icon(Icons.image_outlined, color: clx.ink3),
+                        )),
+          ),
+        ),
+        if (uploading)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black38,
+                borderRadius: ClxRadii.rMd,
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ),
+        if (!readOnly && onRemove != null)
+          Positioned(
+            top: 2,
+            right: 2,
+            child: Material(
+              color: Colors.black54,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onRemove,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

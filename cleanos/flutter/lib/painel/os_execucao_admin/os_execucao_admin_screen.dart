@@ -269,6 +269,7 @@ class _BodyState extends ConsumerState<_Body> {
           child: ChecklistExecucao(
             items: os.checklistExec,
             adicionais: os.adicionais,
+            fotos: const [], // painel admin: thumbs via seção de evidências
             onChange: (_) {},
             concluidoPor:
                 os.expand?.profissional?.displayName ?? 'Profissional',

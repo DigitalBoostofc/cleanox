@@ -472,6 +472,7 @@ class OSExecucaoController
         pendingIds: {...state.pendingIds}..remove(id),
         failedIds: {...state.failedIds}..remove(id),
       );
+      _reabrirItensSemFoto();
       return;
     }
     state = state.copyWith(deletingId: id);
@@ -481,10 +482,34 @@ class OSExecucaoController
         fotos: state.fotos.where((f) => f.id != id).toList(),
         deletingId: null,
       );
+      _reabrirItensSemFoto();
     } catch (_) {
       state = state.copyWith(deletingId: null);
       rethrow;
     }
+  }
+
+  /// Se o profissional remove a última foto de um item "Fotos de antes/depois"
+  /// que estava concluído, reabre o item (não pode ficar check sem evidência).
+  void _reabrirItensSemFoto() {
+    var changed = false;
+    final next = <ChecklistExecItem>[];
+    for (final it in state.checklist) {
+      if (!it.concluido || checklistItemPodeConcluir(it, state.fotos)) {
+        next.add(it);
+        continue;
+      }
+      changed = true;
+      next.add(
+        it.copyWith(
+          status: ChecklistExecStatus.pendente,
+          concluidoEm: null,
+          concluidoPor: null,
+        ),
+      );
+    }
+    if (!changed) return;
+    setChecklist(next);
   }
 
   void setLegenda(String id, String value) {

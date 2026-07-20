@@ -148,6 +148,51 @@ void main() {
     },
   );
 
+  group('faseFotoExigida / checklistItemPodeConcluir', () {
+    test('detecta fotos de antes e depois pelo título', () {
+      expect(
+        faseFotoExigida(const ChecklistExecItem(id: '1', titulo: 'Fotos de antes')),
+        FaseFoto.antes,
+      );
+      expect(
+        faseFotoExigida(
+          const ChecklistExecItem(id: '2', titulo: 'Sofá 2 lugares: Fotos de depois'),
+        ),
+        FaseFoto.depois,
+      );
+      expect(
+        faseFotoExigida(const ChecklistExecItem(id: '3', titulo: 'Aspirar')),
+        isNull,
+      );
+    });
+
+    test('só libera check com foto vinculada ao item', () {
+      const item = ChecklistExecItem(id: 'cke1', titulo: 'Fotos de antes');
+      expect(checklistItemPodeConcluir(item, const []), isFalse);
+      expect(
+        checklistItemPodeConcluir(item, const [
+          EvidenciaFoto(
+            id: 'f1',
+            fase: FaseFoto.antes,
+            checklistItemId: 'cke1',
+          ),
+        ]),
+        isTrue,
+      );
+      // foto de outra fase/item não conta
+      expect(
+        checklistItemPodeConcluir(item, const [
+          EvidenciaFoto(
+            id: 'f2',
+            fase: FaseFoto.antes,
+            checklistItemId: 'outro',
+          ),
+        ]),
+        isFalse,
+      );
+    });
+  });
+
   group('agruparChecklistSecoes', () {
     test('principal e extra ficam em seções distintas', () {
       const principal = [
