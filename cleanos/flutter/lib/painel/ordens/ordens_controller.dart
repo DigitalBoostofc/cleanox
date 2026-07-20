@@ -352,7 +352,8 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
-  /// Reabre OS concluída → em agendamento + etiqueta Refazer (valor zerado).
+  /// Duplica OS concluída → nova OS em agendamento + Refazer (valor zerado).
+  /// A original permanece concluída.
   Future<void> reabrir(String osId) async {
     await _ref.read(ordensRepositoryProvider).reabrir(osId);
     await refresh();

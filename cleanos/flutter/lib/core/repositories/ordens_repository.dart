@@ -36,8 +36,8 @@ abstract class OrdensRepository {
   /// POST /api/cleanos/os/{id}/cancelar — admin, gerente ou prof dono.
   Future<OrdemServico> cancelar(String osId, {required String motivo});
 
-  /// Reabre OS concluída → em agendamento com etiqueta Refazer (valor zerado).
-  /// POST /api/cleanos/os/{id}/reabrir — admin/gerente.
+  /// Duplica OS concluída em nova OS "Em agendamento" + Refazer (valor zerado).
+  /// Original intacta. POST /api/cleanos/os/{id}/reabrir — admin/gerente.
   Future<OrdemServico> reabrir(String osId);
 
   /// Stream realtime da coleção. `topic` = '*' (todas) ou id de uma OS.
@@ -140,11 +140,16 @@ class PbOrdensRepository implements OrdensRepository {
 
   @override
   Future<OrdemServico> reabrir(String osId) async {
-    await _pb.send<Map<String, dynamic>>(
+    final res = await _pb.send<Map<String, dynamic>>(
       '/api/cleanos/os/$osId/reabrir',
       method: 'POST',
     );
-    return getOne(osId, expand: 'profissional,servico,cliente');
+    // Rota cria uma NOVA OS; o id da cópia vem em `osId`.
+    final novoId = '${res['osId'] ?? ''}'.trim();
+    if (novoId.isEmpty) {
+      throw StateError('Resposta de reabrir sem osId da nova OS.');
+    }
+    return getOne(novoId, expand: 'profissional,servico,cliente');
   }
 
   @override
