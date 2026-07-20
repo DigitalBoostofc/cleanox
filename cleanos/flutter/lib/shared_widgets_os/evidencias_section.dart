@@ -1,10 +1,14 @@
-/// evidencias_section.dart — Evidências do serviço (fotos antes/durante/depois).
+/// evidencias_section.dart — Evidências do serviço (fotos por fase).
 ///
 /// Widget GENÉRICO e CONTROLADO (dono: Time B, reusável pelo Painel): recebe a
 /// lista de [EvidenciaFoto] + callbacks; NÃO conhece image_picker nem o PocketBase.
 /// Quem materializa (pick + upload otimista + persistência offline) é o pai
 /// (a tela de execução, via a fila de upload). Porte de
 /// `components/os/EvidenciasSection.tsx`.
+///
+/// **Durante** não é mais oferecido na UI (pedido do dono). Antes/depois ficam
+/// no checklist quando o serviço já tem itens "Fotos de antes/depois"; a seção
+/// só mostra as fases que o checklist NÃO cobre.
 ///
 /// Renderização da imagem: `url` http(s) → rede (com cache); caso contrário é
 /// tratado como CAMINHO LOCAL de arquivo (preview otimista antes do upload).
@@ -17,7 +21,24 @@ import 'package:flutter/material.dart';
 
 import '../core/design/design.dart';
 import '../core/models/os_execucao.dart';
+import 'checklist_execucao.dart' show faseFotoExigida;
 import 'labels.dart';
+
+/// Fases da seção "Evidências" que o checklist **não** cobre (sem `durante`).
+///
+/// Se o checklist já tem "Fotos de antes" e "Fotos de depois", devolve lista
+/// vazia — a seção some (anexo fica só no checklist).
+List<FaseFoto> fasesEvidenciaSemChecklist(List<ChecklistExecItem> checklist) {
+  final cobertas = <FaseFoto>{};
+  for (final i in checklist) {
+    final f = faseFotoExigida(i);
+    if (f != null) cobertas.add(f);
+  }
+  return [
+    if (!cobertas.contains(FaseFoto.antes)) FaseFoto.antes,
+    if (!cobertas.contains(FaseFoto.depois)) FaseFoto.depois,
+  ];
+}
 
 /// Tipo de vínculo de uma evidência.
 enum VinculoKind { checklist, observacao, adicional }
@@ -56,9 +77,15 @@ class EvidenciasSection extends StatelessWidget {
     this.onRetry,
     this.disabled = false,
     this.readOnly = false,
+    this.fases = const [FaseFoto.antes, FaseFoto.depois],
   });
 
   final List<EvidenciaFoto> fotos;
+
+  /// Fases exibidas. Default: antes + depois (sem durante).
+  /// Passe [fasesEvidenciaSemChecklist] na execução para ocultar o que o
+  /// checklist já cobre; lista vazia → seção some.
+  final List<FaseFoto> fases;
 
   /// Solicita adicionar fotos de uma fase (o pai abre a câmera/galeria).
   final ValueChanged<FaseFoto> onPick;
@@ -83,15 +110,23 @@ class EvidenciasSection extends StatelessWidget {
   /// Modo leitura (OS concluída): sem adicionar/remover/editar fotos.
   final bool readOnly;
 
-  static const List<FaseFoto> _fases = [
-    FaseFoto.antes,
-    FaseFoto.durante,
-    FaseFoto.depois,
-  ];
-
   @override
   Widget build(BuildContext context) {
+    if (fases.isEmpty) return const SizedBox.shrink();
+
     final clx = context.clx;
+    final soAntesDepois = fases.length == 2 &&
+        fases.contains(FaseFoto.antes) &&
+        fases.contains(FaseFoto.depois);
+    final help = soAntesDepois
+        ? 'Registre fotos do antes e do depois. Toque numa foto para '
+            'legendar ou vincular a um item do serviço.'
+        : fases.length == 1
+        ? 'Registre fotos de ${fases.first.label.toLowerCase()}. Toque numa '
+            'foto para legendar ou vincular a um item do serviço.'
+        : 'Registre as evidências do serviço. Toque numa foto para '
+            'legendar ou vincular a um item.';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -104,13 +139,12 @@ class EvidenciasSection extends StatelessWidget {
         ),
         const SizedBox(height: ClxSpace.x1),
         Text(
-          'Registre fotos do antes, durante e depois. Toque numa foto para '
-          'legendar ou vincular a um item do serviço.',
+          help,
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: clx.ink3),
         ),
-        for (final fase in _fases) ...[
+        for (final fase in fases) ...[
           const SizedBox(height: ClxSpace.x4),
           _FaseGrupo(
             fase: fase,

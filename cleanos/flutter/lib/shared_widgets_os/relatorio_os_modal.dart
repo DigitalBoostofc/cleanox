@@ -277,8 +277,8 @@ class _EvidenciasResumo extends StatelessWidget {
             const SizedBox(height: ClxSpace.x2),
             Text(
               'Antes: ${count(FaseFoto.antes)} · '
-              'Durante: ${count(FaseFoto.durante)} · '
-              'Depois: ${count(FaseFoto.depois)}',
+              'Depois: ${count(FaseFoto.depois)}'
+              '${count(FaseFoto.durante) > 0 ? ' · Durante: ${count(FaseFoto.durante)}' : ''}',
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(color: clx.ink2),
