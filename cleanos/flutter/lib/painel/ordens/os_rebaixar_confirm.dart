@@ -32,7 +32,7 @@ Future<bool?> confirmarRebaixarEmAndamento(
   BuildContext context, {
   required bool removendo,
 }) {
-  final destino = removendo ? 'Agendada' : 'Atribuída';
+  final destino = removendo ? 'Em agendamento' : 'Atribuída';
   final acao = removendo ? 'Remover o profissional' : 'Trocar o profissional';
   return showDialog<bool>(
     context: context,

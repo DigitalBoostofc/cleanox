@@ -336,6 +336,9 @@ mixin _$OrdemServico {
   @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
   String? get canceladoEm => throw _privateConstructorUsedError;
 
+  /// OS reaberta após conclusão (etiqueta "Refazer" na UI).
+  bool get refazer => throw _privateConstructorUsedError;
+
   /// Avaliação (preenchida pelo backend após pesquisa).
   @JsonKey(name: 'avaliacao_nota')
   double? get avaliacaoNota => throw _privateConstructorUsedError;
@@ -420,6 +423,7 @@ abstract class $OrdemServicoCopyWith<$Res> {
     @JsonKey(name: 'cancelado_por_nome') String? canceladoPorNome,
     @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
     String? canceladoEm,
+    bool refazer,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -479,6 +483,7 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? canceladoPor = freezed,
     Object? canceladoPorNome = freezed,
     Object? canceladoEm = freezed,
+    Object? refazer = null,
     Object? avaliacaoNota = freezed,
     Object? avaliacaoMotivo = freezed,
     Object? avaliacaoEm = freezed,
@@ -588,6 +593,10 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
                 ? _value.canceladoEm
                 : canceladoEm // ignore: cast_nullable_to_non_nullable
                       as String?,
+            refazer: null == refazer
+                ? _value.refazer
+                : refazer // ignore: cast_nullable_to_non_nullable
+                      as bool,
             avaliacaoNota: freezed == avaliacaoNota
                 ? _value.avaliacaoNota
                 : avaliacaoNota // ignore: cast_nullable_to_non_nullable
@@ -722,6 +731,7 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     @JsonKey(name: 'cancelado_por_nome') String? canceladoPorNome,
     @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
     String? canceladoEm,
+    bool refazer,
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') String? avaliacaoEm,
@@ -782,6 +792,7 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? canceladoPor = freezed,
     Object? canceladoPorNome = freezed,
     Object? canceladoEm = freezed,
+    Object? refazer = null,
     Object? avaliacaoNota = freezed,
     Object? avaliacaoMotivo = freezed,
     Object? avaliacaoEm = freezed,
@@ -891,6 +902,10 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
             ? _value.canceladoEm
             : canceladoEm // ignore: cast_nullable_to_non_nullable
                   as String?,
+        refazer: null == refazer
+            ? _value.refazer
+            : refazer // ignore: cast_nullable_to_non_nullable
+                  as bool,
         avaliacaoNota: freezed == avaliacaoNota
             ? _value.avaliacaoNota
             : avaliacaoNota // ignore: cast_nullable_to_non_nullable
@@ -990,6 +1005,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
     @JsonKey(name: 'cancelado_por') this.canceladoPor,
     @JsonKey(name: 'cancelado_por_nome') this.canceladoPorNome,
     @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull) this.canceladoEm,
+    this.refazer = false,
     @JsonKey(name: 'avaliacao_nota') this.avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') this.avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') this.avaliacaoEm,
@@ -1131,6 +1147,11 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
   final String? canceladoEm;
 
+  /// OS reaberta após conclusão (etiqueta "Refazer" na UI).
+  @override
+  @JsonKey()
+  final bool refazer;
+
   /// Avaliação (preenchida pelo backend após pesquisa).
   @override
   @JsonKey(name: 'avaliacao_nota')
@@ -1196,7 +1217,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, refazer: $refazer, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1245,6 +1266,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
                 other.canceladoPorNome == canceladoPorNome) &&
             (identical(other.canceladoEm, canceladoEm) ||
                 other.canceladoEm == canceladoEm) &&
+            (identical(other.refazer, refazer) || other.refazer == refazer) &&
             (identical(other.avaliacaoNota, avaliacaoNota) ||
                 other.avaliacaoNota == avaliacaoNota) &&
             (identical(other.avaliacaoMotivo, avaliacaoMotivo) ||
@@ -1305,6 +1327,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
     canceladoPor,
     canceladoPorNome,
     canceladoEm,
+    refazer,
     avaliacaoNota,
     avaliacaoMotivo,
     avaliacaoEm,
@@ -1372,6 +1395,7 @@ abstract class _OrdemServico extends OrdemServico {
     @JsonKey(name: 'cancelado_por_nome') final String? canceladoPorNome,
     @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
     final String? canceladoEm,
+    final bool refazer,
     @JsonKey(name: 'avaliacao_nota') final double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') final String? avaliacaoMotivo,
     @JsonKey(name: 'avaliacao_em') final String? avaliacaoEm,
@@ -1509,6 +1533,10 @@ abstract class _OrdemServico extends OrdemServico {
   @override
   @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull)
   String? get canceladoEm;
+
+  /// OS reaberta após conclusão (etiqueta "Refazer" na UI).
+  @override
+  bool get refazer;
 
   /// Avaliação (preenchida pelo backend após pesquisa).
   @override

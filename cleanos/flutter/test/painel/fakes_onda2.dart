@@ -181,6 +181,9 @@ class FakeOrdens implements OrdensRepository {
   @override
   Future<OrdemServico> cancelar(String osId, {required String motivo}) =>
       _unused();
+  
+  @override
+  Future<OrdemServico> reabrir(String osId) => _unused();
   @override
   Stream<OrdemServicoEvent> subscribe({String topic = '*', String? filter}) =>
       const Stream.empty();

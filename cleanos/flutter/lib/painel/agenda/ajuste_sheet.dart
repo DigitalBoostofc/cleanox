@@ -163,7 +163,7 @@ class _AjusteOsSheetState extends State<AjusteOsSheet> {
                     ),
                   ),
                 ),
-                StatusBadge(status: os.status, dense: true),
+                StatusBadge(status: os.status, dense: true, refazer: os.refazer),
               ],
             ),
             const SizedBox(height: 2),

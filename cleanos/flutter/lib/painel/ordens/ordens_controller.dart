@@ -352,6 +352,12 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
+  /// Reabre OS concluída → em agendamento + etiqueta Refazer (valor zerado).
+  Future<void> reabrir(String osId) async {
+    await _ref.read(ordensRepositoryProvider).reabrir(osId);
+    await refresh();
+  }
+
   /// Exclui uma OS definitivamente e recarrega. O hook do servidor
   /// (os_delete.pb.js) estorna a receita via_os e remove a comissão antes
   /// de comitar — o Flutter só dispara o delete.
