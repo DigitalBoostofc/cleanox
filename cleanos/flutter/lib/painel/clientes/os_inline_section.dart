@@ -1,37 +1,34 @@
 /// os_inline_section.dart — Seção de OS embutida na criação de Cliente ("Gerar OS").
 ///
-/// Espelha `OSFormSection.tsx` reaproveitado pelo `Clientes.tsx` quando o toggle
-/// "Gerar OS" está ligado: serviço (prefila nome+valor), profissional (define
-/// atribuída/agendada no save), data + slot de horário (mesma lógica de
-/// disponibilidade da Nova OS), **duração** (paridade com Nova OS — D9) e
-/// valor/observações. NÃO tem seletor de cliente — a OS é gerada para o cliente
-/// recém-criado.
+/// Espelha a Nova OS ([OSForm]): serviço (prefila nome+valor), profissional
+/// (define atribuída/agendada no save), data livre, **hora livre HH:MM** (D10 —
+/// sem dropdown de slots de disponibilidade), **duração** prefilada com a do
+/// profissional (D9) e valor/observações. NÃO tem seletor de cliente — a OS é
+/// gerada para o cliente recém-criado.
 ///
-/// Reusa a função PURA [computeOSDaySlots] do formulário de OS (mesma lógica de
-/// slot da Agenda/Nova OS) e os providers/filtros já congelados. O estado dos
-/// campos vive AQUI; o formulário-pai lê os valores + [OsInlineSectionState.validate]
-/// via `GlobalKey` no save (espelha `validateOSInlineForm` do React).
+/// Agenda estilo Google: sobrepor é permitido. Aviso amarelo de colisão não
+/// bloqueia o salvar (mesma `sobreposicoes` da grade). O estado dos campos vive
+/// AQUI; o formulário-pai lê os valores + [OsInlineSectionState.validate] via
+/// `GlobalKey` no save.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/agenda/agenda_layout.dart' show kDuracaoPadraoMin, labelDuracao;
+import '../../core/agenda/agenda_layout.dart';
+import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
+import '../../core/models/ordem_servico.dart';
 import '../../core/models/servico.dart';
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
-import '../servicos/servicos_labels.dart';
 import '../ordens/ordens_controller.dart' show ordensLookupsProvider;
-import '../ordens/os_form.dart' show computeOSDaySlots, kDuracaoOpcoes;
-import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
-
-const List<String> _kMinutes = ['00', '15', '30', '45'];
-
-/// Estágio da busca de disponibilidade do profissional selecionado.
-enum _DispState { idle, loading, loaded, error }
+import '../ordens/os_form.dart' show kDuracaoOpcoes;
+import '../servicos/servicos_labels.dart';
 
 class OsInlineSection extends ConsumerStatefulWidget {
   const OsInlineSection({super.key, required this.enabled});
@@ -47,27 +44,28 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   final TextEditingController _tipoServico = TextEditingController();
   final TextEditingController _valor = TextEditingController();
   final TextEditingController _observacoes = TextEditingController();
+  final TextEditingController _hora = TextEditingController(text: '08:00');
+  final FocusNode _horaFocus = FocusNode();
 
   String _servicoId = '';
   String _profissionalId = '';
   String _dataDate = ''; // yyyy-MM-dd (BRT)
-  String _horaH = '08';
-  String _horaM = '00';
 
   /// Duração da OS (min). `null` → prefilada com a do profissional (D9).
   int? _duracaoMin;
   bool _duracaoTocada = false;
 
-  // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx).
+  // Filtro cascata Categoria → Grupo → Serviço.
   Categoria? _catFiltro;
   Grupo? _grupoFiltro;
 
   final Map<String, String> _errs = {};
 
-  // Disponibilidade real do profissional selecionado (seletor de slot).
+  // Disponibilidade do profissional: prefila duração (D9).
   Disponibilidade? _disp;
-  _DispState _dispState = _DispState.idle;
-  List<String> _ocupados = const [];
+
+  /// OS que ocupam a agenda no dia — base do aviso de sobreposição (não bloqueia).
+  List<OrdemServico> _ocupados = const [];
   bool _ocupadosLoading = false;
   int _dispSeq = 0;
   int _ocupSeq = 0;
@@ -77,8 +75,20 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   String get servicoId => _servicoId;
   String get tipoServicoNome => _tipoServico.text.trim();
   String get dataDate => _dataDate;
-  String get horaH => _horaH;
-  String get horaM => _horaM;
+
+  /// Partes HH / MM após snap de 15 min (compat com [cliente_form]).
+  String get horaH {
+    final m = parseHoraLivre(_hora.text);
+    if (m == null) return '08';
+    return hhmmDeMinutos(snap15(m)).split(':')[0];
+  }
+
+  String get horaM {
+    final m = parseHoraLivre(_hora.text);
+    if (m == null) return '00';
+    return hhmmDeMinutos(snap15(m)).split(':')[1];
+  }
+
   String get valorServico => _valor.text.trim();
   String get profissionalId => _profissionalId;
   String get observacoes => _observacoes.text.trim();
@@ -90,14 +100,32 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     return doProf > 0 ? doProf : kDuracaoPadraoMin;
   }
 
-  /// Valida os campos da OS (espelha `validateOSInlineForm`: serviço + data + valor).
-  /// Atualiza os erros exibidos e retorna `true` se está tudo válido.
+  int? get _horaMin => parseHoraLivre(_hora.text);
+
+  List<Intervalo> get _colisoes {
+    final inicio = _horaMin;
+    if (inicio == null || _ocupados.isEmpty) return const [];
+    return sobreposicoes(
+      [for (final o in _ocupados) intervaloDaOs(o, _disp)],
+      inicio,
+      duracaoMin,
+    );
+  }
+
+  /// Valida os campos da OS (serviço + data + hora + valor).
   bool validate() {
     final errs = <String, String>{};
     if (_servicoId.isEmpty) errs['servico'] = 'Selecione um serviço';
     // Datas no passado são permitidas (registrar OS históricas / backfill).
     if (_dataDate.isEmpty) {
       errs['data'] = 'Data é obrigatória';
+    }
+    final hora = _horaMin;
+    if (hora == null) {
+      errs['hora'] = 'Horário inválido (HH:MM)';
+    } else {
+      // Snap antes do save (mesma regra da Nova OS).
+      _hora.text = hhmmDeMinutos(snap15(hora));
     }
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
     if (valor == null || valor <= 0) errs['valor'] = 'Informe o valor';
@@ -110,15 +138,37 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _horaFocus.addListener(() {
+      if (!_horaFocus.hasFocus) _normalizarHora();
+    });
+  }
+
+  @override
   void dispose() {
     _tipoServico.dispose();
     _valor.dispose();
     _observacoes.dispose();
+    _hora.dispose();
+    _horaFocus.dispose();
     super.dispose();
   }
 
   static String _numText(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  void _normalizarHora() {
+    final min = parseHoraLivre(_hora.text);
+    if (min == null) {
+      setState(() => _errs['hora'] = 'Horário inválido (HH:MM)');
+      return;
+    }
+    setState(() {
+      _errs.remove('hora');
+      _hora.text = hhmmDeMinutos(snap15(min));
+    });
+  }
 
   ServicoPB? _servicoAtual(List<ServicoPB> servicos) {
     for (final s in servicos) {
@@ -127,8 +177,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     return null;
   }
 
-  /// Categoria do filtro mudou: reseta o grupo e limpa o serviço se ele já não
-  /// pertencer à nova categoria (espelha `handleCategoriaChange`).
   void _onCategoria(Categoria? c, List<ServicoPB> servicos) {
     setState(() {
       _catFiltro = c;
@@ -140,7 +188,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     });
   }
 
-  /// Grupo do filtro mudou: limpa o serviço se ele já não pertencer ao novo grupo.
   void _onGrupo(Grupo? g, List<ServicoPB> servicos) {
     setState(() {
       _grupoFiltro = g;
@@ -151,7 +198,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     });
   }
 
-  /// Serviço mudou: sempre prefila nome + valor (espelha `onOSServicoChange`).
   void _onServico(String? id, List<ServicoPB> servicos) {
     setState(() {
       _servicoId = id ?? '';
@@ -175,7 +221,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     _fetchOcupados();
   }
 
-  /// Prefilla duração com a do profissional enquanto o usuário não mexeu (D9).
   void _prefillDuracao() {
     if (_duracaoTocada) return;
     final doProf = _disp?.duracaoMin ?? 0;
@@ -184,7 +229,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     setState(() => _duracaoMin = nova);
   }
 
-  /// Limites [start, end) do dia [date] em string UTC do PB (BRT centralizado).
   static ({String start, String end}) _dayBounds(String date) {
     final start = localInputToPBDate('${date}T00:00');
     final d = DateTime.tryParse(date) ?? DateTime.now();
@@ -201,14 +245,12 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     if (prof.isEmpty) {
       setState(() {
         _disp = null;
-        _dispState = _DispState.idle;
         _ocupados = const [];
       });
       _prefillDuracao();
       return;
     }
     final seq = ++_dispSeq;
-    setState(() => _dispState = _DispState.loading);
     try {
       final res = await ref
           .read(disponibilidadeRepositoryProvider)
@@ -218,18 +260,12 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             filter: disponibilidadeDoProfissionalFilter(prof),
           );
       if (!mounted || seq != _dispSeq) return;
-      setState(() {
-        _disp = res.items.isEmpty ? null : res.items.first;
-        _dispState = _DispState.loaded;
-      });
+      setState(() => _disp = res.items.isEmpty ? null : res.items.first);
       _prefillDuracao();
-      _autoSelectSlot();
     } catch (_) {
       if (!mounted || seq != _dispSeq) return;
-      setState(() {
-        _disp = null;
-        _dispState = _DispState.error;
-      });
+      setState(() => _disp = null);
+      _prefillDuracao();
     }
   }
 
@@ -260,13 +296,15 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             sort: 'data_hora',
           );
       if (!mounted || seq != _ocupSeq) return;
-      final times = <String>[for (final o in res.items) formatTime(o.dataHora)]
-        ..removeWhere((t) => t == '—');
+      final ocupados = <OrdemServico>[
+        for (final o in res.items)
+          if (o.status != OSStatus.concluida && o.status != OSStatus.cancelada)
+            o,
+      ];
       setState(() {
-        _ocupados = times;
+        _ocupados = ocupados;
         _ocupadosLoading = false;
       });
-      _autoSelectSlot();
     } catch (_) {
       if (!mounted || seq != _ocupSeq) return;
       setState(() {
@@ -274,50 +312,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
         _ocupadosLoading = false;
       });
     }
-  }
-
-  ({bool loading, bool slotMode, bool diaAtende, List<String> slots})
-  _slotState() {
-    final attempt = _profissionalId.isNotEmpty;
-    final loading =
-        attempt &&
-        (_dispState == _DispState.loading ||
-            (_dispState == _DispState.loaded &&
-                _disp != null &&
-                _ocupadosLoading));
-    final slotMode =
-        attempt && _dispState == _DispState.loaded && _disp != null;
-    if (!slotMode) {
-      return (
-        loading: loading,
-        slotMode: false,
-        diaAtende: true,
-        slots: const [],
-      );
-    }
-    final day = computeOSDaySlots(
-      disp: _disp!,
-      date: _dataDate,
-      ocupados: _ocupados,
-    );
-    return (
-      loading: loading,
-      slotMode: true,
-      diaAtende: day.diaAtende,
-      slots: day.slots,
-    );
-  }
-
-  void _autoSelectSlot() {
-    final s = _slotState();
-    if (!s.slotMode || s.loading || s.slots.isEmpty) return;
-    final current = '$_horaH:$_horaM';
-    if (s.slots.contains(current)) return;
-    final first = s.slots.first.split(':');
-    setState(() {
-      _horaH = first[0];
-      _horaM = first[1];
-    });
   }
 
   @override
@@ -341,7 +335,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   }
 
   Widget _dataForm(CleanoxColors clx, dynamic lk) {
-    // Cascata Categoria → Grupo → Serviço (mesmo cálculo do OSFormSection.tsx).
     final servicos = lk.servicos as List<ServicoPB>;
     final categorias = <Categoria>[
       for (final c in <Categoria>{
@@ -371,7 +364,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Categoria (filtro cascata).
         if (categorias.isNotEmpty) ...[
           _label('Categoria'),
           DropdownButtonFormField<String>(
@@ -394,8 +386,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           ),
           const SizedBox(height: ClxSpace.x4),
         ],
-
-        // Grupo (filtro cascata).
         if (grupos.isNotEmpty) ...[
           _label('Grupo'),
           DropdownButtonFormField<String>(
@@ -418,8 +408,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           ),
           const SizedBox(height: ClxSpace.x4),
         ],
-
-        // Serviço (filtrado pela categoria/grupo acima).
         _label('Serviço', required: true),
         DropdownButtonFormField<String>(
           key: ValueKey('os-inline-servico-$servicoValue'),
@@ -441,79 +429,70 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           onChanged: !widget.enabled ? null : (v) => _onServico(v, servicos),
         ),
         const SizedBox(height: ClxSpace.x4),
-
-          // Nome do serviço (snapshot editável).
-          _textField(
-            label: 'Nome do serviço (snapshot)',
-            controller: _tipoServico,
-            hint: 'Ex: Sofá 3 lugares',
-          ),
-
-          // Profissional.
-          _label('Profissional'),
-          DropdownButtonFormField<String>(
-            key: const ValueKey('os-inline-profissional'),
-            initialValue: _profissionalId.isEmpty ? null : _profissionalId,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            hint: const Text('— Não atribuído (Em agendamento) —'),
-            items: [
-              const DropdownMenuItem(
-                value: '',
-                child: Text('— Não atribuído (Em agendamento) —'),
-              ),
-              for (final p in lk.profissionais)
-                DropdownMenuItem(
-                  value: p.id,
-                  child: Text(p.displayName, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: !widget.enabled
-                ? null
-                : (v) => _onProfissional(v ?? ''),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: ClxSpace.x1),
-            child: Text(
-              'Ao atribuir um profissional, o status passa para "Atribuída".',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
+        _textField(
+          label: 'Nome do serviço (snapshot)',
+          controller: _tipoServico,
+          hint: 'Ex: Sofá 3 lugares',
+        ),
+        _label('Profissional'),
+        DropdownButtonFormField<String>(
+          key: const ValueKey('os-inline-profissional'),
+          initialValue: _profissionalId.isEmpty ? null : _profissionalId,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          hint: const Text('— Não atribuído (Em agendamento) —'),
+          items: [
+            const DropdownMenuItem(
+              value: '',
+              child: Text('— Não atribuído (Em agendamento) —'),
             ),
+            for (final p in lk.profissionais)
+              DropdownMenuItem(
+                value: p.id,
+                child: Text(p.displayName, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: !widget.enabled
+              ? null
+              : (v) => _onProfissional(v ?? ''),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: ClxSpace.x1),
+          child: Text(
+            'Ao atribuir um profissional, o status passa para "Atribuída".',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: clx.ink3),
           ),
-          const SizedBox(height: ClxSpace.x4),
-
-          // Data + horário.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _dateField(clx)),
-              const SizedBox(width: ClxSpace.x3),
-              Expanded(child: _horaField(clx)),
-            ],
-          ),
-          const SizedBox(height: ClxSpace.x4),
-
-          // Duração (paridade com Nova OS — pedida pelo dono quando "Gerar OS").
-          _duracaoField(clx),
-          const SizedBox(height: ClxSpace.x4),
-
-          // Valor.
-          _textField(
-            label: 'Valor do serviço (R\$)',
-            required: true,
-            controller: _valor,
-            errorKey: 'valor',
-            hint: '0,00',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
-
-          // Observações.
-          _textField(
-            label: 'Observações',
-            controller: _observacoes,
-            hint: 'Detalhes adicionais para o serviço…',
-            maxLines: 3,
-          ),
-        ],
+        ),
+        const SizedBox(height: ClxSpace.x4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _dateField(clx)),
+            const SizedBox(width: ClxSpace.x3),
+            Expanded(child: _horaField(clx)),
+          ],
+        ),
+        _avisoSobreposicao(clx),
+        const SizedBox(height: ClxSpace.x4),
+        _duracaoField(clx),
+        const SizedBox(height: ClxSpace.x4),
+        _textField(
+          label: 'Valor do serviço (R\$)',
+          required: true,
+          controller: _valor,
+          errorKey: 'valor',
+          hint: '0,00',
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        _textField(
+          label: 'Observações',
+          controller: _observacoes,
+          hint: 'Detalhes adicionais para o serviço…',
+          maxLines: 3,
+        ),
+      ],
     );
   }
 
@@ -572,7 +551,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     );
   }
 
-  /// Duração da OS — prefilada (visível) com a do profissional (D9).
   Widget _duracaoField(CleanoxColors clx) {
     final efetiva = duracaoMin;
     final opcoes = <int>[
@@ -646,157 +624,73 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     );
   }
 
+  /// Hora livre HH:MM (D10) — qualquer horário; snap de 15 min ao sair do campo.
   Widget _horaField(CleanoxColors clx) {
-    final s = _slotState();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('Hora', required: true),
-        if (s.loading)
-          Padding(
-            key: const ValueKey('os-inline-hora-loading'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-            child: Row(
-              children: [
-                const Spinner(size: 14),
-                const SizedBox(width: ClxSpace.x2),
-                Text(
-                  'Carregando horários…',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
-                ),
-              ],
-            ),
-          )
-        else if (s.slotMode && !s.diaAtende)
-          Padding(
-            key: const ValueKey('os-inline-hora-dia-inativo'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-            child: Text(
-              'Profissional não atende neste dia',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: clx.error,
-                fontWeight: FontWeight.w600,
+        TextField(
+          key: const ValueKey('os-inline-hora-input'),
+          controller: _hora,
+          focusNode: _horaFocus,
+          enabled: widget.enabled,
+          keyboardType: TextInputType.datetime,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+            LengthLimitingTextInputFormatter(5),
+          ],
+          onChanged: (_) => setState(() => _errs.remove('hora')),
+          onSubmitted: (_) => _normalizarHora(),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'HH:MM',
+            errorText: _errs['hora'],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _avisoSobreposicao(CleanoxColors clx) {
+    final colisoes = _colisoes;
+    if (colisoes.isEmpty || _ocupadosLoading) return const SizedBox.shrink();
+    final texto = colisoes
+        .map(
+          (c) =>
+              '${c.label.isEmpty ? 'OS' : 'OS de ${c.label}'} '
+              '(${hhmmDeMinutos(c.startMin)}–${hhmmDeMinutos(c.endMin)})',
+        )
+        .join(', ');
+    return Padding(
+      key: const ValueKey('os-inline-aviso-sobreposicao'),
+      padding: const EdgeInsets.only(top: ClxSpace.x2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ClxSpace.x3,
+          vertical: ClxSpace.x2,
+        ),
+        decoration: BoxDecoration(
+          color: clx.warningBg,
+          borderRadius: ClxRadii.rMd,
+          border: Border.all(color: clx.warning),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 18, color: clx.warning),
+            const SizedBox(width: ClxSpace.x2),
+            Expanded(
+              child: Text(
+                'Sobrepõe $texto. Pode salvar assim mesmo.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: clx.ink2),
               ),
             ),
-          )
-        else if (s.slotMode && s.slots.isEmpty)
-          Padding(
-            key: const ValueKey('os-inline-hora-sem-slots'),
-            padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-            child: Text(
-              'Sem horários disponíveis nesta data',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
-            ),
-          )
-        else if (s.slotMode)
-          _slotDropdowns(s.slots)
-        else
-          _freeDropdowns(),
-      ],
-    );
-  }
-
-  Widget _slotDropdowns(List<String> slots) {
-    final validHours = <String>[
-      for (final h in {for (final t in slots) t.split(':')[0]}) h,
-    ];
-    final selectedHour = validHours.contains(_horaH)
-        ? _horaH
-        : (validHours.isEmpty ? _horaH : validHours.first);
-    final validMins = [
-      for (final t in slots)
-        if (t.split(':')[0] == selectedHour) t.split(':')[1],
-    ];
-    final selectedMin = validMins.contains(_horaM)
-        ? _horaM
-        : (validMins.isEmpty ? _horaM : validMins.first);
-    return Row(
-      key: const ValueKey('os-inline-hora-slots'),
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('os-inline-hora-h'),
-            initialValue: selectedHour,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final h in validHours)
-                DropdownMenuItem(value: h, child: Text('${h}h')),
-            ],
-            onChanged: !widget.enabled
-                ? null
-                : (v) {
-                    if (v == null) return;
-                    setState(() {
-                      _horaH = v;
-                      final firstForHour = slots.firstWhere(
-                        (t) => t.startsWith('$v:'),
-                        orElse: () => '$v:$_horaM',
-                      );
-                      _horaM = firstForHour.split(':')[1];
-                    });
-                  },
-          ),
+          ],
         ),
-        const SizedBox(width: ClxSpace.x2),
-        SizedBox(
-          width: 80,
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('os-inline-hora-m'),
-            initialValue: selectedMin,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final m in validMins)
-                DropdownMenuItem(value: m, child: Text(m)),
-            ],
-            onChanged: !widget.enabled
-                ? null
-                : (v) => setState(() => _horaM = v ?? _horaM),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _freeDropdowns() {
-    return Row(
-      key: const ValueKey('os-inline-hora-livre'),
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: _horaH,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (var h = 0; h < 24; h++)
-                DropdownMenuItem(
-                  value: h.toString().padLeft(2, '0'),
-                  child: Text('${h.toString().padLeft(2, '0')}h'),
-                ),
-            ],
-            onChanged: !widget.enabled
-                ? null
-                : (v) => setState(() => _horaH = v ?? '08'),
-          ),
-        ),
-        const SizedBox(width: ClxSpace.x2),
-        SizedBox(
-          width: 80,
-          child: DropdownButtonFormField<String>(
-            initialValue: _kMinutes.contains(_horaM) ? _horaM : '00',
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final m in _kMinutes)
-                DropdownMenuItem(value: m, child: Text(m)),
-            ],
-            onChanged: !widget.enabled
-                ? null
-                : (v) => setState(() => _horaM = v ?? '00'),
-          ),
-        ),
-      ],
+      ),
     );
   }
 

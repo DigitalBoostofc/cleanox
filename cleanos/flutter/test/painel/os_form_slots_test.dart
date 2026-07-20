@@ -3,8 +3,9 @@
 /// A Fase 1 da agenda APOSENTOU o seletor de slot do formulário: com sobreposição
 /// permitida, esconder horários "ocupados" só impedia encaixes legítimos (D10). O
 /// que este teste cobre agora:
-///   (a) a função PURA `computeOSDaySlots` — que CONTINUA viva porque o
-///       `os_inline_section` (Clientes) ainda oferece slots;
+///   (a) a função PURA `computeOSDaySlots` — legado/agenda (grade de
+///       disponibilidade); formulários de OS (Nova OS + Gerar OS no cliente)
+///       usam hora LIVRE, não este seletor;
 ///   (b) o formulário: entrada LIVRE 'HH:MM' com snap de 15 min, Duração
 ///       PREFILADA (visível) com a do profissional (D9), e o AVISO amarelo de
 ///       sobreposição que NÃO bloqueia o salvar (D2/D11).
@@ -138,7 +139,7 @@ OrdemServico _osOcupada({
 );
 
 void main() {
-  group('computeOSDaySlots (puro — ainda usado pelo os_inline_section)', () {
+  group('computeOSDaySlots (puro — grade/agenda)', () {
     // 2026-07-06 é uma segunda-feira; com todos os dias ativos o dia da semana
     // é irrelevante (todos atendem).
     const date = '2026-07-06';
