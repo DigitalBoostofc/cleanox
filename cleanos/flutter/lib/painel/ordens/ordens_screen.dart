@@ -614,6 +614,8 @@ class _OrdemRow extends StatelessWidget {
     final prof = os.expand?.profissional;
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
+    // Concluída pode ser editada (correção); cancelada não.
+    final editavel = os.status != OSStatus.cancelada;
     final tt = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
@@ -712,9 +714,9 @@ class _OrdemRow extends StatelessWidget {
                     icon: const Icon(Icons.arrow_forward_rounded, size: 18),
                     onPressed: onExecucao,
                   ),
-                  if (aberta)
+                  if (editavel)
                     IconButton(
-                      tooltip: 'Editar',
+                      tooltip: 'Editar OS',
                       icon: const Icon(Icons.edit_outlined, size: 18),
                       onPressed: onEditar,
                     ),

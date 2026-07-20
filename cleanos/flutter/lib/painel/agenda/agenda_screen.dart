@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/agenda/agenda_layout.dart';
 import '../../core/agenda/agenda_prof_cor.dart';
@@ -26,6 +27,8 @@ import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
+import '../ordens/os_detail.dart';
+import '../ordens/os_form.dart';
 import '../usuarios/disponibilidade_editor.dart';
 import 'agenda_controller.dart';
 import 'ajuste_sheet.dart';
@@ -456,13 +459,27 @@ class _Body extends ConsumerWidget {
       );
     }
 
-    void openOS(OrdemServico os) => showDialog<void>(
-      context: context,
-      builder: (_) => _OSDetailDialog(
-        os: os,
-        disp: state.dispByProf[os.profissional ?? ''],
-      ),
-    );
+    /// Detalhe completo (mesmo de Ordens) + Editar / Execução. Ao voltar,
+    /// recarrega a agenda para refletir mudanças de horário, valor etc.
+    Future<void> openOS(OrdemServico os) async {
+      final result = await showOSDetail(context, os);
+      if (result == null) return;
+      final notifier = ref.read(agendaControllerProvider.notifier);
+      if (result.changed) await notifier.load();
+      if (!context.mounted) return;
+      // `result.os` é o registro ATUAL (pode ter sido reatribuído no detalhe).
+      final atual = result.os ?? os;
+      switch (result.intent) {
+        case OSDetailIntent.editar:
+          final salva = await showOSForm(context, editing: atual);
+          if (salva != null) await notifier.load();
+        case OSDetailIntent.execucao:
+          await context.push('/painel/ordens/${atual.id}/execucao');
+          if (context.mounted) await notifier.load();
+        case null:
+          break;
+      }
+    }
 
     final notifier = ref.read(agendaControllerProvider.notifier);
 
@@ -1051,6 +1068,7 @@ class _AgendaMiniCard extends StatelessWidget {
     // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
     // tabela — R4.
     final faixa = faixaHorariaDaOs(os, disp);
+    final sub = _agendaCardSubtitle(os);
     if (easypay) {
       return Padding(
         padding: const EdgeInsets.only(bottom: ClxSpace.x2),
@@ -1082,9 +1100,7 @@ class _AgendaMiniCard extends StatelessWidget {
                     ),
             ),
             title: os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
-            subtitle:
-                '$faixa · ${os.tipoServicoNome ?? '—'}'
-                '${prof != null && prof != '—' ? ' · $prof' : ''}',
+            subtitle: '$faixa · $sub',
             trailing: StatusBadge(status: os.status, dense: true, refazer: os.refazer),
           ),
         ),
@@ -1142,9 +1158,8 @@ class _AgendaMiniCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${os.tipoServicoNome ?? '—'}'
-                    '${prof != null && prof != '—' ? ' · $prof' : ''}',
-                    maxLines: 1,
+                    sub,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: tt.bodySmall?.copyWith(color: clx.ink3),
                   ),
@@ -1158,6 +1173,22 @@ class _AgendaMiniCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Subtítulo do card mobile: serviço · valor · bairro.
+/// Profissional fica só no avatar (quando atribuída/em andamento).
+String _agendaCardSubtitle(OrdemServico os) {
+  final servico = (os.tipoServicoNome ?? '').trim();
+  final valor = os.valorServico;
+  final end = (os.enderecoLiberado ?? '').trim();
+  final bairro = os.bairro.trim();
+  final local = end.isNotEmpty ? end : bairro;
+  final parts = <String>[
+    if (servico.isNotEmpty) servico else '—',
+    if (valor != null && valor > 0) formatCurrency(valor),
+    if (local.isNotEmpty) local,
+  ];
+  return parts.join(' · ');
 }
 
 class _MobileDayView extends StatelessWidget {
@@ -1507,106 +1538,4 @@ class _EmptyDay extends StatelessWidget {
       ),
     );
   }
-}
-
-/* ─────────────────────────── Detalhe da OS ─────────────────────────── */
-
-class _OSDetailDialog extends StatelessWidget {
-  const _OSDetailDialog({required this.os, this.disp});
-  final OrdemServico os;
-  final Disponibilidade? disp;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    final prof = os.expand?.profissional?.displayName;
-    return AlertDialog(
-      backgroundColor: clx.bg,
-      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              os.clienteNomeExibicao.isEmpty ? 'Ordem de serviço' : os.clienteNomeExibicao,
-              style: tt.titleMedium?.copyWith(
-                color: clx.ink,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          StatusBadge(status: os.status, dense: true, refazer: os.refazer),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _row(clx, tt, 'Bairro', os.bairro.isEmpty ? '—' : os.bairro),
-          _row(clx, tt, 'Serviço', os.tipoServicoNome ?? '—'),
-          _row(clx, tt, 'Data / Hora', formatDateTime(os.dataHora)),
-          _row(
-            clx,
-            tt,
-            'Duração',
-            '${duracaoEfetivaMin(os, disp)} min '
-            '(${faixaHorariaDaOs(os, disp)})',
-          ),
-          _row(clx, tt, 'Profissional', (prof == null || prof == '—') ? '—' : prof),
-          if (os.status == OSStatus.concluida) ...[
-            const SizedBox(height: ClxSpace.x2),
-            Text(
-              'Financeiro',
-              style: tt.labelMedium?.copyWith(
-                color: clx.ink3,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x1),
-            _row(
-              clx,
-              tt,
-              'Valor pago',
-              os.valorPago != null ? formatCurrency(os.valorPago!) : '—',
-            ),
-            if (os.formaPagamento != null)
-              _row(clx, tt, 'Forma', os.formaPagamento!.label),
-          ],
-        ],
-      ),
-      actions: [
-        ClxButton(
-          label: 'Fechar',
-          variant: ClxButtonVariant.ghost,
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ],
-    );
-  }
-
-  Widget _row(CleanoxColors clx, TextTheme tt, String label, String value) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: ClxSpace.x2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 108,
-              child: Text(
-                label,
-                style: tt.bodyMedium?.copyWith(color: clx.ink3),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                value,
-                style: tt.bodyLarge?.copyWith(
-                  color: clx.ink,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
 }
