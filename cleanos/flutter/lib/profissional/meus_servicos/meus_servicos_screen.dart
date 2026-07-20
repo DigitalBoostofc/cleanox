@@ -238,7 +238,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
   }
 
   Future<void> _concluir(OrdemServico os) async {
-    if (!((os.valorPago ?? 0) > 0 && os.formaPagamento != null)) {
+    if (!os.pagamentoOkParaConcluir) {
       _toast('Registre o pagamento antes de concluir.', ToastType.error);
       return;
     }

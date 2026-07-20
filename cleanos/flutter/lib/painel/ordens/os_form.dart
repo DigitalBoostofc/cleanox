@@ -448,7 +448,13 @@ class _OSFormState extends ConsumerState<OSForm> {
     }
     if (_horaMin == null) errs['hora'] = 'Horário inválido (HH:MM)';
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
-    if (valor == null || valor <= 0) errs['valor'] = 'Informe o valor';
+    // OS "Refazer" nasce com valor 0 (cortesia/garantia).
+    final refazer = widget.editing?.refazer == true;
+    if (valor == null || (refazer ? valor < 0 : valor <= 0)) {
+      errs['valor'] = refazer
+          ? 'Informe o valor (0 permitido em Refazer)'
+          : 'Informe o valor';
+    }
     return errs;
   }
 
