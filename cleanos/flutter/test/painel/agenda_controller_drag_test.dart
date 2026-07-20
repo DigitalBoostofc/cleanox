@@ -118,6 +118,9 @@ class _OrdensGated implements OrdensRepository {
   @override
   Future<OrdemServico> cancelar(String osId, {required String motivo}) =>
       _naoUsado();
+  
+  @override
+  Future<OrdemServico> reabrir(String osId) => _naoUsado();
   @override
   Stream<OrdemServicoEvent> subscribe({String topic = '*', String? filter}) =>
       const Stream.empty();

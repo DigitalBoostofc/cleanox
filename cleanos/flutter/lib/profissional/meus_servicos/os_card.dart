@@ -284,7 +284,11 @@ class OSCard extends StatelessWidget {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                StatusBadge(status: os.status, dense: true),
+                                StatusBadge(
+                                  status: os.status,
+                                  dense: true,
+                                  refazer: os.refazer,
+                                ),
                                 const SizedBox(height: ClxSpace.x1),
                                 Text(
                                   formatCurrency(os.valorTotal),

@@ -36,6 +36,10 @@ abstract class OrdensRepository {
   /// POST /api/cleanos/os/{id}/cancelar — admin, gerente ou prof dono.
   Future<OrdemServico> cancelar(String osId, {required String motivo});
 
+  /// Reabre OS concluída → em agendamento com etiqueta Refazer (valor zerado).
+  /// POST /api/cleanos/os/{id}/reabrir — admin/gerente.
+  Future<OrdemServico> reabrir(String osId);
+
   /// Stream realtime da coleção. `topic` = '*' (todas) ou id de uma OS.
   Stream<OrdemServicoEvent> subscribe({String topic, String? filter});
 
@@ -132,6 +136,15 @@ class PbOrdensRepository implements OrdensRepository {
     );
     // Recarrega a OS com expand para a UI.
     return getOne(osId, expand: kExecExpand);
+  }
+
+  @override
+  Future<OrdemServico> reabrir(String osId) async {
+    await _pb.send<Map<String, dynamic>>(
+      '/api/cleanos/os/$osId/reabrir',
+      method: 'POST',
+    );
+    return getOne(osId, expand: 'profissional,servico,cliente');
   }
 
   @override

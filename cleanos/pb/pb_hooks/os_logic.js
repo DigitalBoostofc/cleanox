@@ -387,6 +387,10 @@ function stampConcluidaEm(record) {
   if (String(record.get("status")) !== "concluida") return;
   const orig = record.original ? record.original() : null;
   if (orig && String(orig.get("status")) === "concluida") return;
+  // Nova conclusão fecha o ciclo de "Refazer".
+  try {
+    record.set("refazer", false);
+  } catch (_) {}
   // Create já concluída: carimba se ainda vazio.
   const ja = String(record.get("concluida_em") || "").trim();
   if (ja) return;

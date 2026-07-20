@@ -128,7 +128,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     showClxToast(
       context,
       novo.profissional == null
-          ? 'Profissional removido — OS voltou para Agendada.'
+          ? 'Profissional removido — OS voltou para Em agendamento.'
           : 'Profissional atribuído.',
       type: ToastType.success,
     );
@@ -161,6 +161,53 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         showClxToast(
           context,
           'Não foi possível cancelar a OS.',
+          type: ToastType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _reabrir() async {
+    if (_os.status != OSStatus.concluida) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reabrir OS'),
+        content: const Text(
+          'A OS voltará para Em agendamento com a etiqueta Refazer. '
+          'O valor e o pagamento serão zerados, a receita e a comissão '
+          'ligadas a esta conclusão serão removidas do financeiro, e o '
+          'profissional será desatribuído.\n\n'
+          'Deseja continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Voltar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reabrir'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(ordensControllerProvider.notifier).reabrir(_os.id);
+      if (!mounted) return;
+      ref.invalidate(ordensCountsProvider);
+      showClxToast(
+        context,
+        'OS reaberta como Refazer (em agendamento).',
+        type: ToastType.success,
+      );
+      Navigator.of(context).pop(const OSDetailResult(changed: true));
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível reabrir a OS.',
           type: ToastType.error,
         );
       }
@@ -250,7 +297,11 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   ),
                 ),
               ),
-              StatusBadge(status: _os.status, dense: true),
+              StatusBadge(
+                status: _os.status,
+                dense: true,
+                refazer: _os.refazer,
+              ),
               const SizedBox(width: ClxSpace.x2),
               IconButton(
                 tooltip: 'Fechar',
@@ -366,6 +417,13 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                   variant: ClxButtonVariant.danger,
                   icon: Icons.cancel_outlined,
                   onPressed: _cancelar,
+                ),
+              if (_os.status == OSStatus.concluida)
+                ClxButton(
+                  label: 'Reabrir OS',
+                  variant: ClxButtonVariant.secondary,
+                  icon: Icons.replay_rounded,
+                  onPressed: _reabrir,
                 ),
               // Exclusão definitiva só em OS já cancelada (servidor também bloqueia).
               if (_os.status == OSStatus.cancelada)

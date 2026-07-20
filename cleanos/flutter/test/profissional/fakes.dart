@@ -89,6 +89,18 @@ class FakeOrdensRepository implements OrdensRepository {
   }
 
   @override
+  Future<OrdemServico> reabrir(String osId) async {
+    final base = execOS ?? _bare(osId);
+    return base.copyWith(
+      status: OSStatus.agendada,
+      refazer: true,
+      valorPago: 0,
+      valorServico: 0,
+      profissional: null,
+    );
+  }
+
+  @override
   Future<PageResult<OrdemServico>> list({
     int page = 1,
     int perPage = 30,

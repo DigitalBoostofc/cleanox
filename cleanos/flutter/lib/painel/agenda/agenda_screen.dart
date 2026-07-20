@@ -1085,7 +1085,7 @@ class _AgendaMiniCard extends StatelessWidget {
             subtitle:
                 '$faixa · ${os.tipoServicoNome ?? '—'}'
                 '${prof != null && prof != '—' ? ' · $prof' : ''}',
-            trailing: StatusBadge(status: os.status, dense: true),
+            trailing: StatusBadge(status: os.status, dense: true, refazer: os.refazer),
           ),
         ),
       );
@@ -1152,7 +1152,7 @@ class _AgendaMiniCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x2),
-            StatusBadge(status: os.status, dense: true),
+            StatusBadge(status: os.status, dense: true, refazer: os.refazer),
           ],
         ),
       ),
@@ -1535,7 +1535,7 @@ class _OSDetailDialog extends StatelessWidget {
               ),
             ),
           ),
-          StatusBadge(status: os.status, dense: true),
+          StatusBadge(status: os.status, dense: true, refazer: os.refazer),
         ],
       ),
       content: Column(

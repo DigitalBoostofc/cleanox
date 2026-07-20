@@ -247,7 +247,13 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           if (os != null)
             Padding(
               padding: const EdgeInsets.only(right: ClxSpace.x3),
-              child: Center(child: StatusBadge(status: os.status, dense: true)),
+              child: Center(
+                child: StatusBadge(
+                  status: os.status,
+                  dense: true,
+                  refazer: os.refazer,
+                ),
+              ),
             ),
         ],
       ),

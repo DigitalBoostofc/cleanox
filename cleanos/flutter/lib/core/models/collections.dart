@@ -153,7 +153,7 @@ enum OSStatus {
   };
 
   String get label => switch (this) {
-    OSStatus.agendada => 'Agendada',
+    OSStatus.agendada => 'Em agendamento',
     OSStatus.atribuida => 'Atribuída',
     OSStatus.emAndamento => 'Em andamento',
     OSStatus.concluida => 'Concluída',

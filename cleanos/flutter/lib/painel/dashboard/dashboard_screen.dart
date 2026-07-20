@@ -739,7 +739,7 @@ class _TxCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              StatusBadge(status: os.status, dense: true),
+              StatusBadge(status: os.status, dense: true, refazer: os.refazer),
             ],
           ),
         ),
@@ -939,7 +939,11 @@ class _KpiGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final cards = <Widget>[
-      _KpiCard(label: 'Agendadas', value: '${kpis.agendada}', color: clx.info),
+      _KpiCard(
+        label: 'Em agendamento',
+        value: '${kpis.agendada}',
+        color: clx.info,
+      ),
       _KpiCard(
         label: 'Atribuídas',
         value: '${kpis.atribuida}',
@@ -1090,7 +1094,7 @@ class _UpcomingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x3),
-          StatusBadge(status: os.status, dense: true),
+          StatusBadge(status: os.status, dense: true, refazer: os.refazer),
         ],
       ),
     );

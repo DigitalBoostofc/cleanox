@@ -49,7 +49,7 @@ class OSExecucaoAdminScreen extends ConsumerWidget {
             data: (d) => Padding(
               padding: const EdgeInsets.only(right: ClxSpace.x3),
               child: Center(
-                child: StatusBadge(status: d.os.status, dense: true),
+                child: StatusBadge(status: d.os.status, dense: true, refazer: d.os.refazer),
               ),
             ),
             orElse: () => const SizedBox.shrink(),

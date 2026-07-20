@@ -690,7 +690,11 @@ class _OrdemRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  StatusBadge(status: os.status, dense: true),
+                  StatusBadge(
+                    status: os.status,
+                    dense: true,
+                    refazer: os.refazer,
+                  ),
                   if (os.avaliacaoNota != null) ...[
                     const SizedBox(height: 3),
                     StarRating(value: os.avaliacaoNota!, size: 12),
@@ -812,7 +816,11 @@ class _OrdemCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          StatusBadge(status: os.status, dense: true),
+                          StatusBadge(
+                    status: os.status,
+                    dense: true,
+                    refazer: os.refazer,
+                  ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -917,7 +925,7 @@ class _OrdemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              StatusBadge(status: os.status, dense: true),
+              StatusBadge(status: os.status, dense: true, refazer: os.refazer),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),

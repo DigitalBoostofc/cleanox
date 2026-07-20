@@ -113,6 +113,9 @@ class OrdemServico with _$OrdemServico {
     /// Quando cancelou. R2: `""` → null.
     @JsonKey(name: 'cancelado_em', fromJson: _emptyDateToNull) String? canceladoEm,
 
+    /// OS reaberta após conclusão (etiqueta "Refazer" na UI).
+    @Default(false) bool refazer,
+
     /// Avaliação (preenchida pelo backend após pesquisa).
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,

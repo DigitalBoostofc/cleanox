@@ -456,11 +456,11 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             initialValue: _profissionalId.isEmpty ? null : _profissionalId,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true),
-            hint: const Text('— Não atribuído (Agendada) —'),
+            hint: const Text('— Não atribuído (Em agendamento) —'),
             items: [
               const DropdownMenuItem(
                 value: '',
-                child: Text('— Não atribuído (Agendada) —'),
+                child: Text('— Não atribuído (Em agendamento) —'),
               ),
               for (final p in lk.profissionais)
                 DropdownMenuItem(

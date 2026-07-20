@@ -52,7 +52,7 @@ void main() {
     // (os outros repositórios batem num PocketBase de descarte). Mesma
     // convenção dos demais testes de rota do Painel.
     await settle(tester);
-    // A tela abre em "Agendada"/semana (default novo); esta OS é atribuída —
+    // A tela abre em "Em agendamento"/semana (default novo); esta OS é atribuída —
     // vai pra aba "Todas" para vê-la independentemente de status/período.
     await tester.tap(find.text('Todas'));
     await settle(tester);
