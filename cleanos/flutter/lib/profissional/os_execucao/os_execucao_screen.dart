@@ -19,6 +19,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/os_execucao.dart';
 import '../../shared_widgets_os/shared_widgets_os.dart';
 import '../meus_servicos/pagamento_modal.dart';
+import 'add_servico_extra_sheet.dart';
 import 'os_execucao_controller.dart';
 
 class OSExecucaoScreen extends ConsumerStatefulWidget {
@@ -103,6 +104,27 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
       }
     } finally {
       if (mounted) setState(() => _concluindo = false);
+    }
+  }
+
+  Future<void> _adicionarExtra(BuildContext context) async {
+    final servico = await showAddServicoExtraSheet(context);
+    if (servico == null || !mounted) return;
+    try {
+      await _ctrl.adicionarServicoExtra(servico);
+      if (!mounted) return;
+      showClxToast(
+        this.context,
+        'Serviço extra adicionado: ${servico.nome}',
+        type: ToastType.success,
+      );
+    } catch (err) {
+      if (!mounted) return;
+      showClxToast(
+        this.context,
+        describeOSError(err).message,
+        type: ToastType.error,
+      );
     }
   }
 
@@ -410,7 +432,12 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           onChange: _ctrl.setChecklist,
           readOnly: readOnly,
           concluidoPor: os.expand?.profissional?.displayName ?? 'Profissional',
+          onAddExtra: readOnly ? null : () => _adicionarExtra(context),
         ),
+        if (os.adicionais.isNotEmpty) ...[
+          const SizedBox(height: ClxSpace.x2),
+          _ExtrasChips(adicionais: os.adicionais),
+        ],
         const SizedBox(height: ClxSpace.x3),
 
         // (c2) Observações do serviço (ex.: tecido rasgado, mancha que não
@@ -466,6 +493,41 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           ),
         ),
         const SizedBox(height: ClxSpace.x8),
+      ],
+    );
+  }
+}
+
+/// Chips dos serviços extras já anexados à OS (somente leitura).
+class _ExtrasChips extends StatelessWidget {
+  const _ExtrasChips({required this.adicionais});
+  final List<ServicoAdicionalOS> adicionais;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Wrap(
+      spacing: ClxSpace.x2,
+      runSpacing: ClxSpace.x1,
+      children: [
+        for (final a in adicionais)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: clx.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: clx.primary.withValues(alpha: 0.25)),
+            ),
+            child: Text(
+              a.valor > 0
+                  ? '+ ${a.nome} · ${formatCurrency(a.valor)}'
+                  : '+ ${a.nome}',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: clx.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -23,6 +23,7 @@ class ChecklistExecucao extends StatefulWidget {
     this.concluidoPor = 'Profissional',
     this.readOnly = false,
     this.nowIso,
+    this.onAddExtra,
   });
 
   final List<ChecklistExecItem> items;
@@ -37,6 +38,9 @@ class ChecklistExecucao extends StatefulWidget {
   /// Injeta o "agora" ISO ao concluir um item (default: DateTime.now()).
   /// Existe para tornar o toggle testável de forma determinística.
   final String Function()? nowIso;
+
+  /// Botão no fim do checklist: profissional adiciona serviço extra do catálogo.
+  final VoidCallback? onAddExtra;
 
   @override
   State<ChecklistExecucao> createState() => _ChecklistExecucaoState();
@@ -157,6 +161,16 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
               ),
               const SizedBox(height: ClxSpace.x2),
             ],
+          ],
+          if (!widget.readOnly && widget.onAddExtra != null) ...[
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: 'Adicionar serviço extra',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.add_circle_outline_rounded,
+              expand: true,
+              onPressed: widget.onAddExtra,
+            ),
           ],
         ],
       ),
