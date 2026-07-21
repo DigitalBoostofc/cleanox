@@ -82,8 +82,9 @@ class FinComissoesScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: ClxSpace.x1),
                     Text(
-                      'Toque na mãozinha para marcar como paga (👍 verde) ou reabrir (👎 cinza). '
-                      'Pagar gera despesa no financeiro; reabrir estorna.',
+                      'Comissões acumulam por profissional (sem despesa a cada OS). '
+                      'Ao marcar como paga (👍) ou fechar o ciclo, gera **uma** despesa '
+                      'com o total do repasse daquele dia. Reabrir (👎) recalcula o total.',
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: clx.ink2),
