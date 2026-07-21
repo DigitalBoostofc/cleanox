@@ -282,34 +282,34 @@ class _IconRailState extends ConsumerState<_IconRail> {
             right: false,
             child: Column(
               children: [
-                const SizedBox(height: 16),
-                // Logo grande com fundo transparente (sem card branco).
+                const SizedBox(height: 12),
+                // Logo na LARGURA da coluna (mesmo padding dos botões do rail).
+                // O PNG é 1:1 com margem; altura maior faz o wordmark ficar legível.
                 Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: _expanded ? 12 : 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: ClxPulse(
-                    minScale: 0.97,
-                    maxScale: 1.05,
+                    minScale: 0.98,
+                    maxScale: 1.03,
                     period: const Duration(milliseconds: 1800),
                     child: Tooltip(
                       message: kAppDisplayName,
-                      child: CleanoxLogo(
-                        height: _expanded ? 64 : 40,
+                      child: SizedBox(
                         width: double.infinity,
-                        fit: BoxFit.contain,
-                        variant: CleanoxLogoVariant.primary,
+                        height: _expanded ? 120 : 56,
+                        child: const CleanoxLogo(
+                          height: double.infinity,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          variant: CleanoxLogoVariant.primary,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Expanded(
                   child: ListView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _expanded ? 10 : 10,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     children: [
                       for (var i = 0; i < items.length; i++)
                         _RailIcon(
@@ -812,11 +812,14 @@ class _Sidebar extends ConsumerWidget {
               child: Row(
                 children: [
                   const Expanded(
-                    child: CleanoxLogo(
-                      height: 52,
-                      width: double.infinity,
-                      fit: BoxFit.contain,
-                      variant: CleanoxLogoVariant.primary,
+                    child: SizedBox(
+                      height: 88,
+                      child: CleanoxLogo(
+                        height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        variant: CleanoxLogoVariant.primary,
+                      ),
                     ),
                   ),
                   if (showClose)

@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 /// Qual arquivo de marca carregar.
 enum CleanoxLogoVariant {
-  /// Wordmark oficial com fundo transparente (login, sidebar clara).
+  /// Wordmark oficial com fundo transparente (login, sidebar).
   primary,
 
   /// Alias do primary (legado).
@@ -25,6 +25,10 @@ enum CleanoxLogoVariant {
 }
 
 /// Logo Cleanox reutilizável (login, shell, splash).
+///
+/// Para preencher a coluna da sidebar: coloque em um [SizedBox] com
+/// `width: double.infinity` e altura desejada, e use
+/// `width/height: double.infinity` + [BoxFit.contain].
 class CleanoxLogo extends StatelessWidget {
   const CleanoxLogo({
     super.key,
@@ -34,9 +38,10 @@ class CleanoxLogo extends StatelessWidget {
     this.fit = BoxFit.contain,
   });
 
+  /// Altura do box. `double.infinity` preenche o pai (SizedBox/Expanded).
   final double height;
 
-  /// Largura opcional (sidebar expandida usa quase a largura do rail).
+  /// Largura opcional. `double.infinity` = largura da coluna.
   final double? width;
   final CleanoxLogoVariant variant;
   final BoxFit fit;
@@ -63,11 +68,14 @@ class CleanoxLogo extends StatelessWidget {
       width: width,
       fit: fit,
       filterQuality: FilterQuality.high,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.cleaning_services_rounded,
-        size: height * 0.7,
-        color: Theme.of(context).colorScheme.primary,
-      ),
+      errorBuilder: (_, __, ___) {
+        final iconSize = height.isFinite ? height * 0.7 : 32.0;
+        return Icon(
+          Icons.cleaning_services_rounded,
+          size: iconSize,
+          color: Theme.of(context).colorScheme.primary,
+        );
+      },
     );
   }
 }
