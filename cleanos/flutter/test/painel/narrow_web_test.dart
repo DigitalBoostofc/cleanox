@@ -91,10 +91,10 @@ void main() {
     ) async {
       await _pumpLogin(tester, isWeb: true, physicalWidth: 390);
 
-      // Sem card elevado (layout clássico), com ícone cleaning_services
+      // Sem card elevado (layout clássico); logo Cleanox no hero fintech
       expect(find.byType(ClxCard), findsNothing);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
-      expect(find.text('OS Fácil'), findsOneWidget);
+      expect(find.byType(CleanoxLogo), findsOneWidget);
+      expect(find.text(kAppTagline), findsOneWidget);
       expect(find.text('Entrar'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -133,9 +133,9 @@ void main() {
     ) async {
       await _pumpLogin(tester, isWeb: true, physicalWidth: 800);
 
-      // Desktop/tablet web: marca + ícone; sem sheet fintech mobile.
-      expect(find.text('OS Fácil'), findsOneWidget);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+      // Desktop/tablet web: logo Cleanox; sem sheet fintech mobile.
+      expect(find.byType(CleanoxLogo), findsOneWidget);
+      expect(find.text(kAppTagline), findsOneWidget);
       expect(find.text('Esqueceu a senha? Fale com o administrador.'), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -156,8 +156,8 @@ void main() {
     testWidgets('isWeb=true + 1280dp → login desktop com marca', (tester) async {
       await _pumpLogin(tester, isWeb: true, physicalWidth: 1280);
 
-      expect(find.text('OS Fácil'), findsOneWidget);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+      expect(find.byType(CleanoxLogo), findsOneWidget);
+      expect(find.text(kAppTagline), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -169,8 +169,8 @@ void main() {
       await _pumpLogin(tester, isWeb: false, physicalWidth: 390);
 
       // isFintechClean=false + isWeb=false → path desktop (card flutuante)
-      expect(find.text('OS Fácil'), findsOneWidget);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+      expect(find.byType(CleanoxLogo), findsOneWidget);
+      expect(find.text(kAppTagline), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

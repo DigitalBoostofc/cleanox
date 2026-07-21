@@ -1,9 +1,8 @@
 /// tokens.dart — Design tokens do CleanOS em Dart.
 ///
-/// Espelho 1:1 de `web/src/styles/tokens.css` (variáveis `--clx-*`): paleta
-/// petrol `#0F4C5C` + cyan/teal `#00C2B8`, raios, espaçamentos, sombras e a
-/// tipografia Sora. Nenhuma feature usa cor hardcoded — tudo vem daqui ou do
-/// `CleanoxColors` (ThemeExtension).
+/// Design tokens Cleanox: navy `#0B1D34` + cyan `#0EA5E7` (board oficial),
+/// raios, espaçamentos, sombras e tipografia Sora (Poppins = P1).
+/// Nenhuma feature usa cor hardcoded — tudo vem daqui ou do `CleanoxColors`.
 library;
 
 import 'package:flutter/material.dart';
@@ -60,45 +59,51 @@ class ClxLayout {
 
 /// Nome de exibição do produto na UI (login, sidebar, título do app).
 /// Package/API/IDs técnicos continuam `cleanos` — só a marca visível muda.
-const String kAppDisplayName = 'OS Fácil';
+const String kAppDisplayName = 'Cleanox';
 
-/// Cores de marca fixas (independem de tema).
+/// Tagline oficial da marca (login / hero).
+const String kAppTagline = 'Higienização de estofados';
+
+/// Cores de marca Cleanox (board oficial).
 class ClxBrand {
   const ClxBrand._();
-  static const Color primary = Color(0xFF00C2B8); // teal/cyan — CTA
-  static const Color primary2 = Color(0xFF00A39B); // teal hover
-  static const Color accent = Color(0xFF0F4C5C); // petrol blue
-  static const Color accent2 = Color(0xFF1B6B7A); // petrol hover
+  static const Color primary = Color(0xFF0EA5E7); // cyan Cleanox — CTA / OX
+  static const Color primary2 = Color(0xFF0284C7); // cyan hover
+  static const Color primaryLight = Color(0xFF22D3EE); // cyan claro / gradiente
+  static const Color accent = Color(0xFF0B1D34); // navy profundo
+  static const Color accent2 = Color(0xFF152A45); // navy hover
+  static const Color canvas = Color(0xFFF5F7FA); // off-white
+  static const Color muted = Color(0xFF7B8794); // cinza secundário
 
-  /// Texto/ícone sobre [primary]/[primary2] (petrol quase-preto, ≥ 4.5:1).
-  static const Color onPrimary = Color(0xFF04201E);
+  /// Texto/ícone sobre [primary] (branco — contraste em cyan #0EA5E7).
+  static const Color onPrimary = Color(0xFFFFFFFF);
 }
 
-/// Sombras (--clx-shadow-*), variante clara.
+/// Sombras (--clx-shadow-*), variante clara (base navy Cleanox).
 class ClxShadows {
   const ClxShadows._();
   static const List<BoxShadow> sm = [
     BoxShadow(
-      color: Color(0x140F4C5C), // rgba(15,76,92,0.08)
+      color: Color(0x140B1D34),
       blurRadius: 8,
       offset: Offset(0, 2),
     ),
   ];
   static const List<BoxShadow> md = [
     BoxShadow(
-      color: Color(0x1A0F4C5C), // rgba(15,76,92,0.10)
+      color: Color(0x1A0B1D34),
       blurRadius: 28,
       offset: Offset(0, 10),
     ),
     BoxShadow(
-      color: Color(0x0A0F4C5C),
+      color: Color(0x0A0B1D34),
       blurRadius: 8,
       offset: Offset(0, 2),
     ),
   ];
   static const List<BoxShadow> lg = [
     BoxShadow(
-      color: Color(0x290F4C5C), // rgba(15,76,92,0.16)
+      color: Color(0x290B1D34),
       blurRadius: 60,
       offset: Offset(0, 24),
     ),
@@ -112,7 +117,7 @@ class ClxShadows {
       offset: Offset(0, 12),
     ),
     BoxShadow(
-      color: Color(0x0A00C2B8),
+      color: Color(0x0A0EA5E7),
       blurRadius: 40,
       offset: Offset(0, 4),
     ),

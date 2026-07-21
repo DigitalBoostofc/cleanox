@@ -19,7 +19,7 @@
          conta pessoal do profissional. Em API 31+, allowBackup=false também
          desativa a transferência d2d. -->
     <application
-        android:label="OS Fácil"
+        android:label="Cleanox"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">

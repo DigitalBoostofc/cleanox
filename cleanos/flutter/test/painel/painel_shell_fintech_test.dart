@@ -83,9 +83,11 @@ void main() {
       );
 
       final clx = _clxOf(tester);
+      // Primary unificado na paleta Cleanox; fintech diverge em success/bg.
       expect(clx.primary, CleanoxColors.fintechLight.primary);
-      expect(clx.primary, isNot(CleanoxColors.light.primary));
+      expect(clx.primary, CleanoxColors.light.primary);
       expect(clx.onPrimary, CleanoxColors.fintechLight.onPrimary);
+      expect(clx.success, CleanoxColors.fintechLight.success);
     });
 
     testWidgets(
@@ -101,7 +103,8 @@ void main() {
 
         final clx = _clxOf(tester);
         expect(clx.primary, CleanoxColors.light.primary);
-        expect(clx.primary, isNot(CleanoxColors.fintechLight.primary));
+        // Mesmo cyan de marca; hierarquia fintech vs clássico em outros tokens.
+        expect(clx.bg2, CleanoxColors.light.bg2);
         // Desktop shell Shakuro: título da seção no top bar (marca só no ícone).
         expect(find.text('Dashboard'), findsOneWidget);
         expect(find.text('Início'), findsNothing);
