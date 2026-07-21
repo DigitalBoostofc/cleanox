@@ -22,8 +22,8 @@ import 'labels.dart';
 import 'relatorio_os.dart';
 
 const PdfColor _petrol = PdfColor.fromInt(0xFF0B1D34); // navy Cleanox
-const PdfColor _teal = PdfColor.fromInt(0xFF0EA5E7); // cyan
-const PdfColor _tealDark = PdfColor.fromInt(0xFF0284C7);
+const PdfColor _teal = PdfColor.fromInt(0xFF0EA5B7); // teal board
+const PdfColor _tealDark = PdfColor.fromInt(0xFF0B8A98);
 const PdfColor _ink = PdfColor.fromInt(0xFF0B1D34);
 const PdfColor _muted = PdfColor.fromInt(0xFF7B8794);
 const PdfColor _line = PdfColor.fromInt(0xFFE8EEF3);
