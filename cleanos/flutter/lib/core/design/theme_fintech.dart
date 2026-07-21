@@ -40,7 +40,7 @@ ColorScheme _schemeFintech(Brightness brightness, CleanoxColors clx) {
     surface: clx.bg,
     onSurface: clx.ink,
     onSurfaceVariant: clx.ink2,
-    surfaceDim: isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE9EBEE),
+    surfaceDim: isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE8EEF3),
     surfaceBright: isDark ? const Color(0xFF232629) : const Color(0xFFFFFFFF),
     surfaceContainerLowest: isDark
         ? const Color(0xFF0A0B0C)
@@ -48,17 +48,17 @@ ColorScheme _schemeFintech(Brightness brightness, CleanoxColors clx) {
     surfaceContainerLow: clx.bg2,
     surfaceContainer: isDark
         ? const Color(0xFF1B1D1F)
-        : const Color(0xFFF4F6F8),
+        : const Color(0xFFF5F7FA),
     surfaceContainerHigh: isDark
         ? const Color(0xFF1F2224)
-        : const Color(0xFFF0F2F5),
+        : const Color(0xFFE8EEF3),
     surfaceContainerHighest: clx.bg3,
     inverseSurface: isDark ? const Color(0xFFF3F5F6) : clx.ink,
-    onInverseSurface: isDark ? const Color(0xFF0B1220) : clx.bg2,
-    inversePrimary: isDark ? const Color(0xFF00A87F) : clx.primary,
+    onInverseSurface: isDark ? const Color(0xFF0B1D34) : clx.bg2,
+    inversePrimary: isDark ? const Color(0xFF0284C7) : clx.primary,
     outline: clx.line2,
     outlineVariant: clx.line,
-    shadow: const Color(0xFF0B1220),
+    shadow: const Color(0xFF0B1D34),
     surfaceTint: clx.primary,
   );
 }

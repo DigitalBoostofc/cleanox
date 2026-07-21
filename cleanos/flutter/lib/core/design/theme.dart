@@ -68,7 +68,7 @@ ColorScheme _scheme(Brightness brightness, CleanoxColors clx) {
     inversePrimary: isDark ? const Color(0xFF007A74) : clx.primary,
     outline: clx.line2,
     outlineVariant: clx.line,
-    shadow: const Color(0xFF0F4C5C),
+    shadow: const Color(0xFF0B1D34),
     surfaceTint: clx.primary,
   );
 }

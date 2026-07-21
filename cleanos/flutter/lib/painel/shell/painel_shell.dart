@@ -163,7 +163,8 @@ class _DesktopAppShell extends ConsumerWidget {
 
     return Scaffold(
       // Canvas externo (cinza suave / preto no dark).
-      backgroundColor: isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE6EAEE),
+      backgroundColor:
+          isDark ? const Color(0xFF0A0B0C) : ClxBrand.canvas,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(pad),
@@ -255,7 +256,8 @@ class _IconRail extends ConsumerStatefulWidget {
 }
 
 class _IconRailState extends ConsumerState<_IconRail> {
-  static const _railBg = Color(0xFF12181C);
+  /// Navy oficial Cleanox (#0B1D34).
+  static const _railBg = Color(0xFF0B1D34);
   static const double _collapsedW = 76;
   static const double _expandedW = 228;
 
@@ -821,13 +823,17 @@ class _Sidebar extends ConsumerWidget {
               child: Row(
                 children: [
                   const Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 528 / 334,
-                      child: CleanoxLogo(
-                        height: double.infinity,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
-                        variant: CleanoxLogoVariant.primary,
+                    child: FractionallySizedBox(
+                      widthFactor: 0.75,
+                      alignment: Alignment.centerLeft,
+                      child: AspectRatio(
+                        aspectRatio: 528 / 334,
+                        child: CleanoxLogo(
+                          height: double.infinity,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          variant: CleanoxLogoVariant.primary,
+                        ),
                       ),
                     ),
                   ),
