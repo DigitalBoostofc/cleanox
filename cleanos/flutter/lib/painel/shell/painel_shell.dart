@@ -283,37 +283,35 @@ class _IconRailState extends ConsumerState<_IconRail> {
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                // Logo recortada (~528×334): preenche a LARGURA da coluna
-                // (mesmo padding horizontal dos botões do rail).
+                // Logo recortada — 75% da largura da coluna (sem pulsar).
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: ClxPulse(
-                    minScale: 0.98,
-                    maxScale: 1.03,
-                    period: const Duration(milliseconds: 1800),
-                    child: Tooltip(
-                      message: kAppDisplayName,
-                      child: _expanded
-                          ? const AspectRatio(
-                              // Proporção do PNG logo_primary (sem margem extra).
-                              aspectRatio: 528 / 334,
-                              child: CleanoxLogo(
-                                height: double.infinity,
+                  child: Tooltip(
+                    message: kAppDisplayName,
+                    child: Center(
+                      child: FractionallySizedBox(
+                        widthFactor: 0.75,
+                        child: _expanded
+                            ? const AspectRatio(
+                                aspectRatio: 528 / 334,
+                                child: CleanoxLogo(
+                                  height: double.infinity,
+                                  width: double.infinity,
+                                  fit: BoxFit.contain,
+                                  variant: CleanoxLogoVariant.primary,
+                                ),
+                              )
+                            : const SizedBox(
                                 width: double.infinity,
-                                fit: BoxFit.contain,
-                                variant: CleanoxLogoVariant.primary,
+                                height: 36,
+                                child: CleanoxLogo(
+                                  height: double.infinity,
+                                  width: double.infinity,
+                                  fit: BoxFit.contain,
+                                  variant: CleanoxLogoVariant.primary,
+                                ),
                               ),
-                            )
-                          : const SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: CleanoxLogo(
-                                height: double.infinity,
-                                width: double.infinity,
-                                fit: BoxFit.contain,
-                                variant: CleanoxLogoVariant.primary,
-                              ),
-                            ),
+                      ),
                     ),
                   ),
                 ),
