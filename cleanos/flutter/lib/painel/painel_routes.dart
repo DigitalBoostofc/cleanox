@@ -128,7 +128,7 @@ StatefulShellRoute painelShellRoute(
             // rota-pai vale só o trecho do pai — dispararia também nas sub-rotas).
             redirect: (context, state) =>
                 state.uri.path == painelPath(PainelSection.financeiro)
-                ? '${painelPath(PainelSection.financeiro)}/visao-geral'
+                ? '${painelPath(PainelSection.financeiro)}/principal'
                 : null,
             routes: [
               GoRoute(
@@ -138,11 +138,10 @@ StatefulShellRoute painelShellRoute(
                 // go_router é estável entre elas: trocar de aba mantém o MESMO
                 // page/element (o chunk deferred NÃO recarrega, sem re-spinner);
                 // só o corpo interno do FinanceiroShell troca pela aba do slug.
-                // A canonicalização de slug desconhecido → `visao-geral` mora no
-                // próprio FinanceiroShell (o `financeiro.*` aqui é deferred e não
-                // pode ser referenciado fora do LazySection/loadLibrary).
+                // Canonicalização de slug legado (visao-geral→principal, etc.)
+                // no FinanceiroShell.
                 builder: (context, state) {
-                  final tabSlug = state.pathParameters['tab'] ?? 'visao-geral';
+                  final tabSlug = state.pathParameters['tab'] ?? 'principal';
                   return LazySection(
                     load: financeiro.loadLibrary,
                     builder: () => financeiro.FinanceiroShell(tabSlug: tabSlug),
