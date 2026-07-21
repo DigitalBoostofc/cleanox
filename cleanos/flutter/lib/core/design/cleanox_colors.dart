@@ -176,59 +176,65 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ],
   );
 
+  /// Modo escuro (web desktop clássico) — sem preto puro.
+  ///
+  /// Hierarquia Material / boas de dark UI:
+  /// - canvas `#121212` · cards `#1E1E1E` · elevação `#242424`
+  /// - texto `#FFFFFF` / secundário `#B0B0B0`
+  /// - primary pastel (teal claro) para destacar no carvão
   static const CleanoxColors dark = CleanoxColors(
-    bg: Color(0xFF0C0C0C),
-    bg2: Color(0xFF191919),
-    bg3: Color(0xFF212121),
-    bgSidebar: Color(0xFF191919),
-    ink: Color(0xFFFFFFFF),
-    ink2: Color(0xD1FFFFFF), // rgba(255,255,255,0.82)
-    ink3: Color(0xFF9A9A9A), // ≥ 4.5:1 sobre bg/bg2/bg3 escuros
-    primary: Color(0xFF38BDF8), // cyan mais claro no dark
-    primary2: Color(0xFF0EA5E7),
-    onPrimary: Color(0xFF0B1D34),
-    accent: Color(0xFF38BDF8),
-    accent2: Color(0xFF7DD3FC),
+    bg: Color(0xFF1E1E1E), // surface / cards
+    bg2: Color(0xFF121212), // canvas / scaffold
+    bg3: Color(0xFF242424), // elevação (chips, hover)
+    bgSidebar: Color(0xFF1A1A1A),
+    ink: Color(0xFFFFFFFF), // texto principal
+    ink2: Color(0xFFB0B0B0), // texto secundário
+    ink3: Color(0xFF8E8E8E), // hints / captions
+    primary: Color(0xFF5EC8D4), // teal pastel (marca dessaturada)
+    primary2: Color(0xFF7DD8E2), // hover / ênfase
+    onPrimary: Color(0xFF0B1D34), // navy sobre pastel
+    accent: Color(0xFF67E8F9), // cyan claro de apoio
+    accent2: Color(0xFFA5F3FC),
     line: Color(0x14FFFFFF),
     line2: Color(0x29FFFFFF),
     error: Color(0xFFF87171),
     success: Color(0xFF4ADE80),
     warning: Color(0xFFFBBF24),
-    info: Color(0xFF38BDF8),
+    info: Color(0xFF5EC8D4),
     errorBg: Color(0x26F87171),
     successBg: Color(0x264ADE80),
     warningBg: Color(0x26FBBF24),
-    infoBg: Color(0x2638BDF8),
-    statusAgendada: Color(0xFF38BDF8),
+    infoBg: Color(0x265EC8D4),
+    statusAgendada: Color(0xFF5EC8D4),
     statusAtribuida: Color(0xFFA78BFA),
     statusEmAndamento: Color(0xFFFBBF24),
     statusConcluida: Color(0xFF4ADE80),
     statusCancelada: Color(0xFFF87171),
-    statusAgendadaBg: Color(0x2938BDF8),
+    statusAgendadaBg: Color(0x295EC8D4),
     statusAtribuidaBg: Color(0x29A78BFA),
     statusEmAndamentoBg: Color(0x2EFBBF24),
     statusConcluidaBg: Color(0x294ADE80),
     statusCanceladaBg: Color(0x29F87171),
     groupPlano: Color(0xFF94A3B8),
     groupPromocao: Color(0xFFFBBF24),
-    groupAdicional: Color(0xFF38BDF8),
+    groupAdicional: Color(0xFF5EC8D4),
     groupAvulsos: Color(0xFFFFB27A),
     groupSofa: Color(0xFFD8B4FE),
     groupColchao: Color(0xFFD8B4FE),
     groupOutros: Color(0xFF94A3B8),
     finIncome: Color(0xFF4ADE80),
     finExpense: Color(0xFFF87171),
-    finInfo: Color(0xFF38BDF8),
-    finMuted: Color(0xFF9A9A9A),
+    finInfo: Color(0xFF5EC8D4),
+    finMuted: Color(0xFFB0B0B0),
     finSeries: [
-      Color(0xFF0EA5E7),
+      Color(0xFF5EC8D4),
       Color(0xFF4ADE80),
-      Color(0xFF38BDF8),
+      Color(0xFF67E8F9),
       Color(0xFFFBBF24),
       Color(0xFFA78BFA),
       Color(0xFFF472B6),
       Color(0xFF94A3B8),
-      Color(0xFF4B5563),
+      Color(0xFF6B7280),
     ],
   );
 

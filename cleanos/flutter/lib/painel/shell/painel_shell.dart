@@ -162,9 +162,8 @@ class _DesktopAppShell extends ConsumerWidget {
     final radius = compact ? 22.0 : 28.0;
 
     return Scaffold(
-      // Canvas externo (cinza suave / preto no dark).
-      backgroundColor:
-          isDark ? const Color(0xFF0A0B0C) : ClxBrand.canvas,
+      // Canvas externo: off-white no claro · carvão #121212 no dark (sem #000).
+      backgroundColor: isDark ? clx.bg2 : ClxBrand.canvas,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(pad),

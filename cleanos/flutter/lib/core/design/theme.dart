@@ -15,28 +15,26 @@ import 'tokens.dart';
 /// Chave de persistência do tema (paridade com o web).
 const String kThemeStorageKey = 'cleanos-theme';
 
-/// Cor de texto/ícone sobre o cyan da marca (primary e primaryContainer).
-const Color _onBrandCyan = ClxBrand.onPrimary;
-
 /// ColorScheme MD3 COMPLETO derivado da marca (todos os roles preenchidos —
 /// tertiary, tiers de surface-container, inverse*, containers de feedback).
-/// Pares X/onX verificados a ≥ 4.5:1 (WCAG AA texto normal).
+/// Dark: carvão (sem #000), primary pastel, surfaces em camadas.
+/// Pares X/onX pensados para ≥ 4.5:1 (WCAG AA texto normal).
 ColorScheme _scheme(Brightness brightness, CleanoxColors clx) {
   final isDark = brightness == Brightness.dark;
   return ColorScheme(
     brightness: brightness,
     primary: clx.primary,
-    onPrimary: _onBrandCyan,
-    primaryContainer: clx.primary2,
-    onPrimaryContainer: _onBrandCyan,
+    onPrimary: clx.onPrimary,
+    primaryContainer: isDark ? const Color(0xFF164E56) : clx.primary2,
+    onPrimaryContainer: isDark ? const Color(0xFFB8F0F5) : clx.onPrimary,
     secondary: clx.accent,
-    onSecondary: isDark ? const Color(0xFF06222B) : Colors.white,
-    secondaryContainer: clx.accent2,
-    onSecondaryContainer: isDark ? const Color(0xFF06222B) : Colors.white,
-    tertiary: isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED),
+    onSecondary: isDark ? const Color(0xFF0B1D34) : Colors.white,
+    secondaryContainer: isDark ? const Color(0xFF1A3A42) : clx.accent2,
+    onSecondaryContainer: isDark ? const Color(0xFFB8F0F5) : Colors.white,
+    tertiary: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED),
     onTertiary: isDark ? const Color(0xFF2E1065) : Colors.white,
     tertiaryContainer: isDark
-        ? const Color(0xFF5B21B6)
+        ? const Color(0xFF4C1D95)
         : const Color(0xFFEDE9FE),
     onTertiaryContainer: isDark
         ? const Color(0xFFEDE9FE)
@@ -47,28 +45,23 @@ ColorScheme _scheme(Brightness brightness, CleanoxColors clx) {
     onErrorContainer: isDark
         ? const Color(0xFFFECACA)
         : const Color(0xFF7F1D1D),
+    // Dark: canvas #121212 (bg2) · cards #1E1E1E (bg) · elevação #242424 (bg3)
     surface: clx.bg,
     onSurface: clx.ink,
     onSurfaceVariant: clx.ink2,
-    surfaceDim: isDark ? const Color(0xFF0C0C0C) : const Color(0xFFE6ECF1),
-    surfaceBright: isDark ? const Color(0xFF2E2E2E) : const Color(0xFFFFFFFF),
-    surfaceContainerLowest: isDark
-        ? const Color(0xFF070707)
-        : const Color(0xFFFFFFFF),
-    surfaceContainerLow: clx.bg2,
-    surfaceContainer: isDark
-        ? const Color(0xFF1B1B1B)
-        : const Color(0xFFF4F7FA),
-    surfaceContainerHigh: isDark
-        ? const Color(0xFF1E1E1E)
-        : const Color(0xFFF1F5F8),
-    surfaceContainerHighest: clx.bg3,
-    inverseSurface: isDark ? const Color(0xFFF7F9FB) : clx.ink,
-    onInverseSurface: isDark ? const Color(0xFF0B1F2A) : clx.bg2,
-    inversePrimary: isDark ? const Color(0xFF007A74) : clx.primary,
+    surfaceDim: isDark ? clx.bg2 : const Color(0xFFE6ECF1),
+    surfaceBright: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFFFFFFF),
+    surfaceContainerLowest: isDark ? clx.bg2 : const Color(0xFFFFFFFF),
+    surfaceContainerLow: isDark ? const Color(0xFF1A1A1A) : clx.bg2,
+    surfaceContainer: isDark ? clx.bg : const Color(0xFFF4F7FA),
+    surfaceContainerHigh: isDark ? clx.bg3 : const Color(0xFFF1F5F8),
+    surfaceContainerHighest: isDark ? const Color(0xFF2C2C2C) : clx.bg3,
+    inverseSurface: isDark ? const Color(0xFFF5F7FA) : clx.ink,
+    onInverseSurface: isDark ? const Color(0xFF121212) : clx.bg2,
+    inversePrimary: isDark ? const Color(0xFF0B8A98) : clx.primary,
     outline: clx.line2,
     outlineVariant: clx.line,
-    shadow: const Color(0xFF0B1D34),
+    shadow: isDark ? const Color(0xFF000000) : const Color(0xFF0B1D34),
     surfaceTint: clx.primary,
   );
 }
@@ -292,7 +285,7 @@ ThemeData _build(Brightness brightness, CleanoxColors clx) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: clx.primary,
-        foregroundColor: _onBrandCyan,
+        foregroundColor: clx.onPrimary,
         minimumSize: const Size(0, ClxLayout.minTouchTarget),
         shape: const StadiumBorder(),
         textStyle: textTheme.labelLarge,
