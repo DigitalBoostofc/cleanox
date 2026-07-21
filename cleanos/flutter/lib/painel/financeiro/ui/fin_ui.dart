@@ -297,6 +297,7 @@ class FinMonthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     final row = Row(
       mainAxisSize: center || pill ? MainAxisSize.min : MainAxisSize.max,
       mainAxisAlignment:
@@ -304,16 +305,18 @@ class FinMonthBar extends StatelessWidget {
       children: [
         _MonthArrow(onTap: onPrev, icon: Icons.chevron_left_rounded),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: EdgeInsets.symmetric(horizontal: r.s(10)),
           child: Text(
             label,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textScaler: TextScaler.noScaling,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: clx.ink,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.2,
+                  fontSize: r.sp(14),
                 ),
           ),
         ),
@@ -327,7 +330,7 @@ class FinMonthBar extends StatelessWidget {
 
     return Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: r.s(6), vertical: r.s(4)),
         decoration: BoxDecoration(
           color: clx.bg,
           borderRadius: ClxRadii.rPill,
@@ -335,8 +338,8 @@ class FinMonthBar extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: clx.ink.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              blurRadius: r.s(10),
+              offset: Offset(0, r.s(4)),
             ),
           ],
         ),
@@ -354,6 +357,8 @@ class _MonthArrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
+    final side = r.s(36).clamp(32.0, 44.0);
     return Material(
       color: clx.bg3.withValues(alpha: 0.5),
       shape: const CircleBorder(),
@@ -361,9 +366,9 @@ class _MonthArrow extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Icon(icon, color: clx.ink2, size: 22),
+          width: side,
+          height: side,
+          child: Icon(icon, color: clx.ink2, size: r.s(22)),
         ),
       ),
     );

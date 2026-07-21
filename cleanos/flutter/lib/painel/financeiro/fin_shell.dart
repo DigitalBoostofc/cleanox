@@ -266,19 +266,20 @@ class _FintechSubNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(4), r.pagePadH, r.s(10)),
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: EdgeInsets.all(r.s(4)),
         decoration: BoxDecoration(
           color: clx.bg,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(r.r(16)),
           border: Border.all(color: clx.line),
           boxShadow: [
             BoxShadow(
               color: clx.ink.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: r.s(12),
+              offset: Offset(0, r.s(4)),
             ),
           ],
         ),
@@ -316,30 +317,33 @@ class _SegTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
+    final radius = BorderRadius.circular(r.r(12));
     return Material(
       color: selected ? clx.primary : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: radius,
         child: AnimatedContainer(
           duration: ClxMotion.shortDuration,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: EdgeInsets.symmetric(vertical: r.s(10)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: r.s(18),
                 color: selected ? clx.onPrimary : clx.ink3,
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: r.s(2)),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textScaler: TextScaler.noScaling,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: r.sp(10),
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color: selected ? clx.onPrimary : clx.ink3,
                   letterSpacing: -0.1,

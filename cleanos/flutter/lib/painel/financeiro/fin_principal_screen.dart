@@ -235,10 +235,12 @@ class _MobileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    // Fintech (APK): padding inferior só pro bottom bar Easypay (~72+safe).
-    final bottomPad = fintech ? 108.0 : 100.0;
+    final r = context.clxR;
+    // Fintech (APK): padding inferior só pro bottom bar Easypay.
+    final bottomPad = fintech ? r.bottomNavClearance : r.s(100);
+    final hPad = fintech ? r.pagePadH : 16.0;
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 4, 16, bottomPad),
+      padding: EdgeInsets.fromLTRB(hPad, r.s(4), hPad, bottomPad),
       physics: const BouncingScrollPhysics(),
       children: [
         FinMonthBar(
@@ -247,7 +249,7 @@ class _MobileBody extends StatelessWidget {
           onNext: onNext,
           pill: fintech,
         ),
-        const SizedBox(height: ClxSpace.x4),
+        SizedBox(height: r.s(ClxSpace.x4)),
         if (fintech) ...[
           FintechBalanceHero(
             label: 'Saldo em contas',
@@ -264,14 +266,14 @@ class _MobileBody extends StatelessWidget {
                 customBorder: const CircleBorder(),
                 onTap: onToggleSaldo,
                 child: SizedBox(
-                  width: 36,
-                  height: 36,
+                  width: r.s(36),
+                  height: r.s(36),
                   child: Icon(
                     saldoVisivel
                         ? Icons.visibility_outlined
                         : Icons.visibility_off_outlined,
                     color: Colors.white,
-                    size: 18,
+                    size: r.s(18),
                   ),
                 ),
               ),
@@ -287,7 +289,7 @@ class _MobileBody extends StatelessWidget {
                 ),
                 Container(
                   width: 1,
-                  height: 36,
+                  height: r.s(36),
                   color: Colors.white.withValues(alpha: 0.2),
                 ),
                 Expanded(
@@ -361,7 +363,7 @@ class _MobileBody extends StatelessWidget {
                   onTap: onNovaReceita,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: r.s(10)),
               Expanded(
                 child: _QuickAction(
                   icon: Icons.remove_rounded,
@@ -370,7 +372,7 @@ class _MobileBody extends StatelessWidget {
                   onTap: onNovaDespesa,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: r.s(10)),
               Expanded(
                 child: _QuickAction(
                   icon: Icons.swap_horiz_rounded,
@@ -379,7 +381,7 @@ class _MobileBody extends StatelessWidget {
                   onTap: onGoTransacoes,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: r.s(10)),
               Expanded(
                 child: _QuickAction(
                   icon: Icons.account_balance_wallet_outlined,
@@ -390,7 +392,7 @@ class _MobileBody extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: ClxSpace.x5),
+          SizedBox(height: r.s(ClxSpace.x5)),
         ],
         FinDashSectionHeader(title: 'Pendências e alertas'),
         FinCard(
@@ -1047,31 +1049,34 @@ class _HeroStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = context.clxR;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(r.r(12)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: r.s(8), vertical: r.s(4)),
         child: Column(
           children: [
             Text(
               label.toUpperCase(),
+              textScaler: TextScaler.noScaling,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 10,
+                fontSize: r.sp(10),
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: r.s(2)),
             Text(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              textScaler: TextScaler.noScaling,
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
-                fontSize: 14,
+                fontSize: r.sp(14),
               ),
             ),
           ],
@@ -1096,34 +1101,37 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
+    final radius = BorderRadius.circular(r.r(16));
     return Material(
       color: clx.bg,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: radius,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: r.s(12)),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: radius,
             border: Border.all(color: clx.line),
           ),
           child: Column(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: r.s(36),
+                height: r.s(36),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: r.s(20)),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: r.s(6)),
               Text(
                 label,
+                textScaler: TextScaler.noScaling,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: r.sp(11),
                   fontWeight: FontWeight.w700,
                   color: clx.ink2,
                 ),

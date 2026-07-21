@@ -341,7 +341,9 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
                             ? _MobileList(
                                 scroll: _scroll,
                                 state: state,
-                                bottomPad: fintech ? 96 : 100,
+                                bottomPad: fintech
+                                    ? context.clxR.bottomNavClearance
+                                    : context.clxR.s(100),
                                 catById: catById,
                                 contaById: contaById,
                                 weekdayLabel: _weekdayLabel,
@@ -601,9 +603,10 @@ class _MobileList extends StatelessWidget {
     final grupos = agruparPorData(state.items);
     final clx = context.clx;
 
+    final r = context.clxR;
     return ListView.builder(
       controller: scroll,
-      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
+      padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(8), r.pagePadH, bottomPad),
       itemCount: grupos.length + (state.hasMore ? 1 : 0),
       itemBuilder: (context, i) {
         if (i >= grupos.length) {

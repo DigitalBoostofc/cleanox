@@ -262,53 +262,56 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
             ? widget.section
             : null;
 
-    return Scaffold(
-      backgroundColor: clx.bg2,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _EasypayTopBar(
-              title: _headerTitle(),
-              subtitle: _headerSubtitle(),
-              menuOpen: _showMais,
-              onMenuTap: () {
-                if (_showMais) {
-                  setState(() => _showMais = false);
-                } else {
-                  _openMenu();
-                }
-              },
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: ClxMotion.standardDuration,
-                switchInCurve: ClxMotion.emphasized,
-                switchOutCurve: Curves.easeIn,
-                child: _showMais
-                    ? _MaisScreen(
-                        key: const ValueKey('mais'),
-                        role: widget.role,
-                        user: user,
-                        onSelect: _openFromMais,
-                        compactHeader: true,
-                      )
-                    : KeyedSubtree(
-                        key: const ValueKey('shell'),
-                        child: widget.navigationShell,
-                      ),
+    // Tipografia + densidade adaptam ao tamanho do aparelho (ClxResponsive).
+    return ClxResponsiveScope(
+      child: Scaffold(
+        backgroundColor: clx.bg2,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _EasypayTopBar(
+                title: _headerTitle(),
+                subtitle: _headerSubtitle(),
+                menuOpen: _showMais,
+                onMenuTap: () {
+                  if (_showMais) {
+                    setState(() => _showMais = false);
+                  } else {
+                    _openMenu();
+                  }
+                },
               ),
-            ),
-          ],
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: ClxMotion.standardDuration,
+                  switchInCurve: ClxMotion.emphasized,
+                  switchOutCurve: Curves.easeIn,
+                  child: _showMais
+                      ? _MaisScreen(
+                          key: const ValueKey('mais'),
+                          role: widget.role,
+                          user: user,
+                          onSelect: _openFromMais,
+                          compactHeader: true,
+                        )
+                      : KeyedSubtree(
+                          key: const ValueKey('shell'),
+                          child: widget.navigationShell,
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: _EasypayBottomBar(
-        selected: selected,
-        onInicio: () => _goDirect(PainelSection.dashboard),
-        onClientes: () => _goDirect(PainelSection.clientes),
-        onOs: () => _goDirect(PainelSection.ordens),
-        onCarteira: () => _goDirect(PainelSection.financeiro),
-        onFab: _openCreateSheet,
+        bottomNavigationBar: _EasypayBottomBar(
+          selected: selected,
+          onInicio: () => _goDirect(PainelSection.dashboard),
+          onClientes: () => _goDirect(PainelSection.clientes),
+          onOs: () => _goDirect(PainelSection.ordens),
+          onCarteira: () => _goDirect(PainelSection.financeiro),
+          onFab: _openCreateSheet,
+        ),
       ),
     );
   }
@@ -331,12 +334,13 @@ class _EasypayTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     final tt = Theme.of(context).textTheme;
     return Material(
       color: clx.bg2,
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(8), r.s(8), r.s(8)),
         child: Row(
           children: [
             Expanded(
@@ -352,16 +356,22 @@ class _EasypayTopBar extends StatelessWidget {
                         color: clx.ink,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.4,
+                        fontSize: r.sp(22),
                       ),
+                      textScaler: TextScaler.noScaling,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: r.s(2)),
                   AnimatedSwitcher(
                     duration: ClxMotion.shortDuration,
                     child: Text(
                       subtitle,
                       key: ValueKey(subtitle),
-                      style: tt.bodySmall?.copyWith(color: clx.ink3),
+                      style: tt.bodySmall?.copyWith(
+                        color: clx.ink3,
+                        fontSize: r.sp(12),
+                      ),
+                      textScaler: TextScaler.noScaling,
                     ),
                   ),
                 ],
@@ -380,7 +390,7 @@ class _EasypayTopBar extends StatelessWidget {
                     menuOpen ? Icons.close_rounded : Icons.menu_rounded,
                     key: ValueKey(menuOpen),
                     color: clx.ink,
-                    size: 26,
+                    size: r.s(26),
                   ),
                 ),
               ),
@@ -442,14 +452,17 @@ class _EasypayBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final barH = r.s(72).clamp(64.0, 80.0);
+    final fab = r.s(56).clamp(50.0, 62.0);
 
     return Material(
       elevation: 12,
       shadowColor: clx.ink.withValues(alpha: 0.12),
       color: clx.bg.withValues(alpha: 0.96),
       child: SizedBox(
-        height: 72 + bottom,
+        height: barH + bottom,
         child: Padding(
           padding: EdgeInsets.only(bottom: bottom),
           child: Row(
@@ -473,10 +486,10 @@ class _EasypayBottomBar extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 72,
+                width: r.s(72).clamp(64.0, 80.0),
                 child: Center(
                   child: Transform.translate(
-                    offset: const Offset(0, -12),
+                    offset: Offset(0, -r.s(12)),
                     child: Semantics(
                       button: true,
                       label: 'Criar',
@@ -484,8 +497,8 @@ class _EasypayBottomBar extends StatelessWidget {
                         key: const ValueKey('nav-fab'),
                         onTap: onFab,
                         child: Container(
-                          width: 56,
-                          height: 56,
+                          width: fab,
+                          height: fab,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
@@ -497,15 +510,15 @@ class _EasypayBottomBar extends StatelessWidget {
                             boxShadow: [
                               BoxShadow(
                                 color: clx.primary.withValues(alpha: 0.42),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
+                                blurRadius: r.s(18),
+                                offset: Offset(0, r.s(8)),
                               ),
                             ],
                           ),
                           child: Icon(
                             Icons.add_rounded,
                             color: clx.onPrimary,
-                            size: 30,
+                            size: r.s(30),
                           ),
                         ),
                       ),
@@ -556,6 +569,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     final color = selected ? clx.primary : clx.ink3;
 
     return Semantics(
@@ -570,29 +584,30 @@ class _NavItem extends StatelessWidget {
             AnimatedContainer(
               duration: ClxMotion.shortDuration,
               curve: ClxMotion.standard,
-              padding: const EdgeInsets.all(6),
+              padding: EdgeInsets.all(r.s(6)),
               decoration: BoxDecoration(
                 color: selected
                     ? clx.primary.withValues(alpha: 0.12)
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(r.r(12)),
               ),
-              child: Icon(icon, size: 22, color: color),
+              child: Icon(icon, size: r.s(22), color: color),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: r.s(2)),
             Text(
               label,
+              textScaler: TextScaler.noScaling,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: r.sp(10),
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: color,
               ),
             ),
             AnimatedContainer(
               duration: ClxMotion.shortDuration,
-              margin: const EdgeInsets.only(top: 3),
-              width: selected ? 4 : 0,
-              height: 4,
+              margin: EdgeInsets.only(top: r.s(3)),
+              width: selected ? r.s(4) : 0,
+              height: r.s(4),
               decoration: BoxDecoration(
                 color: clx.primary,
                 shape: BoxShape.circle,
