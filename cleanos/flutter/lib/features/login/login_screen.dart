@@ -118,50 +118,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 72,
+                        const CleanoxLogo(
                           height: 72,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0.35),
-                                Colors.white.withValues(alpha: 0.12),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.35),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.18),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.cleaning_services_rounded,
-                            color: Colors.white,
-                            size: 34,
-                          ),
+                          variant: CleanoxLogoVariant.fullDark,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         Text(
-                          kAppDisplayName,
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Gestão limpa. Operação em dia.',
+                          kAppTagline,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.8),
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w500,
                               ),
                         ),
                       ],
@@ -243,42 +210,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
+              const Center(
                 child: ClxPulse(
                   minScale: 0.96,
                   maxScale: 1.06,
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: clx.primary,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: clx.primary.withValues(alpha: 0.4),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.cleaning_services_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                  child: CleanoxLogo(
+                    height: 56,
+                    variant: CleanoxLogoVariant.fullLight,
                   ),
                 ),
               ),
-              const SizedBox(height: ClxSpace.x4),
+              const SizedBox(height: ClxSpace.x3),
               ClxFadeSlide(
                 delay: const Duration(milliseconds: 60),
                 child: Text(
-                  kAppDisplayName,
+                  kAppTagline,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: clx.ink,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: clx.ink2,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

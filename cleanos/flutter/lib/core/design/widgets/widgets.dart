@@ -1,6 +1,7 @@
 /// Barrel dos widgets base do design system (§3).
 library;
 
+export 'cleanox_logo.dart';
 export 'clx_button.dart';
 export 'clx_card.dart';
 export 'clx_chip.dart';

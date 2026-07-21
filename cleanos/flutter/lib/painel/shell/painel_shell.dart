@@ -299,53 +299,16 @@ class _IconRailState extends ConsumerState<_IconRail> {
                         period: const Duration(milliseconds: 1800),
                         child: Tooltip(
                           message: kAppDisplayName,
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: clx.primary,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: clx.primary.withValues(alpha: 0.5),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.cleaning_services_rounded,
-                              size: 20,
-                              color: Colors.white,
-                            ),
+                          child: CleanoxLogo(
+                            height: _expanded ? 36 : 32,
+                            variant: _expanded
+                                ? CleanoxLogoVariant.fullDark
+                                : CleanoxLogoVariant.mark,
                           ),
                         ),
                       ),
-                      // Gap DENTRO do Expanded: com gap fixo fora, os primeiros
-                      // frames da expansão (largura ainda ~76) estouravam a Row
-                      // em 4px (logo 40 + gap 12 > 48 úteis).
-                      if (_expanded) ...[
-                        Expanded(
-                          child: AnimatedOpacity(
-                            opacity: _expanded ? 1 : 0,
-                            duration: ClxMotion.standardDuration,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: Text(
-                                kAppDisplayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      // Wordmark já vem no fullDark quando expandido.
+                      if (_expanded) const Spacer(),
                     ],
                   ),
                 ),
@@ -856,30 +819,11 @@ class _Sidebar extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: clx.primary,
-                      borderRadius: ClxRadii.rMd,
-                    ),
-                    child: const Icon(
-                      Icons.cleaning_services_rounded,
-                      size: 18,
-                      color: ClxBrand.onPrimary,
-                    ),
+                  const CleanoxLogo(
+                    height: 28,
+                    variant: CleanoxLogoVariant.fullLight,
                   ),
-                  const SizedBox(width: ClxSpace.x2),
-                  Expanded(
-                    child: Text(
-                      kAppDisplayName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: clx.ink,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ),
+                  const Spacer(),
                   if (showClose)
                     IconButton(
                       tooltip: 'Fechar menu',

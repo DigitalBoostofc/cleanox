@@ -117,23 +117,21 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
   };
 
   static const CleanoxColors light = CleanoxColors(
-    // Shell/cards brancos; canvas externo fica no Scaffold do desktop.
+    // Shell/cards brancos; canvas = off-white Cleanox (#F5F7FA).
     bg: Color(0xFFFFFFFF),
-    bg2: Color(0xFFF0F3F6),
-    bg3: Color(0xFFE6EBEF),
-    bgSidebar: Color(0xFFF0F3F6),
-    ink: Color(0xFF0B1F2A),
+    bg2: Color(0xFFF5F7FA),
+    bg3: Color(0xFFE8ECF1),
+    bgSidebar: Color(0xFFF5F7FA),
+    ink: Color(0xFF0B1D34), // navy Cleanox
     ink2: Color(0xFF3A4A55),
-    // Tons de texto/feedback ajustados p/ WCAG ≥ 4.5:1 sobre bg/bg2/bg3
-    // (auditoria MD3); os fundos *Bg mantêm o matiz vivo original.
-    ink3: Color(0xFF5C6B76),
-    primary: Color(0xFF00C2B8),
-    primary2: Color(0xFF00A39B),
-    onPrimary: Color(0xFF04201E), // == ClxBrand.onPrimary (paridade)
-    accent: Color(0xFF0F4C5C),
-    accent2: Color(0xFF1B6B7A),
-    line: Color(0x140F4C5C), // rgba(15,76,92,0.08) — mais suave (Shakuro)
-    line2: Color(0x240F4C5C), // rgba(15,76,92,0.14)
+    ink3: Color(0xFF7B8794), // cinza board
+    primary: Color(0xFF0EA5E7), // cyan Cleanox
+    primary2: Color(0xFF0284C7),
+    onPrimary: Color(0xFFFFFFFF),
+    accent: Color(0xFF0B1D34),
+    accent2: Color(0xFF152A45),
+    line: Color(0x140B1D34),
+    line2: Color(0x240B1D34),
     error: Color(0xFFDC2626),
     success: Color(0xFF15803D),
     warning: Color(0xFFB45309),
@@ -164,7 +162,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     finInfo: Color(0xFF2563EB),
     finMuted: Color(0xFF5C6B76),
     finSeries: [
-      Color(0xFF00C2B8),
+      Color(0xFF0EA5E7),
       Color(0xFF22C55E),
       Color(0xFF3B82F6),
       Color(0xFFF59E0B),
@@ -183,46 +181,46 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ink: Color(0xFFFFFFFF),
     ink2: Color(0xD1FFFFFF), // rgba(255,255,255,0.82)
     ink3: Color(0xFF9A9A9A), // ≥ 4.5:1 sobre bg/bg2/bg3 escuros
-    primary: Color(0xFF00C2B8),
-    primary2: Color(0xFF00A39B),
-    onPrimary: Color(0xFF04201E), // == ClxBrand.onPrimary (paridade)
-    accent: Color(0xFF3DA5D9),
-    accent2: Color(0xFF60B8E5),
-    line: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-    line2: Color(0x29FFFFFF), // rgba(255,255,255,0.16)
+    primary: Color(0xFF38BDF8), // cyan mais claro no dark
+    primary2: Color(0xFF0EA5E7),
+    onPrimary: Color(0xFF0B1D34),
+    accent: Color(0xFF38BDF8),
+    accent2: Color(0xFF7DD3FC),
+    line: Color(0x14FFFFFF),
+    line2: Color(0x29FFFFFF),
     error: Color(0xFFF87171),
     success: Color(0xFF4ADE80),
     warning: Color(0xFFFBBF24),
-    info: Color(0xFF60A5FA),
+    info: Color(0xFF38BDF8),
     errorBg: Color(0x26F87171),
     successBg: Color(0x264ADE80),
     warningBg: Color(0x26FBBF24),
-    infoBg: Color(0x2660A5FA),
-    statusAgendada: Color(0xFF60A5FA),
+    infoBg: Color(0x2638BDF8),
+    statusAgendada: Color(0xFF38BDF8),
     statusAtribuida: Color(0xFFA78BFA),
     statusEmAndamento: Color(0xFFFBBF24),
     statusConcluida: Color(0xFF4ADE80),
     statusCancelada: Color(0xFFF87171),
-    statusAgendadaBg: Color(0x2960A5FA),
+    statusAgendadaBg: Color(0x2938BDF8),
     statusAtribuidaBg: Color(0x29A78BFA),
     statusEmAndamentoBg: Color(0x2EFBBF24),
     statusConcluidaBg: Color(0x294ADE80),
     statusCanceladaBg: Color(0x29F87171),
     groupPlano: Color(0xFF94A3B8),
     groupPromocao: Color(0xFFFBBF24),
-    groupAdicional: Color(0xFF60A5FA),
+    groupAdicional: Color(0xFF38BDF8),
     groupAvulsos: Color(0xFFFFB27A),
     groupSofa: Color(0xFFD8B4FE),
     groupColchao: Color(0xFFD8B4FE),
     groupOutros: Color(0xFF94A3B8),
     finIncome: Color(0xFF4ADE80),
     finExpense: Color(0xFFF87171),
-    finInfo: Color(0xFF60A5FA),
+    finInfo: Color(0xFF38BDF8),
     finMuted: Color(0xFF9A9A9A),
     finSeries: [
-      Color(0xFF2DD4BF),
+      Color(0xFF0EA5E7),
       Color(0xFF4ADE80),
-      Color(0xFF60A5FA),
+      Color(0xFF38BDF8),
       Color(0xFFFBBF24),
       Color(0xFFA78BFA),
       Color(0xFFF472B6),
@@ -231,126 +229,113 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ],
   );
 
-  /// Fintech Clean (Opção B), variante clara — reskin do APK (redesign 12).
-  /// Grupos de serviço e série financeira herdam de [light] (fora do escopo de
-  /// tokens da Opção B nesta onda).
+  /// Fintech Clean — mesma paleta Cleanox (cyan/navy), hierarquia de cards do APK.
   static const CleanoxColors fintechLight = CleanoxColors(
     bg: Color(0xFFFFFFFF),
-    bg2: Color(0xFFF7F8FA),
-    bg3: Color(0xFFF0F2F5),
+    bg2: Color(0xFFF5F7FA),
+    bg3: Color(0xFFE8ECF1),
     bgSidebar: Color(0xFFFFFFFF),
-    ink: Color(0xFF0B1220),
+    ink: Color(0xFF0B1D34),
     ink2: Color(0xFF46525C),
-    ink3: Color(0xFF64707A),
-    primary: Color(0xFF00C896),
-    primary2: Color(0xFF00A87F),
-    onPrimary: Color(0xFF04231C),
-    accent: Color(0xFF0F4C5C),
-    accent2: Color(0xFF1B6B7A),
-    line: Color(0x170F1720), // rgba(15,23,32,.09)
-    line2: Color(0x290F1720), // rgba(15,23,32,.16)
+    ink3: Color(0xFF7B8794),
+    primary: Color(0xFF0EA5E7),
+    primary2: Color(0xFF0284C7),
+    onPrimary: Color(0xFFFFFFFF),
+    accent: Color(0xFF0B1D34),
+    accent2: Color(0xFF152A45),
+    line: Color(0x170B1D34),
+    line2: Color(0x290B1D34),
     error: Color(0xFFE5484D),
-    success: Color(0xFF00C896), // == primary
-    // ANTI-DRIFT: doc12 §2.1 especifica #E8A400 p/ warning, mas #E8A400 sobre
-    // bg2 (#F7F8FA) dá ~2.0:1 e o #B8790A herdado da Onda 2 dá ~3.4:1 — ambos
-    // abaixo do mínimo AA de 4.5:1 p/ texto normal. #96650A mantém a mesma
-    // intenção âmbar e atinge ~4.75:1 (validado via luminância relativa
-    // WCAG). Não reverta para os valores do doc — o doc é quem está errado.
+    success: Color(0xFF16A34A), // verde semântico (não = primary cyan)
     warning: Color(0xFF96650A),
-    info: Color(0xFF3E7BFA),
-    errorBg: Color(0x1AE5484D), // rgba(229,72,77,.10)
-    successBg: Color(0x1F00C896), // rgba(0,200,150,.12)
-    warningBg: Color(0x29E8A400), // rgba(232,164,0,.16)
-    infoBg: Color(0x1A3E7BFA), // rgba(62,123,250,.10)
-    statusAgendada: Color(0xFF3E7BFA),
+    info: Color(0xFF0EA5E7),
+    errorBg: Color(0x1AE5484D),
+    successBg: Color(0x1A16A34A),
+    warningBg: Color(0x29E8A400),
+    infoBg: Color(0x1A0EA5E7),
+    statusAgendada: Color(0xFF0EA5E7),
     statusAtribuida: Color(0xFF7C5CFC),
     statusEmAndamento: Color(0xFFB8790A),
-    statusConcluida: Color(0xFF00C896),
+    statusConcluida: Color(0xFF16A34A),
     statusCancelada: Color(0xFFE5484D),
-    statusAgendadaBg: Color(0x1A3E7BFA),
-    statusAtribuidaBg: Color(0x1A7C5CFC), // rgba(124,92,252,.10)
+    statusAgendadaBg: Color(0x1A0EA5E7),
+    statusAtribuidaBg: Color(0x1A7C5CFC),
     statusEmAndamentoBg: Color(0x29E8A400),
-    statusConcluidaBg: Color(0x1F00C896),
+    statusConcluidaBg: Color(0x1A16A34A),
     statusCanceladaBg: Color(0x1AE5484D),
     groupPlano: Color(0xFF64748B),
     groupPromocao: Color(0xFFB45309),
-    groupAdicional: Color(0xFF2563EB),
+    groupAdicional: Color(0xFF0EA5E7),
     groupAvulsos: Color(0xFFC2410C),
     groupSofa: Color(0xFF9333EA),
     groupColchao: Color(0xFF9333EA),
     groupOutros: Color(0xFF64748B),
-    finIncome: Color(0xFF00C896),
+    finIncome: Color(0xFF16A34A),
     finExpense: Color(0xFFE5484D),
-    finInfo: Color(0xFF3E7BFA),
-    finMuted: Color(0xFF64707A),
-    // Revisado na Onda 4: alguns tons (ex.: o teal do índice 0, o cinza-claro
-    // do índice 7) ficam < 3:1 sobre bg branco isoladamente, mas é o MESMO
-    // padrão já em produção no tema Web clássico (`light.finSeries`) — os
-    // segmentos do donut sempre vêm com legenda em `ink`/`ink2` (não a cor da
-    // série faz o papel de texto) e separação visual entre fatias. Sem
-    // regressão introduzida pelo reskin; não ajustado.
+    finInfo: Color(0xFF0EA5E7),
+    finMuted: Color(0xFF7B8794),
     finSeries: [
-      Color(0xFF00C896),
+      Color(0xFF0EA5E7),
       Color(0xFFE5484D),
       Color(0xFFB8790A),
-      Color(0xFF3E7BFA),
+      Color(0xFF22D3EE),
       Color(0xFF7C5CFC),
-      Color(0xFF64707A),
-      Color(0xFF46525C),
+      Color(0xFF7B8794),
+      Color(0xFF0B1D34),
       Color(0xFFD1D5DB),
     ],
   );
 
-  /// Fintech Clean (Opção B), variante escura.
+  /// Fintech Clean dark — cyan Cleanox sobre navy.
   static const CleanoxColors fintechDark = CleanoxColors(
-    bg: Color(0xFF17191B),
-    bg2: Color(0xFF0E0F10),
-    bg3: Color(0xFF1F2224),
-    bgSidebar: Color(0xFF17191B),
+    bg: Color(0xFF0B1D34),
+    bg2: Color(0xFF081526),
+    bg3: Color(0xFF152A45),
+    bgSidebar: Color(0xFF0B1D34),
     ink: Color(0xFFF3F5F6),
     ink2: Color(0xFFB7BEC4),
     ink3: Color(0xFF9CA6AE),
-    primary: Color(0xFF2FE3B4),
-    primary2: Color(0xFF16C99C),
-    onPrimary: Color(0xFF04231C),
-    accent: Color(0xFF3DA5D9),
-    accent2: Color(0xFF60B8E5),
-    line: Color(0x14FFFFFF), // rgba(255,255,255,.08)
-    line2: Color(0x29FFFFFF), // rgba(255,255,255,.16)
+    primary: Color(0xFF38BDF8),
+    primary2: Color(0xFF0EA5E7),
+    onPrimary: Color(0xFF0B1D34),
+    accent: Color(0xFF22D3EE),
+    accent2: Color(0xFF7DD3FC),
+    line: Color(0x14FFFFFF),
+    line2: Color(0x29FFFFFF),
     error: Color(0xFFFF6B6E),
-    success: Color(0xFF2FE3B4), // == primary
+    success: Color(0xFF4ADE80),
     warning: Color(0xFFFFC24B),
-    info: Color(0xFF6C9BFF),
-    errorBg: Color(0x24FF6B6E), // rgba(255,107,110,.14)
-    successBg: Color(0x242FE3B4), // rgba(47,227,180,.14)
-    warningBg: Color(0x29FFC24B), // rgba(255,194,75,.16)
-    infoBg: Color(0x246C9BFF), // rgba(108,155,255,.14)
-    statusAgendada: Color(0xFF6C9BFF),
+    info: Color(0xFF38BDF8),
+    errorBg: Color(0x24FF6B6E),
+    successBg: Color(0x244ADE80),
+    warningBg: Color(0x29FFC24B),
+    infoBg: Color(0x2438BDF8),
+    statusAgendada: Color(0xFF38BDF8),
     statusAtribuida: Color(0xFFA78BFA),
     statusEmAndamento: Color(0xFFFFC24B),
-    statusConcluida: Color(0xFF2FE3B4),
+    statusConcluida: Color(0xFF4ADE80),
     statusCancelada: Color(0xFFFF6B6E),
-    statusAgendadaBg: Color(0x246C9BFF),
-    statusAtribuidaBg: Color(0x29A78BFA), // rgba(167,139,250,.16)
+    statusAgendadaBg: Color(0x2438BDF8),
+    statusAtribuidaBg: Color(0x29A78BFA),
     statusEmAndamentoBg: Color(0x29FFC24B),
-    statusConcluidaBg: Color(0x242FE3B4),
+    statusConcluidaBg: Color(0x244ADE80),
     statusCanceladaBg: Color(0x24FF6B6E),
     groupPlano: Color(0xFF94A3B8),
     groupPromocao: Color(0xFFFBBF24),
-    groupAdicional: Color(0xFF60A5FA),
+    groupAdicional: Color(0xFF38BDF8),
     groupAvulsos: Color(0xFFFFB27A),
     groupSofa: Color(0xFFD8B4FE),
     groupColchao: Color(0xFFD8B4FE),
     groupOutros: Color(0xFF94A3B8),
-    finIncome: Color(0xFF2FE3B4),
+    finIncome: Color(0xFF4ADE80),
     finExpense: Color(0xFFFF6B6E),
-    finInfo: Color(0xFF6C9BFF),
+    finInfo: Color(0xFF38BDF8),
     finMuted: Color(0xFF9CA6AE),
     finSeries: [
-      Color(0xFF2FE3B4),
+      Color(0xFF38BDF8),
       Color(0xFFFF6B6E),
       Color(0xFFFFC24B),
-      Color(0xFF6C9BFF),
+      Color(0xFF0EA5E7),
       Color(0xFFA78BFA),
       Color(0xFF9CA6AE),
       Color(0xFFB7BEC4),

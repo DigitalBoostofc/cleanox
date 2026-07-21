@@ -63,7 +63,7 @@ String formatTempoMedio(double? min, String? label) {
 /// Texto padrão do rodapé do relatório enviado ao cliente.
 const String kRelatorioTextoPadrao =
     'Seu serviço foi concluído. Confira abaixo o resumo do que foi executado pela '
-    'equipe OS Fácil. Caso identifique qualquer falha, intercorrência ou ponto que '
+    'equipe Cleanox. Caso identifique qualquer falha, intercorrência ou ponto que '
     'precise de revisão, entre em contato em até 3 dias após a execução para '
     'análise e possível correção.';
 

@@ -75,7 +75,7 @@ class LocationTrackingService {
     if (!await FlutterForegroundTask.isRunningService) {
       await FlutterForegroundTask.startService(
         serviceTypes: const [ForegroundServiceTypes.location],
-        notificationTitle: 'OS Fácil — a caminho',
+        notificationTitle: 'Cleanox — a caminho',
         notificationText: 'Compartilhando sua localização com o cliente.',
       );
     }

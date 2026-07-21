@@ -64,9 +64,9 @@ void main() {
   ) async {
     await tester.pumpWidget(_wrap(isFintechClean: false));
 
-    // Card visual próprio (não ClxCard) + marca + CTA.
-    expect(find.text('OS Fácil'), findsOneWidget);
-    expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+    // Card visual próprio (não ClxCard) + logo Cleanox + CTA.
+    expect(find.byType(CleanoxLogo), findsOneWidget);
+    expect(find.text(kAppTagline), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
   });
 
@@ -81,8 +81,8 @@ void main() {
       await tester.pumpWidget(_wrap(isFintechClean: true));
 
       expect(find.byType(ClxCard), findsNothing);
-      expect(find.text('OS Fácil'), findsOneWidget);
-      expect(find.byIcon(Icons.cleaning_services_rounded), findsOneWidget);
+      expect(find.byType(CleanoxLogo), findsOneWidget);
+      expect(find.text(kAppTagline), findsOneWidget);
       final entrar = tester.widget<ClxButton>(
         find.widgetWithText(ClxButton, 'Entrar'),
       );
