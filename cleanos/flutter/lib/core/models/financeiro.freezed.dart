@@ -2033,3 +2033,395 @@ abstract class _FinLimite extends FinLimite {
   _$$FinLimiteImplCopyWith<_$FinLimiteImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+FinObjetivo _$FinObjetivoFromJson(Map<String, dynamic> json) {
+  return _FinObjetivo.fromJson(json);
+}
+
+/// @nodoc
+mixin _$FinObjetivo {
+  String get id => throw _privateConstructorUsedError;
+  String get nome => throw _privateConstructorUsedError;
+  @JsonKey(name: 'meta_valor')
+  double get metaValor => throw _privateConstructorUsedError;
+  @JsonKey(name: 'valor_atual')
+  double get valorAtual => throw _privateConstructorUsedError;
+  @JsonKey(name: 'data_limite')
+  String? get dataLimite => throw _privateConstructorUsedError;
+  bool get ativo => throw _privateConstructorUsedError;
+  String? get cor => throw _privateConstructorUsedError;
+  String? get icone => throw _privateConstructorUsedError;
+  String? get observacao => throw _privateConstructorUsedError;
+  String? get created => throw _privateConstructorUsedError;
+  String? get updated => throw _privateConstructorUsedError;
+
+  /// Serializes this FinObjetivo to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of FinObjetivo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $FinObjetivoCopyWith<FinObjetivo> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $FinObjetivoCopyWith<$Res> {
+  factory $FinObjetivoCopyWith(
+    FinObjetivo value,
+    $Res Function(FinObjetivo) then,
+  ) = _$FinObjetivoCopyWithImpl<$Res, FinObjetivo>;
+  @useResult
+  $Res call({
+    String id,
+    String nome,
+    @JsonKey(name: 'meta_valor') double metaValor,
+    @JsonKey(name: 'valor_atual') double valorAtual,
+    @JsonKey(name: 'data_limite') String? dataLimite,
+    bool ativo,
+    String? cor,
+    String? icone,
+    String? observacao,
+    String? created,
+    String? updated,
+  });
+}
+
+/// @nodoc
+class _$FinObjetivoCopyWithImpl<$Res, $Val extends FinObjetivo>
+    implements $FinObjetivoCopyWith<$Res> {
+  _$FinObjetivoCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of FinObjetivo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? nome = null,
+    Object? metaValor = null,
+    Object? valorAtual = null,
+    Object? dataLimite = freezed,
+    Object? ativo = null,
+    Object? cor = freezed,
+    Object? icone = freezed,
+    Object? observacao = freezed,
+    Object? created = freezed,
+    Object? updated = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String,
+            nome: null == nome
+                ? _value.nome
+                : nome // ignore: cast_nullable_to_non_nullable
+                      as String,
+            metaValor: null == metaValor
+                ? _value.metaValor
+                : metaValor // ignore: cast_nullable_to_non_nullable
+                      as double,
+            valorAtual: null == valorAtual
+                ? _value.valorAtual
+                : valorAtual // ignore: cast_nullable_to_non_nullable
+                      as double,
+            dataLimite: freezed == dataLimite
+                ? _value.dataLimite
+                : dataLimite // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            ativo: null == ativo
+                ? _value.ativo
+                : ativo // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            cor: freezed == cor
+                ? _value.cor
+                : cor // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            icone: freezed == icone
+                ? _value.icone
+                : icone // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            observacao: freezed == observacao
+                ? _value.observacao
+                : observacao // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            created: freezed == created
+                ? _value.created
+                : created // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updated: freezed == updated
+                ? _value.updated
+                : updated // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$FinObjetivoImplCopyWith<$Res>
+    implements $FinObjetivoCopyWith<$Res> {
+  factory _$$FinObjetivoImplCopyWith(
+    _$FinObjetivoImpl value,
+    $Res Function(_$FinObjetivoImpl) then,
+  ) = __$$FinObjetivoImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String id,
+    String nome,
+    @JsonKey(name: 'meta_valor') double metaValor,
+    @JsonKey(name: 'valor_atual') double valorAtual,
+    @JsonKey(name: 'data_limite') String? dataLimite,
+    bool ativo,
+    String? cor,
+    String? icone,
+    String? observacao,
+    String? created,
+    String? updated,
+  });
+}
+
+/// @nodoc
+class __$$FinObjetivoImplCopyWithImpl<$Res>
+    extends _$FinObjetivoCopyWithImpl<$Res, _$FinObjetivoImpl>
+    implements _$$FinObjetivoImplCopyWith<$Res> {
+  __$$FinObjetivoImplCopyWithImpl(
+    _$FinObjetivoImpl _value,
+    $Res Function(_$FinObjetivoImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of FinObjetivo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? nome = null,
+    Object? metaValor = null,
+    Object? valorAtual = null,
+    Object? dataLimite = freezed,
+    Object? ativo = null,
+    Object? cor = freezed,
+    Object? icone = freezed,
+    Object? observacao = freezed,
+    Object? created = freezed,
+    Object? updated = freezed,
+  }) {
+    return _then(
+      _$FinObjetivoImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String,
+        nome: null == nome
+            ? _value.nome
+            : nome // ignore: cast_nullable_to_non_nullable
+                  as String,
+        metaValor: null == metaValor
+            ? _value.metaValor
+            : metaValor // ignore: cast_nullable_to_non_nullable
+                  as double,
+        valorAtual: null == valorAtual
+            ? _value.valorAtual
+            : valorAtual // ignore: cast_nullable_to_non_nullable
+                  as double,
+        dataLimite: freezed == dataLimite
+            ? _value.dataLimite
+            : dataLimite // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        ativo: null == ativo
+            ? _value.ativo
+            : ativo // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        cor: freezed == cor
+            ? _value.cor
+            : cor // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        icone: freezed == icone
+            ? _value.icone
+            : icone // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        observacao: freezed == observacao
+            ? _value.observacao
+            : observacao // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        created: freezed == created
+            ? _value.created
+            : created // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updated: freezed == updated
+            ? _value.updated
+            : updated // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$FinObjetivoImpl extends _FinObjetivo {
+  const _$FinObjetivoImpl({
+    required this.id,
+    this.nome = '',
+    @JsonKey(name: 'meta_valor') this.metaValor = 0,
+    @JsonKey(name: 'valor_atual') this.valorAtual = 0,
+    @JsonKey(name: 'data_limite') this.dataLimite,
+    this.ativo = true,
+    this.cor,
+    this.icone,
+    this.observacao,
+    this.created,
+    this.updated,
+  }) : super._();
+
+  factory _$FinObjetivoImpl.fromJson(Map<String, dynamic> json) =>
+      _$$FinObjetivoImplFromJson(json);
+
+  @override
+  final String id;
+  @override
+  @JsonKey()
+  final String nome;
+  @override
+  @JsonKey(name: 'meta_valor')
+  final double metaValor;
+  @override
+  @JsonKey(name: 'valor_atual')
+  final double valorAtual;
+  @override
+  @JsonKey(name: 'data_limite')
+  final String? dataLimite;
+  @override
+  @JsonKey()
+  final bool ativo;
+  @override
+  final String? cor;
+  @override
+  final String? icone;
+  @override
+  final String? observacao;
+  @override
+  final String? created;
+  @override
+  final String? updated;
+
+  @override
+  String toString() {
+    return 'FinObjetivo(id: $id, nome: $nome, metaValor: $metaValor, valorAtual: $valorAtual, dataLimite: $dataLimite, ativo: $ativo, cor: $cor, icone: $icone, observacao: $observacao, created: $created, updated: $updated)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$FinObjetivoImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.nome, nome) || other.nome == nome) &&
+            (identical(other.metaValor, metaValor) ||
+                other.metaValor == metaValor) &&
+            (identical(other.valorAtual, valorAtual) ||
+                other.valorAtual == valorAtual) &&
+            (identical(other.dataLimite, dataLimite) ||
+                other.dataLimite == dataLimite) &&
+            (identical(other.ativo, ativo) || other.ativo == ativo) &&
+            (identical(other.cor, cor) || other.cor == cor) &&
+            (identical(other.icone, icone) || other.icone == icone) &&
+            (identical(other.observacao, observacao) ||
+                other.observacao == observacao) &&
+            (identical(other.created, created) || other.created == created) &&
+            (identical(other.updated, updated) || other.updated == updated));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    nome,
+    metaValor,
+    valorAtual,
+    dataLimite,
+    ativo,
+    cor,
+    icone,
+    observacao,
+    created,
+    updated,
+  );
+
+  /// Create a copy of FinObjetivo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$FinObjetivoImplCopyWith<_$FinObjetivoImpl> get copyWith =>
+      __$$FinObjetivoImplCopyWithImpl<_$FinObjetivoImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$FinObjetivoImplToJson(this);
+  }
+}
+
+abstract class _FinObjetivo extends FinObjetivo {
+  const factory _FinObjetivo({
+    required final String id,
+    final String nome,
+    @JsonKey(name: 'meta_valor') final double metaValor,
+    @JsonKey(name: 'valor_atual') final double valorAtual,
+    @JsonKey(name: 'data_limite') final String? dataLimite,
+    final bool ativo,
+    final String? cor,
+    final String? icone,
+    final String? observacao,
+    final String? created,
+    final String? updated,
+  }) = _$FinObjetivoImpl;
+  const _FinObjetivo._() : super._();
+
+  factory _FinObjetivo.fromJson(Map<String, dynamic> json) =
+      _$FinObjetivoImpl.fromJson;
+
+  @override
+  String get id;
+  @override
+  String get nome;
+  @override
+  @JsonKey(name: 'meta_valor')
+  double get metaValor;
+  @override
+  @JsonKey(name: 'valor_atual')
+  double get valorAtual;
+  @override
+  @JsonKey(name: 'data_limite')
+  String? get dataLimite;
+  @override
+  bool get ativo;
+  @override
+  String? get cor;
+  @override
+  String? get icone;
+  @override
+  String? get observacao;
+  @override
+  String? get created;
+  @override
+  String? get updated;
+
+  /// Create a copy of FinObjetivo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$FinObjetivoImplCopyWith<_$FinObjetivoImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}

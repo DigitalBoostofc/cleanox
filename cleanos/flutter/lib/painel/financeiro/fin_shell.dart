@@ -16,9 +16,9 @@ import 'categorias/fin_categorias_screen.dart';
 import 'fin_comissoes_screen.dart';
 import 'fin_common.dart';
 import 'fin_contas_pagar_receber_screen.dart';
-import 'fin_limites_screen.dart';
 import 'fin_mais_screen.dart';
 import 'fin_objetivos_screen.dart';
+import 'fin_planejamento_screen.dart';
 import 'fin_principal_screen.dart';
 import 'fin_relatorios_screen.dart';
 import 'lancamentos/fin_transacoes_screen.dart';
@@ -208,7 +208,8 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
   Widget _body(FinTab tab) => switch (tab) {
         FinTab.principal => const FinPrincipalScreen(),
         FinTab.transacoes => const FinTransacoesScreen(),
-        FinTab.planejamento || FinTab.limites => const FinLimitesScreen(),
+        FinTab.planejamento || FinTab.limites =>
+          const FinPlanejamentoScreen(),
         FinTab.mais => const FinMaisScreen(),
         FinTab.carteiras => const FinCarteirasScreen(),
         FinTab.categorias => const FinCategoriasScreen(),

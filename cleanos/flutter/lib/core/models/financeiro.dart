@@ -280,3 +280,43 @@ class FinLimite with _$FinLimite {
   factory FinLimite.fromRecord(RecordModel record) =>
       FinLimite.fromJson(record.toJson());
 }
+
+/* ---- Objetivo de caixa (fin_objetivos) ---- */
+@freezed
+class FinObjetivo with _$FinObjetivo {
+  const factory FinObjetivo({
+    required String id,
+    @Default('') String nome,
+    @JsonKey(name: 'meta_valor') @Default(0) double metaValor,
+    @JsonKey(name: 'valor_atual') @Default(0) double valorAtual,
+    @JsonKey(name: 'data_limite') String? dataLimite,
+    @Default(true) bool ativo,
+    String? cor,
+    String? icone,
+    String? observacao,
+    String? created,
+    String? updated,
+  }) = _FinObjetivo;
+
+  const FinObjetivo._();
+
+  factory FinObjetivo.fromJson(Map<String, dynamic> json) =>
+      _$FinObjetivoFromJson(json);
+
+  factory FinObjetivo.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['data_limite'] == '') json['data_limite'] = null;
+    if (json['ativo'] == null || json['ativo'] == '') json['ativo'] = true;
+    json['valor_atual'] = json['valor_atual'] ?? 0;
+    return FinObjetivo.fromJson(json);
+  }
+
+  /// Progresso 0..1 (clamp).
+  double get progresso {
+    if (metaValor <= 0) return 0;
+    final p = valorAtual / metaValor;
+    if (p < 0) return 0;
+    if (p > 1) return 1;
+    return p;
+  }
+}

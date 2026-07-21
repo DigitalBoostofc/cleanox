@@ -242,3 +242,33 @@ Map<String, dynamic> _$$FinLimiteImplToJson(_$FinLimiteImpl instance) =>
       'created': instance.created,
       'updated': instance.updated,
     };
+
+_$FinObjetivoImpl _$$FinObjetivoImplFromJson(Map<String, dynamic> json) =>
+    _$FinObjetivoImpl(
+      id: json['id'] as String,
+      nome: json['nome'] as String? ?? '',
+      metaValor: (json['meta_valor'] as num?)?.toDouble() ?? 0,
+      valorAtual: (json['valor_atual'] as num?)?.toDouble() ?? 0,
+      dataLimite: json['data_limite'] as String?,
+      ativo: json['ativo'] as bool? ?? true,
+      cor: json['cor'] as String?,
+      icone: json['icone'] as String?,
+      observacao: json['observacao'] as String?,
+      created: json['created'] as String?,
+      updated: json['updated'] as String?,
+    );
+
+Map<String, dynamic> _$$FinObjetivoImplToJson(_$FinObjetivoImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'nome': instance.nome,
+      'meta_valor': instance.metaValor,
+      'valor_atual': instance.valorAtual,
+      'data_limite': instance.dataLimite,
+      'ativo': instance.ativo,
+      'cor': instance.cor,
+      'icone': instance.icone,
+      'observacao': instance.observacao,
+      'created': instance.created,
+      'updated': instance.updated,
+    };
