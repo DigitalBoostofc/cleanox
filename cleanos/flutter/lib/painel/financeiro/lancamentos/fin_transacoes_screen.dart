@@ -16,6 +16,7 @@ import '../../../core/models/financeiro.dart';
 import '../fin_chips.dart';
 import '../fin_common.dart';
 import '../fin_derivations.dart';
+import '../fin_export.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import '../ui/fin_ui.dart';
@@ -296,6 +297,14 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
             searchCtrl: _searchCtrl,
             onSearch: _onSearch,
             onNovo: () => _openForm(),
+            onExport: () => finExportLancamentosCsv(
+              context,
+              lancs: periodLancs.isNotEmpty ? periodLancs : state.items,
+              catById: catById,
+              contaById: contaById,
+              filename:
+                  'cleanox-transacoes-${period.year}-${period.month.toString().padLeft(2, '0')}.csv',
+            ),
             filters: state.filters,
             onTipo: (t) => ref
                 .read(finLancControllerProvider.notifier)
@@ -369,6 +378,7 @@ class _HeaderKpis extends StatelessWidget {
     required this.searchCtrl,
     required this.onSearch,
     required this.onNovo,
+    required this.onExport,
     required this.filters,
     required this.onTipo,
   });
@@ -381,6 +391,7 @@ class _HeaderKpis extends StatelessWidget {
   final TextEditingController searchCtrl;
   final ValueChanged<String> onSearch;
   final VoidCallback onNovo;
+  final VoidCallback onExport;
   final FinLancFilters filters;
   final ValueChanged<TipoLancamento?> onTipo;
 
@@ -452,8 +463,13 @@ class _HeaderKpis extends StatelessWidget {
                     ),
                   ),
                 ),
+              IconButton(
+                tooltip: 'Exportar CSV',
+                onPressed: onExport,
+                icon: Icon(Icons.download_outlined, color: clx.ink2),
+              ),
               if (!finIsMobile(context)) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 FilledButton.icon(
                   onPressed: onNovo,
                   icon: const Icon(Icons.add_rounded, size: 18),

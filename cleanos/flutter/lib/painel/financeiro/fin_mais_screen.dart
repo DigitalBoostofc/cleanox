@@ -2,16 +2,38 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/design/design.dart';
+import '../../core/models/financeiro.dart';
+import 'fin_export.dart';
+import 'fin_providers.dart';
 import 'ui/fin_ui.dart';
 
-class FinMaisScreen extends StatelessWidget {
+class FinMaisScreen extends ConsumerWidget {
   const FinMaisScreen({super.key});
 
+  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+    final period = ref.read(finPeriodProvider);
+    final lancs = await ref.read(finPeriodLancamentosProvider.future);
+    if (!context.mounted) return;
+    final cats = ref.read(finCategoriasProvider).valueOrNull ??
+        const <FinCategoria>[];
+    final contas =
+        ref.read(finContasProvider).valueOrNull ?? const <FinConta>[];
+    await finExportLancamentosCsv(
+      context,
+      lancs: lancs,
+      catById: {for (final c in cats) c.id: c},
+      contaById: {for (final c in contas) c.id: c},
+      filename:
+          'cleanox-financeiro-${period.year}-${period.month.toString().padLeft(2, '0')}.csv',
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     return ColoredBox(
       color: clx.bg2,
@@ -32,6 +54,13 @@ class FinMaisScreen extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: ClxSpace.x5),
+          Text(
+            'Gerenciar',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: clx.ink3,
+                ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
           FinCard(
             padding: EdgeInsets.zero,
             child: Column(
@@ -47,6 +76,11 @@ class FinMaisScreen extends StatelessWidget {
                   onTap: () => context.go('/painel/financeiro/categorias'),
                 ),
                 _Item(
+                  icon: Icons.sell_outlined,
+                  label: 'Tags',
+                  onTap: () => context.go('/painel/financeiro/tags'),
+                ),
+                _Item(
                   icon: Icons.track_changes_outlined,
                   label: 'Objetivos',
                   onTap: () => context.go('/painel/financeiro/objetivos'),
@@ -55,7 +89,23 @@ class FinMaisScreen extends StatelessWidget {
                   icon: Icons.flag_outlined,
                   label: 'Planejamento / limites',
                   onTap: () => context.go('/painel/financeiro/planejamento'),
+                  last: true,
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x5),
+          Text(
+            'Acompanhar',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: clx.ink3,
+                ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          FinCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
                 _Item(
                   icon: Icons.groups_outlined,
                   label: 'Equipe / comissões',
@@ -73,6 +123,23 @@ class FinMaisScreen extends StatelessWidget {
                   last: true,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x5),
+          Text(
+            'Exportar',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: clx.ink3,
+                ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          FinCard(
+            padding: EdgeInsets.zero,
+            child: _Item(
+              icon: Icons.download_outlined,
+              label: 'Exportar CSV do mês',
+              onTap: () => _exportCsv(context, ref),
+              last: true,
             ),
           ),
         ],
