@@ -283,36 +283,40 @@ class _IconRailState extends ConsumerState<_IconRail> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                // Marca + nome quando expandido.
+                // Logo grande (transparente) — no rail escuro usa card claro.
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: _expanded ? 14 : 0,
+                    horizontal: _expanded ? 12 : 8,
                   ),
-                  child: Row(
-                    mainAxisAlignment: _expanded
-                        ? MainAxisAlignment.start
-                        : MainAxisAlignment.center,
-                    children: [
-                      ClxPulse(
-                        minScale: 0.97,
-                        maxScale: 1.05,
-                        period: const Duration(milliseconds: 1800),
-                        child: Tooltip(
-                          message: kAppDisplayName,
-                          child: CleanoxLogo(
-                            height: _expanded ? 36 : 32,
-                            variant: _expanded
-                                ? CleanoxLogoVariant.fullDark
-                                : CleanoxLogoVariant.mark,
+                  child: ClxPulse(
+                    minScale: 0.97,
+                    maxScale: 1.05,
+                    period: const Duration(milliseconds: 1800),
+                    child: Tooltip(
+                      message: kAppDisplayName,
+                      child: Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _expanded ? 10 : 6,
+                          vertical: _expanded ? 12 : 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(
+                            _expanded ? 16 : 14,
                           ),
                         ),
+                        child: CleanoxLogo(
+                          height: _expanded ? 64 : 40,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          variant: CleanoxLogoVariant.primary,
+                        ),
                       ),
-                      // Wordmark já vem no fullDark quando expandido.
-                      if (_expanded) const Spacer(),
-                    ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Expanded(
                   child: ListView(
                     padding: EdgeInsets.symmetric(
@@ -819,11 +823,14 @@ class _Sidebar extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  const CleanoxLogo(
-                    height: 28,
-                    variant: CleanoxLogoVariant.fullLight,
+                  const Expanded(
+                    child: CleanoxLogo(
+                      height: 52,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                      variant: CleanoxLogoVariant.primary,
+                    ),
                   ),
-                  const Spacer(),
                   if (showClose)
                     IconButton(
                       tooltip: 'Fechar menu',

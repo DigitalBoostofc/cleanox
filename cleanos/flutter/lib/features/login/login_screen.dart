@@ -118,16 +118,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CleanoxLogo(
-                          height: 72,
-                          variant: CleanoxLogoVariant.fullDark,
+                        // Logo com fundo transparente: card branco para
+                        // contraste no hero navy/cyan.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.18),
+                                blurRadius: 24,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: const CleanoxLogo(
+                            height: 96,
+                            variant: CleanoxLogoVariant.primary,
+                          ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         Text(
                           kAppTagline,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.85),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontWeight: FontWeight.w500,
                               ),
                         ),
@@ -215,8 +234,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   minScale: 0.96,
                   maxScale: 1.06,
                   child: CleanoxLogo(
-                    height: 56,
-                    variant: CleanoxLogoVariant.fullLight,
+                    height: 110,
+                    variant: CleanoxLogoVariant.primary,
                   ),
                 ),
               ),
