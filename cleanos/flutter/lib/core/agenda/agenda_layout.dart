@@ -47,6 +47,7 @@ class Intervalo {
     required this.startMin,
     required this.endMin,
     this.label = '',
+    this.groupKey = '',
   });
 
   final String id;
@@ -55,6 +56,11 @@ class Intervalo {
 
   /// Rótulo humano (ex.: nome curto do cliente) — usado no aviso do formulário.
   final String label;
+
+  /// Agrupa colunas no layout: normalmente o id do profissional. OS do MESMO
+  /// grupo preferem a MESMA coluna quando se sobrepõem (ex.: José à esquerda,
+  /// Gabriela à direita o dia inteiro no aglomerado). Vazio = sem preferência.
+  final String groupKey;
 
   int get duracaoMin => endMin - startMin;
 
@@ -174,6 +180,8 @@ Intervalo intervaloDaOs(OrdemServico os, [Disponibilidade? dispProf]) {
     startMin: i.startMin,
     endMin: i.endMin,
     label: os.nomeCurto,
+    // Colunas lado a lado: mesmo profissional → mesma coluna no aglomerado.
+    groupKey: (os.profissional ?? '').trim(),
   );
 }
 
@@ -199,10 +207,12 @@ List<Intervalo> sobreposicoes(List<Intervalo> ocupados, int start, int dur) {
 /// - **Aglomerados** (clusters) conectados por sobreposição; dentro de cada um,
 ///   o evento vai para a 1ª coluna livre e a largura é `1 / columnCount` — o
 ///   número FINAL de colunas do aglomerado (não o máximo corrente).
+/// - **Mesmo profissional** ([Intervalo.groupKey]): prefere a MESMA coluna no
+///   aglomerado (José à esquerda, Gabriela à direita) em vez de misturar.
 /// - **Teto de colunas** [maxColunas]: o excedente não é desenhado, vira
 ///   [ExcedenteAglomerado] ("+N", que a UI abre como lista).
 /// - **Duração mínima** de 15 min aplicada ANTES do algoritmo.
-/// - **Ordenação estável**: início ↑, fim ↓, id ↑ (determinístico nos testes).
+/// - **Ordenação estável**: início ↑, fim ↓, groupKey ↑, id ↑.
 /// - **Janela dinâmica**: `dayStart = min(padrão, chão da hora do 1º início)` e
 ///   `dayEnd = max(padrão, teto da hora do último fim)` — evento fora de 6h–22h
 ///   não some nem estoura o Stack. `truncTop/truncBottom` só marcam o que ainda
@@ -252,14 +262,10 @@ DayLayout layoutDayEvents(
     );
   }
 
-  // 2) Ordenação estável: início ↑, fim ↓, id ↑.
-  normalizados.sort((a, b) {
-    final s = a.startMin.compareTo(b.startMin);
-    if (s != 0) return s;
-    final e = b.endMin.compareTo(a.endMin);
-    if (e != 0) return e;
-    return a.evento.id.compareTo(b.evento.id);
-  });
+  // 2) Ordenação estável: início ↑, fim ↓, groupKey ↑, id ↑.
+  //    groupKey (profissional) antes do id → no mesmo horário, o mesmo prof
+  //    sempre cai na coluna mais à esquerda que o outro.
+  normalizados.sort(_cmpNormalizado);
 
   // 3) Janela dinâmica: só EXPANDE (o padrão 6h–22h é o piso).
   var minStart = normalizados.first.startMin;
@@ -274,7 +280,7 @@ DayLayout layoutDayEvents(
     _max(dayEnd, ((maxEnd + 59) ~/ 60) * 60),
   );
 
-  // 4) Aglomerados + colunas.
+  // 4) Aglomerados + colunas (com preferência por profissional).
   final posicionados = <EventoPosicionado>[];
   final excedentes = <ExcedenteAglomerado>[];
   var i = 0;
@@ -290,22 +296,50 @@ DayLayout layoutDayEvents(
     }
     i = j;
 
-    // Empacota: 1ª coluna cujo último evento já terminou.
+    // Reordena o aglomerado com a mesma chave (entrada pode ter crescido
+    // fora de ordem de groupKey).
+    cluster.sort(_cmpNormalizado);
+
+    // Empacota: prefere a coluna do MESMO profissional se ainda livre;
+    // senão a 1ª coluna livre; senão abre coluna nova.
     final fimPorColuna = <int>[];
     final colunaDe = <int>[]; // índice de coluna por evento do aglomerado
+    final colPreferidaDoGrupo = <String, int>{};
     for (final n in cluster) {
+      final group = n.evento.groupKey;
       var col = -1;
-      for (var c = 0; c < fimPorColuna.length; c++) {
-        if (fimPorColuna[c] <= n.startMin) {
-          col = c;
-          break;
+
+      // 1) Coluna já usada por este profissional neste aglomerado — se livre.
+      if (group.isNotEmpty) {
+        final pref = colPreferidaDoGrupo[group];
+        if (pref != null &&
+            pref < fimPorColuna.length &&
+            fimPorColuna[pref] <= n.startMin) {
+          col = pref;
         }
       }
+
+      // 2) 1ª coluna livre (comportamento clássico).
+      if (col == -1) {
+        for (var c = 0; c < fimPorColuna.length; c++) {
+          if (fimPorColuna[c] <= n.startMin) {
+            col = c;
+            break;
+          }
+        }
+      }
+
+      // 3) Nova coluna.
       if (col == -1) {
         fimPorColuna.add(n.endMin);
         col = fimPorColuna.length - 1;
       } else {
         fimPorColuna[col] = n.endMin;
+      }
+
+      // Fixa a coluna preferida do profissional na 1ª vez que ele aparece.
+      if (group.isNotEmpty) {
+        colPreferidaDoGrupo.putIfAbsent(group, () => col);
       }
       colunaDe.add(col);
     }
@@ -351,6 +385,17 @@ DayLayout layoutDayEvents(
     eventos: posicionados,
     excedentes: excedentes,
   );
+}
+
+/// Ordenação estável dos eventos normalizados (e dos aglomerados).
+int _cmpNormalizado(_Normalizado a, _Normalizado b) {
+  final s = a.startMin.compareTo(b.startMin);
+  if (s != 0) return s;
+  final e = b.endMin.compareTo(a.endMin);
+  if (e != 0) return e;
+  final g = a.evento.groupKey.compareTo(b.evento.groupKey);
+  if (g != 0) return g;
+  return a.evento.id.compareTo(b.evento.id);
 }
 
 /// Janela COMPARTILHADA por vários dias — na visão semana as 7 colunas precisam
