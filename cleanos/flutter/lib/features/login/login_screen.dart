@@ -118,28 +118,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo com fundo transparente: card branco para
-                        // contraste no hero navy/cyan.
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.18),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: const CleanoxLogo(
-                            height: 96,
-                            variant: CleanoxLogoVariant.primary,
-                          ),
+                        const CleanoxLogo(
+                          height: 96,
+                          variant: CleanoxLogoVariant.primary,
                         ),
                         const SizedBox(height: 14),
                         Text(
