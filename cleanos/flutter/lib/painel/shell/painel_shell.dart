@@ -285,16 +285,16 @@ class _IconRailState extends ConsumerState<_IconRail> {
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                // Logo recortada — 75% da largura da coluna (sem pulsar).
+                // Expandido: wordmark. Recolhido: monograma C (SEM_FUNDO_AZUL).
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Tooltip(
                     message: kAppDisplayName,
                     child: Center(
-                      child: FractionallySizedBox(
-                        widthFactor: 0.75,
-                        child: _expanded
-                            ? const AspectRatio(
+                      child: _expanded
+                          ? const FractionallySizedBox(
+                              widthFactor: 0.75,
+                              child: AspectRatio(
                                 aspectRatio: 528 / 334,
                                 child: CleanoxLogo(
                                   height: double.infinity,
@@ -302,18 +302,18 @@ class _IconRailState extends ConsumerState<_IconRail> {
                                   fit: BoxFit.contain,
                                   variant: CleanoxLogoVariant.primary,
                                 ),
-                              )
-                            : const SizedBox(
-                                width: double.infinity,
-                                height: 36,
-                                child: CleanoxLogo(
-                                  height: double.infinity,
-                                  width: double.infinity,
-                                  fit: BoxFit.contain,
-                                  variant: CleanoxLogoVariant.primary,
-                                ),
                               ),
-                      ),
+                            )
+                          : const SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CleanoxLogo(
+                                height: double.infinity,
+                                width: double.infinity,
+                                fit: BoxFit.contain,
+                                variant: CleanoxLogoVariant.mark,
+                              ),
+                            ),
                     ),
                   ),
                 ),
