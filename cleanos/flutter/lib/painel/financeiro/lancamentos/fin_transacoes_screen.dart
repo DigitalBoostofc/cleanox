@@ -290,6 +290,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
       child: Column(
         children: [
           _HeaderKpis(
+            fintech: fintech,
             periodLabel: period.label,
             onPrev: () =>
                 ref.read(finPeriodProvider.notifier).state = period.shift(-1),
@@ -374,6 +375,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
 
 class _HeaderKpis extends StatelessWidget {
   const _HeaderKpis({
+    required this.fintech,
     required this.periodLabel,
     required this.onPrev,
     required this.onNext,
@@ -387,6 +389,7 @@ class _HeaderKpis extends StatelessWidget {
     required this.onTipo,
   });
 
+  final bool fintech;
   final String periodLabel;
   final VoidCallback onPrev;
   final VoidCallback onNext;
@@ -403,84 +406,97 @@ class _HeaderKpis extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     return Container(
-      color: clx.bg,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      color: clx.bg2,
+      padding: EdgeInsets.fromLTRB(16, fintech ? 4 : 12, 16, 10),
       child: Column(
         children: [
-          FinMonthBar(label: periodLabel, onPrev: onPrev, onNext: onNext),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _KpiMini(
-                  icon: Icons.lock_outline_rounded,
-                  label: 'Saldo atual',
-                  value: saldo,
-                ),
-              ),
-              Container(width: 1, height: 40, color: clx.line),
-              Expanded(
-                child: _KpiMini(
-                  icon: Icons.account_balance_wallet_outlined,
-                  label: 'Balanço mensal',
-                  value: balanco,
-                ),
-              ),
-            ],
+          FinMonthBar(
+            label: periodLabel,
+            onPrev: onPrev,
+            onNext: onNext,
+            pill: fintech,
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              _Chip(
-                label: 'Todos',
-                selected: filters.tipo == null,
-                onTap: () => onTipo(null),
-              ),
-              const SizedBox(width: 8),
-              _Chip(
-                label: 'Receitas',
-                selected: filters.tipo == TipoLancamento.receita,
-                onTap: () => onTipo(TipoLancamento.receita),
-              ),
-              const SizedBox(width: 8),
-              _Chip(
-                label: 'Despesas',
-                selected: filters.tipo == TipoLancamento.despesa,
-                onTap: () => onTipo(TipoLancamento.despesa),
-              ),
-              const Spacer(),
-              if (!finIsMobile(context))
-                SizedBox(
-                  width: 220,
-                  height: 40,
-                  child: TextField(
-                    controller: searchCtrl,
-                    onChanged: onSearch,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar…',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: ClxRadii.rMd,
+          FinCard(
+            elevated: fintech,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _KpiMini(
+                    icon: Icons.lock_outline_rounded,
+                    label: 'Saldo atual',
+                    value: saldo,
+                  ),
+                ),
+                Container(width: 1, height: 40, color: clx.line),
+                Expanded(
+                  child: _KpiMini(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Balanço mensal',
+                    value: balanco,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _Chip(
+                  label: 'Todos',
+                  selected: filters.tipo == null,
+                  onTap: () => onTipo(null),
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'Receitas',
+                  selected: filters.tipo == TipoLancamento.receita,
+                  onTap: () => onTipo(TipoLancamento.receita),
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: 'Despesas',
+                  selected: filters.tipo == TipoLancamento.despesa,
+                  onTap: () => onTipo(TipoLancamento.despesa),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Exportar CSV',
+                  onPressed: onExport,
+                  icon: Icon(Icons.download_outlined, color: clx.ink2),
+                ),
+                if (!finIsMobile(context)) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 200,
+                    height: 40,
+                    child: TextField(
+                      controller: searchCtrl,
+                      onChanged: onSearch,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar…',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: ClxRadii.rMd,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              IconButton(
-                tooltip: 'Exportar CSV',
-                onPressed: onExport,
-                icon: Icon(Icons.download_outlined, color: clx.ink2),
-              ),
-              if (!finIsMobile(context)) ...[
-                const SizedBox(width: 4),
-                FilledButton.icon(
-                  onPressed: onNovo,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Novo'),
-                ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: onNovo,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Novo'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -612,6 +628,7 @@ class _MobileList extends StatelessWidget {
               ),
             ),
             FinCard(
+              elevated: true,
               padding: EdgeInsets.zero,
               child: Column(
                 children: [

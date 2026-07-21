@@ -249,7 +249,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
       };
 }
 
-/// Sub-nav horizontal embutida no casco fintech (sem 2º bottom bar).
+/// Sub-nav embutida no casco fintech — segmento premium (sem 2º bottom bar).
 class _FintechSubNav extends StatelessWidget {
   const _FintechSubNav({required this.active, required this.onSelect});
 
@@ -257,44 +257,96 @@ class _FintechSubNav extends StatelessWidget {
   final ValueChanged<FinTab> onSelect;
 
   static const _items = [
-    FinTab.principal,
-    FinTab.transacoes,
-    FinTab.planejamento,
-    FinTab.mais,
+    (FinTab.principal, Icons.home_rounded, 'Principal'),
+    (FinTab.transacoes, Icons.swap_horiz_rounded, 'Extrato'),
+    (FinTab.planejamento, Icons.flag_rounded, 'Plano'),
+    (FinTab.mais, Icons.grid_view_rounded, 'Mais'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    return Material(
-      color: clx.bg,
-      elevation: 0,
-      child: SizedBox(
-        height: 48,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          itemCount: _items.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final t = _items[i];
-            final sel = t == active;
-            return ChoiceChip(
-              label: Text(t.label),
-              selected: sel,
-              onSelected: (_) => onSelect(t),
-              selectedColor: clx.primary.withValues(alpha: 0.18),
-              labelStyle: TextStyle(
-                color: sel ? clx.primary : clx.ink2,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: clx.bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: clx.line),
+          boxShadow: [
+            BoxShadow(
+              color: clx.ink.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            for (final item in _items)
+              Expanded(
+                child: _SegTab(
+                  icon: item.$2,
+                  label: item.$3,
+                  selected: item.$1 == active,
+                  onTap: () => onSelect(item.$1),
+                ),
               ),
-              side: BorderSide(color: sel ? clx.primary : clx.line),
-              showCheckmark: false,
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            );
-          },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegTab extends StatelessWidget {
+  const _SegTab({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: selected ? clx.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: ClxMotion.shortDuration,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? clx.onPrimary : clx.ink3,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? clx.onPrimary : clx.ink3,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

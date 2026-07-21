@@ -38,7 +38,8 @@ class FinMaisScreen extends ConsumerWidget {
     return ColoredBox(
       color: clx.bg2,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 108),
+        physics: const BouncingScrollPhysics(),
         children: [
           Text(
             'Mais opções',

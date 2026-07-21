@@ -236,30 +236,68 @@ class _MobileBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     // Fintech (APK): padding inferior só pro bottom bar Easypay (~72+safe).
-    final bottomPad = fintech ? 96.0 : 100.0;
+    final bottomPad = fintech ? 108.0 : 100.0;
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
+      padding: EdgeInsets.fromLTRB(16, 4, 16, bottomPad),
+      physics: const BouncingScrollPhysics(),
       children: [
-        FinMonthBar(label: periodLabel, onPrev: onPrev, onNext: onNext),
-        const SizedBox(height: ClxSpace.x3),
+        FinMonthBar(
+          label: periodLabel,
+          onPrev: onPrev,
+          onNext: onNext,
+          pill: fintech,
+        ),
+        const SizedBox(height: ClxSpace.x4),
         if (fintech) ...[
           FintechBalanceHero(
             label: 'Saldo em contas',
             value: saldoVisivel ? formatCurrency(saldo) : '••••••',
             hint: saldoVisivel
-                ? (saldo < 0 ? 'Saldo negativo' : 'Disponível agora')
-                : 'Toque no olho para revelar',
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              onPressed: onToggleSaldo,
-              icon: Icon(
-                saldoVisivel
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: clx.ink3,
+                ? (saldo < 0
+                    ? 'Atenção: saldo negativo'
+                    : 'Disponível agora · $periodLabel')
+                : 'Saldo oculto',
+            trailing: Material(
+              color: Colors.white.withValues(alpha: 0.16),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onToggleSaldo,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(
+                    saldoVisivel
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
               ),
+            ),
+            footer: Row(
+              children: [
+                Expanded(
+                  child: _HeroStat(
+                    label: 'Receitas',
+                    value: formatCurrency(resumo.entradas),
+                    onTap: onNovaReceita,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 36,
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+                Expanded(
+                  child: _HeroStat(
+                    label: 'Despesas',
+                    value: formatCurrency(resumo.saidas),
+                    onTap: onNovaDespesa,
+                  ),
+                ),
+              ],
             ),
           ),
         ] else ...[
@@ -288,46 +326,102 @@ class _MobileBody extends StatelessWidget {
               color: clx.ink3,
             ),
           ),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniInOut(
+                  label: 'Receitas',
+                  value: resumo.entradas,
+                  income: true,
+                  onTap: onNovaReceita,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x3),
+              Expanded(
+                child: _MiniInOut(
+                  label: 'Despesas',
+                  value: resumo.saidas,
+                  income: false,
+                  onTap: onNovaDespesa,
+                ),
+              ),
+            ],
+          ),
         ],
-        Row(
-          children: [
-            Expanded(
-              child: _MiniInOut(
-                label: 'Receitas',
-                value: resumo.entradas,
-                income: true,
-                onTap: onNovaReceita,
+        const SizedBox(height: ClxSpace.x5),
+        // Atalhos rápidos no APK
+        if (fintech) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.add_rounded,
+                  label: 'Receita',
+                  color: clx.finIncome,
+                  onTap: onNovaReceita,
+                ),
               ),
-            ),
-            const SizedBox(width: ClxSpace.x3),
-            Expanded(
-              child: _MiniInOut(
-                label: 'Despesas',
-                value: resumo.saidas,
-                income: false,
-                onTap: onNovaDespesa,
+              const SizedBox(width: 10),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.remove_rounded,
+                  label: 'Despesa',
+                  color: clx.finExpense,
+                  onTap: onNovaDespesa,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: ClxSpace.x6),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.swap_horiz_rounded,
+                  label: 'Extrato',
+                  color: clx.primary,
+                  onTap: onGoTransacoes,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'Contas',
+                  color: clx.accent,
+                  onTap: onGoContas,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x5),
+        ],
         FinDashSectionHeader(title: 'Pendências e alertas'),
         FinCard(
+          elevated: fintech,
           onTap: onGoTransacoes,
           child: Row(
             children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: clx.finExpense.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.arrow_downward_rounded,
+                  color: clx.finExpense,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.arrow_downward_rounded,
-                            size: 18, color: clx.finExpense),
-                        const SizedBox(width: 6),
                         Text(
                           'Despesas pendentes',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                         if (nDespPend > 0) ...[
                           const SizedBox(width: 8),
@@ -352,7 +446,7 @@ class _MobileBody extends StatelessWidget {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     FinMoneyText(-despPend.abs()),
                   ],
                 ),
@@ -412,28 +506,44 @@ class _MobileBody extends StatelessWidget {
           onTrailing: onNovaConta,
         ),
         FinCard(
+          elevated: fintech,
           child: Column(
             children: [
               for (var i = 0; i < contas.length; i++) ...[
                 if (i > 0) Divider(height: 20, color: clx.line),
                 InkWell(
                   onTap: onGoContas,
-                  child: Row(
-                    children: [
-                      Icon(Icons.account_balance_wallet_outlined,
-                          color: clx.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          contas[i].nome,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: clx.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.account_balance_wallet_outlined,
+                            color: clx.primary,
+                            size: 20,
+                          ),
                         ),
-                      ),
-                      FinMoneyText(contas[i].saldoAtual),
-                    ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            contas[i].nome,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        FinMoneyText(contas[i].saldoAtual),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -450,7 +560,7 @@ class _MobileBody extends StatelessWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const Spacer(),
                   FinMoneyText(saldoGeral(contas)),
@@ -465,7 +575,7 @@ class _MobileBody extends StatelessWidget {
           trailing: const Text('Detalhes'),
           onTrailing: onGoTransacoes,
         ),
-        _BalancoMensalCard(resumo: resumo),
+        _BalancoMensalCard(resumo: resumo, elevated: fintech),
         const SizedBox(height: ClxSpace.x6),
         FinDashSectionHeader(
           title: 'Transações favoritas',
@@ -925,6 +1035,107 @@ class _FavoritosBlock extends StatelessWidget {
   }
 }
 
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: clx.line),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: clx.ink2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MiniInOut extends StatelessWidget {
   const _MiniInOut({
     required this.label,
@@ -1032,8 +1243,9 @@ class _DonutBlock extends StatelessWidget {
 }
 
 class _BalancoMensalCard extends StatelessWidget {
-  const _BalancoMensalCard({required this.resumo});
+  const _BalancoMensalCard({required this.resumo, this.elevated = false});
   final ResumoPeriodo resumo;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
@@ -1045,6 +1257,7 @@ class _BalancoMensalCard extends StatelessWidget {
       1.0,
     ].reduce((a, b) => a > b ? a : b);
     return FinCard(
+      elevated: elevated,
       child: Row(
         children: [
           SizedBox(
