@@ -21,7 +21,7 @@
   <!-- Obrigatório no mobile: sem isto o browser reporta ~980px de largura e o
        Flutter cai no layout desktop (rail/sidebar) em vez do fintech do APK. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0F4C5C">
+  <meta name="theme-color" content="#0B1D34">
   <meta name="description" content="Cleanox — Painel Web + App Profissional">
 
   <!-- OpenGraph: card de preview do link "Nova OS" no WhatsApp do profissional.
@@ -52,7 +52,7 @@
     html, body {
       height: 100%;
       margin: 0;
-      background: #0F4C5C;
+      background: #0B1D34;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     #boot-splash {
@@ -67,7 +67,7 @@
       z-index: 9999;
       text-align: center;
       padding: 24px;
-      background: #0F4C5C;
+      background: #0B1D34;
       transition: opacity 0.25s ease;
     }
     #boot-splash.boot-hide {
@@ -89,7 +89,7 @@
       display: none;
       margin-top: 8px;
       background: #fff;
-      color: #0F4C5C;
+      color: #0B1D34;
       border: 0;
       border-radius: 10px;
       padding: 12px 18px;
@@ -155,10 +155,12 @@
         if (spin) spin.style.display = 'none';
       }, 20000);
 
-      // Limpa Service Workers/caches legados (uma vez por versão).
-      var KEY = 'cleanos_sw_purge_v4';
+      // Limpa Service Workers/caches legados (v5 — Flutter SW travava o boot).
+      // Build usa --pwa-strategy=none; isto limpa SWs antigos UMA vez e recarrega.
+      var KEY = 'cleanos_sw_purge_v5';
       if (!('serviceWorker' in navigator)) return;
       if (localStorage.getItem(KEY) === '1') return;
+      var hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.getRegistrations().then(function (regs) {
         return Promise.all(regs.map(function (r) { return r.unregister(); }));
       }).then(function () {
@@ -168,10 +170,10 @@
         });
       }).then(function () {
         localStorage.setItem(KEY, '1');
-        if (navigator.serviceWorker.controller) {
-          location.reload();
-        }
-      }).catch(function () { /* best-effort */ });
+        if (hadController) location.reload();
+      }).catch(function () {
+        try { localStorage.setItem(KEY, '1'); } catch (_) {}
+      });
     })();
   </script>
 
