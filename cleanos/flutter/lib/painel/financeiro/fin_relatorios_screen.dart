@@ -16,6 +16,7 @@ import 'charts/fin_charts.dart';
 import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
+import 'fin_export.dart';
 import 'fin_labels.dart';
 import 'fin_providers.dart';
 
@@ -71,11 +72,24 @@ class _FinRelatoriosScreenState extends ConsumerState<FinRelatoriosScreen> {
       _onlyPago != null ||
       _incluirNaoPagos;
 
-  void _export() => showClxToast(
-    context,
-    'Use a impressão do navegador/sistema para exportar em PDF.',
-    type: ToastType.info,
-  );
+  Future<void> _export() async {
+    final lancs =
+        ref.read(finRelatorioLancamentosProvider).valueOrNull ??
+            const <FinLancamento>[];
+    final cats =
+        ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
+    final contas =
+        ref.read(finContasProvider).valueOrNull ?? const <FinConta>[];
+    final period = ref.read(finPeriodProvider);
+    await finExportLancamentosCsv(
+      context,
+      lancs: lancs,
+      catById: {for (final c in cats) c.id: c},
+      contaById: {for (final c in contas) c.id: c},
+      filename:
+          'cleanox-relatorio-${period.year}-${period.month.toString().padLeft(2, '0')}.csv',
+    );
+  }
 
   Future<void> _openFiltros(
     List<FinCategoria> categorias,
