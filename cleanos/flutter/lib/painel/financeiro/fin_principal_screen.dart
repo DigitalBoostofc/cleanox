@@ -55,6 +55,8 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
         ref.watch(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
     final pendentes =
         ref.watch(finPendentesProvider).valueOrNull ?? const <FinLancamento>[];
+    final objetivos =
+        ref.watch(finObjetivosProvider).valueOrNull ?? const <FinObjetivo>[];
 
     return ColoredBox(
       color: clx.bg2,
@@ -102,6 +104,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   catMap: catMap,
                   contas: contas.where((c) => c.ativo).toList(),
                   favoritos: lancs.where((l) => l.favorito).take(5).toList(),
+                  objetivos: objetivos.where((o) => o.ativo).take(3).toList(),
                   economiaPct: economiaPct,
                   freq: freq,
                   onNovaReceita: () => _novo(TipoLancamento.receita),
@@ -135,6 +138,8 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   receitaCat: receitaCat,
                   catMap: catMap,
                   contas: contas.where((c) => c.ativo).toList(),
+                  objetivos:
+                      objetivos.where((o) => o.ativo).take(3).toList(),
                   economiaPct: economiaPct,
                   freq: freq,
                   lancs: lancs,
@@ -182,6 +187,7 @@ class _MobileBody extends StatelessWidget {
     required this.catMap,
     required this.contas,
     required this.favoritos,
+    required this.objetivos,
     required this.economiaPct,
     required this.freq,
     required this.onNovaReceita,
@@ -208,6 +214,7 @@ class _MobileBody extends StatelessWidget {
   final Map<String, FinCategoria> catMap;
   final List<FinConta> contas;
   final List<FinLancamento> favoritos;
+  final List<FinObjetivo> objetivos;
   final double economiaPct;
   final List<_FreqPoint> freq;
   final VoidCallback onNovaReceita;
@@ -443,14 +450,45 @@ class _MobileBody extends StatelessWidget {
         FinDashSectionHeader(title: 'Economia mensal'),
         _EconomiaCard(pct: economiaPct, resumo: resumo),
         const SizedBox(height: ClxSpace.x6),
-        FinDashSectionHeader(title: 'Objetivos'),
-        FinEmptyCta(
-          icon: Icons.track_changes_outlined,
-          message: 'Opa! Você ainda não possui objetivos definidos.',
-          hint: 'Melhore o controle financeiro da operação!',
-          ctaLabel: 'Definir meus objetivos',
-          onCta: onGoObjetivos,
+        FinDashSectionHeader(
+          title: 'Objetivos',
+          trailing: const Text('Ver'),
+          onTrailing: onGoObjetivos,
         ),
+        if (objetivos.isEmpty)
+          FinEmptyCta(
+            icon: Icons.track_changes_outlined,
+            message: 'Opa! Você ainda não possui objetivos definidos.',
+            hint: 'Melhore o controle financeiro da operação!',
+            ctaLabel: 'Definir meus objetivos',
+            onCta: onGoObjetivos,
+          )
+        else
+          FinCard(
+            child: Column(
+              children: [
+                for (var i = 0; i < objetivos.length; i++) ...[
+                  if (i > 0) Divider(color: clx.line),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    onTap: onGoObjetivos,
+                    title: Text(objetivos[i].nome),
+                    subtitle: Text(
+                      '${formatCurrency(objetivos[i].valorAtual)} de ${formatCurrency(objetivos[i].metaValor)}',
+                      style: TextStyle(color: clx.ink3, fontSize: 12),
+                    ),
+                    trailing: Text(
+                      '${(objetivos[i].progresso * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: clx.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         const SizedBox(height: ClxSpace.x6),
         FinDashSectionHeader(title: 'Frequência de gastos'),
         _FreqChart(points: freq),
@@ -478,6 +516,7 @@ class _DesktopBody extends StatelessWidget {
     required this.receitaCat,
     required this.catMap,
     required this.contas,
+    required this.objetivos,
     required this.economiaPct,
     required this.freq,
     required this.lancs,
@@ -501,6 +540,7 @@ class _DesktopBody extends StatelessWidget {
   final Map<String, double> receitaCat;
   final Map<String, FinCategoria> catMap;
   final List<FinConta> contas;
+  final List<FinObjetivo> objetivos;
   final double economiaPct;
   final List<_FreqPoint> freq;
   final List<FinLancamento> lancs;
@@ -694,13 +734,44 @@ class _DesktopBody extends StatelessWidget {
             );
             final right = Column(
               children: [
-                FinDashSectionHeader(title: 'Objetivos'),
-                FinEmptyCta(
-                  icon: Icons.track_changes_outlined,
-                  message: 'Opa! Você ainda não possui objetivos definidos.',
-                  ctaLabel: 'DEFINIR MEUS OBJETIVOS',
-                  onCta: onGoObjetivos,
+                FinDashSectionHeader(
+                  title: 'Objetivos',
+                  trailing: const Text('VER MAIS'),
+                  onTrailing: onGoObjetivos,
                 ),
+                if (objetivos.isEmpty)
+                  FinEmptyCta(
+                    icon: Icons.track_changes_outlined,
+                    message:
+                        'Opa! Você ainda não possui objetivos definidos.',
+                    ctaLabel: 'DEFINIR MEUS OBJETIVOS',
+                    onCta: onGoObjetivos,
+                  )
+                else
+                  FinCard(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < objetivos.length; i++) ...[
+                          if (i > 0) Divider(color: clx.line),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            onTap: onGoObjetivos,
+                            title: Text(objetivos[i].nome),
+                            subtitle: Text(
+                              '${formatCurrency(objetivos[i].valorAtual)} de ${formatCurrency(objetivos[i].metaValor)}',
+                            ),
+                            trailing: Text(
+                              '${(objetivos[i].progresso * 100).toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: clx.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 FinDashSectionHeader(title: 'Economia mensal'),
                 _EconomiaCard(pct: economiaPct, resumo: resumo),

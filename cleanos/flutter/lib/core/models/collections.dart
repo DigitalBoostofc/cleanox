@@ -31,6 +31,7 @@ class FinCollections {
   static const String categorias = 'fin_categorias';
   static const String lancamentos = 'fin_lancamentos';
   static const String limites = 'fin_limites';
+  static const String objetivos = 'fin_objetivos';
   static const String profComissoes = 'prof_comissoes';
 }
 

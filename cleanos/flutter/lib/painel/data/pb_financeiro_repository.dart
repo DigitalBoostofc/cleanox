@@ -78,6 +78,12 @@ abstract class FinanceiroPanelRepository implements FinanceiroRepository {
   /// Ao criar um lançamento fixo/recorrente: grava as próximas
   /// [kRecorrenciaMesesAFrente] ocorrências mensais como `previsto`.
   Future<int> materializarRecorrenciaAFrente(FinLancamento template);
+
+  /// Metas de caixa (`fin_objetivos`).
+  Future<List<FinObjetivo>> listObjetivos();
+  Future<FinObjetivo> createObjetivo(Map<String, dynamic> data);
+  Future<FinObjetivo> updateObjetivo(String id, Map<String, dynamic> data);
+  Future<void> deleteObjetivo(String id);
 }
 
 class PbFinanceiroRepository implements FinanceiroPanelRepository {
@@ -92,6 +98,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   RecordService get _categorias => _pb.collection(FinCollections.categorias);
   RecordService get _lancamentos => _pb.collection(FinCollections.lancamentos);
   RecordService get _limites => _pb.collection(FinCollections.limites);
+  RecordService get _objetivos => _pb.collection(FinCollections.objetivos);
 
   /* ─────────────────────── Contas / Carteiras ─────────────────────── */
 
@@ -461,4 +468,27 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
 
   @override
   Future<void> deleteLimite(String id) => _limites.delete(id);
+
+  /* ─────────────────────── Objetivos ─────────────────────── */
+
+  @override
+  Future<List<FinObjetivo>> listObjetivos() async {
+    final recs = await _objetivos.getFullList(sort: '-created');
+    return recs.map(FinObjetivo.fromRecord).toList();
+  }
+
+  @override
+  Future<FinObjetivo> createObjetivo(Map<String, dynamic> data) async {
+    final rec = await _objetivos.create(body: data);
+    return FinObjetivo.fromRecord(rec);
+  }
+
+  @override
+  Future<FinObjetivo> updateObjetivo(String id, Map<String, dynamic> data) async {
+    final rec = await _objetivos.update(id, body: data);
+    return FinObjetivo.fromRecord(rec);
+  }
+
+  @override
+  Future<void> deleteObjetivo(String id) => _objetivos.delete(id);
 }

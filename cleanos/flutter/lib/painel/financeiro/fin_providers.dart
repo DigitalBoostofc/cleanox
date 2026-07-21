@@ -43,6 +43,11 @@ final finLimitesProvider = FutureProvider.autoDispose<List<FinLimite>>(
   (ref) => ref.watch(financeiroRepositoryProvider).listLimites(),
 );
 
+/// Metas de caixa (fin_objetivos).
+final finObjetivosProvider = FutureProvider.autoDispose<List<FinObjetivo>>(
+  (ref) => ref.watch(financeiroRepositoryProvider).listObjetivos(),
+);
+
 /* ─────────────────────── período selecionado (mês, BRT) ─────────────────────── */
 
 /// Mês selecionado nos painéis de agregado (Visão geral / Relatórios / Limites).

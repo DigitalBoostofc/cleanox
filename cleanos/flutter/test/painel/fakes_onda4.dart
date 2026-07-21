@@ -316,4 +316,47 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
     transferirCount++;
     lastTransfer = (from: fromId, to: toId, valor: valor);
   }
+
+  List<FinObjetivo> objetivos = const [];
+
+  @override
+  Future<List<FinObjetivo>> listObjetivos() async {
+    if (fail) throw Exception('falha');
+    return objetivos;
+  }
+
+  @override
+  Future<FinObjetivo> createObjetivo(Map<String, dynamic> data) async {
+    final o = FinObjetivo(
+      id: 'obj_${objetivos.length + 1}',
+      nome: (data['nome'] as String?) ?? 'Meta',
+      metaValor: (data['meta_valor'] as num?)?.toDouble() ?? 0,
+      valorAtual: (data['valor_atual'] as num?)?.toDouble() ?? 0,
+      ativo: data['ativo'] as bool? ?? true,
+    );
+    objetivos = [...objetivos, o];
+    return o;
+  }
+
+  @override
+  Future<FinObjetivo> updateObjetivo(String id, Map<String, dynamic> data) async {
+    final i = objetivos.indexWhere((o) => o.id == id);
+    if (i < 0) {
+      return FinObjetivo(id: id, nome: (data['nome'] as String?) ?? 'Meta');
+    }
+    final cur = objetivos[i];
+    final next = cur.copyWith(
+      nome: (data['nome'] as String?) ?? cur.nome,
+      metaValor: (data['meta_valor'] as num?)?.toDouble() ?? cur.metaValor,
+      valorAtual: (data['valor_atual'] as num?)?.toDouble() ?? cur.valorAtual,
+      ativo: data['ativo'] as bool? ?? cur.ativo,
+    );
+    objetivos = [...objetivos]..[i] = next;
+    return next;
+  }
+
+  @override
+  Future<void> deleteObjetivo(String id) async {
+    objetivos = objetivos.where((o) => o.id != id).toList();
+  }
 }
