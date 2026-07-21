@@ -16,22 +16,37 @@ class FinCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(ClxSpace.x4),
     this.onTap,
+    this.elevated = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
 
+  /// Sombra suave (mobile fintech).
+  final bool elevated;
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final radius = BorderRadius.circular(elevated ? 20 : ClxRadii.lg);
     final body = Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: clx.bg3.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 1 : 0.55),
-        borderRadius: ClxRadii.rLg,
-        border: Border.all(color: clx.line),
+        color: dark ? clx.bg : clx.bg,
+        borderRadius: radius,
+        border: Border.all(color: clx.line.withValues(alpha: dark ? 0.9 : 1)),
+        boxShadow: elevated
+            ? [
+                BoxShadow(
+                  color: clx.ink.withValues(alpha: dark ? 0.22 : 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
       ),
       child: child,
     );
@@ -40,7 +55,7 @@ class FinCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: ClxRadii.rLg,
+        borderRadius: radius,
         child: body,
       ),
     );
@@ -262,7 +277,7 @@ class FinMoneyText extends StatelessWidget {
   }
 }
 
-/// Seletor de mês compacto (‹ Julho › ou chip dropdown).
+/// Seletor de mês compacto (‹ Julho ›). [pill] = estilo fintech mobile.
 class FinMonthBar extends StatelessWidget {
   const FinMonthBar({
     super.key,
@@ -270,45 +285,87 @@ class FinMonthBar extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     this.center = true,
+    this.pill = false,
   });
 
   final String label;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final bool center;
+  final bool pill;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final row = Row(
-      mainAxisSize: center ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisSize: center || pill ? MainAxisSize.min : MainAxisSize.max,
       mainAxisAlignment:
-          center ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
+          center || pill ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
       children: [
-        IconButton(
-          tooltip: 'Mês anterior',
-          onPressed: onPrev,
-          icon: Icon(Icons.chevron_left_rounded, color: clx.ink2),
-        ),
-        Flexible(
+        _MonthArrow(onTap: onPrev, icon: Icons.chevron_left_rounded),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             label,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: clx.ink,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
                 ),
           ),
         ),
-        IconButton(
-          tooltip: 'Próximo mês',
-          onPressed: onNext,
-          icon: Icon(Icons.chevron_right_rounded, color: clx.ink2),
-        ),
+        _MonthArrow(onTap: onNext, icon: Icons.chevron_right_rounded),
       ],
     );
-    return center ? Center(child: row) : row;
+
+    if (!pill) {
+      return center ? Center(child: row) : row;
+    }
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: clx.bg,
+          borderRadius: ClxRadii.rPill,
+          border: Border.all(color: clx.line),
+          boxShadow: [
+            BoxShadow(
+              color: clx.ink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: row,
+      ),
+    );
+  }
+}
+
+class _MonthArrow extends StatelessWidget {
+  const _MonthArrow({required this.onTap, required this.icon});
+  final VoidCallback onTap;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg3.withValues(alpha: 0.5),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, color: clx.ink2, size: 22),
+        ),
+      ),
+    );
   }
 }

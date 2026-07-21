@@ -221,8 +221,15 @@ class _Body extends StatelessWidget {
     final total = contas.fold<double>(0, (s, c) => s + c.saldoAtual);
     final ativas = contas.where((c) => c.ativo).length;
 
+    final mobile = finIsMobile(context);
     return ListView(
-      padding: const EdgeInsets.all(ClxSpace.x6),
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 16 : ClxSpace.x6,
+        mobile ? 12 : ClxSpace.x6,
+        mobile ? 16 : ClxSpace.x6,
+        mobile ? 108 : ClxSpace.x6,
+      ),
+      physics: const BouncingScrollPhysics(),
       children: [
         // Saldo geral.
         ClxCard(
