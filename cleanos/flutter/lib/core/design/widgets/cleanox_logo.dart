@@ -8,13 +8,16 @@ import 'package:flutter/material.dart';
 
 /// Qual arquivo de marca carregar.
 enum CleanoxLogoVariant {
-  /// Wordmark oficial com fundo transparente (login, sidebar).
+  /// Wordmark oficial com fundo transparente (sidebar / genérico).
   primary,
+
+  /// Login tema claro — LOGO_SEM_FUNDO_BRANCO (wordmark em fundo claro).
+  loginLight,
 
   /// Alias do primary (legado).
   fullLight,
 
-  /// Wordmark claro em fundo navy (hero escuro).
+  /// Wordmark claro em fundo navy (hero escuro / fintech).
   fullDark,
 
   /// Wordmark semi-transparente (sobre fundo colorido).
