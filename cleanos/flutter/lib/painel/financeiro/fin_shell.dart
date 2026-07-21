@@ -1,82 +1,120 @@
-/// fin_shell.dart — Casco do módulo Financeiro (Onda 4 · Painel).
+/// fin_shell.dart — Casco do módulo Financeiro v2.
 ///
-/// Espelha `FinanceiroLayout.tsx`: sub-navegação horizontal por ABAS + corpo. O
-/// título "Financeiro" já é exibido pela topbar do PainelShell; aqui vive só a
-/// sub-nav e a tela ativa. Cada aba é uma URL deep-linkável
-/// (`/painel/financeiro/:tab`): a aba ativa vem do slug da rota ([tabSlug]) e a
-/// sub-nav navega com `context.go(...)`.
+/// Mobile / web estreita: bottom nav Principal · Transações · FAB · Planejamento · Mais.
+/// Desktop: rail interno de ícones + corpo.
 ///
-/// Só a ABA ATIVA é construída (switch, não IndexedStack): evita disparar os
-/// controllers/fetches das 7 telas de uma vez. O chunk inteiro (fl_chart incluso)
-/// já é deferred pela rota — as telas podem ser importadas eager aqui.
+/// Slugs legados (`visao-geral`, `lancamentos`, …) redirecionam para os novos.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/design/design.dart';
 import 'carteiras/fin_carteiras_screen.dart';
 import 'categorias/fin_categorias_screen.dart';
+import 'fin_comissoes_screen.dart';
+import 'fin_common.dart';
 import 'fin_contas_pagar_receber_screen.dart';
 import 'fin_limites_screen.dart';
+import 'fin_mais_screen.dart';
+import 'fin_objetivos_screen.dart';
+import 'fin_principal_screen.dart';
 import 'fin_relatorios_screen.dart';
-import 'fin_comissoes_screen.dart';
-import 'fin_visao_geral_screen.dart';
 import 'lancamentos/fin_lancamentos_screen.dart';
+import 'lancamentos/lancamento_form.dart';
 
-/// Abas do Financeiro — ordem otimizada para o fluxo do dono:
-/// ver caixa → movimentar → analisar → cobrar/pagar → contas → equipe → config.
-/// O [slug] é o segmento de URL (`/painel/financeiro/<slug>`).
+/// Abas / deep-links do Financeiro v2.
 enum FinTab {
-  /// Caixa realizado + compromissos.
-  visaoGeral('Painel', 'visao-geral'),
-
-  /// Extrato do mês (pago + previsto), estilo Organizze.
-  lancamentos('Movimentações', 'lancamentos'),
-
-  /// Análise por categoria e entradas × saídas.
-  relatorios('Relatórios', 'relatorios'),
-
-  /// Contas a receber e a pagar (pendentes).
-  contas('A receber / A pagar', 'contas'),
-
-  /// Contas bancárias / caixinhas.
+  principal('Principal', 'principal'),
+  transacoes('Transações', 'transacoes'),
+  planejamento('Planejamento', 'planejamento'),
+  mais('Mais', 'mais'),
+  // Deep links do hub Mais / legado
   carteiras('Carteiras', 'carteiras'),
-
-  /// Dashboard de comissões da equipe.
-  comissoes('Equipe', 'comissoes'),
-
   categorias('Categorias', 'categorias'),
-  limites('Limites', 'limites');
+  comissoes('Equipe', 'comissoes'),
+  relatorios('Relatórios', 'relatorios'),
+  contas('A receber / A pagar', 'contas'),
+  limites('Limites', 'limites'),
+  objetivos('Objetivos', 'objetivos');
 
   const FinTab(this.label, this.slug);
   final String label;
   final String slug;
 
-  /// Resolve o slug de URL para a aba (fallback: [FinTab.visaoGeral]).
-  static FinTab fromSlug(String? slug) => FinTab.values.firstWhere(
-    (t) => t.slug == slug,
-    orElse: () => FinTab.visaoGeral,
-  );
+  /// Resolve slug (inclui aliases legados).
+  static FinTab fromSlug(String? slug) {
+    switch (slug) {
+      case null:
+      case '':
+      case 'principal':
+      case 'visao-geral':
+        return FinTab.principal;
+      case 'transacoes':
+      case 'lancamentos':
+        return FinTab.transacoes;
+      case 'planejamento':
+      case 'limites':
+        return FinTab.planejamento;
+      case 'mais':
+        return FinTab.mais;
+      case 'carteiras':
+        return FinTab.carteiras;
+      case 'categorias':
+        return FinTab.categorias;
+      case 'comissoes':
+        return FinTab.comissoes;
+      case 'relatorios':
+        return FinTab.relatorios;
+      case 'contas':
+        return FinTab.contas;
+      case 'objetivos':
+        return FinTab.objetivos;
+      default:
+        return FinTab.principal;
+    }
+  }
 
-  /// `true` se [slug] casa uma aba real. Usado pela rota para canonicalizar
-  /// slugs desconhecidos (`/painel/financeiro/lixo`) → `visao-geral`, em vez de
-  /// só cair no fallback mantendo a URL suja na barra de endereços.
-  static bool isKnownSlug(String? slug) =>
-      FinTab.values.any((t) => t.slug == slug);
+  static bool isKnownSlug(String? slug) {
+    if (slug == null || slug.isEmpty) return false;
+    const known = {
+      'principal',
+      'visao-geral',
+      'transacoes',
+      'lancamentos',
+      'planejamento',
+      'limites',
+      'mais',
+      'carteiras',
+      'categorias',
+      'comissoes',
+      'relatorios',
+      'contas',
+      'objetivos',
+    };
+    return known.contains(slug);
+  }
+
+  /// Aba do bottom nav (4 itens). Deep links caem em Mais.
+  FinTab get navRoot => switch (this) {
+        FinTab.principal => FinTab.principal,
+        FinTab.transacoes => FinTab.transacoes,
+        FinTab.planejamento || FinTab.limites => FinTab.planejamento,
+        _ => FinTab.mais,
+      };
 }
 
-class FinanceiroShell extends StatefulWidget {
+class FinanceiroShell extends ConsumerStatefulWidget {
   const FinanceiroShell({super.key, this.tabSlug});
 
-  /// Slug da aba ativa (vem do path param `/painel/financeiro/:tab`).
   final String? tabSlug;
 
   @override
-  State<FinanceiroShell> createState() => _FinanceiroShellState();
+  ConsumerState<FinanceiroShell> createState() => _FinanceiroShellState();
 }
 
-class _FinanceiroShellState extends State<FinanceiroShell> {
+class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
   @override
   void initState() {
     super.initState();
@@ -89,112 +127,265 @@ class _FinanceiroShellState extends State<FinanceiroShell> {
     if (oldWidget.tabSlug != widget.tabSlug) _canonicalizeSlug();
   }
 
-  /// Slug desconhecido (`/painel/financeiro/lixo`, bookmark velho) → reescreve a
-  /// URL para a aba default. Renderizamos a Visão geral (fallback do [fromSlug])
-  /// enquanto o `context.go` corrige o endereço no próximo frame — assim a barra
-  /// de endereços nunca fica presa num slug sujo.
   void _canonicalizeSlug() {
-    if (FinTab.isKnownSlug(widget.tabSlug)) return;
+    final slug = widget.tabSlug;
+    if (FinTab.isKnownSlug(slug)) {
+      // Normaliza aliases legados para slug canônico.
+      final tab = FinTab.fromSlug(slug);
+      final canonical = switch (slug) {
+        'visao-geral' => 'principal',
+        'lancamentos' => 'transacoes',
+        'limites' => 'planejamento',
+        _ => null,
+      };
+      if (canonical != null && slug != canonical) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.go('/painel/financeiro/$canonical');
+        });
+      }
+      // silencia analyzer se tab unused
+      assert(tab.slug.isNotEmpty);
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.go('/painel/financeiro/${FinTab.visaoGeral.slug}');
+      if (mounted) {
+        context.go('/painel/financeiro/${FinTab.principal.slug}');
+      }
     });
+  }
+
+  Future<void> _fabAdd() async {
+    final saved = await showLancamentoForm(context);
+    if (saved == true && mounted) {
+      showClxToast(context, 'Lançamento criado.', type: ToastType.success);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final active = FinTab.fromSlug(widget.tabSlug);
-    // Ocupa o card flutuante inteiro (borda completa até embaixo).
+    final mobile = finIsMobile(context);
+    final body = _body(active);
+
+    if (mobile) {
+      return ColoredBox(
+        color: clx.bg2,
+        child: Scaffold(
+          backgroundColor: clx.bg2,
+          body: body,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: FloatingActionButton(
+            onPressed: _fabAdd,
+            tooltip: 'Novo lançamento',
+            child: const Icon(Icons.add_rounded),
+          ),
+          bottomNavigationBar: _MobileNav(
+            active: active.navRoot,
+            onSelect: (t) => context.go('/painel/financeiro/${t.slug}'),
+          ),
+        ),
+      );
+    }
+
     return ColoredBox(
-      color: clx.bg,
-      child: Column(
+      color: clx.bg2,
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SubNav(active: active),
-          Expanded(child: _body(active)),
+          _DesktopRail(
+            active: active,
+            onSelect: (t) => context.go('/painel/financeiro/${t.slug}'),
+            onAdd: _fabAdd,
+          ),
+          Expanded(child: body),
         ],
       ),
     );
   }
 
   Widget _body(FinTab tab) => switch (tab) {
-    FinTab.visaoGeral => const FinVisaoGeralScreen(),
-    FinTab.lancamentos => const FinLancamentosScreen(),
-    FinTab.relatorios => const FinRelatoriosScreen(),
-    FinTab.contas => const FinContasPagarReceberScreen(),
-    FinTab.carteiras => const FinCarteirasScreen(),
-    FinTab.comissoes => const FinComissoesScreen(),
-    FinTab.categorias => const FinCategoriasScreen(),
-    FinTab.limites => const FinLimitesScreen(),
-  };
+        FinTab.principal => const FinPrincipalScreen(),
+        FinTab.transacoes => const FinLancamentosScreen(),
+        FinTab.planejamento || FinTab.limites => const FinLimitesScreen(),
+        FinTab.mais => const FinMaisScreen(),
+        FinTab.carteiras => const FinCarteirasScreen(),
+        FinTab.categorias => const FinCategoriasScreen(),
+        FinTab.comissoes => const FinComissoesScreen(),
+        FinTab.relatorios => const FinRelatoriosScreen(),
+        FinTab.contas => const FinContasPagarReceberScreen(),
+        FinTab.objetivos => const FinObjetivosScreen(),
+      };
 }
 
-/// Sub-nav horizontal rolável (chips-aba com sublinhado no ativo).
-class _SubNav extends StatelessWidget {
-  const _SubNav({required this.active});
+class _MobileNav extends StatelessWidget {
+  const _MobileNav({required this.active, required this.onSelect});
 
   final FinTab active;
+  final ValueChanged<FinTab> onSelect;
+
+  static const _items = [
+    (FinTab.principal, Icons.home_outlined, Icons.home_rounded),
+    (FinTab.transacoes, Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
+    (FinTab.planejamento, Icons.flag_outlined, Icons.flag_rounded),
+    (FinTab.mais, Icons.more_horiz_rounded, Icons.more_horiz_rounded),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    return Container(
-      decoration: BoxDecoration(
-        color: clx.bg,
-        border: Border(bottom: BorderSide(color: clx.line)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x4),
-        child: Row(
-          children: [
-            for (final tab in FinTab.values)
-              _SubNavItem(
-                label: tab.label,
-                active: tab == active,
-                onTap: () => context.go('/painel/financeiro/${tab.slug}'),
+    return BottomAppBar(
+      color: clx.bg,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      padding: EdgeInsets.zero,
+      height: 64,
+      child: Row(
+        children: [
+          for (var i = 0; i < 2; i++)
+            Expanded(
+              child: _NavBtn(
+                label: _items[i].$1.label,
+                icon: active == _items[i].$1
+                    ? _items[i].$3
+                    : _items[i].$2,
+                selected: active == _items[i].$1,
+                onTap: () => onSelect(_items[i].$1),
               ),
-          ],
-        ),
+            ),
+          const SizedBox(width: 56), // FAB central
+          for (var i = 2; i < 4; i++)
+            Expanded(
+              child: _NavBtn(
+                label: _items[i].$1.label,
+                icon: active == _items[i].$1
+                    ? _items[i].$3
+                    : _items[i].$2,
+                selected: active == _items[i].$1,
+                onTap: () => onSelect(_items[i].$1),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _SubNavItem extends StatelessWidget {
-  const _SubNavItem({
+class _NavBtn extends StatelessWidget {
+  const _NavBtn({
     required this.label,
-    required this.active,
+    required this.icon,
+    required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final bool active;
+  final IconData icon;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final color = selected ? clx.primary : clx.ink3;
     return InkWell(
       onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: ClxLayout.minTouchTarget),
-        padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x3),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: active ? clx.primary : Colors.transparent,
-              width: 2.5,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: active ? clx.ink : clx.ink3,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopRail extends StatelessWidget {
+  const _DesktopRail({
+    required this.active,
+    required this.onSelect,
+    required this.onAdd,
+  });
+
+  final FinTab active;
+  final ValueChanged<FinTab> onSelect;
+  final VoidCallback onAdd;
+
+  static const _main = [
+    (FinTab.principal, Icons.home_rounded),
+    (FinTab.transacoes, Icons.swap_horiz_rounded),
+    (FinTab.planejamento, Icons.flag_rounded),
+    (FinTab.carteiras, Icons.account_balance_wallet_rounded),
+    (FinTab.mais, Icons.more_horiz_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final root = active.navRoot;
+    // Destaca deep link de carteiras no ícone carteiras
+    FinTab highlight = root;
+    if (active == FinTab.carteiras) highlight = FinTab.carteiras;
+
+    return Container(
+      width: 72,
+      color: clx.bg,
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Material(
+              color: clx.primary,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onAdd,
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(Icons.add_rounded, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            for (final item in _main)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Tooltip(
+                  message: item.$1.label,
+                  child: InkWell(
+                    borderRadius: ClxRadii.rMd,
+                    onTap: () => onSelect(item.$1),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: highlight == item.$1
+                            ? clx.primary.withValues(alpha: 0.15)
+                            : Colors.transparent,
+                        borderRadius: ClxRadii.rMd,
+                      ),
+                      child: Icon(
+                        item.$2,
+                        color: highlight == item.$1 ? clx.primary : clx.ink3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
