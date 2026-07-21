@@ -239,6 +239,44 @@ List<GrupoPorData> agruparPorData(List<FinLancamento> lancs) {
   return grupos;
 }
 
+/* ─────────────────────── saldo previsto final do dia ─────────────────────── */
+
+/// Saldo (previsto) ao **final** de cada data 'YYYY-MM-DD'.
+///
+/// Partindo de [saldoAtual] (Σ contas, só caixa realizado):
+/// - desfaz pagamentos **depois** do dia D
+/// - soma lançamentos **em aberto** com data ≤ D (projeção)
+///
+/// Assim dias passados com tudo pago batem o saldo real daquele dia, e dias
+/// futuros/pendentes mostram o caixa se os compromissos se confirmarem.
+Map<String, double> saldoPrevistoPorDia({
+  required double saldoAtual,
+  required List<FinLancamento> lancs,
+}) {
+  final byDay = <String, List<FinLancamento>>{};
+  for (final l in lancs) {
+    (byDay[dateOnly(l.data)] ??= []).add(l);
+  }
+  final days = byDay.keys.toList()..sort(); // antigo → novo
+  final out = <String, double>{};
+  for (final day in days) {
+    var cents = _cents(saldoAtual);
+    for (final l in lancs) {
+      final d = dateOnly(l.data);
+      final signed = l.tipo == TipoLancamento.receita
+          ? _cents(l.valor)
+          : -_cents(l.valor);
+      if (isLancamentoRealizado(l) && d.compareTo(day) > 0) {
+        cents -= signed; // rebobina pagos após o dia
+      } else if (!isLancamentoRealizado(l) && d.compareTo(day) <= 0) {
+        cents += signed; // projeta abertos até o dia
+      }
+    }
+    out[day] = _reais(cents);
+  }
+  return out;
+}
+
 /* ─────────────────────── contas a pagar/receber ─────────────────────── */
 
 /// Um lançamento em aberto + flags derivadas vs. uma data de referência.

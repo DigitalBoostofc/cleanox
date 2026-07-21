@@ -21,7 +21,7 @@ import 'fin_mais_screen.dart';
 import 'fin_objetivos_screen.dart';
 import 'fin_principal_screen.dart';
 import 'fin_relatorios_screen.dart';
-import 'lancamentos/fin_lancamentos_screen.dart';
+import 'lancamentos/fin_transacoes_screen.dart';
 import 'lancamentos/lancamento_form.dart';
 
 /// Abas / deep-links do Financeiro v2.
@@ -207,7 +207,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
 
   Widget _body(FinTab tab) => switch (tab) {
         FinTab.principal => const FinPrincipalScreen(),
-        FinTab.transacoes => const FinLancamentosScreen(),
+        FinTab.transacoes => const FinTransacoesScreen(),
         FinTab.planejamento || FinTab.limites => const FinLimitesScreen(),
         FinTab.mais => const FinMaisScreen(),
         FinTab.carteiras => const FinCarteirasScreen(),
