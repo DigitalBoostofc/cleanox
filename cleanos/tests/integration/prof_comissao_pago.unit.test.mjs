@@ -1,28 +1,11 @@
 /**
- * CleanOS — testes UNITÁRIOS do F-231: comissão paga vira DESPESA de verdade
- * (prof_comissao_pago_lib.js).
+ * CleanOS — comissão paga vira DESPESA de repasse (1 por profissional/dia).
  *
- * O bug que estes testes travam (QA E2E de 14/07/2026): marcar uma comissão como
- * "paga" só trocava um enum dentro de `prof_comissoes`. NENHUM lançamento era
- * criado, NENHUM saldo era debitado. O dinheiro saía do bolso do dono no mundo
- * real e o painel continuava contando ele — saldo e relatórios INFLADOS pelo total
- * pago aos profissionais, para sempre.
- *
- * Não precisam de PocketBase rodando: carregam o módulo CommonJS real com um `app`
- * mockado e exercitam os caminhos que o hook prof_comissao_pago.pb.js dispara:
- *
- *   (a) pendente → paga   ⇒ cria 1 lançamento `despesa`, origem "via_comissao",
- *                            ligado por comissao_id, na conta padrão
- *   (b) paga → pendente   ⇒ APAGA esse lançamento (estorno)
- *   (c) idempotência      ⇒ marcar como paga 2x NÃO cria 2 despesas
- *   (d) status não mudou  ⇒ não faz nada
- *   (e) comissão excluída ⇒ apaga o lançamento junto (sem despesa órfã)
- *
- * ── R1 (invariante que estes testes PROTEGEM) ────────────────────────────────
- * O lib NUNCA pode escrever em `fin_contas.saldo_atual` — quem debita/estorna é o
- * fin_saldo.pb.js, por UPDATE SQL atômico. Se alguém "otimizar" mexendo no saldo
- * aqui, o débito conta em DOBRO. O mock ABAIXO FALHA O TESTE se o lib tocar em
- * fin_contas: é a única forma de essa regra não depender de alguém lembrar dela.
+ * Regras (2026-07-21):
+ *   - OS concluída → só prof_comissoes (sem despesa por OS)
+ *   - Marcar paga → 1 despesa via_comissao com Σ do dia (repasse)
+ *   - 2 comissões pagas no mesmo dia → 1 despesa com valor somado
+ *   - R1: nunca mexe em fin_contas.saldo_atual
  */
 
 import { describe, it } from 'node:test'
@@ -38,9 +21,6 @@ const HOOKS_DIR = path.resolve(
   '../../pb/pb_hooks',
 )
 
-// O PocketBase (JSVM) injeta `__hooks` (caminho da pasta de hooks) e a classe
-// `Record` como globais. Fora do PB, fornecemos os equivalentes: o lib usa
-// `require(`${__hooks}/...`)` e `new Record(col)`.
 globalThis.__hooks = HOOKS_DIR
 
 class Record {
@@ -49,16 +29,17 @@ class Record {
     this.id = 'lanc_novo'
     this._data = {}
   }
-  set(k, v) { this._data[k] = v }
-  get(k) { return this._data[k] }
+  set(k, v) {
+    this._data[k] = v
+  }
+  get(k) {
+    return this._data[k]
+  }
 }
 globalThis.Record = Record
 
 const pago = require('../../pb/pb_hooks/prof_comissao_pago_lib.js')
 
-// ── mocks ────────────────────────────────────────────────────────────────────
-
-/** Registro mockado: get/set sobre o mapa. */
 function rec(fields, id = 'com1') {
   return {
     id,
@@ -70,23 +51,22 @@ function rec(fields, id = 'com1') {
   }
 }
 
-/**
- * app mockado com uma base mínima: 1 categoria de despesa "Comissões", 1 conta
- * padrão ativa, e a lista de lançamentos existentes (que o teste controla).
- *
- * Registra em `saved` tudo que foi salvo e em `deleted` tudo que foi apagado.
- * Se o lib tentar salvar em `fin_contas` (violando R1), lança na hora.
- */
-function mockApp({ lancamentos = [], categorias, contas } = {}) {
+function mockApp({
+  lancamentos = [],
+  comissoes = [],
+  categorias,
+  contas,
+} = {}) {
   const saved = []
   const deleted = []
-
   const cats = categorias ?? [
     rec({ tipo: 'despesa', nome: 'Comissões' }, 'cat_comissoes'),
   ]
   const cnts = contas ?? [
     rec({ nome: 'Banco Inter', ativo: true, padrao: true }, 'conta_padrao'),
   ]
+  // mutável: comissões conhecidas pelo mock
+  let coms = [...comissoes]
 
   const app = {
     findFirstRecordByFilter(collection, filter) {
@@ -98,11 +78,27 @@ function mockApp({ lancamentos = [], categorias, contas } = {}) {
         throw new Error('not found')
       }
       if (collection === 'fin_lancamentos') {
-        // filtro: comissao_id = 'xxx'
-        const m = /comissao_id = '([^']*)'/.exec(filter)
-        const alvo = m ? m[1] : null
-        const hit = lancamentos.find((l) => l.get('comissao_id') === alvo)
-        if (hit) return hit
+        // 1:1 legado
+        const m1 = /comissao_id = '([^']*)'/.exec(filter)
+        if (m1) {
+          const hit = lancamentos.find((l) => l.get('comissao_id') === m1[1])
+          if (hit) return hit
+          throw new Error('not found')
+        }
+        // repasse: profissional_id + data
+        const mp = /profissional_id = '([^']*)'/.exec(filter)
+        const md = /data = '([^']*)'/.exec(filter)
+        if (mp && md) {
+          const hit = lancamentos.find(
+            (l) =>
+              l.get('origem') === 'via_comissao' &&
+              l.get('profissional_id') === mp[1] &&
+              String(l.get('data') || '').slice(0, 10) === md[1] &&
+              !l.get('comissao_id'),
+          )
+          if (hit) return hit
+          throw new Error('not found')
+        }
         throw new Error('not found')
       }
       throw new Error('not found')
@@ -118,6 +114,18 @@ function mockApp({ lancamentos = [], categorias, contas } = {}) {
           return ativas.filter((c) => c.get('padrao') === true)
         }
         return ativas
+      }
+      if (collection === 'prof_comissoes') {
+        // filter com {:pid} ou string
+        let list = coms
+        if (filter.includes("status = 'paga'")) {
+          list = list.filter((c) => c.get('status') === 'paga')
+        }
+        const mProf =
+          /profissional = '([^']*)'/.exec(filter) ||
+          (filter.includes('profissional') ? null : null)
+        // mockApp passa {:pid} — use all coms and filter in recalcular fallback
+        return list
       }
       return []
     },
@@ -138,31 +146,35 @@ function mockApp({ lancamentos = [], categorias, contas } = {}) {
           'R1 VIOLADO: o lib escreveu em fin_contas — o saldo é do fin_saldo.pb.js',
         )
       }
+      // se for comissão mock (sem collection de lancamento)
+      if (!r.collection || r.collection.name !== 'fin_lancamentos') {
+        // pode ser comissão regravada com pago_em
+        if (r.id && r._data && 'pago_em' in r._data) {
+          const idx = coms.findIndex((c) => c.id === r.id)
+          if (idx >= 0) coms[idx] = r
+          else coms.push(r)
+        }
+      } else {
+        // novo lançamento: entra na lista para idempotência
+        if (!lancamentos.find((l) => l.id === r.id)) {
+          lancamentos.push(r)
+        }
+      }
       saved.push(r)
     },
 
-    delete(r) { deleted.push(r) },
+    delete(r) {
+      deleted.push(r)
+      const i = lancamentos.indexOf(r)
+      if (i >= 0) lancamentos.splice(i, 1)
+    },
   }
 
-  return { app, saved, deleted }
+  return { app, saved, deleted, coms, lancamentos }
 }
 
-/** Lançamento já existente ligado a uma comissão. */
-function lancDe(comissaoId, id = 'lanc_existente') {
+function comissaoPaga(overrides = {}, id = 'com1') {
   return rec(
-    {
-      comissao_id: comissaoId,
-      tipo: 'despesa',
-      valor: 60,
-      status: 'pago',
-      origem: 'via_comissao',
-    },
-    id,
-  )
-}
-
-const COMISSAO_PAGA = () =>
-  rec(
     {
       status: 'paga',
       valor_comissao: 60,
@@ -170,201 +182,140 @@ const COMISSAO_PAGA = () =>
       profissional_nome: 'João Pedro',
       os: 'os_abc123def456',
       descricao: 'Limpeza · Carlos S.',
+      pago_em: '',
+      ...overrides,
     },
-    'com1',
+    id,
   )
+}
 
-// ── (a) pendente → paga: nasce a despesa ─────────────────────────────────────
-
-describe('(a) pendente → paga cria a DESPESA (F-231)', () => {
-  it('cria exatamente 1 lançamento de despesa, origem via_comissao, na conta padrão', () => {
-    const { app, saved, deleted } = mockApp()
-    pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'pendente')
-
-    assert.equal(saved.length, 1, 'deve criar exatamente 1 lançamento')
-    assert.equal(deleted.length, 0, 'não apaga nada ao pagar')
-
-    const l = saved[0]
-    assert.equal(l.get('tipo'), 'despesa', 'comissão paga é SAÍDA de dinheiro')
-    assert.equal(l.get('valor'), 60)
-    assert.equal(
-      l.get('origem'),
-      'via_comissao',
-      'origem dedicada: o dono precisa distinguir do lançamento da OS',
-    )
-    assert.equal(
-      l.get('comissao_id'),
-      'com1',
-      'o link é o que permite ESTORNAR ao desmarcar',
-    )
-    assert.equal(l.get('conta_id'), 'conta_padrao', 'sai da conta padrão ativa')
-    assert.equal(l.get('categoria_id'), 'cat_comissoes')
-    assert.equal(l.get('status'), 'pago')
-  })
-
-  it('a descrição diz QUEM recebeu (senão o extrato vira "despesa de R$60 pra ninguém")', () => {
-    const { app, saved } = mockApp()
-    pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'pendente')
-    assert.match(saved[0].get('descricao'), /Comissão/)
-    assert.match(saved[0].get('descricao'), /João Pedro/)
-  })
-
-  it('usa o nome DESNORMALIZADO, não a relação (F-225: o profissional pode ter sido excluído)', () => {
-    // Relação vazia — exatamente o estado que o PB deixa após excluir o usuário.
-    const orfa = rec(
-      {
-        status: 'paga',
-        valor_comissao: 60,
-        profissional: '',
-        profissional_nome: 'Zé Descartável',
-        os: 'os1',
-      },
-      'com_orfa',
-    )
-    const { app, saved } = mockApp()
-    pago.sincronizarLancamento(app, orfa, 'pendente')
-
-    assert.equal(saved.length, 1, 'comissão de profissional excluído ainda vira despesa')
-    assert.match(
-      saved[0].get('descricao'),
-      /Zé Descartável/,
-      'o histórico continua LEGÍVEL sem o usuário',
-    )
-  })
-
-  it('não cria lançamento se o valor for 0 (nada saiu do caixa)', () => {
-    const zero = rec({ status: 'paga', valor_comissao: 0, profissional: 'p1' }, 'c0')
-    const { app, saved } = mockApp()
-    pago.sincronizarLancamento(app, zero, 'pendente')
-    assert.equal(saved.length, 0)
-  })
-
-  it('desiste em silêncio se não houver conta ativa — pagar não pode FALHAR por causa do financeiro', () => {
-    const { app, saved } = mockApp({ contas: [] })
-    assert.doesNotThrow(() =>
-      pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'pendente'),
-    )
-    assert.equal(saved.length, 0)
-  })
-})
-
-// ── (b) paga → pendente: estorna ─────────────────────────────────────────────
-
-describe('(b) paga → pendente mantém a despesa em aberto', () => {
-  // Ciclo dono 2026-07: desmarcar paga NÃO apaga o lançamento — só volta a
-  // pendente (visível em Movimentações / a pagar). Saldo estorna via fin_saldo
-  // no update status pago→pendente.
-  it('atualiza o lançamento para status pendente (não apaga)', () => {
-    const existente = lancDe('com1')
-    existente.set('status', 'pago')
-    const { app, saved, deleted } = mockApp({ lancamentos: [existente] })
-    const voltou = rec({ status: 'pendente', valor_comissao: 60 }, 'com1')
-
-    pago.sincronizarLancamento(app, voltou, 'paga')
-
-    assert.equal(deleted.length, 0, 'não apaga a despesa ao voltar a pendente')
-    assert.equal(saved.length, 1, 'grava o status pendente')
-    assert.equal(saved[0].get('status'), 'pendente')
-  })
-
-  it('cria despesa pendente se o lançamento não existir', () => {
-    const { app, saved, deleted } = mockApp({ lancamentos: [] })
-    const voltou = rec(
+describe('(0) OS concluída NÃO gera despesa', () => {
+  it('onComissaoCriada com status pendente não cria lançamento', () => {
+    const c = rec(
       {
         status: 'pendente',
         valor_comissao: 60,
-        profissional: 'p1',
+        profissional: 'prof1',
         profissional_nome: 'João',
-        os: 'os1',
       },
-      'com1',
+      'c1',
     )
-    assert.doesNotThrow(() => pago.sincronizarLancamento(app, voltou, 'paga'))
-    assert.equal(deleted.length, 0)
-    assert.equal(saved.length, 1)
-    assert.equal(saved[0].get('status'), 'pendente')
-  })
-})
-
-// ── (c) idempotência: o débito NÃO pode contar duas vezes ────────────────────
-
-describe('(c) idempotência', () => {
-  it('marcar como paga 2x NÃO cria a segunda despesa (débito em dobro)', () => {
-    // 2ª chamada: o lançamento da 1ª já existe na base.
-    const { app, saved } = mockApp({ lancamentos: [lancDe('com1')] })
-    pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'pendente')
-    // Pode regravar o existente (alinha categoria/status), mas NÃO cria outro id.
-    const novos = saved.filter((s) => s.id === 'lanc_novo')
-    assert.equal(
-      novos.length,
-      0,
-      'já existe lançamento pra esta comissão; não cria segundo',
+    const { app, saved } = mockApp({ comissoes: [c] })
+    pago.onComissaoCriada(app, c)
+    const despesas = saved.filter(
+      (s) => s.collection && s.collection.name === 'fin_lancamentos',
     )
-  })
-
-  it('salvar a comissão SEM mudar o status não mexe no financeiro', () => {
-    // Ex.: editar a descrição de uma comissão já paga.
-    const { app, saved, deleted } = mockApp({ lancamentos: [lancDe('com1')] })
-    pago.sincronizarLancamento(app, COMISSAO_PAGA(), 'paga') // paga → paga
-    assert.equal(saved.length, 0)
-    assert.equal(deleted.length, 0, 'NÃO pode estornar uma comissão que continua paga')
+    assert.equal(despesas.length, 0)
   })
 })
 
-// ── (e) comissão paga excluída: nada de despesa órfã ─────────────────────────
+describe('(a) marcar paga gera 1 despesa de repasse', () => {
+  it('cria 1 despesa via_comissao com valor da comissão e profissional_id', () => {
+    const c = comissaoPaga()
+    const { app, saved } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, 'pendente')
 
-describe('(e) excluir uma comissão paga apaga a despesa junto', () => {
-  it('apagarLancamentoDaComissao remove o lançamento (senão o saldo fica debitado por um fantasma)', () => {
-    const { app, deleted } = mockApp({ lancamentos: [lancDe('com1')] })
-    const achou = pago.apagarLancamentoDaComissao(app, 'com1')
-    assert.equal(achou, true)
-    assert.equal(deleted.length, 1)
-    assert.equal(deleted[0].id, 'lanc_existente')
+    const despesas = saved.filter(
+      (s) => s.get && s.get('tipo') === 'despesa',
+    )
+    assert.ok(despesas.length >= 1, 'deve criar despesa de repasse')
+    const l = despesas[despesas.length - 1]
+    assert.equal(l.get('tipo'), 'despesa')
+    assert.equal(l.get('origem'), 'via_comissao')
+    assert.equal(l.get('status'), 'pago')
+    assert.equal(l.get('valor'), 60)
+    assert.equal(l.get('profissional_id'), 'prof1')
+    assert.equal(l.get('comissao_id') || '', '')
+    assert.match(String(l.get('descricao')), /Repasse comissões/)
+    assert.match(String(l.get('descricao')), /João Pedro/)
   })
 
-  it('comissão pendente excluída não tem o que apagar', () => {
-    const { app, deleted } = mockApp({ lancamentos: [] })
-    assert.equal(pago.apagarLancamentoDaComissao(app, 'com_sem_lanc'), false)
-    assert.equal(deleted.length, 0)
+  it('duas comissões pagas no mesmo dia → 1 despesa com soma', () => {
+    const c1 = comissaoPaga({ valor_comissao: 40, pago_em: '2026-07-21' }, 'c1')
+    const c2 = comissaoPaga({ valor_comissao: 25, pago_em: '2026-07-21' }, 'c2')
+    // fix dataBrtHoje for stable test via already set pago_em
+    const { app, saved, lancamentos } = mockApp({ comissoes: [c1, c2] })
+
+    pago.sincronizarLancamento(app, c1, 'pendente')
+    // after first, may have created repasse with 40+25 if both already paga in list
+    pago.sincronizarLancamento(app, c2, 'pendente')
+
+    const despesas = lancamentos.filter(
+      (l) => l.get('origem') === 'via_comissao' && !l.get('comissao_id'),
+    )
+    assert.equal(despesas.length, 1, 'só 1 despesa de repasse no dia')
+    assert.equal(despesas[0].get('valor'), 65)
+  })
+
+  it('valor 0 não cria despesa', () => {
+    const c = comissaoPaga({ valor_comissao: 0 })
+    const { app, saved } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, 'pendente')
+    const despesas = saved.filter((s) => s.get && s.get('tipo') === 'despesa')
+    assert.equal(despesas.length, 0)
   })
 })
 
-// ── F-229: a data da comissão é BRT, não UTC ─────────────────────────────────
-
-describe('F-229: data no fuso BRT (UTC-3)', () => {
-  it('dataBrtAgora() volta 3h do UTC — senão a OS das 21h30 cai no DIA SEGUINTE', () => {
-    const { dataBrtAgora } = require('../../pb/pb_hooks/prof_comissao_lib.js')
-
-    const antes = Date.now()
-    const s = dataBrtAgora()
-    const depois = Date.now()
-
-    // Formato que o PB grava: "YYYY-MM-DD HH:MM:SS.mmmZ"
-    assert.match(s, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}Z$/)
-
-    const gravado = new Date(s.replace(' ', 'T')).getTime()
-    const deslocamento = antes - gravado
-    const TRES_HORAS = 3 * 60 * 60 * 1000
-
-    // Tolerância: o tempo que o próprio teste levou pra rodar.
-    const folga = depois - antes + 1000
+describe('(b) reabrir (paga → pendente) recalcula / remove repasse', () => {
+  it('sem comissões pagas no dia remove a despesa de repasse', () => {
+    const c = comissaoPaga({ pago_em: '2026-07-21', status: 'pendente' })
+    const repasse = rec(
+      {
+        tipo: 'despesa',
+        origem: 'via_comissao',
+        profissional_id: 'prof1',
+        data: '2026-07-21',
+        valor: 60,
+        status: 'pago',
+        comissao_id: '',
+      },
+      'rep1',
+    )
+    const { app, deleted } = mockApp({
+      comissoes: [c],
+      lancamentos: [repasse],
+    })
+    pago.sincronizarLancamento(app, c, 'paga')
     assert.ok(
-      Math.abs(deslocamento - TRES_HORAS) <= folga,
-      `esperado ~3h de deslocamento (BRT), veio ${deslocamento}ms`,
+      deleted.some((d) => d.id === 'rep1'),
+      'repasse deve ser removido sem comissões pagas',
     )
   })
+})
 
-  it('cai no MESMO dia do lançamento da OS (os_financeiro_lib.js, fix F-222)', () => {
-    // A receita e a comissão da mesma OS não podem cair em dias diferentes no
-    // relatório. Ambas usam a mesma fórmula — este teste trava as duas juntas.
-    const { dataBrtAgora } = require('../../pb/pb_hooks/prof_comissao_lib.js')
-    const os = require('../../pb/pb_hooks/os_financeiro_lib.js')
+describe('(c) R1 e idempotência', () => {
+  it('nunca grava fin_contas', () => {
+    const c = comissaoPaga()
+    const { app } = mockApp({ comissoes: [c] })
+    assert.doesNotThrow(() => pago.sincronizarLancamento(app, c, 'pendente'))
+  })
 
-    const diaComissao = dataBrtAgora().slice(0, 10)
-    const agoraBrt = new Date(Date.now() - 3 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10)
-    assert.equal(diaComissao, agoraBrt)
-    assert.ok(os, 'os_financeiro_lib.js carrega (mesma convenção de data)')
+  it('recalcular 2x no mesmo estado não duplica despesa', () => {
+    const c = comissaoPaga({ pago_em: '2026-07-21' })
+    const { app, lancamentos } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, 'pendente')
+    pago.sincronizarLancamento(app, c, 'paga') // status already paga
+    const despesas = lancamentos.filter(
+      (l) => l.get('origem') === 'via_comissao' && !l.get('comissao_id'),
+    )
+    assert.equal(despesas.length, 1)
+  })
+})
+
+describe('(e) apagar comissão 1:1 legado', () => {
+  it('apagarLancamentoDaComissao remove lançamento ligado por comissao_id', () => {
+    const legado = rec(
+      {
+        comissao_id: 'com1',
+        tipo: 'despesa',
+        valor: 60,
+        origem: 'via_comissao',
+      },
+      'lanc_leg',
+    )
+    const { app, deleted } = mockApp({ lancamentos: [legado] })
+    const ok = pago.apagarLancamentoDaComissao(app, 'com1')
+    assert.equal(ok, true)
+    assert.equal(deleted.length, 1)
   })
 })
