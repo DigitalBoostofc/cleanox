@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
@@ -18,6 +19,7 @@ import 'charts/fin_charts.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
 import 'fin_providers.dart';
+import 'fintech/fintech_balance_hero.dart';
 import 'lancamentos/lancamento_form.dart';
 import 'ui/fin_ui.dart';
 
@@ -48,6 +50,8 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final mobile = finIsMobile(context);
+    final fintech = ref.watch(isFintechCleanProvider) ||
+        ref.watch(isNarrowWebProvider);
     final period = ref.watch(finPeriodProvider);
     final lancAsync = ref.watch(finPeriodLancamentosProvider);
     final contas = ref.watch(finContasProvider).valueOrNull ?? const <FinConta>[];
@@ -86,6 +90,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
 
           final body = mobile
               ? _MobileBody(
+                  fintech: fintech,
                   periodLabel: period.label,
                   onPrev: () => ref.read(finPeriodProvider.notifier).state =
                       period.shift(-1),
@@ -172,6 +177,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
 
 class _MobileBody extends StatelessWidget {
   const _MobileBody({
+    required this.fintech,
     required this.periodLabel,
     required this.onPrev,
     required this.onNext,
@@ -199,6 +205,7 @@ class _MobileBody extends StatelessWidget {
     required this.onNovaConta,
   });
 
+  final bool fintech;
   final String periodLabel;
   final VoidCallback onPrev;
   final VoidCallback onNext;
@@ -228,36 +235,60 @@ class _MobileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    // Fintech (APK): padding inferior só pro bottom bar Easypay (~72+safe).
+    final bottomPad = fintech ? 96.0 : 100.0;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
       children: [
         FinMonthBar(label: periodLabel, onPrev: onPrev, onNext: onNext),
-        const SizedBox(height: ClxSpace.x4),
-        Text(
-          'Saldo atual em contas',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        const SizedBox(height: ClxSpace.x3),
+        if (fintech) ...[
+          FintechBalanceHero(
+            label: 'Saldo em contas',
+            value: saldoVisivel ? formatCurrency(saldo) : '••••••',
+            hint: saldoVisivel
+                ? (saldo < 0 ? 'Saldo negativo' : 'Disponível agora')
+                : 'Toque no olho para revelar',
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              onPressed: onToggleSaldo,
+              icon: Icon(
+                saldoVisivel
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
                 color: clx.ink3,
               ),
-        ),
-        const SizedBox(height: ClxSpace.x2),
-        Text(
-          saldoVisivel ? formatCurrency(saldo) : '••••••',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                color: saldo < 0 ? clx.finExpense : clx.ink,
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        IconButton(
-          onPressed: onToggleSaldo,
-          icon: Icon(
-            saldoVisivel
-                ? Icons.visibility_outlined
-                : Icons.visibility_off_outlined,
-            color: clx.ink3,
+            ),
           ),
-        ),
+        ] else ...[
+          Text(
+            'Saldo atual em contas',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: clx.ink3,
+                ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          Text(
+            saldoVisivel ? formatCurrency(saldo) : '••••••',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: saldo < 0 ? clx.finExpense : clx.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          IconButton(
+            onPressed: onToggleSaldo,
+            icon: Icon(
+              saldoVisivel
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              color: clx.ink3,
+            ),
+          ),
+        ],
         Row(
           children: [
             Expanded(
