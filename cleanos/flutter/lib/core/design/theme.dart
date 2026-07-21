@@ -73,7 +73,7 @@ ColorScheme _scheme(Brightness brightness, CleanoxColors clx) {
   );
 }
 
-/// Escala tipográfica MD3 com os tamanhos da marca (Sora). Cores herdam de
+/// Escala tipográfica MD3 com os tamanhos da marca (Poppins). Cores herdam de
 /// `onSurface` — texto muted usa `copyWith(color: clx.ink2/ink3)` no ponto de
 /// uso. Papéis seguem a semântica MD3: Display (números-herói/KPI), Headline
 /// (seções), Title (títulos de página/card), Body (corpo), Label (botões,

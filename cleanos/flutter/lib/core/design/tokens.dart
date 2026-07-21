@@ -1,15 +1,14 @@
 /// tokens.dart — Design tokens do CleanOS em Dart.
 ///
-/// Design tokens Cleanox: navy `#0B1D34` + cyan `#0EA5E7` (board oficial),
-/// raios, espaçamentos, sombras e tipografia Sora (Poppins = P1).
+/// Design tokens Cleanox: navy `#0B1D34` + teal `#0EA5B7` (board oficial),
+/// raios, espaçamentos, sombras e tipografia Poppins.
 /// Nenhuma feature usa cor hardcoded — tudo vem daqui ou do `CleanoxColors`.
 library;
 
 import 'package:flutter/material.dart';
 
-/// Família tipográfica de marca. Os .ttf são registrados no pubspec quando os
-/// binários entrarem no repo; até lá, cai no fallback do sistema.
-const String kFontFamily = 'Sora';
+/// Família tipográfica de marca (board Cleanox). Registrada no `pubspec.yaml`.
+const String kFontFamily = 'Poppins';
 
 /// Raios de borda (--clx-r-*).
 class ClxRadii {

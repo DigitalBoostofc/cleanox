@@ -4,7 +4,7 @@
 /// + scroll infinito VIRTUALIZADO (`ListView.builder`), nunca `getFullList`. Layout
 /// adaptativo MD3: tabela densa (≥ 720px) / cards (mobile). Todos os estados:
 /// carregando, vazio (com/sem busca), erro (com retry) e sucesso. A identidade
-/// petrol+cyan/Sora vem do design system do core.
+/// petrol+cyan/Poppins vem do design system do core.
 library;
 
 import 'dart:async';
