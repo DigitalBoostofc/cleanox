@@ -117,7 +117,7 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
   };
 
   /// Modo claro — paleta oficial Cleanox em toda a ferramenta.
-  /// #0B1D34 · #0EA5E7 · #22D3EE · #F5F7FA · #7B8794
+  /// #0B1D34 · #0EA5B7 · #22D3EE · #F5F7FA · #7B8794
   static const CleanoxColors light = CleanoxColors(
     bg: Color(0xFFFFFFFF), // cards
     bg2: Color(0xFFF5F7FA), // canvas off-white
@@ -126,8 +126,8 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ink: Color(0xFF0B1D34), // navy
     ink2: Color(0xFF3D4F5F), // navy suavizado
     ink3: Color(0xFF7B8794), // cinza board
-    primary: Color(0xFF0EA5E7), // cyan CTA
-    primary2: Color(0xFF0284C7), // cyan hover
+    primary: Color(0xFF0EA5B7), // teal menu/CTA (board)
+    primary2: Color(0xFF0B8A98), // teal hover
     onPrimary: Color(0xFFFFFFFF),
     accent: Color(0xFF0B1D34), // navy
     accent2: Color(0xFF152A45),
@@ -137,39 +137,39 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     error: Color(0xFFDC2626),
     success: Color(0xFF15803D),
     warning: Color(0xFFB45309),
-    info: Color(0xFF0EA5E7),
+    info: Color(0xFF0EA5B7),
     errorBg: Color(0x1ADC2626),
     successBg: Color(0x1A15803D),
     warningBg: Color(0x1AB45309),
-    infoBg: Color(0x1A0EA5E7),
+    infoBg: Color(0x1A0EA5B7),
     // Status de OS — família da marca + semântica.
-    statusAgendada: Color(0xFF0EA5E7), // cyan
+    statusAgendada: Color(0xFF0EA5B7), // teal
     statusAtribuida: Color(0xFF0B1D34), // navy
-    statusEmAndamento: Color(0xFF0891B2), // cyan escuro (próximo ao board)
+    statusEmAndamento: Color(0xFF0B8A98),
     statusConcluida: Color(0xFF15803D),
     statusCancelada: Color(0xFFDC2626),
-    statusAgendadaBg: Color(0x1A0EA5E7),
+    statusAgendadaBg: Color(0x1A0EA5B7),
     statusAtribuidaBg: Color(0x140B1D34),
     statusEmAndamentoBg: Color(0x1A22D3EE),
     statusConcluidaBg: Color(0x1A15803D),
     statusCanceladaBg: Color(0x1ADC2626),
     groupPlano: Color(0xFF0B1D34),
-    groupPromocao: Color(0xFF0EA5E7),
+    groupPromocao: Color(0xFF0EA5B7),
     groupAdicional: Color(0xFF22D3EE),
     groupAvulsos: Color(0xFF7B8794),
-    groupSofa: Color(0xFF0EA5E7),
-    groupColchao: Color(0xFF0891B2),
+    groupSofa: Color(0xFF0EA5B7),
+    groupColchao: Color(0xFF0B8A98),
     groupOutros: Color(0xFF7B8794),
     finIncome: Color(0xFF15803D),
     finExpense: Color(0xFFDC2626),
-    finInfo: Color(0xFF0EA5E7),
+    finInfo: Color(0xFF0EA5B7),
     finMuted: Color(0xFF7B8794),
     finSeries: [
-      Color(0xFF0EA5E7),
+      Color(0xFF0EA5B7),
       Color(0xFF0B1D34),
       Color(0xFF22D3EE),
       Color(0xFF7B8794),
-      Color(0xFF0284C7),
+      Color(0xFF0B8A98),
       Color(0xFF152A45),
       Color(0xFF67E8F9),
       Color(0xFF94A3B8),
@@ -233,7 +233,6 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
   );
 
   /// Fintech claro = mesma paleta oficial (APK / web estreita).
-  /// Hierarquia de cards do fintech; cores = board Cleanox.
   static const CleanoxColors fintechLight = CleanoxColors(
     bg: Color(0xFFFFFFFF),
     bg2: Color(0xFFF5F7FA),
@@ -242,8 +241,8 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     ink: Color(0xFF0B1D34),
     ink2: Color(0xFF3D4F5F),
     ink3: Color(0xFF7B8794),
-    primary: Color(0xFF0EA5E7),
-    primary2: Color(0xFF0284C7),
+    primary: Color(0xFF0EA5B7),
+    primary2: Color(0xFF0B8A98),
     onPrimary: Color(0xFFFFFFFF),
     accent: Color(0xFF0B1D34),
     accent2: Color(0xFF152A45),
@@ -252,38 +251,38 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     error: Color(0xFFDC2626),
     success: Color(0xFF15803D),
     warning: Color(0xFFB45309),
-    info: Color(0xFF0EA5E7),
+    info: Color(0xFF0EA5B7),
     errorBg: Color(0x1ADC2626),
     successBg: Color(0x1A15803D),
     warningBg: Color(0x1AB45309),
-    infoBg: Color(0x1A0EA5E7),
-    statusAgendada: Color(0xFF0EA5E7),
+    infoBg: Color(0x1A0EA5B7),
+    statusAgendada: Color(0xFF0EA5B7),
     statusAtribuida: Color(0xFF0B1D34),
-    statusEmAndamento: Color(0xFF0891B2),
+    statusEmAndamento: Color(0xFF0B8A98),
     statusConcluida: Color(0xFF15803D),
     statusCancelada: Color(0xFFDC2626),
-    statusAgendadaBg: Color(0x1A0EA5E7),
+    statusAgendadaBg: Color(0x1A0EA5B7),
     statusAtribuidaBg: Color(0x140B1D34),
     statusEmAndamentoBg: Color(0x1A22D3EE),
     statusConcluidaBg: Color(0x1A15803D),
     statusCanceladaBg: Color(0x1ADC2626),
     groupPlano: Color(0xFF0B1D34),
-    groupPromocao: Color(0xFF0EA5E7),
+    groupPromocao: Color(0xFF0EA5B7),
     groupAdicional: Color(0xFF22D3EE),
     groupAvulsos: Color(0xFF7B8794),
-    groupSofa: Color(0xFF0EA5E7),
-    groupColchao: Color(0xFF0891B2),
+    groupSofa: Color(0xFF0EA5B7),
+    groupColchao: Color(0xFF0B8A98),
     groupOutros: Color(0xFF7B8794),
     finIncome: Color(0xFF15803D),
     finExpense: Color(0xFFDC2626),
-    finInfo: Color(0xFF0EA5E7),
+    finInfo: Color(0xFF0EA5B7),
     finMuted: Color(0xFF7B8794),
     finSeries: [
-      Color(0xFF0EA5E7),
+      Color(0xFF0EA5B7),
       Color(0xFF0B1D34),
       Color(0xFF22D3EE),
       Color(0xFF7B8794),
-      Color(0xFF0284C7),
+      Color(0xFF0B8A98),
       Color(0xFF152A45),
       Color(0xFF67E8F9),
       Color(0xFF94A3B8),

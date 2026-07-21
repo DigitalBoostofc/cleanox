@@ -79,8 +79,9 @@ class ClxBrand {
   /// Navy profundo — wordmark CLEAN, headers, rail.
   static const Color navy = Color(0xFF0B1D34);
 
-  /// Cyan principal — CTA, links, OX.
-  static const Color cyan = Color(0xFF0EA5E7);
+  /// Teal/cyan principal — CTA, item de menu selecionado, OX.
+  /// Board: #0EA5B7 (não o sky #0EA5E7).
+  static const Color cyan = Color(0xFF0EA5B7);
 
   /// Cyan claro — brilhos, gradientes, acentos secundários.
   static const Color cyanLight = Color(0xFF22D3EE);
@@ -93,12 +94,12 @@ class ClxBrand {
 
   // Aliases usados no tema (compat).
   static const Color primary = cyan;
-  static const Color primary2 = Color(0xFF0284C7); // hover do cyan
+  static const Color primary2 = Color(0xFF0B8A98); // hover do teal
   static const Color primaryLight = cyanLight;
   static const Color accent = navy;
   static const Color accent2 = Color(0xFF152A45); // hover do navy
 
-  /// Texto/ícone sobre [primary] (branco sobre cyan).
+  /// Texto/ícone sobre [primary] (branco sobre teal #0EA5B7).
   static const Color onPrimary = Color(0xFFFFFFFF);
 }
 
