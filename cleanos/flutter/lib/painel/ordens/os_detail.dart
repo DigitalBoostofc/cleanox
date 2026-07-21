@@ -75,8 +75,14 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     _selectedProf = _os.profissional ?? '';
   }
 
+  /// OS ainda em curso (não finalizada). Reatribuição e cancelamento só nestas.
   bool get _aberta =>
       _os.status != OSStatus.concluida && _os.status != OSStatus.cancelada;
+
+  /// Edição do formulário (serviço, valor, obs…): permitida também em
+  /// **concluída** — correção pós-fechamento. Cancelada permanece bloqueada.
+  /// Data/hora/duração de concluída ficam congeladas no form/servidor.
+  bool get _editavel => _os.status != OSStatus.cancelada;
 
   Future<void> _reatribuir() async {
     // Mexer no profissional de uma OS EM ANDAMENTO rebaixa o status, e o hook do
@@ -404,9 +410,9 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                 icon: Icons.arrow_forward_rounded,
                 onPressed: () => _close(OSDetailIntent.execucao),
               ),
-              if (_aberta)
+              if (_editavel)
                 ClxButton(
-                  label: 'Editar',
+                  label: 'Editar OS',
                   variant: ClxButtonVariant.ghost,
                   icon: Icons.edit_outlined,
                   onPressed: () => _close(OSDetailIntent.editar),
