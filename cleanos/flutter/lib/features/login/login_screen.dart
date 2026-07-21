@@ -119,7 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const CleanoxLogo(
-                          height: 66,
+                          height: 83,
                           variant: CleanoxLogoVariant.primary,
                         ),
                         const SizedBox(height: 14),
