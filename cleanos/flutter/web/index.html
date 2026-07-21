@@ -74,11 +74,19 @@
       opacity: 0;
       pointer-events: none;
     }
+    #boot-splash .boot-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 20px;
+      object-fit: contain;
+      background: #fff;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+    }
     #boot-splash .spin {
-      width: 36px;
-      height: 36px;
-      border: 3px solid rgba(255,255,255,0.25);
-      border-top-color: #fff;
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255,255,255,0.22);
+      border-top-color: #0EA5B7;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -100,6 +108,7 @@
 </head>
 <body>
   <div id="boot-splash">
+    <img class="boot-logo" src="icons/splash-logo.png" width="96" height="96" alt="Cleanox" />
     <div class="spin" id="boot-spin"></div>
     <div class="msg" id="boot-msg">Carregando Cleanox…</div>
     <div class="msg err" id="boot-err"></div>
