@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design/app_surface_provider.dart';
 import '../../../core/design/design.dart';
 import '../../../core/formatters/formatters.dart';
 import '../../../core/models/financeiro.dart';
@@ -263,6 +264,8 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final mobile = finIsMobile(context);
+    final fintech = ref.watch(isFintechCleanProvider) ||
+        ref.watch(isNarrowWebProvider);
     final state = ref.watch(finLancControllerProvider);
     final period = ref.watch(finPeriodProvider);
     final contas =
@@ -337,6 +340,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
                             ? _MobileList(
                                 scroll: _scroll,
                                 state: state,
+                                bottomPad: fintech ? 96 : 100,
                                 catById: catById,
                                 contaById: contaById,
                                 weekdayLabel: _weekdayLabel,
@@ -555,6 +559,7 @@ class _MobileList extends StatelessWidget {
   const _MobileList({
     required this.scroll,
     required this.state,
+    required this.bottomPad,
     required this.catById,
     required this.contaById,
     required this.weekdayLabel,
@@ -566,6 +571,7 @@ class _MobileList extends StatelessWidget {
 
   final ScrollController scroll;
   final FinLancState state;
+  final double bottomPad;
   final Map<String, FinCategoria> catById;
   final Map<String, FinConta> contaById;
   final String Function(String) weekdayLabel;
@@ -581,7 +587,7 @@ class _MobileList extends StatelessWidget {
 
     return ListView.builder(
       controller: scroll,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
       itemCount: grupos.length + (state.hasMore ? 1 : 0),
       itemBuilder: (context, i) {
         if (i >= grupos.length) {

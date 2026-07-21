@@ -84,6 +84,11 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
 
   void _goDirect(PainelSection section) {
     setState(() => _showMais = false);
+    // Carteira abre no Principal do Financeiro v2 (não no extrato legado).
+    if (section == PainelSection.financeiro) {
+      context.go('${painelPath(PainelSection.financeiro)}/principal');
+      return;
+    }
     context.go(painelPath(section));
   }
 
@@ -156,7 +161,7 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
           onReceita: () {
             Navigator.pop(ctx);
             _goAndOpenForm(
-              path: '${painelPath(PainelSection.financeiro)}/lancamentos',
+              path: '${painelPath(PainelSection.financeiro)}/principal',
               openForm: () => showLancamentoForm(
                 context,
                 initialTipo: TipoLancamento.receita,
@@ -178,7 +183,7 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
           onDespesa: () {
             Navigator.pop(ctx);
             _goAndOpenForm(
-              path: '${painelPath(PainelSection.financeiro)}/lancamentos',
+              path: '${painelPath(PainelSection.financeiro)}/principal',
               openForm: () => showLancamentoForm(
                 context,
                 initialTipo: TipoLancamento.despesa,
@@ -234,7 +239,7 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
     }
     return switch (widget.section) {
       PainelSection.agenda => 'Horários marcados',
-      PainelSection.financeiro => 'Saldo e lançamentos',
+      PainelSection.financeiro => 'Principal · extrato · planejamento',
       PainelSection.clientes => 'Sua base de clientes',
       PainelSection.ordens => 'Ordens de serviço',
       PainelSection.servicos => 'Catálogo de serviços',

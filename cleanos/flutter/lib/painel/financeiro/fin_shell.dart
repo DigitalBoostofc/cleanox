@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import 'carteiras/fin_carteiras_screen.dart';
 import 'categorias/fin_categorias_screen.dart';
@@ -171,7 +172,29 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
     final clx = context.clx;
     final active = FinTab.fromSlug(widget.tabSlug);
     final mobile = finIsMobile(context);
+    // APK + web estreita já têm bottom nav Easypay (Início/OS/Carteira).
+    // NÃO empilhar segundo bottom nav + FAB — vira UX quebrada no celular.
+    final embeddedInFintech = ref.watch(isFintechCleanProvider) ||
+        ref.watch(isNarrowWebProvider);
     final body = _body(active);
+
+    void goTab(FinTab t) => context.go('/painel/financeiro/${t.slug}');
+
+    if (mobile && embeddedInFintech) {
+      return ColoredBox(
+        color: clx.bg2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FintechSubNav(
+              active: active.navRoot,
+              onSelect: goTab,
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
 
     if (mobile) {
       return ColoredBox(
@@ -188,7 +211,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
           ),
           bottomNavigationBar: _MobileNav(
             active: active.navRoot,
-            onSelect: (t) => context.go('/painel/financeiro/${t.slug}'),
+            onSelect: goTab,
           ),
         ),
       );
@@ -201,7 +224,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
         children: [
           _DesktopRail(
             active: active,
-            onSelect: (t) => context.go('/painel/financeiro/${t.slug}'),
+            onSelect: goTab,
             onAdd: _fabAdd,
           ),
           Expanded(child: body),
@@ -224,6 +247,58 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
         FinTab.objetivos => const FinObjetivosScreen(),
         FinTab.tags => const FinTagsScreen(),
       };
+}
+
+/// Sub-nav horizontal embutida no casco fintech (sem 2º bottom bar).
+class _FintechSubNav extends StatelessWidget {
+  const _FintechSubNav({required this.active, required this.onSelect});
+
+  final FinTab active;
+  final ValueChanged<FinTab> onSelect;
+
+  static const _items = [
+    FinTab.principal,
+    FinTab.transacoes,
+    FinTab.planejamento,
+    FinTab.mais,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Material(
+      color: clx.bg,
+      elevation: 0,
+      child: SizedBox(
+        height: 48,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: _items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final t = _items[i];
+            final sel = t == active;
+            return ChoiceChip(
+              label: Text(t.label),
+              selected: sel,
+              onSelected: (_) => onSelect(t),
+              selectedColor: clx.primary.withValues(alpha: 0.18),
+              labelStyle: TextStyle(
+                color: sel ? clx.primary : clx.ink2,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13,
+              ),
+              side: BorderSide(color: sel ? clx.primary : clx.line),
+              showCheckmark: false,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class _MobileNav extends StatelessWidget {
