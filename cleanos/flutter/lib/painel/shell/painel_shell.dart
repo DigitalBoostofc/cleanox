@@ -283,10 +283,11 @@ class _IconRailState extends ConsumerState<_IconRail> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                // Logo grande (transparente) — no rail escuro usa card claro.
+                // Logo grande com fundo transparente (sem card branco).
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: _expanded ? 12 : 8,
+                    vertical: 4,
                   ),
                   child: ClxPulse(
                     minScale: 0.97,
@@ -294,24 +295,11 @@ class _IconRailState extends ConsumerState<_IconRail> {
                     period: const Duration(milliseconds: 1800),
                     child: Tooltip(
                       message: kAppDisplayName,
-                      child: Container(
+                      child: CleanoxLogo(
+                        height: _expanded ? 64 : 40,
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: _expanded ? 10 : 6,
-                          vertical: _expanded ? 12 : 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(
-                            _expanded ? 16 : 14,
-                          ),
-                        ),
-                        child: CleanoxLogo(
-                          height: _expanded ? 64 : 40,
-                          width: double.infinity,
-                          fit: BoxFit.contain,
-                          variant: CleanoxLogoVariant.primary,
-                        ),
+                        fit: BoxFit.contain,
+                        variant: CleanoxLogoVariant.primary,
                       ),
                     ),
                   ),
