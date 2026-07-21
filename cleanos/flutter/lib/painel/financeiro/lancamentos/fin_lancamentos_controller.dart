@@ -166,6 +166,16 @@ class FinLancController extends StateNotifier<FinLancState> {
     );
   }
 
+  /// Atualiza o pin favorito sem recarregar a lista (sem pular o scroll).
+  void applyFavoritoLocally(String id, bool favorito) {
+    state = state.copyWith(
+      items: [
+        for (final l in state.items)
+          if (l.id == id) l.copyWith(favorito: favorito) else l,
+      ],
+    );
+  }
+
   Future<void> loadMore() async {
     if (state.loadingMore || state.loading || !state.hasMore) return;
     state = state.copyWith(loadingMore: true);

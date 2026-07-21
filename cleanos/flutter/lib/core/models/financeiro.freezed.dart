@@ -994,6 +994,9 @@ mixin _$FinLancamento {
   String? get formaPagamento => throw _privateConstructorUsedError;
   String? get observacao => throw _privateConstructorUsedError;
   List<String> get tags => throw _privateConstructorUsedError;
+
+  /// Pin na lista de Transações (Financeiro v2). PB default false.
+  bool get favorito => throw _privateConstructorUsedError;
   List<Anexo> get anexos => throw _privateConstructorUsedError;
   String? get created => throw _privateConstructorUsedError;
   String? get updated => throw _privateConstructorUsedError;
@@ -1041,6 +1044,7 @@ abstract class $FinLancamentoCopyWith<$Res> {
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     List<String> tags,
+    bool favorito,
     List<Anexo> anexos,
     String? created,
     String? updated,
@@ -1084,6 +1088,7 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
     Object? formaPagamento = freezed,
     Object? observacao = freezed,
     Object? tags = null,
+    Object? favorito = null,
     Object? anexos = null,
     Object? created = freezed,
     Object? updated = freezed,
@@ -1178,6 +1183,10 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
                 ? _value.tags
                 : tags // ignore: cast_nullable_to_non_nullable
                       as List<String>,
+            favorito: null == favorito
+                ? _value.favorito
+                : favorito // ignore: cast_nullable_to_non_nullable
+                      as bool,
             anexos: null == anexos
                 ? _value.anexos
                 : anexos // ignore: cast_nullable_to_non_nullable
@@ -1231,6 +1240,7 @@ abstract class _$$FinLancamentoImplCopyWith<$Res>
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     List<String> tags,
+    bool favorito,
     List<Anexo> anexos,
     String? created,
     String? updated,
@@ -1273,6 +1283,7 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
     Object? formaPagamento = freezed,
     Object? observacao = freezed,
     Object? tags = null,
+    Object? favorito = null,
     Object? anexos = null,
     Object? created = freezed,
     Object? updated = freezed,
@@ -1367,6 +1378,10 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
             ? _value._tags
             : tags // ignore: cast_nullable_to_non_nullable
                   as List<String>,
+        favorito: null == favorito
+            ? _value.favorito
+            : favorito // ignore: cast_nullable_to_non_nullable
+                  as bool,
         anexos: null == anexos
             ? _value._anexos
             : anexos // ignore: cast_nullable_to_non_nullable
@@ -1414,6 +1429,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     @JsonKey(name: 'forma_pagamento') this.formaPagamento,
     this.observacao,
     final List<String> tags = const <String>[],
+    this.favorito = false,
     final List<Anexo> anexos = const <Anexo>[],
     this.created,
     this.updated,
@@ -1497,6 +1513,10 @@ class _$FinLancamentoImpl extends _FinLancamento {
     return EqualUnmodifiableListView(_tags);
   }
 
+  /// Pin na lista de Transações (Financeiro v2). PB default false.
+  @override
+  @JsonKey()
+  final bool favorito;
   final List<Anexo> _anexos;
   @override
   @JsonKey()
@@ -1513,7 +1533,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
 
   @override
   String toString() {
-    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, frequencia: $frequencia, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, anexos: $anexos, created: $created, updated: $updated)';
+    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, frequencia: $frequencia, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, favorito: $favorito, anexos: $anexos, created: $created, updated: $updated)';
   }
 
   @override
@@ -1556,6 +1576,8 @@ class _$FinLancamentoImpl extends _FinLancamento {
             (identical(other.observacao, observacao) ||
                 other.observacao == observacao) &&
             const DeepCollectionEquality().equals(other._tags, _tags) &&
+            (identical(other.favorito, favorito) ||
+                other.favorito == favorito) &&
             const DeepCollectionEquality().equals(other._anexos, _anexos) &&
             (identical(other.created, created) || other.created == created) &&
             (identical(other.updated, updated) || other.updated == updated));
@@ -1587,6 +1609,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     formaPagamento,
     observacao,
     const DeepCollectionEquality().hash(_tags),
+    favorito,
     const DeepCollectionEquality().hash(_anexos),
     created,
     updated,
@@ -1635,6 +1658,7 @@ abstract class _FinLancamento extends FinLancamento {
     @JsonKey(name: 'forma_pagamento') final String? formaPagamento,
     final String? observacao,
     final List<String> tags,
+    final bool favorito,
     final List<Anexo> anexos,
     final String? created,
     final String? updated,
@@ -1707,6 +1731,10 @@ abstract class _FinLancamento extends FinLancamento {
   String? get observacao;
   @override
   List<String> get tags;
+
+  /// Pin na lista de Transações (Financeiro v2). PB default false.
+  @override
+  bool get favorito;
   @override
   List<Anexo> get anexos;
   @override

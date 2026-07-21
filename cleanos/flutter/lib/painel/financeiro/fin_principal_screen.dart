@@ -101,6 +101,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   receitaCat: receitaCat,
                   catMap: catMap,
                   contas: contas.where((c) => c.ativo).toList(),
+                  favoritos: lancs.where((l) => l.favorito).take(5).toList(),
                   economiaPct: economiaPct,
                   freq: freq,
                   onNovaReceita: () => _novo(TipoLancamento.receita),
@@ -180,6 +181,7 @@ class _MobileBody extends StatelessWidget {
     required this.receitaCat,
     required this.catMap,
     required this.contas,
+    required this.favoritos,
     required this.economiaPct,
     required this.freq,
     required this.onNovaReceita,
@@ -205,6 +207,7 @@ class _MobileBody extends StatelessWidget {
   final Map<String, double> receitaCat;
   final Map<String, FinCategoria> catMap;
   final List<FinConta> contas;
+  final List<FinLancamento> favoritos;
   final double economiaPct;
   final List<_FreqPoint> freq;
   final VoidCallback onNovaReceita;
@@ -426,10 +429,15 @@ class _MobileBody extends StatelessWidget {
         ),
         _BalancoMensalCard(resumo: resumo),
         const SizedBox(height: ClxSpace.x6),
-        FinDashSectionHeader(title: 'Transações favoritas'),
-        FinEmptyCta(
-          message: 'Não existem transações favoritas ainda ;)',
-          hint: 'Toque no pin em um lançamento para marcar.',
+        FinDashSectionHeader(
+          title: 'Transações favoritas',
+          trailing: const Text('Ver'),
+          onTrailing: onGoTransacoes,
+        ),
+        _FavoritosBlock(
+          lancs: favoritos,
+          catMap: catMap,
+          onGo: onGoTransacoes,
         ),
         const SizedBox(height: ClxSpace.x6),
         FinDashSectionHeader(title: 'Economia mensal'),
@@ -450,6 +458,7 @@ class _MobileBody extends StatelessWidget {
     );
   }
 }
+
 
 /* ─────────────────────── desktop ─────────────────────── */
 
@@ -763,6 +772,56 @@ class _DesktopBody extends StatelessWidget {
 }
 
 /* ─────────────────────── widgets auxiliares ─────────────────────── */
+
+class _FavoritosBlock extends StatelessWidget {
+  const _FavoritosBlock({
+    required this.lancs,
+    required this.catMap,
+    required this.onGo,
+  });
+
+  final List<FinLancamento> lancs;
+  final Map<String, FinCategoria> catMap;
+  final VoidCallback onGo;
+
+  @override
+  Widget build(BuildContext context) {
+    if (lancs.isEmpty) {
+      return FinEmptyCta(
+        message: 'Não existem transações favoritas ainda ;)',
+        hint: 'Toque no pin em um lançamento para marcar.',
+      );
+    }
+    final clx = context.clx;
+    return FinCard(
+      child: Column(
+        children: [
+          for (var i = 0; i < lancs.length; i++) ...[
+            if (i > 0) Divider(color: clx.line),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              onTap: onGo,
+              title: Text(
+                lancs[i].descricao,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                catMap[lancs[i].categoriaId]?.nome ?? '',
+                style: TextStyle(color: clx.ink3, fontSize: 12),
+              ),
+              trailing: FinMoneyText(
+                lancs[i].tipo == TipoLancamento.receita
+                    ? lancs[i].valor
+                    : -lancs[i].valor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _MiniInOut extends StatelessWidget {
   const _MiniInOut({

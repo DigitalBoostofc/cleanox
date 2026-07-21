@@ -222,6 +222,8 @@ class FinLancamento with _$FinLancamento {
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     @Default(<String>[]) List<String> tags,
+    /// Pin na lista de Transações (Financeiro v2). PB default false.
+    @Default(false) bool favorito,
     @Default(<Anexo>[]) List<Anexo> anexos,
     String? created,
     String? updated,
@@ -244,6 +246,8 @@ class FinLancamento with _$FinLancamento {
     if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
     // Select opcional: PB manda "" quando vazio → trata como null (default mensal na geração).
     if (json['frequencia'] == '') json['frequencia'] = null;
+    // Bool ausente em registros antigos (pré-mig 41) → false.
+    json['favorito'] = json['favorito'] == true;
     return FinLancamento.fromJson(json);
   }
 

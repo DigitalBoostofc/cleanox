@@ -153,6 +153,7 @@ _$FinLancamentoImpl _$$FinLancamentoImplFromJson(Map<String, dynamic> json) =>
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const <String>[],
+      favorito: json['favorito'] as bool? ?? false,
       anexos:
           (json['anexos'] as List<dynamic>?)
               ?.map((e) => Anexo.fromJson(e as Map<String, dynamic>))
@@ -186,6 +187,7 @@ Map<String, dynamic> _$$FinLancamentoImplToJson(_$FinLancamentoImpl instance) =>
       'forma_pagamento': instance.formaPagamento,
       'observacao': instance.observacao,
       'tags': instance.tags,
+      'favorito': instance.favorito,
       'anexos': instance.anexos.map((e) => e.toJson()).toList(),
       'created': instance.created,
       'updated': instance.updated,
