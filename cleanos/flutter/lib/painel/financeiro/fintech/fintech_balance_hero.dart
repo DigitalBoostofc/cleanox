@@ -30,14 +30,15 @@ class FintechBalanceHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     final tt = Theme.of(context).textTheme;
 
     return ClxFadeSlide(
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 20, 16, 18),
+        padding: EdgeInsets.fromLTRB(r.s(20), r.s(20), r.s(16), r.s(18)),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(r.r(28)),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -50,19 +51,19 @@ class FintechBalanceHero extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: clx.primary.withValues(alpha: 0.32),
-              blurRadius: 32,
-              offset: const Offset(0, 14),
+              blurRadius: r.s(32),
+              offset: Offset(0, r.s(14)),
             ),
           ],
         ),
         child: Stack(
           children: [
             Positioned(
-              right: -28,
-              top: -40,
+              right: -r.s(28),
+              top: -r.s(40),
               child: Container(
-                width: 150,
-                height: 150,
+                width: r.s(150),
+                height: r.s(150),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.10),
@@ -70,11 +71,11 @@ class FintechBalanceHero extends StatelessWidget {
               ),
             ),
             Positioned(
-              right: 36,
-              bottom: -48,
+              right: r.s(36),
+              bottom: -r.s(48),
               child: Container(
-                width: 100,
-                height: 100,
+                width: r.s(100),
+                height: r.s(100),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.06),
@@ -88,10 +89,10 @@ class FintechBalanceHero extends StatelessWidget {
                   children: [
                     Icon(
                       icon,
-                      size: 15,
+                      size: r.s(15),
                       color: Colors.white.withValues(alpha: 0.8),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: r.s(8)),
                     Expanded(
                       child: Text(
                         label.toUpperCase(),
@@ -99,14 +100,14 @@ class FintechBalanceHero extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.6,
-                          fontSize: 11,
+                          fontSize: r.sp(11),
                         ),
                       ),
                     ),
                     if (trailing != null) trailing!,
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: r.s(10)),
                 Text(
                   value,
                   maxLines: 1,
@@ -115,12 +116,15 @@ class FintechBalanceHero extends StatelessWidget {
                     color: Colors.white,
                     letterSpacing: -1.2,
                     fontWeight: FontWeight.w800,
-                    fontSize: 34,
+                    // sp() já inclui textScale; desliga scaler no Text para não
+                    // dobrar (style.fontSize * textScaler).
+                    fontSize: r.sp(34),
                     height: 1.05,
                   ),
+                  textScaler: TextScaler.noScaling,
                 ),
                 if (hint != null) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: r.s(4)),
                   Text(
                     hint!,
                     maxLines: 1,
@@ -128,11 +132,13 @@ class FintechBalanceHero extends StatelessWidget {
                     style: tt.bodySmall?.copyWith(
                       color: Colors.white.withValues(alpha: 0.7),
                       fontWeight: FontWeight.w500,
+                      fontSize: r.sp(12),
                     ),
+                    textScaler: TextScaler.noScaling,
                   ),
                 ],
                 if (footer != null) ...[
-                  const SizedBox(height: 16),
+                  SizedBox(height: r.s(16)),
                   footer!,
                 ],
               ],
