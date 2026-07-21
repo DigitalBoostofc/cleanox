@@ -50,6 +50,7 @@ class CleanoxLogo extends StatelessWidget {
   final BoxFit fit;
 
   static const String _primary = 'assets/brand/logo_primary.png';
+  static const String _loginLight = 'assets/brand/logo_login_light.png';
   static const String _fullLight = 'assets/brand/logo_full_light.png';
   static const String _fullDark = 'assets/brand/logo_full_dark.png';
   static const String _fullOnColor = 'assets/brand/logo_full_on_color.png';
@@ -57,6 +58,7 @@ class CleanoxLogo extends StatelessWidget {
 
   String get _asset => switch (variant) {
     CleanoxLogoVariant.primary => _primary,
+    CleanoxLogoVariant.loginLight => _loginLight,
     CleanoxLogoVariant.fullLight => _fullLight,
     CleanoxLogoVariant.fullDark => _fullDark,
     CleanoxLogoVariant.fullOnColor => _fullOnColor,

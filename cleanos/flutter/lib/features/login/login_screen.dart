@@ -212,7 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               const Center(
                 child: CleanoxLogo(
-                  height: 72,
+                  height: 90,
                   variant: CleanoxLogoVariant.loginLight,
                 ),
               ),
