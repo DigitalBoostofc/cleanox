@@ -283,8 +283,8 @@ class _IconRailState extends ConsumerState<_IconRail> {
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                // Logo na LARGURA da coluna (mesmo padding dos botões do rail).
-                // O PNG é 1:1 com margem; altura maior faz o wordmark ficar legível.
+                // Logo recortada (~528×334): preenche a LARGURA da coluna
+                // (mesmo padding horizontal dos botões do rail).
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: ClxPulse(
@@ -293,16 +293,27 @@ class _IconRailState extends ConsumerState<_IconRail> {
                     period: const Duration(milliseconds: 1800),
                     child: Tooltip(
                       message: kAppDisplayName,
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: _expanded ? 120 : 56,
-                        child: const CleanoxLogo(
-                          height: double.infinity,
-                          width: double.infinity,
-                          fit: BoxFit.contain,
-                          variant: CleanoxLogoVariant.primary,
-                        ),
-                      ),
+                      child: _expanded
+                          ? const AspectRatio(
+                              // Proporção do PNG logo_primary (sem margem extra).
+                              aspectRatio: 528 / 334,
+                              child: CleanoxLogo(
+                                height: double.infinity,
+                                width: double.infinity,
+                                fit: BoxFit.contain,
+                                variant: CleanoxLogoVariant.primary,
+                              ),
+                            )
+                          : const SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: CleanoxLogo(
+                                height: double.infinity,
+                                width: double.infinity,
+                                fit: BoxFit.contain,
+                                variant: CleanoxLogoVariant.primary,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -812,8 +823,8 @@ class _Sidebar extends ConsumerWidget {
               child: Row(
                 children: [
                   const Expanded(
-                    child: SizedBox(
-                      height: 88,
+                    child: AspectRatio(
+                      aspectRatio: 528 / 334,
                       child: CleanoxLogo(
                         height: double.infinity,
                         width: double.infinity,
