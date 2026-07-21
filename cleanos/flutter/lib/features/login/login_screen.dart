@@ -170,7 +170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF0A0B0C) : const Color(0xFFE6EAEE),
+          isDark ? const Color(0xFF0A0B0C) : ClxBrand.canvas,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -211,13 +211,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Center(
-                child: ClxPulse(
-                  minScale: 0.96,
-                  maxScale: 1.06,
-                  child: CleanoxLogo(
-                    height: 96,
-                    variant: CleanoxLogoVariant.primary,
-                  ),
+                child: CleanoxLogo(
+                  height: 72,
+                  variant: CleanoxLogoVariant.primary,
                 ),
               ),
               const SizedBox(height: ClxSpace.x3),

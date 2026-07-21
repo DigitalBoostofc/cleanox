@@ -21,13 +21,13 @@ import '../core/models/os_execucao.dart';
 import 'labels.dart';
 import 'relatorio_os.dart';
 
-const PdfColor _petrol = PdfColor.fromInt(0xFF0F4C5C);
-const PdfColor _teal = PdfColor.fromInt(0xFF0EA5E7); // cyan Cleanox
-const PdfColor _tealDark = PdfColor.fromInt(0xFF00A39B);
-const PdfColor _ink = PdfColor.fromInt(0xFF0B1F2A);
-const PdfColor _muted = PdfColor.fromInt(0xFF7A8893);
-const PdfColor _line = PdfColor.fromInt(0xFFE2EAEF);
-const PdfColor _headBg = PdfColor.fromInt(0xFFF2F7F9);
+const PdfColor _petrol = PdfColor.fromInt(0xFF0B1D34); // navy Cleanox
+const PdfColor _teal = PdfColor.fromInt(0xFF0EA5E7); // cyan
+const PdfColor _tealDark = PdfColor.fromInt(0xFF0284C7);
+const PdfColor _ink = PdfColor.fromInt(0xFF0B1D34);
+const PdfColor _muted = PdfColor.fromInt(0xFF7B8794);
+const PdfColor _line = PdfColor.fromInt(0xFFE8EEF3);
+const PdfColor _headBg = PdfColor.fromInt(0xFFF5F7FA);
 
 /// Resolve os bytes de uma imagem de evidência (rede ou arquivo local).
 /// Retorna null em falha/offline — a foto simplesmente não entra no PDF.

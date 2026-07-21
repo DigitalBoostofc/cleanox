@@ -30,7 +30,7 @@ Future<void> main() async {
   };
   ErrorWidget.builder = (details) {
     return Material(
-      color: const Color(0xFF0F4C5C),
+      color: const Color(0xFF0B1D34),
       child: SafeArea(
         child: Center(
           child: Padding(

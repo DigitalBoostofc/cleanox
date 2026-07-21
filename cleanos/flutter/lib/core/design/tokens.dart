@@ -64,18 +64,41 @@ const String kAppDisplayName = 'Cleanox';
 /// Tagline oficial da marca (login / hero).
 const String kAppTagline = 'Higienização de estofados';
 
-/// Cores de marca Cleanox (board oficial).
+/// Cores de marca Cleanox — paleta oficial (board / kit de marca).
+///
+/// ```
+/// #0B1D34  navy        — texto, sidebar, accent
+/// #0EA5E7  cyan        — CTA, foco, OX
+/// #22D3EE  cyan claro  — gradientes, destaques
+/// #F5F7FA  off-white   — canvas / fundos
+/// #7B8794  cinza       — texto secundário
+/// ```
 class ClxBrand {
   const ClxBrand._();
-  static const Color primary = Color(0xFF0EA5E7); // cyan Cleanox — CTA / OX
-  static const Color primary2 = Color(0xFF0284C7); // cyan hover
-  static const Color primaryLight = Color(0xFF22D3EE); // cyan claro / gradiente
-  static const Color accent = Color(0xFF0B1D34); // navy profundo
-  static const Color accent2 = Color(0xFF152A45); // navy hover
-  static const Color canvas = Color(0xFFF5F7FA); // off-white
-  static const Color muted = Color(0xFF7B8794); // cinza secundário
 
-  /// Texto/ícone sobre [primary] (branco — contraste em cyan #0EA5E7).
+  /// Navy profundo — wordmark CLEAN, headers, rail.
+  static const Color navy = Color(0xFF0B1D34);
+
+  /// Cyan principal — CTA, links, OX.
+  static const Color cyan = Color(0xFF0EA5E7);
+
+  /// Cyan claro — brilhos, gradientes, acentos secundários.
+  static const Color cyanLight = Color(0xFF22D3EE);
+
+  /// Off-white — canvas do modo claro.
+  static const Color canvas = Color(0xFFF5F7FA);
+
+  /// Cinza — texto muted / ícones neutros.
+  static const Color muted = Color(0xFF7B8794);
+
+  // Aliases usados no tema (compat).
+  static const Color primary = cyan;
+  static const Color primary2 = Color(0xFF0284C7); // hover do cyan
+  static const Color primaryLight = cyanLight;
+  static const Color accent = navy;
+  static const Color accent2 = Color(0xFF152A45); // hover do navy
+
+  /// Texto/ícone sobre [primary] (branco sobre cyan).
   static const Color onPrimary = Color(0xFFFFFFFF);
 }
 
