@@ -94,8 +94,19 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
-  # Sora (UI) — board Cleanox usa Poppins (P1); Sora permanece na P0.
+  # Poppins = tipografia de marca (board Cleanox). Sora permanece como fallback.
   fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-400.ttf
+        - asset: assets/fonts/Poppins-500.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-600.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-700.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins-800.ttf
+          weight: 800
     - family: Sora
       fonts:
         - asset: assets/fonts/Sora-400.ttf

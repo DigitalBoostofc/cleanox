@@ -63,7 +63,7 @@ ColorScheme _schemeFintech(Brightness brightness, CleanoxColors clx) {
   );
 }
 
-/// Escala tipográfica da Opção B (7 degraus, Sora) — pesos diferentes dos
+/// Escala tipográfica da Opção B (7 degraus, Poppins) — pesos diferentes dos
 /// mesmos papéis MD3 de `theme.dart`, por isso um `_textThemeFintech()` próprio
 /// em vez de um `if` dentro de `_textTheme()`.
 TextTheme _textThemeFintech() {
