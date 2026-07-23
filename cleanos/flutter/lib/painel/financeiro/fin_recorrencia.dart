@@ -156,17 +156,49 @@ List<String> _faltantesPorPassoDias({
     cursor = cursor.add(Duration(days: steps * stepDays));
   }
   // Segurança: no máximo ~2 anos de diários.
+  // Semanal/quinzenal/diário: só YMD (NUNCA year-month — senão 1x/mês).
   for (var guard = 0; guard < 800; guard++) {
     if (!cursor.isBefore(endExcl)) break;
     if (!cursor.isBefore(baseDate) && !cursor.isBefore(start)) {
       final ymd = formatYmdLocal(cursor);
-      if (!existentes.contains(ymd) && !existentes.contains(yearMonthOf(ymd))) {
+      if (!existentes.contains(ymd)) {
         out.add(ymd);
       }
     }
     cursor = cursor.add(Duration(days: stepDays));
   }
   return out;
+}
+
+/// Chaves já existentes na série: YMD sempre; year-month só em mensal+.
+Set<String> chavesExistentesSerie(
+  Iterable<String> datasYmd, {
+  required FrequenciaRecorrencia frequencia,
+}) {
+  final out = <String>{};
+  for (final raw in datasYmd) {
+    final ymd = raw.length >= 10 ? raw.substring(0, 10) : raw;
+    if (ymd.isEmpty) continue;
+    out.add(ymd);
+    if (_isMensalLike(frequencia)) {
+      out.add(yearMonthOf(ymd));
+    }
+  }
+  return out;
+}
+
+/// Já existe ocorrência nesta data (mensal: mesmo mês conta como ocupado).
+bool serieJaTemData(
+  Set<String> existentes,
+  String dataYmd, {
+  required FrequenciaRecorrencia frequencia,
+}) {
+  final ymd = dataYmd.length >= 10 ? dataYmd.substring(0, 10) : dataYmd;
+  if (existentes.contains(ymd)) return true;
+  if (_isMensalLike(frequencia) && existentes.contains(yearMonthOf(ymd))) {
+    return true;
+  }
+  return false;
 }
 
 /// Datas futuras após a base (horizonte por frequência).

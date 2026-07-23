@@ -50,7 +50,8 @@ class _PagamentoFormState extends State<_PagamentoForm> {
   @override
   void initState() {
     super.initState();
-    final valor = widget.os.valorServico ?? 0;
+    // Total = serviço principal + extras cobráveis − descontos (não só valor_servico).
+    final valor = widget.os.valorTotal;
     _valorCtrl = TextEditingController(
       text: valor > 0 ? valor.toStringAsFixed(2).replaceAll('.', ',') : '',
     );
@@ -133,6 +134,13 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           const SizedBox(height: ClxSpace.x1),
           Text(
             'OS de Refazer: R\$ 0,00 é permitido (garantia/cortesia).',
+            style: tt.bodySmall?.copyWith(color: clx.ink3),
+          ),
+        ] else if (widget.os.adicionais.isNotEmpty) ...[
+          const SizedBox(height: ClxSpace.x1),
+          Text(
+            'Pré-preenchido com o total (serviço + extras cobráveis'
+            '${widget.os.descontos > 0 ? ' − descontos' : ''}).',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
         ],

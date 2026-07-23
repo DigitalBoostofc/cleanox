@@ -149,22 +149,29 @@ class _FinDonutChartState extends State<FinDonutChart> {
             },
           ),
           // Centro: total ou detalhe da fatia em hover.
+          // Diâmetro ≈ hole do PieChart (centerSpaceRadius * 2) com folga.
           IgnorePointer(
-            child: AnimatedSwitcher(
-              duration: ClxMotion.shortDuration,
-              switchInCurve: ClxMotion.emphasized,
-              switchOutCurve: Curves.easeIn,
-              child: touchSlice == null
-                  ? _CenterTotal(
-                      key: const ValueKey('total'),
-                      label: widget.centerLabel,
-                      total: total,
-                    )
-                  : _CenterDetail(
-                      key: ValueKey('d-$touched'),
-                      slice: touchSlice,
-                      total: total,
-                    ),
+            child: SizedBox(
+              width: widget.size * 0.50,
+              height: widget.size * 0.50,
+              child: AnimatedSwitcher(
+                duration: ClxMotion.shortDuration,
+                switchInCurve: ClxMotion.emphasized,
+                switchOutCurve: Curves.easeIn,
+                child: touchSlice == null
+                    ? _CenterTotal(
+                        key: const ValueKey('total'),
+                        label: widget.centerLabel,
+                        total: total,
+                        maxSide: widget.size * 0.50,
+                      )
+                    : _CenterDetail(
+                        key: ValueKey('d-$touched'),
+                        slice: touchSlice,
+                        total: total,
+                        maxSide: widget.size * 0.50,
+                      ),
+              ),
             ),
           ),
         ],
@@ -263,83 +270,170 @@ class _FinDonutChartState extends State<FinDonutChart> {
 }
 
 class _CenterTotal extends StatelessWidget {
-  const _CenterTotal({super.key, this.label, required this.total});
+  const _CenterTotal({
+    super.key,
+    this.label,
+    required this.total,
+    required this.maxSide,
+  });
 
   final String? label;
   final double total;
+  final double maxSide;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (label != null)
-          Text(
-            label!,
-            style: tt.labelSmall?.copyWith(
-              color: clx.ink3,
-              fontWeight: FontWeight.w600,
+    final pad = (maxSide * 0.08).clamp(4.0, 10.0);
+    final valueSize = (maxSide * 0.18).clamp(11.0, 15.0);
+    final labelSize = (maxSide * 0.11).clamp(9.0, 11.0);
+    return _CenterHole(
+      maxSide: maxSide,
+      child: Padding(
+        padding: EdgeInsets.all(pad),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (label != null)
+              Text(
+                label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: labelSize,
+                  color: clx.ink3,
+                  fontWeight: FontWeight.w600,
+                  height: 1.1,
+                ),
+              ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                formatCurrency(total),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: valueSize,
+                  color: clx.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  height: 1.15,
+                ),
+              ),
             ),
-          ),
-        Text(
-          formatCurrency(total),
-          style: tt.bodyLarge?.copyWith(
-            color: clx.ink,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.3,
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 class _CenterDetail extends StatelessWidget {
-  const _CenterDetail({super.key, required this.slice, required this.total});
+  const _CenterDetail({
+    super.key,
+    required this.slice,
+    required this.total,
+    required this.maxSide,
+  });
 
   final FinSlice slice;
   final double total;
+  final double maxSide;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
     final pct = total > 0 ? slice.value / total * 100 : 0.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            slice.label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: tt.labelMedium?.copyWith(
-              color: slice.color,
-              fontWeight: FontWeight.w800,
+    final pad = (maxSide * 0.08).clamp(4.0, 10.0);
+    // Tipografia compacta: cabe no buraco e não compete com o anel.
+    final nameSize = (maxSide * 0.12).clamp(9.0, 11.0);
+    final valueSize = (maxSide * 0.16).clamp(11.0, 13.0);
+    final pctSize = (maxSide * 0.10).clamp(8.0, 10.0);
+    final dot = (maxSide * 0.08).clamp(5.0, 7.0);
+
+    return _CenterHole(
+      maxSide: maxSide,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: pad, vertical: pad * 0.6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Cor da fatia só no pingo — nome em tinta legível (não na cor do arco).
+            Container(
+              width: dot,
+              height: dot,
+              decoration: BoxDecoration(
+                color: slice.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: clx.bg, width: 1),
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            formatCurrency(slice.value),
-            textAlign: TextAlign.center,
-            style: tt.bodyMedium?.copyWith(
-              color: clx.ink,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
+            SizedBox(height: pad * 0.35),
+            Text(
+              slice.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: nameSize,
+                color: clx.ink,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
             ),
-          ),
-          Text(
-            '${pct.toStringAsFixed(1).replaceAll('.', ',')}%',
-            style: tt.labelSmall?.copyWith(
-              color: clx.ink3,
-              fontWeight: FontWeight.w700,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                formatCurrency(slice.value),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: valueSize,
+                  color: clx.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                  height: 1.15,
+                ),
+              ),
             ),
-          ),
-        ],
+            Text(
+              '${pct.toStringAsFixed(1).replaceAll('.', ',')}%',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: pctSize,
+                color: clx.ink3,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Fundo circular no buraco do donut — legibilidade no hover (sem sobrepor o arco).
+class _CenterHole extends StatelessWidget {
+  const _CenterHole({required this.maxSide, required this.child});
+
+  final double maxSide;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return ClipOval(
+      child: ColoredBox(
+        color: clx.bg.withValues(alpha: 0.94),
+        child: SizedBox(
+          width: maxSide,
+          height: maxSide,
+          child: Center(child: child),
+        ),
       ),
     );
   }

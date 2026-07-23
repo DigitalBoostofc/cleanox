@@ -15,7 +15,14 @@
 /// `formatDate` do core (que aplicariam −3h e jogariam a data pro dia anterior).
 library;
 
+import '../../core/formatters/formatters.dart' show kBrtOffset, parsePbUtc;
+import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
+import '../../core/models/ordem_servico.dart';
+import '../../core/models/prof_comissao.dart';
+import '../../core/models/user.dart';
+import '../../profissional/financeiro/prof_estimativa.dart';
+import '../../profissional/financeiro/prof_pagamento.dart';
 
 /* ─────────────────────── dinheiro (centavos) ─────────────────────── */
 
@@ -111,6 +118,28 @@ ResumoPeriodo resumoPeriodo(List<FinLancamento> lancs) {
   var entradas = 0, saidas = 0;
   for (final l in lancs) {
     if (!isLancamentoRealizado(l)) continue;
+    if (l.tipo == TipoLancamento.receita) {
+      entradas += _cents(l.valor);
+    } else {
+      saidas += _cents(l.valor);
+    }
+  }
+  return ResumoPeriodo(
+    entradas: _reais(entradas),
+    saidas: _reais(saidas),
+    saldoMes: _reais(entradas - saidas),
+  );
+}
+
+/// Balanço de **competência** do mês: Σ receitas − Σ despesas **independente
+/// do status** (pago / pendente / previsto / em atraso).
+///
+/// Usado no Extrato ("Balanço mensal") — o dono quer ver o resultado do mês
+/// incluindo OS ainda em aberto e comissões a pagar. Os lançamentos JÁ devem
+/// estar filtrados pelo período.
+ResumoPeriodo resumoPeriodoCompetencia(List<FinLancamento> lancs) {
+  var entradas = 0, saidas = 0;
+  for (final l in lancs) {
     if (l.tipo == TipoLancamento.receita) {
       entradas += _cents(l.valor);
     } else {
@@ -297,17 +326,30 @@ bool emAberto(FinLancamento l) =>
     l.status == LancamentoStatus.previsto ||
     l.status == LancamentoStatus.emAtraso;
 
+/// Data de referência para atraso: vencimento se houver, senão data do lançamento.
+String dataRefLancamento(FinLancamento l) {
+  if (l.vencimento != null && l.vencimento!.isNotEmpty) {
+    return dateOnly(l.vencimento!);
+  }
+  return dateOnly(l.data);
+}
+
+/// Não pago e a data de referência já passou de [hoje] ('YYYY-MM-DD').
+/// Status `em_atraso` no PB também conta — UI pinta de vermelho.
+bool isLancamentoAtrasado(FinLancamento l, String hoje) {
+  if (l.status == LancamentoStatus.pago) return false;
+  if (l.status == LancamentoStatus.emAtraso) return true;
+  return dataRefLancamento(l).compareTo(dateOnly(hoje)) < 0;
+}
+
 ContaPendente _toPendente(FinLancamento l, String ref) {
   final hoje = dateOnly(ref);
-  final venc = (l.vencimento != null && l.vencimento!.isNotEmpty)
-      ? dateOnly(l.vencimento!)
-      : null;
+  final venc = dataRefLancamento(l);
   return ContaPendente(
     lancamento: l,
     vencendoHoje: venc == hoje,
     emAtraso:
-        l.status == LancamentoStatus.emAtraso ||
-        (venc != null && venc.compareTo(hoje) < 0),
+        l.status == LancamentoStatus.emAtraso || venc.compareTo(hoje) < 0,
   );
 }
 
@@ -340,6 +382,238 @@ List<ContaPendente> contasAReceber(List<FinLancamento> lancs, String ref) {
           .map((l) => _toPendente(l, ref))
           .toList()
         ..sort(_ordVenc);
+  return out;
+}
+
+/* ─────────────────────── comissões no relatório ─────────────────────── */
+
+/// IDs da categoria canônica de comissão da equipe.
+///
+/// Preferência (igual ao hook `acharCategoriaComissao`):
+///   1) Equipe → Profissionais
+///   2) Equipe → Comissões/Comissão
+///   3) só Equipe
+class FinCatComissaoIds {
+  const FinCatComissaoIds({required this.categoriaId, this.subcategoriaId});
+  final String categoriaId;
+  final String? subcategoriaId;
+}
+
+/// Resolve Equipe/Profissionais a partir do catálogo de categorias.
+FinCatComissaoIds? finCategoriaComissaoIds(List<FinCategoria> cats) {
+  final despesas = cats.where((c) => !c.arquivada && c.tipo == TipoLancamento.despesa);
+  FinCategoria? equipe;
+  for (final c in despesas) {
+    if (c.parentId == null && c.nome.trim().toLowerCase() == 'equipe') {
+      equipe = c;
+      break;
+    }
+  }
+  if (equipe != null) {
+    FinCategoria? prof;
+    FinCategoria? comiss;
+    for (final c in despesas) {
+      if (c.parentId != equipe.id) continue;
+      final n = c.nome.trim().toLowerCase();
+      if (n == 'profissionais') prof = c;
+      if (n == 'comissões' || n == 'comissão' || n == 'comissoes' || n == 'comissao') {
+        comiss = c;
+      }
+    }
+    final sub = prof ?? comiss;
+    return FinCatComissaoIds(
+      categoriaId: equipe.id,
+      subcategoriaId: sub?.id,
+    );
+  }
+  // Fallback: sub "Profissionais" com qualquer parent.
+  for (final c in despesas) {
+    if (c.parentId != null && c.nome.trim().toLowerCase() == 'profissionais') {
+      return FinCatComissaoIds(categoriaId: c.parentId!, subcategoriaId: c.id);
+    }
+  }
+  return null;
+}
+
+/// Prefix de id sintético — não colide com ids PB e permite detectar no UI.
+///
+/// Formato: `comissao-previsto-prof-<profissionalId>` (1 linha por profissional).
+const kFinComissaoPrevistoIdPrefix = 'comissao-previsto-';
+const kFinComissaoPrevistoProfPrefix = '${kFinComissaoPrevistoIdPrefix}prof-';
+
+/// Extrai o id do profissional de um id sintético de comissão agregada.
+String? finComissaoPrevistoProfId(String lancamentoId) {
+  if (!lancamentoId.startsWith(kFinComissaoPrevistoProfPrefix)) return null;
+  final id = lancamentoId.substring(kFinComissaoPrevistoProfPrefix.length);
+  return id.isEmpty ? null : id;
+}
+
+/// Comissão (linha sintética do ciclo ou repasse gerado ao pagar em Equipe).
+/// Status pago/pendente depende de **Equipe / comissões**, não da movimentação.
+bool isLancamentoComissao(FinLancamento l) {
+  if (finComissaoPrevistoProfId(l.id) != null) return true;
+  final obs = (l.observacao ?? '').trim();
+  if (obs.startsWith('repasse_ciclo:')) return true;
+  final d = l.descricao.trim().toLowerCase();
+  if (d.startsWith('comissão ·') || d.startsWith('comissao ·')) return true;
+  if (d.startsWith('comissão -') || d.startsWith('comissao -')) return true;
+  if (d.startsWith('repasse comiss')) return true;
+  return false;
+}
+
+/// Receita/despesa gerada por OS (`via_os` ou vínculo `os_id`).
+/// Status pago depende da **própria OS** (conclusão/pagamento), não da lista.
+bool isLancamentoViaOs(FinLancamento l) {
+  if (l.origem == OrigemLancamento.viaOs) return true;
+  final osId = (l.osId ?? '').trim();
+  if (osId.isNotEmpty) return true;
+  return false;
+}
+
+/// Não editar / não alternar pago↔pendente na movimentação.
+bool isLancamentoDependenteExterno(FinLancamento l) =>
+    isLancamentoComissao(l) || isLancamentoViaOs(l);
+
+String _ymdFromDateTime(DateTime d) {
+  String p2(int n) => n.toString().padLeft(2, '0');
+  return '${d.year}-${p2(d.month)}-${p2(d.day)}';
+}
+
+/// Comissão prevista de OS **atribuídas / em andamento** (ainda não concluídas).
+///
+/// [ate]: se informado (data de parede BRT do próximo pagamento), só entram OS
+/// com dia BRT `<= ate` (inclusivo). Caso contrário, todas as abertas do prof.
+({double valor, int qtdOs}) comissaoPrevistaAtribuidas({
+  required User prof,
+  required List<OrdemServico> osAbertas,
+  DateTime? ate,
+}) {
+  if (!prof.hasComissaoAtiva) return (valor: 0.0, qtdOs: 0);
+
+  final limiteYmd = ate == null ? null : _ymdFromDateTime(ate);
+
+  final minhas = <OrdemServico>[];
+  for (final o in osAbertas) {
+    if (o.profissional != prof.id) continue;
+    if (o.status != OSStatus.atribuida && o.status != OSStatus.emAndamento) {
+      continue;
+    }
+    if (limiteYmd != null) {
+      final ymd = _ymdBrtOs(o.dataHora);
+      if (ymd.isEmpty || ymd.compareTo(limiteYmd) > 0) continue;
+    }
+    minhas.add(o);
+  }
+  if (minhas.isEmpty) return (valor: 0.0, qtdOs: 0);
+
+  if (prof.comissaoTipo == ComissaoTipo.diaria) {
+    final dias = <String>{};
+    for (final o in minhas) {
+      final ymd = _ymdBrtOs(o.dataHora);
+      if (ymd.isNotEmpty) dias.add(ymd);
+    }
+    final nDias = dias.isEmpty ? 1 : dias.length;
+    final v = ((prof.comissaoValor * nDias) * 100).roundToDouble() / 100;
+    return (valor: v, qtdOs: minhas.length);
+  }
+
+  var cents = 0;
+  for (final o in minhas) {
+    cents += (estimarComissaoOs(prof, o) * 100).round();
+  }
+  return (valor: cents / 100.0, qtdOs: minhas.length);
+}
+
+String _ymdBrtOs(String dataHora) {
+  final utc = parsePbUtc(dataHora);
+  if (utc == null) {
+    return dataHora.length >= 10 ? dataHora.substring(0, 10) : '';
+  }
+  final brt = utc.subtract(kBrtOffset);
+  String p2(int n) => n.toString().padLeft(2, '0');
+  return '${brt.year.toString().padLeft(4, '0')}-${p2(brt.month)}-${p2(brt.day)}';
+}
+
+/// Converte comissões **pendentes** (+ previsto de OS atribuídas) em **1 despesa
+/// prevista por profissional** na data de **repasse configurada**.
+///
+/// - Valor = Σ comissões pendentes (OS concluídas) + estimado das OS abertas
+/// - Descrição: `Comissão · João Pedro`
+/// - Pagas não entram (viram repasse real no caixa ao marcar paga).
+List<FinLancamento> finComissoesPendentesComoLancamentos({
+  required List<ProfComissao> comissoes,
+  required List<FinCategoria> categorias,
+  List<User> profissionais = const [],
+  Map<String, String> nomePorProfId = const {},
+  /// Extra em centavos reais por profissional (OS atribuídas/em andamento).
+  Map<String, double> previstoOsByProf = const {},
+  String contaId = '',
+  DateTime? now,
+}) {
+  final cat = finCategoriaComissaoIds(categorias);
+  if (cat == null) return const [];
+
+  final byProf = <String, List<ProfComissao>>{};
+  for (final c in comissoes) {
+    if (c.status != ComissaoStatus.pendente) continue;
+    if (!(c.valorComissao > 0)) continue;
+    final pid = c.profissional.trim();
+    if (pid.isEmpty) continue;
+    byProf.putIfAbsent(pid, () => []).add(c);
+  }
+
+  final allIds = <String>{...byProf.keys, ...previstoOsByProf.keys};
+  if (allIds.isEmpty) return const [];
+
+  final userById = {for (final u in profissionais) u.id: u};
+  final clock = now ?? DateTime.now();
+  final hoje = brtWallDate(clock);
+
+  final out = <FinLancamento>[];
+  for (final pid in allIds) {
+    final itens = byProf[pid] ?? const <ProfComissao>[];
+    var cents = 0;
+    for (final c in itens) {
+      cents += (c.valorComissao * 100).round();
+    }
+    final extra = previstoOsByProf[pid] ?? 0;
+    cents += (extra * 100).round();
+    if (cents <= 0) continue;
+    final total = cents / 100.0;
+
+    final user = userById[pid];
+    final next = user != null ? proximaDataPagamento(user, now: clock) : null;
+    final payDay = next ?? lastDayOfMonth(hoje.year, hoje.month);
+    final ymd = _ymdFromDateTime(payDay);
+
+    final profNome = (nomePorProfId[pid] ?? user?.displayName ?? '').trim();
+    // "Comissão · Nome"
+    final descricao =
+        profNome.isEmpty ? 'Comissão' : 'Comissão · $profNome';
+
+    out.add(
+      FinLancamento(
+        id: '$kFinComissaoPrevistoProfPrefix$pid',
+        tipo: TipoLancamento.despesa,
+        descricao: descricao,
+        categoriaId: cat.categoriaId,
+        subcategoriaId: cat.subcategoriaId,
+        valor: total,
+        contaId: contaId,
+        data: ymd,
+        vencimento: ymd,
+        status: LancamentoStatus.previsto,
+        origem: OrigemLancamento.manual,
+        observacao: 'repasse_ciclo:$pid',
+      ),
+    );
+  }
+
+  out.sort((a, b) {
+    final byDate = a.data.compareTo(b.data);
+    if (byDate != 0) return byDate;
+    return a.descricao.compareTo(b.descricao);
+  });
   return out;
 }
 

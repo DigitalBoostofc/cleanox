@@ -142,14 +142,16 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     FinCategoria? byId(String? id) =>
         id == null ? null : _firstOrNull(categorias, (c) => c.id == id);
     final conta = _firstOrNull(contas, (c) => c.id == l.contaId);
+    final dependente = isLancamentoDependenteExterno(l);
     final action = await showLancamentoDetail(
       context,
       lancamento: l,
       categoria: byId(l.categoriaId),
       subcategoria: byId(l.subcategoriaId),
       conta: conta,
+      readOnly: dependente,
     );
-    if (!mounted || action == null) return;
+    if (!mounted || action == null || dependente) return;
     switch (action) {
       case 'edit':
         await _openForm(editing: l);
@@ -162,7 +164,19 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   }
 
   /// Mãozinha Organizze: pago ↔ pendente (atualiza saldo no server via hook).
+  /// OS e comissão: status vem da OS / Equipe — não alterna aqui.
   Future<void> _togglePago(FinLancamento l) async {
+    if (isLancamentoDependenteExterno(l)) {
+      if (!mounted) return;
+      showClxToast(
+        context,
+        isLancamentoComissao(l)
+            ? 'Comissão segue o status em Equipe / comissões.'
+            : 'Receita de OS segue o status da própria OS.',
+        type: ToastType.info,
+      );
+      return;
+    }
     final novo = l.status == LancamentoStatus.pago
         ? LancamentoStatus.pendente
         : LancamentoStatus.pago;
@@ -311,13 +325,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   /// Banner: quantos lançamentos em aberto com data/vencimento no passado.
   Widget? _unpaidPastBanner(FinLancState state) {
     final hoje = todayLocalDate();
-    final n = state.items.where((l) {
-      if (l.status == LancamentoStatus.pago) return false;
-      final ref = (l.vencimento != null && l.vencimento!.isNotEmpty)
-          ? dateOnly(l.vencimento!)
-          : dateOnly(l.data);
-      return ref.compareTo(hoje) < 0;
-    }).length;
+    final n = state.items.where((l) => isLancamentoAtrasado(l, hoje)).length;
     if (n == 0) return null;
     return _UnpaidPastBanner(count: n);
   }
@@ -515,10 +523,19 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
             conta: contaById[row.item!.contaId],
             onTap: () => _openDetail(row.item!),
             onDetail: () => _openDetail(row.item!),
-            onEdit: () => _openForm(editing: row.item!),
-            onDuplicate: () => _duplicate(row.item!),
-            onDelete: () => _delete(row.item!),
-            onTogglePago: () => _togglePago(row.item!),
+            onEdit: isLancamentoDependenteExterno(row.item!)
+                ? () => _openDetail(row.item!)
+                : () => _openForm(editing: row.item!),
+            onDuplicate: isLancamentoDependenteExterno(row.item!)
+                ? () {}
+                : () => _duplicate(row.item!),
+            onDelete: isLancamentoDependenteExterno(row.item!)
+                ? () {}
+                : () => _delete(row.item!),
+            onTogglePago: isLancamentoDependenteExterno(row.item!)
+                ? null
+                : () => _togglePago(row.item!),
+            dependente: isLancamentoDependenteExterno(row.item!),
           );
   }
 }
@@ -911,6 +928,7 @@ class _LancamentoRow extends StatelessWidget {
     required this.onDuplicate,
     required this.onDelete,
     this.onTogglePago,
+    this.dependente = false,
   });
 
   final FinLancamento lancamento;
@@ -923,6 +941,8 @@ class _LancamentoRow extends StatelessWidget {
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
   final VoidCallback? onTogglePago;
+  /// OS / comissão: sem 👍/👎 nem menu de editar.
+  final bool dependente;
 
   /// Sub-linha: serviço / categoria / parcela (obs vai pro ícone de comentário).
   String _sub() {
@@ -965,10 +985,9 @@ class _LancamentoRow extends StatelessWidget {
     final l = lancamento;
     final sub = _sub();
     final pago = !_emAberto;
-    // Fundo creme (Organizze) para não pagos / previstos.
-    final bg = _emAberto
-        ? clx.warning.withValues(alpha: 0.10)
-        : clx.bg;
+    // Vermelho: não pago + data/vencimento no passado (ou status em_atraso).
+    final atrasado = isLancamentoAtrasado(l, todayLocalDate());
+    final bg = atrasado ? clx.error.withValues(alpha: 0.10) : clx.bg;
     return Material(
       color: bg,
       child: InkWell(
@@ -983,7 +1002,7 @@ class _LancamentoRow extends StatelessWidget {
               final narrow = constraints.maxWidth < 520;
               return Row(
                 children: [
-                  // Bolinha status (vermelho = em aberto; transparente se pago).
+                  // Bolinha status (vermelho = em aberto/atrasado; transparente se pago).
                   Container(
                     width: 8,
                     height: 8,
@@ -1011,7 +1030,7 @@ class _LancamentoRow extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: tt.titleSmall?.copyWith(
-                            color: clx.ink,
+                            color: atrasado ? clx.error : clx.ink,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1020,7 +1039,11 @@ class _LancamentoRow extends StatelessWidget {
                             sub,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: tt.bodySmall?.copyWith(color: clx.ink3),
+                            style: tt.bodySmall?.copyWith(
+                              color: atrasado
+                                  ? clx.error.withValues(alpha: 0.75)
+                                  : clx.ink3,
+                            ),
                           ),
                       ],
                     ),
@@ -1075,35 +1098,56 @@ class _LancamentoRow extends StatelessWidget {
                           maxLines: 1,
                           softWrap: false,
                           style: tt.bodyLarge?.copyWith(
-                            color: tipoColor(clx, l.tipo),
+                            color: atrasado
+                                ? clx.error
+                                : tipoColor(clx, l.tipo),
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ),
                   ),
-                  // Mãozinha: 👍 pago · 👎 pendente (mesmo esquema das comissões).
-                  Tooltip(
-                    message: pago
-                        ? 'Pago — toque para marcar pendente'
-                        : 'Pendente — toque para marcar pago',
-                    child: IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
+                  // Mãozinha: 👍/👎 — oculto em OS/comissão (status dependente).
+                  if (dependente)
+                    Tooltip(
+                      message: isLancamentoComissao(l)
+                          ? 'Comissão — status em Equipe'
+                          : 'OS — status da ordem de serviço',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(
+                          Icons.link_rounded,
+                          size: 18,
+                          color: clx.ink3,
+                        ),
                       ),
-                      onPressed: onTogglePago,
-                      icon: Icon(
-                        pago
-                            ? Icons.thumb_up_alt_rounded
-                            : Icons.thumb_down_alt_rounded,
-                        size: 20,
-                        color: pago ? clx.success : clx.ink3,
+                    )
+                  else
+                    Tooltip(
+                      message: pago
+                          ? 'Pago — toque para marcar pendente'
+                          : atrasado
+                              ? 'Em atraso — toque para marcar pago'
+                              : 'Pendente — toque para marcar pago',
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        onPressed: onTogglePago,
+                        icon: Icon(
+                          pago
+                              ? Icons.thumb_up_alt_rounded
+                              : Icons.thumb_down_alt_rounded,
+                          size: 20,
+                          color: pago
+                              ? clx.success
+                              : (atrasado ? clx.error : clx.ink3),
+                        ),
                       ),
                     ),
-                  ),
                   if (!narrow)
                     PopupMenuButton<String>(
                       tooltip: 'Ações',
@@ -1124,17 +1168,19 @@ class _LancamentoRow extends StatelessWidget {
                             onDelete();
                         }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
                           value: 'detail',
                           child: Text('Ver detalhes'),
                         ),
-                        PopupMenuItem(value: 'edit', child: Text('Editar')),
-                        PopupMenuItem(
-                          value: 'duplicate',
-                          child: Text('Duplicar'),
-                        ),
-                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                        if (!dependente) ...const [
+                          PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          PopupMenuItem(
+                            value: 'duplicate',
+                            child: Text('Duplicar'),
+                          ),
+                          PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                        ],
                       ],
                     ),
                 ],

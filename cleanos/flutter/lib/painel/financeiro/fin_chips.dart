@@ -24,6 +24,28 @@ Color? finParseHex(String? hex) {
   return v == null ? null : Color(v);
 }
 
+/// Cor estável por texto de tag (hash → pool de cores vivas).
+Color finTagAccentColor(String tag) {
+  final t = tag.trim().toLowerCase();
+  if (t.isEmpty) {
+    return finParseHex(kFinCategoriaCoresPool.first) ?? const Color(0xFF3B82F6);
+  }
+  var h = 0;
+  for (final u in t.codeUnits) {
+    h = (h * 31 + u) & 0x7fffffff;
+  }
+  final hex = kFinCategoriaCoresPool[h % kFinCategoriaCoresPool.length];
+  return finParseHex(hex) ?? const Color(0xFF3B82F6);
+}
+
+/// Cor do **desenho** do ícone sobre fundo na cor da categoria.
+/// Cores claras → ink escuro; cores saturadas/escuras → branco (máximo contraste).
+Color finOnCategoriaColor(Color cor) {
+  return cor.computeLuminance() > 0.55
+      ? const Color(0xFF0B1D34)
+      : const Color(0xFFFFFFFF);
+}
+
 /* ─────────────────────── OrigemChip ─────────────────────── */
 
 /// Chip da origem do lançamento: `via_os` → tom info (com ícone de link);
@@ -123,9 +145,8 @@ class ContaBadge extends StatelessWidget {
 
 /* ─────────────────────── CategoriaAvatar ─────────────────────── */
 
-/// Círculo colorido com o ícone da categoria (fundo = cor translúcida, ícone na
-/// cor sólida). Espelha `components/CategoriaIcon.tsx`. Usa o mesmo mapeamento de
-/// ícone (`finCategoriaIcon`) das telas de Categorias/Limites — consistência.
+/// Círculo **sólido** na cor da categoria + ícone em contraste (branco/ink).
+/// O desenho do ícone fica legível em qualquer tom da paleta.
 class FinCategoriaAvatar extends StatelessWidget {
   const FinCategoriaAvatar({super.key, this.categoria, this.size = 34});
 
@@ -136,18 +157,62 @@ class FinCategoriaAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final cor = finParseHex(categoria?.cor) ?? clx.primary;
+    final onCor = finOnCategoriaColor(cor);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: cor.withValues(alpha: 0.16),
+        color: cor,
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: cor.withValues(alpha: 0.35),
+            blurRadius: size * 0.12,
+            offset: Offset(0, size * 0.04),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Icon(
         finCategoriaIcon(categoria?.icone),
         size: size * 0.52,
-        color: cor,
+        color: onCor,
+      ),
+    );
+  }
+}
+
+/// Etiqueta (tag de lançamento) com cor estável e alto contraste.
+class FinTagChip extends StatelessWidget {
+  const FinTagChip({
+    super.key,
+    required this.label,
+    this.count,
+    this.dense = true,
+    this.onTap,
+  });
+
+  final String label;
+  final int? count;
+  final bool dense;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = finTagAccentColor(label);
+    final chip = ClxChip(
+      label: count != null ? '$label · $count' : label,
+      color: cor,
+      icon: Icons.sell_outlined,
+      dense: dense,
+    );
+    if (onTap == null) return chip;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: ClxRadii.rPill,
+        child: chip,
       ),
     );
   }

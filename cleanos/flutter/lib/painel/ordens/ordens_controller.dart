@@ -111,7 +111,7 @@ String ordensSortTabKey(OSStatus? status) => status?.wire ?? 'all';
 const String kOrdensSortPrefsPrefix = 'ordens_sort_';
 
 /// Filtro ativo da lista: um status (ou `null` = todas) + período +
-/// profissional opcional.
+/// profissional opcional + busca por nome.
 ///
 /// Defaults (pedido do dono, 16/07): a tela abre em **Agendadas** da
 /// **semana corrente** — é onde ele decide quem atribuir 1–2 dias antes.
@@ -121,17 +121,22 @@ class OrdensFilter {
     this.periodo = OrdensPeriodo.semana,
     this.sort = OrdensSort.dataAsc,
     this.profissionalId,
+    this.search = '',
   });
   final OSStatus? status;
   final OrdensPeriodo periodo;
   final OrdensSort sort;
   final String? profissionalId;
 
+  /// Busca livre (cliente / serviço / bairro) — server-side via `~`.
+  final String search;
+
   OrdensFilter copyWith({
     Object? status = _s,
     OrdensPeriodo? periodo,
     OrdensSort? sort,
     Object? profissionalId = _s,
+    String? search,
   }) => OrdensFilter(
     status: status == _s ? this.status : status as OSStatus?,
     periodo: periodo ?? this.periodo,
@@ -139,6 +144,7 @@ class OrdensFilter {
     profissionalId: profissionalId == _s
         ? this.profissionalId
         : profissionalId as String?,
+    search: search ?? this.search,
   );
 
   static const Object _s = Object();
@@ -257,6 +263,7 @@ class OrdensController extends StateNotifier<OrdensState> {
       profissionalId: state.filter.profissionalId,
       dataInicio: range?.start,
       dataFim: range?.end,
+      search: state.filter.search,
     );
   }
 
@@ -344,6 +351,14 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
+  /// Busca por nome (cliente / serviço / bairro). Já deve vir debounced da UI.
+  Future<void> setSearch(String query) async {
+    final q = query.trim();
+    if (q == state.filter.search.trim()) return;
+    state = state.copyWith(filter: state.filter.copyWith(search: q));
+    await refresh();
+  }
+
   /// Cancela uma OS com motivo (auditoria server-side) e recarrega.
   Future<void> cancelar(String osId, {required String motivo}) async {
     await _ref
@@ -396,6 +411,9 @@ final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
   final periodo = ref.watch(
     ordensControllerProvider.select((s) => s.filter.periodo),
   );
+  final search = ref.watch(
+    ordensControllerProvider.select((s) => s.filter.search),
+  );
   final repo = ref.watch(ordensRepositoryProvider);
   final range = ordensPeriodoRange(periodo);
 
@@ -408,6 +426,7 @@ final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
         profissionalId: profId,
         dataInicio: range?.start,
         dataFim: range?.end,
+        search: search,
       ),
       sort: '-data_hora',
     );

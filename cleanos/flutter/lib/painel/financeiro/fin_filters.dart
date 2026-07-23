@@ -15,8 +15,19 @@ import 'fin_derivations.dart';
 String finPeriodoFilter(Periodo p) =>
     'data >= ${pbStringLiteral(p.start)} && data < ${pbStringLiteral(p.end)}';
 
+/// Exclui despesas de comissão **1:1 por OS** (legado).
+///
+/// Ciclo canônico: comissões acumulam em Equipe (`prof_comissoes`) e só geram
+/// 1 despesa de repasse no pagamento (`via_comissao` **sem** `comissao_id`).
+/// Lançamentos legados `via_comissao` + `comissao_id` não devem poluir
+/// Movimentações, KPIs do período nem Contas a pagar.
+String finExcludeComissaoPorOsFilter() =>
+    "(origem != 'via_comissao' || comissao_id = '' || comissao_id = null)";
+
 /// Filtro da lista de Lançamentos: período + busca (descrição) + tipo + status +
 /// conta + categoria. Fragmentos nulos são ignorados; `null` = sem filtro.
+///
+/// Sempre exclui comissão 1:1 legada (ver [finExcludeComissaoPorOsFilter]).
 String? finLancamentosFilter({
   Periodo? periodo,
   String? search,
@@ -28,6 +39,7 @@ String? finLancamentosFilter({
   final q = (search ?? '').trim();
   return andAll([
     if (periodo != null) finPeriodoFilter(periodo),
+    finExcludeComissaoPorOsFilter(),
     if (q.isNotEmpty)
       '(descricao ~ ${pbStringLiteral(q)} '
           '|| cliente_nome ~ ${pbStringLiteral(q)} '
@@ -46,4 +58,5 @@ String? finLancamentosFilter({
 /// `tipo` = despesa → a pagar · receita → a receber.
 String finContasPendentesFilter(TipoLancamento tipo) =>
     'tipo = ${pbStringLiteral(tipo.wire)} && status != '
-    '${pbStringLiteral(LancamentoStatus.pago.wire)}';
+    '${pbStringLiteral(LancamentoStatus.pago.wire)} '
+    '&& ${finExcludeComissaoPorOsFilter()}';

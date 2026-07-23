@@ -362,16 +362,15 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       final baseDate = parseYmdLocal(template.data);
       if (baseDate == null) continue;
 
-      // Existentes: YMD (10 chars) + year-month (mensal). PB date pode vir com hora.
-      final existentes = <String>{
-        for (final m in members) ...[
-          m.data.length >= 10 ? m.data.substring(0, 10) : m.data,
-          yearMonthOf(m.data),
-        ],
-      };
+      // Existentes: YMD sempre; year-month só mensal+ (semanal ≠ 1×/mês).
+      final freq = template.frequenciaEfetiva;
+      final existentes = chavesExistentesSerie(
+        members.map((m) => m.data),
+        frequencia: freq,
+      );
       final faltantes = datasRecorrenciaFaltantes(
         baseDate: baseDate,
-        frequencia: template.frequenciaEfetiva,
+        frequencia: freq,
         periodo: periodo,
         datasExistentes: existentes,
       );
@@ -411,21 +410,20 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       antesDe: formatYmdLocal(ultimo),
     );
     final key = serieRecorrenciaKey(template);
-    final existentes = <String>{
-      for (final l in ativos)
-        if (serieRecorrenciaKey(l) == key) ...[
-          l.data.length >= 10 ? l.data.substring(0, 10) : l.data,
-          yearMonthOf(l.data),
-        ],
-    };
+    final existentes = chavesExistentesSerie(
+      [
+        for (final l in ativos)
+          if (serieRecorrenciaKey(l) == key) l.data,
+      ],
+      frequencia: freq,
+    );
 
     var created = 0;
     for (final dataYmd in datasRecorrenciaAFrente(
       baseDate: baseDate,
       frequencia: freq,
     )) {
-      final ym = yearMonthOf(dataYmd);
-      if (existentes.contains(dataYmd) || existentes.contains(ym)) continue;
+      if (serieJaTemData(existentes, dataYmd, frequencia: freq)) continue;
       String? venc;
       if (template.vencimento != null && template.vencimento!.isNotEmpty) {
         final v0 = parseYmdLocal(template.vencimento!);
@@ -438,9 +436,9 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       await createLancamento(
         bodyOcorrenciaPrevista(template, dataYmd, vencimentoYmd: venc),
       );
-      existentes
-        ..add(dataYmd)
-        ..add(ym);
+      existentes.addAll(
+        chavesExistentesSerie([dataYmd], frequencia: freq),
+      );
       created++;
     }
     return created;

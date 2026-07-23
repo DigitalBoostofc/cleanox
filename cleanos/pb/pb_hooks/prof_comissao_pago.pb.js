@@ -27,6 +27,23 @@ onRecordUpdate((e) => {
   const orig = e.record.original ? e.record.original() : null;
   const origStatus = orig ? String(orig.get("status") || "") : "";
 
+  // Antes do commit: se está paga sem pago_em, carimba o dia BRT no MESMO
+  // save — evita 2º app.save no lib (reentrava o hook e duplicava repasse).
+  try {
+    const st = String(e.record.get("status") || "");
+    if (st === "paga") {
+      const pe = String(e.record.get("pago_em") || "")
+        .trim()
+        .slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(pe)) {
+        const pagoLib = require(`${__hooks}/prof_comissao_pago_lib.js`);
+        e.record.set("pago_em", pagoLib.dataBrtHojeYmd());
+      }
+    }
+  } catch (_) {
+    /* best-effort */
+  }
+
   e.next();
 
   try {

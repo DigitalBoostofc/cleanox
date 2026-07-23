@@ -12,35 +12,32 @@
 /// deep-linkáveis: `/painel/ordens/:osId/execucao`, `/painel/servicos/:id`
 /// (editor) e `/painel/financeiro/:tab` (7 abas).
 ///
-/// ── LAZY (deferred) ──────────────────────────────────────────────────────────
-/// As seções PESADAS entram `deferred as` + [LazySection] no builder da rota; o
-/// `indexedStack` só constrói o branch na primeira visita, então o chunk JS só
-/// baixa quando a seção é aberta. As LEVES (Dashboard/Conta/Usuários) são eager.
-///
-/// ⚠️ Símbolos `deferred` SÓ podem ser referenciados DENTRO do `builder:` do
-/// [LazySection] (que roda após `loadLibrary`) — nunca no corpo do `pageBuilder`.
+/// ── CARREGAMENTO ─────────────────────────────────────────────────────────────
+/// Import eager de todas as seções (estável em prod). Deferred + LazySection
+/// quebrava Agenda/Financeiro/Serviços no browser ("Não foi possível carregar
+/// este módulo") após deploys com chunks desalinhados / service worker.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../profissional/os_execucao/os_execucao_screen.dart';
+import 'agenda/agenda_screen.dart';
+import 'avaliacoes/avaliacoes_screen.dart';
+import 'clientes/clientes_screen.dart';
 import 'conta/conta_screen.dart';
 import 'dashboard/dashboard_screen.dart';
-import 'shell/lazy_section.dart';
+import 'financeiro/fin_shell.dart';
+import 'ordens/ordens_screen.dart';
+import 'servicos/servico_editor.dart';
+import 'servicos/servicos_list_screen.dart';
 import 'shell/painel_nav.dart';
 import 'shell/painel_shell.dart';
 import 'usuarios/usuarios_screen.dart';
-// Seções/telas PESADAS: cada uma em seu próprio chunk `deferred`.
-import 'agenda/agenda_screen.dart' deferred as agenda;
-import 'avaliacoes/avaliacoes_screen.dart' deferred as avaliacoes;
-import 'clientes/clientes_screen.dart' deferred as clientes;
-import 'financeiro/fin_shell.dart' deferred as financeiro;
-import 'ordens/ordens_screen.dart' deferred as ordens;
-// Execução interativa (mesmo fluxo do profissional: checklist, fotos, pagamento).
-import '../profissional/os_execucao/os_execucao_screen.dart' deferred as os_exec;
-import 'servicos/servico_editor.dart' deferred as servico_editor;
-import 'servicos/servicos_list_screen.dart' deferred as servicos;
-import 'whatsapp/whatsapp_admin_screen.dart' deferred as whatsapp;
+import 'whatsapp/whatsapp_admin_screen.dart';
+// ⚠️ Eager (não deferred): em prod o loadLibrary dos chunks quebrou Agenda /
+// Financeiro / Serviços ("Não foi possível carregar este módulo"). Bundle
+// inicial maior, mas módulos estáveis.
 
 /// Constrói o `StatefulShellRoute.indexedStack` do `/painel`.
 ///
@@ -70,10 +67,7 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.clientes),
             name: 'painel-clientes',
-            builder: (context, state) => LazySection(
-              load: clientes.loadLibrary,
-              builder: () => clientes.ClientesScreen(),
-            ),
+            builder: (context, state) => const ClientesScreen(),
           ),
         ],
       ),
@@ -83,10 +77,7 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.ordens),
             name: 'painel-ordens',
-            builder: (context, state) => LazySection(
-              load: ordens.loadLibrary,
-              builder: () => ordens.OrdensScreen(),
-            ),
+            builder: (context, state) => const OrdensScreen(),
             routes: [
               GoRoute(
                 path: ':osId/execucao',
@@ -94,10 +85,7 @@ StatefulShellRoute painelShellRoute(
                 parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final osId = state.pathParameters['osId']!;
-                  return LazySection(
-                    load: os_exec.loadLibrary,
-                    builder: () => os_exec.OSExecucaoScreen(osId: osId),
-                  );
+                  return OSExecucaoScreen(osId: osId);
                 },
               ),
             ],
@@ -110,10 +98,7 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.agenda),
             name: 'painel-agenda',
-            builder: (context, state) => LazySection(
-              load: agenda.loadLibrary,
-              builder: () => agenda.AgendaScreen(),
-            ),
+            builder: (context, state) => const AgendaScreen(),
           ),
         ],
       ),
@@ -142,10 +127,7 @@ StatefulShellRoute painelShellRoute(
                 // no FinanceiroShell.
                 builder: (context, state) {
                   final tabSlug = state.pathParameters['tab'] ?? 'principal';
-                  return LazySection(
-                    load: financeiro.loadLibrary,
-                    builder: () => financeiro.FinanceiroShell(tabSlug: tabSlug),
-                  );
+                  return FinanceiroShell(tabSlug: tabSlug);
                 },
               ),
             ],
@@ -158,19 +140,13 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.servicos),
             name: 'painel-servicos',
-            builder: (context, state) => LazySection(
-              load: servicos.loadLibrary,
-              builder: () => servicos.ServicosListScreen(),
-            ),
+            builder: (context, state) => const ServicosListScreen(),
             routes: [
               GoRoute(
                 path: 'novo',
                 name: 'painel-servico-novo',
                 parentNavigatorKey: rootNavigatorKey,
-                builder: (context, state) => LazySection(
-                  load: servico_editor.loadLibrary,
-                  builder: () => servico_editor.ServicoEditorScreen(),
-                ),
+                builder: (context, state) => const ServicoEditorScreen(),
               ),
               GoRoute(
                 path: ':id',
@@ -178,11 +154,7 @@ StatefulShellRoute painelShellRoute(
                 parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final id = state.pathParameters['id'];
-                  return LazySection(
-                    load: servico_editor.loadLibrary,
-                    builder: () =>
-                        servico_editor.ServicoEditorScreen(servicoId: id),
-                  );
+                  return ServicoEditorScreen(servicoId: id);
                 },
               ),
             ],
@@ -205,10 +177,7 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.avaliacoes),
             name: 'painel-avaliacoes',
-            builder: (context, state) => LazySection(
-              load: avaliacoes.loadLibrary,
-              builder: () => avaliacoes.AvaliacoesScreen(),
-            ),
+            builder: (context, state) => const AvaliacoesScreen(),
           ),
         ],
       ),
@@ -218,10 +187,7 @@ StatefulShellRoute painelShellRoute(
           GoRoute(
             path: painelPath(PainelSection.whatsapp),
             name: 'painel-whatsapp',
-            builder: (context, state) => LazySection(
-              load: whatsapp.loadLibrary,
-              builder: () => whatsapp.WhatsAppAdminScreen(),
-            ),
+            builder: (context, state) => const WhatsAppAdminScreen(),
           ),
         ],
       ),

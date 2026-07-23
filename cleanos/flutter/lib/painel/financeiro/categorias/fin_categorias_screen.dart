@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/design.dart';
 import '../../../core/models/financeiro.dart';
+import '../fin_chips.dart';
 import '../fin_common.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
@@ -290,13 +291,20 @@ class _CategoriaTile extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.14),
+              color: accent,
               borderRadius: ClxRadii.rMd,
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.35),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1.5),
+                ),
+              ],
             ),
             child: Icon(
               finCategoriaIcon(categoria.icone),
               size: 18,
-              color: accent,
+              color: finOnCategoriaColor(accent),
             ),
           ),
           title: Text(
@@ -408,14 +416,14 @@ class _SubRow extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
+                color: accent,
                 borderRadius: ClxRadii.rSm,
               ),
               alignment: Alignment.center,
               child: Icon(
                 finCategoriaIcon(categoria.icone),
                 size: 14,
-                color: accent,
+                color: finOnCategoriaColor(accent),
               ),
             ),
             const SizedBox(width: ClxSpace.x2),

@@ -1,7 +1,6 @@
 /// categoria_form.dart — Modal de criar/editar Categoria ou Subcategoria.
 ///
-/// Ícone e cor são gerados automaticamente:
-/// - Categoria raiz: símbolo + cor exclusivos (não se repetem entre raízes).
+/// - Categoria raiz: ícone alocado (ou preservado) + **cor editável** no pool.
 /// - Subcategoria: herda símbolo e cor da mãe; na UI só muda o tamanho.
 library;
 
@@ -10,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/design.dart';
 import '../../../core/models/financeiro.dart';
+import '../fin_chips.dart';
 import '../fin_form_kit.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
@@ -102,7 +102,7 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
         _aplicarHerancaMae(_parentId!);
       }
     } else {
-      // Criação: aloca automaticamente.
+      // Criação: aloca automaticamente (cor ainda editável se for raiz).
       _alocarPara(_parentId);
     }
   }
@@ -182,18 +182,11 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
       _nomeErr = null;
     });
     final repo = ref.read(financeiroRepositoryProvider);
-    // Na criação, re-aloca no save para garantir unicidade se a lista mudou;
-    // na edição de raiz mantém o que está; sub sempre grava herança da mãe.
+    // Sub herda ícone/cor da mãe. Raiz: usa o que está no estado
+    // (alocado na criação ou escolhido/editado pelo usuário).
     var icone = _icone;
-    var cor = _cor;
-    if (!_isEdit) {
-      final aloc = alocarIconeCorCategoria(
-        existentes: widget.parents,
-        parentId: _parentId,
-      );
-      icone = aloc.icone;
-      cor = aloc.cor;
-    } else if (_parentId != null) {
+    var cor = _normCor(_cor) ?? kFinCategoriaCoresPool.first;
+    if (_parentId != null) {
       final aloc = alocarIconeCorCategoria(
         existentes: widget.parents,
         parentId: _parentId,
@@ -212,6 +205,17 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
     try {
       if (_isEdit) {
         await repo.updateCategoria(widget.editing!.id, data);
+        // Propaga cor/ícone da raiz para as subcategorias (UI e gráficos).
+        if (_parentId == null) {
+          final rootId = widget.editing!.id;
+          for (final f in widget.parents) {
+            if (f.parentId != rootId) continue;
+            await repo.updateCategoria(f.id, {
+              'icone': icone,
+              'cor': cor,
+            });
+          }
+        }
       } else {
         await repo.createCategoria(data);
       }
@@ -286,8 +290,67 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
               ),
             ),
           _previewVisual(clx),
+          if (!_isSub) ...[
+            const SizedBox(height: ClxSpace.x4),
+            _colorPicker(clx),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _colorPicker(CleanoxColors clx) {
+    final selected = _normCor(_cor) ?? kFinCategoriaCoresPool.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cor do ícone',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        Text(
+          'Usada no avatar da categoria e nos gráficos do Financeiro.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: clx.ink3,
+                height: 1.3,
+              ),
+        ),
+        const SizedBox(height: ClxSpace.x2),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final hex in kFinCategoriaCoresPool)
+              Tooltip(
+                message: hex,
+                child: InkWell(
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _cor = hex.toUpperCase()),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: _hexToColor(hex) ?? clx.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected == hex.toUpperCase()
+                            ? clx.ink
+                            : Colors.white.withValues(alpha: 0.55),
+                        width: selected == hex.toUpperCase() ? 2.5 : 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -319,14 +382,21 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
                 width: _isSub ? sizeSub : sizeRoot,
                 height: _isSub ? sizeSub : sizeRoot,
                 decoration: BoxDecoration(
-                  color: cor.withValues(alpha: 0.16),
+                  color: cor,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: cor.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 alignment: Alignment.center,
                 child: Icon(
                   finCategoriaIcon(_icone),
                   size: (_isSub ? sizeSub : sizeRoot) * 0.52,
-                  color: cor,
+                  color: finOnCategoriaColor(cor),
                 ),
               ),
               const SizedBox(width: ClxSpace.x4),
@@ -337,7 +407,7 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
                     Text(
                       _isSub
                           ? 'Mesmo símbolo e cor da mãe'
-                          : 'Gerado automaticamente',
+                          : 'Pré-visualização',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: clx.ink,
                             fontWeight: FontWeight.w600,
@@ -347,9 +417,9 @@ class _CategoriaFormState extends ConsumerState<CategoriaForm> {
                     Text(
                       _isSub
                           ? 'Na lista, a subcategoria aparece menor — '
-                              'mesmo ícone e cor exclusivos da categoria principal.'
-                          : 'Cada categoria principal recebe um símbolo e uma '
-                              'cor exclusivos, sem repetir os já usados.',
+                              'mesmo ícone e cor da categoria principal.'
+                          : 'Escolha a cor abaixo. O símbolo é único entre as '
+                              'categorias principais.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: clx.ink3,
                           ),

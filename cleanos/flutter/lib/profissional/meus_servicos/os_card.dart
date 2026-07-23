@@ -287,6 +287,7 @@ class OSCard extends StatelessWidget {
                                   status: os.status,
                                   dense: true,
                                   refazer: os.refazer,
+                                  vitrine: os.isVitrine,
                                 ),
                                 const SizedBox(height: ClxSpace.x1),
                                 Text(

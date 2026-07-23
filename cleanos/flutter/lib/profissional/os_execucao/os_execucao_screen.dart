@@ -289,6 +289,7 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
                   status: os.status,
                   dense: true,
                   refazer: os.refazer,
+                  vitrine: os.isVitrine,
                 ),
               ),
             ),

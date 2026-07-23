@@ -1101,7 +1101,7 @@ class _AgendaMiniCard extends StatelessWidget {
             ),
             title: os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
             subtitle: '$faixa · $sub',
-            trailing: StatusBadge(status: os.status, dense: true, refazer: os.refazer),
+            trailing: StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
           ),
         ),
       );
@@ -1167,7 +1167,7 @@ class _AgendaMiniCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x2),
-            StatusBadge(status: os.status, dense: true, refazer: os.refazer),
+            StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
           ],
         ),
       ),

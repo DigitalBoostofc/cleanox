@@ -115,15 +115,48 @@ function mockApp({
         }
         return ativas
       }
+      if (collection === 'fin_lancamentos') {
+        // repasse: janela de data ou data literal
+        let list = lancamentos.filter(
+          (l) =>
+            l.get('origem') === 'via_comissao' &&
+            !l.get('comissao_id'),
+        )
+        const mp = /profissional_id = "([^"]*)"/.exec(filter) ||
+          /profissional_id = '([^']*)'/.exec(filter)
+        if (mp) {
+          list = list.filter((l) => l.get('profissional_id') === mp[1])
+        }
+        const mdEq = /data = "([^"]*)"/.exec(filter) ||
+          /data = '([^']*)'/.exec(filter)
+        if (mdEq) {
+          const d = mdEq[1].slice(0, 10)
+          list = list.filter(
+            (l) => String(l.get('data') || '').slice(0, 10) === d,
+          )
+        }
+        const mdGe = /data >= "([^"]*)"/.exec(filter)
+        const mdLt = /data < "([^"]*)"/.exec(filter)
+        if (mdGe) {
+          const d = mdGe[1].slice(0, 10)
+          list = list.filter(
+            (l) => String(l.get('data') || '').slice(0, 10) >= d,
+          )
+        }
+        if (mdLt) {
+          const d = mdLt[1].slice(0, 10)
+          list = list.filter(
+            (l) => String(l.get('data') || '').slice(0, 10) < d,
+          )
+        }
+        return list
+      }
       if (collection === 'prof_comissoes') {
         // filter com {:pid} ou string
         let list = coms
         if (filter.includes("status = 'paga'")) {
           list = list.filter((c) => c.get('status') === 'paga')
         }
-        const mProf =
-          /profissional = '([^']*)'/.exec(filter) ||
-          (filter.includes('profissional') ? null : null)
         // mockApp passa {:pid} — use all coms and filter in recalcular fallback
         return list
       }
@@ -245,6 +278,93 @@ describe('(a) marcar paga gera 1 despesa de repasse', () => {
     )
     assert.equal(despesas.length, 1, 'só 1 despesa de repasse no dia')
     assert.equal(despesas[0].get('valor'), 65)
+  })
+
+  it('data no formato PB (…00:00:00.000Z) ainda encontra e faz upsert', () => {
+    const c1 = comissaoPaga({ valor_comissao: 100, pago_em: '2026-07-21' }, 'c1')
+    const c2 = comissaoPaga({ valor_comissao: 50, pago_em: '2026-07-21' }, 'c2')
+    // repasse já existente com data no formato real do PocketBase
+    const existente = rec(
+      {
+        tipo: 'despesa',
+        origem: 'via_comissao',
+        profissional_id: 'prof1',
+        data: '2026-07-21 00:00:00.000Z',
+        valor: 100,
+        status: 'pago',
+        comissao_id: '',
+        descricao: 'Repasse comissões · João Pedro · 2026-07-21 (1 OS)',
+      },
+      'rep_old',
+    )
+    const { app, lancamentos, deleted } = mockApp({
+      comissoes: [c1, c2],
+      lancamentos: [existente],
+    })
+
+    pago.sincronizarLancamento(app, c2, 'pendente')
+
+    const vivos = lancamentos.filter(
+      (l) => l.get('origem') === 'via_comissao' && !l.get('comissao_id'),
+    )
+    assert.equal(vivos.length, 1, 'continua 1 repasse (upsert, não cria outro)')
+    assert.equal(vivos[0].get('valor'), 150)
+    assert.equal(deleted.length, 0, 'não apaga o único existente')
+  })
+
+  it('consolida repasses duplicados no mesmo dia', () => {
+    const c1 = comissaoPaga({ valor_comissao: 100, pago_em: '2026-07-21' }, 'c1')
+    const dups = [
+      rec(
+        {
+          tipo: 'despesa',
+          origem: 'via_comissao',
+          profissional_id: 'prof1',
+          data: '2026-07-21 00:00:00.000Z',
+          valor: 100,
+          status: 'pago',
+          comissao_id: '',
+        },
+        'r1',
+      ),
+      rec(
+        {
+          tipo: 'despesa',
+          origem: 'via_comissao',
+          profissional_id: 'prof1',
+          data: '2026-07-21 00:00:00.000Z',
+          valor: 200,
+          status: 'pago',
+          comissao_id: '',
+        },
+        'r2',
+      ),
+      rec(
+        {
+          tipo: 'despesa',
+          origem: 'via_comissao',
+          profissional_id: 'prof1',
+          data: '2026-07-21 00:00:00.000Z',
+          valor: 300,
+          status: 'pago',
+          comissao_id: '',
+        },
+        'r3',
+      ),
+    ]
+    const { app, lancamentos, deleted } = mockApp({
+      comissoes: [c1],
+      lancamentos: dups,
+    })
+
+    pago.recalcularDespesaRepasse(app, 'prof1', '2026-07-21')
+
+    const vivos = lancamentos.filter(
+      (l) => l.get('origem') === 'via_comissao' && !l.get('comissao_id'),
+    )
+    assert.equal(vivos.length, 1, 'fica 1 repasse')
+    assert.equal(vivos[0].get('valor'), 100, 'valor = soma das comissões pagas')
+    assert.equal(deleted.length, 2, 'apaga as 2 cópias extras')
   })
 
   it('valor 0 não cria despesa', () => {

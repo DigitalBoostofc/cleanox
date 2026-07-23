@@ -47,6 +47,21 @@ void main() {
       expect(f.contains('data_hora >='), isTrue);
       expect(f.contains('data_hora <'), isTrue);
     });
+    test('busca por nome casa em nome_curto / serviço / bairro', () {
+      final f = ordensFilter(search: 'Lucas')!;
+      expect(f.contains("nome_curto ~ 'Lucas'"), isTrue);
+      expect(f.contains("tipo_servico_nome ~ 'Lucas'"), isTrue);
+      expect(f.contains("bairro ~ 'Lucas'"), isTrue);
+      expect(f.contains('||'), isTrue);
+    });
+    test('busca vazia não entra no filtro', () {
+      expect(ordensFilter(search: ''), isNull);
+      expect(ordensFilter(search: '   '), isNull);
+    });
+    test('busca escapa aspas (anti-injeção)', () {
+      final f = ordensFilter(search: "O'Brien")!;
+      expect(f.contains(r"nome_curto ~ 'O\'Brien'"), isTrue);
+    });
   });
 
   group('ordensOcupamAgendaFilter', () {

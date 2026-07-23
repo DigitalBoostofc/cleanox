@@ -163,35 +163,116 @@ function acharLancamentoDaComissao(app, comissaoId) {
 }
 
 /**
- * Despesa de **repasse** do profissional no dia (1 por prof + data).
- * Filtro por profissional_id + data + origem via_comissao + sem comissao_id.
+ * Próximo dia civil YYYY-MM-DD (UTC math — só para janela de data parede).
+ */
+function _nextDayYmd(ymd) {
+  const p = String(ymd || "")
+    .slice(0, 10)
+    .split("-");
+  if (p.length !== 3) return "";
+  const d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  d.setUTCDate(d.getUTCDate() + 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    d.getUTCFullYear() +
+    "-" +
+    pad(d.getUTCMonth() + 1) +
+    "-" +
+    pad(d.getUTCDate())
+  );
+}
+
+/**
+ * Lista despesas de **repasse** do prof no dia (via_comissao, sem comissao_id).
+ *
+ * IMPORTANTE: `data` no PB grava como `YYYY-MM-DD 00:00:00.000Z`. Filtro
+ * `data = 'YYYY-MM-DD'` **não casa** e fazia o upsert sempre CRIAR de novo
+ * (explosão de despesas ao marcar lote paga — bug 2026-07-21).
+ * Usar janela half-open [dia, dia+1).
+ */
+function listarLancamentosRepasse(app, profId, ymd) {
+  const p = String(profId || "").replace(/"/g, '\\"');
+  const d = String(ymd || "").slice(0, 10);
+  if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return [];
+  const next = _nextDayYmd(d);
+  if (!next) return [];
+
+  // Preferência: profissional_id + janela de data
+  try {
+    const list = app.findRecordsByFilter(
+      "fin_lancamentos",
+      'origem = "via_comissao" && profissional_id = "' +
+        p +
+        '" && data >= "' +
+        d +
+        ' 00:00:00.000Z" && data < "' +
+        next +
+        ' 00:00:00.000Z" && (comissao_id = "" || comissao_id = null)',
+      "created",
+      50,
+      0,
+    );
+    if (list && list.length) return list;
+  } catch (_) {}
+
+  // Fallback: data literal YYYY-MM-DD (mocks / legado)
+  try {
+    const list = app.findRecordsByFilter(
+      "fin_lancamentos",
+      'origem = "via_comissao" && profissional_id = "' +
+        p +
+        '" && data = "' +
+        d +
+        '" && (comissao_id = "" || comissao_id = null)',
+      "created",
+      50,
+      0,
+    );
+    if (list && list.length) return list;
+  } catch (_) {}
+
+  // Fallback sem profissional_id: descrição de repasse
+  try {
+    const list = app.findRecordsByFilter(
+      "fin_lancamentos",
+      'origem = "via_comissao" && data >= "' +
+        d +
+        ' 00:00:00.000Z" && data < "' +
+        next +
+        ' 00:00:00.000Z" && descricao ~ "Repasse comissões" && (comissao_id = "" || comissao_id = null)',
+      "created",
+      50,
+      0,
+    );
+    return list || [];
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Uma despesa de repasse (a mais antiga). Consolida/apaga duplicatas se houver.
  */
 function acharLancamentoRepasse(app, profId, ymd) {
-  const p = String(profId || "").replace(/'/g, "\\'");
-  const d = String(ymd || "").slice(0, 10);
-  if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
-  try {
-    return app.findFirstRecordByFilter(
-      "fin_lancamentos",
-      "origem = 'via_comissao' && profissional_id = '" +
-        p +
-        "' && data = '" +
-        d +
-        "' && (comissao_id = '' || comissao_id = null)",
-    );
-  } catch (_) {
-    // Fallback sem campo profissional_id (pré-migração): descrição
+  const list = listarLancamentosRepasse(app, profId, ymd);
+  if (!list || list.length === 0) return null;
+  // Mantém o primeiro (created asc se o sort funcionou); apaga o resto.
+  const keep = list[0];
+  for (var i = 1; i < list.length; i++) {
     try {
-      return app.findFirstRecordByFilter(
-        "fin_lancamentos",
-        "origem = 'via_comissao' && data = '" +
-          d +
-          "' && descricao ~ 'Repasse comissões' && (comissao_id = '' || comissao_id = null)",
+      app.delete(list[i]);
+      console.log(
+        "[comissao-pago] repasse duplicado " +
+          list[i].id +
+          " removido (upsert único).",
       );
-    } catch (_) {
-      return null;
+    } catch (err) {
+      console.error(
+        "[comissao-pago] falha ao apagar repasse duplicado: " + err,
+      );
     }
   }
+  return keep;
 }
 
 function apagarLancamentoDaComissao(app, comissaoId) {
@@ -572,13 +653,14 @@ function sincronizarLancamento(app, comissao, origStatus) {
       .slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(pe)) {
       pe = dataBrtHojeYmd();
+      // NÃO app.save aqui: reentrada no onRecordUpdate duplicava o repasse.
+      // pago_em deve vir no body do update (Flutter) ou no handler pré-e.next().
       try {
         comissao.set("pago_em", pe);
-        app.save(comissao);
-      } catch (err) {
-        console.error("[comissao-pago] falha ao gravar pago_em: " + err);
-      }
+      } catch (_) {}
     }
+    // Só recalcula na transição pendente→paga OU se o valor mudou em paga.
+    // Reentrada só por pago_em (velho já paga) ainda precisa upsert 1× (ok).
     recalcularDespesaRepasse(app, profId, pe);
     return;
   }
@@ -839,6 +921,7 @@ module.exports = {
   apagarLancamentoDaComissao,
   acharLancamentoDaComissao,
   acharLancamentoRepasse,
+  listarLancamentosRepasse,
   recalcularDespesaRepasse,
   criarLancamentoDaComissao,
   garantirLancamentoStatus,

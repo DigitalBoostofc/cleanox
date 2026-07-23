@@ -96,6 +96,25 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
   }
 
   Future<void> _openDetail(FinLancamento l) async {
+    // OS / comissão: só leitura — status vem da OS ou de Equipe.
+    if (isLancamentoDependenteExterno(l)) {
+      final categorias =
+          ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
+      final contas =
+          ref.read(finContasProvider).valueOrNull ?? const <FinConta>[];
+      FinCategoria? byId(String? id) =>
+          id == null ? null : _firstOrNull(categorias, (c) => c.id == id);
+      final conta = _firstOrNull(contas, (c) => c.id == l.contaId);
+      await showLancamentoDetail(
+        context,
+        lancamento: l,
+        categoria: byId(l.categoriaId),
+        subcategoria: byId(l.subcategoriaId),
+        conta: conta,
+        readOnly: true,
+      );
+      return;
+    }
     final categorias =
         ref.read(finCategoriasProvider).valueOrNull ?? const <FinCategoria>[];
     final contas =
@@ -141,6 +160,16 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
   }
 
   Future<void> _togglePago(FinLancamento l) async {
+    // OS e comissão não alternam pago aqui — dependem da OS / Equipe.
+    if (isLancamentoDependenteExterno(l)) {
+      if (!mounted) return;
+      final msg = isLancamentoComissao(l)
+          ? 'Comissão segue o status em Equipe / comissões.'
+          : 'Receita de OS segue o status da própria OS.';
+      showClxToast(context, msg, type: ToastType.info);
+      return;
+    }
+
     final novo = l.status == LancamentoStatus.pago
         ? LancamentoStatus.pendente
         : LancamentoStatus.pago;
@@ -276,10 +305,49 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
         ref.watch(finPeriodLancamentosProvider).valueOrNull ?? state.items;
 
     final saldo = saldoGeral(contas.where((c) => c.ativo).toList());
-    final resumo = resumoPeriodo(periodLancs);
+    // Balanço mensal = entradas − despesas do mês, **qualquer status**
+    // (inclui OS em aberto e comissões do ciclo no Extrato).
+    final comissoes =
+        ref.watch(finComissoesProvider).valueOrNull ?? const [];
+    final profs =
+        ref.watch(finProfissionaisProvider).valueOrNull ?? const [];
+    final nomePorProf = {
+      for (final u in profs)
+        if (u.displayName.trim().isNotEmpty) u.id: u.displayName.trim(),
+    };
+    var contaPadrao = '';
+    for (final c in contas) {
+      if (c.ativo) {
+        contaPadrao = c.id;
+        break;
+      }
+    }
+    // Preferir a lista do Extrato (já com comissões) para saldo do dia e balanço.
+    // Assim o chip "Saldo previsto final do dia" sai **após o 31** (despesas de
+    // comissão) e **antes do 25**, com caixa projetado descontando essas saídas.
+    final lancsParaProjecao = state.items.isNotEmpty
+        ? state.items
+        : periodLancs;
+    final idsPeriodo = {for (final l in periodLancs) l.id};
+    final comissaoCiclo = finComissoesPendentesComoLancamentos(
+      comissoes: comissoes,
+      categorias: categorias,
+      profissionais: profs,
+      nomePorProfId: nomePorProf,
+      contaId: contaPadrao,
+    );
+    final baseBalanco = [
+      ...periodLancs,
+      ...comissaoCiclo.where(
+        (l) => dentroDoPeriodo(l, period.periodo) && !idsPeriodo.contains(l.id),
+      ),
+    ];
+    final balancoMes = resumoPeriodoCompetencia(
+      lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
+    ).saldoMes;
     final prevPorDia = saldoPrevistoPorDia(
       saldoAtual: saldo,
-      lancs: periodLancs.isNotEmpty ? periodLancs : state.items,
+      lancs: lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
     );
 
     final catById = {for (final c in categorias) c.id: c};
@@ -297,7 +365,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
             onNext: () =>
                 ref.read(finPeriodProvider.notifier).state = period.shift(1),
             saldo: saldo,
-            balanco: resumo.saldoMes,
+            balanco: balancoMes,
             searchCtrl: _searchCtrl,
             onSearch: _onSearch,
             onNovo: () => _openForm(),
@@ -363,8 +431,6 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
                                 onOpen: _openDetail,
                                 onTogglePago: _togglePago,
                                 onToggleFav: _toggleFavorito,
-                                onEdit: (l) => _openForm(editing: l),
-                                onDelete: _delete,
                               ),
           ),
         ],
@@ -407,9 +473,16 @@ class _HeaderKpis extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
+    final gap = fintech ? r.s(8) : 12.0;
     return Container(
       color: clx.bg2,
-      padding: EdgeInsets.fromLTRB(16, fintech ? 4 : 12, 16, 10),
+      padding: EdgeInsets.fromLTRB(
+        r.pagePadH,
+        fintech ? r.s(2) : 12,
+        r.pagePadH,
+        fintech ? r.s(6) : 10,
+      ),
       child: Column(
         children: [
           FinMonthBar(
@@ -418,10 +491,13 @@ class _HeaderKpis extends StatelessWidget {
             onNext: onNext,
             pill: fintech,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           FinCard(
             elevated: fintech,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: r.s(8),
+              vertical: fintech ? r.s(8) : 12,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -429,20 +505,26 @@ class _HeaderKpis extends StatelessWidget {
                     icon: Icons.lock_outline_rounded,
                     label: 'Saldo atual',
                     value: saldo,
+                    compact: fintech,
                   ),
                 ),
-                Container(width: 1, height: 40, color: clx.line),
+                Container(
+                  width: 1,
+                  height: fintech ? 32 : 40,
+                  color: clx.line,
+                ),
                 Expanded(
                   child: _KpiMini(
                     icon: Icons.account_balance_wallet_outlined,
                     label: 'Balanço mensal',
                     value: balanco,
+                    compact: fintech,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -468,7 +550,8 @@ class _HeaderKpis extends StatelessWidget {
                 IconButton(
                   tooltip: 'Exportar CSV',
                   onPressed: onExport,
-                  icon: Icon(Icons.download_outlined, color: clx.ink2),
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.download_outlined, color: clx.ink2, size: 20),
                 ),
                 if (!finIsMobile(context)) ...[
                   const SizedBox(width: 4),
@@ -511,25 +594,34 @@ class _KpiMini extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.compact = false,
   });
   final IconData icon;
   final String label;
   final double value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final r = context.clxR;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: clx.ink3),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: clx.ink3, fontSize: 12)),
+            Icon(icon, size: compact ? 14 : 16, color: clx.ink3),
+            SizedBox(width: compact ? 4 : 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: clx.ink3,
+                fontSize: compact ? r.sp(11) : 12,
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: compact ? 2 : 4),
         FinMoneyText(value),
       ],
     );
@@ -606,13 +698,14 @@ class _MobileList extends StatelessWidget {
     final r = context.clxR;
     return ListView.builder(
       controller: scroll,
-      padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(8), r.pagePadH, bottomPad),
+      // Densidade Mobills: menos padding vertical, mais linhas na tela.
+      padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(4), r.pagePadH, bottomPad),
       itemCount: grupos.length + (state.hasMore ? 1 : 0),
       itemBuilder: (context, i) {
         if (i >= grupos.length) {
           onLoadMore();
           return const Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(12),
             child: Center(child: Spinner(size: 22)),
           );
         }
@@ -621,13 +714,15 @@ class _MobileList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 16, bottom: 8),
+              padding: EdgeInsets.only(top: r.s(8), bottom: r.s(3)),
               child: Text(
                 weekdayLabel(g.data),
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: clx.ink2,
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: TextStyle(
+                  color: clx.ink2,
+                  fontWeight: FontWeight.w700,
+                  fontSize: r.sp(12),
+                  height: 1.15,
+                ),
               ),
             ),
             FinCard(
@@ -656,6 +751,56 @@ class _MobileList extends StatelessWidget {
   }
 }
 
+/// Cliente + serviço (quando houver), p/ distinguir multi-serviço da mesma OS.
+String _txTitleWithServico(FinLancamento l) {
+  final t = _txTitle(l);
+  final s = (l.servicoNome ?? '').trim();
+  return s.isEmpty ? t : '$t · $s';
+}
+
+/// Título da linha: cliente (via OS) ou descrição; comissão usa descrição.
+String _txTitle(FinLancamento l) {
+  final cliente = (l.clienteNome ?? '').trim();
+  if (cliente.isNotEmpty) return cliente;
+
+  // Descrição legada "OS XXXXXX - Nome · Serviço" → extrai o nome do cliente.
+  final d = l.descricao.trim();
+  if (d.toUpperCase().startsWith('OS ')) {
+    final dash = d.indexOf(' - ');
+    if (dash >= 0 && dash + 3 < d.length) {
+      var rest = d.substring(dash + 3).trim();
+      // Remove sufixo " · Serviço" se existir.
+      final mid = rest.indexOf(' · ');
+      if (mid >= 0) rest = rest.substring(0, mid).trim();
+      if (rest.isNotEmpty) return rest;
+    }
+    return 'Cliente';
+  }
+  return d.isEmpty ? '(sem descrição)' : d;
+}
+
+/// Meta sob o título: serviço prestado (via_os) | conta | fixa/parcela.
+String _txMeta(FinLancamento l, FinCategoria? cat, FinConta? conta) {
+  final servico = (l.servicoNome ?? '').trim();
+  return [
+    if (servico.isNotEmpty) servico,
+    if (conta != null && conta.nome.trim().isNotEmpty) conta.nome.trim(),
+    if (l.recorrencia == RecorrenciaTipo.fixa) 'Fixa',
+    if (l.recorrencia == RecorrenciaTipo.parcelada && l.parcelasTotal != null)
+      '${l.parcelaAtual ?? 1}/${l.parcelasTotal}',
+  ].join(' | ');
+}
+
+/// Observação embaixo: **só** nota manual (nunca o serviço da OS — mobile limpo).
+String? _txNote(FinLancamento l, FinCategoria? cat) {
+  final obs = (l.observacao ?? '').trim();
+  // Não mostrar servicoNome / "Cleanox Completo - …" na lista.
+  if (obs.isEmpty) return null;
+  // Observação interna de comissão sintética não é texto de UI.
+  if (obs.startsWith('repasse_ciclo:')) return null;
+  return obs;
+}
+
 class _TxTile extends StatelessWidget {
   const _TxTile({
     required this.l,
@@ -676,90 +821,198 @@ class _TxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final meta = [
-      if (cat != null) cat!.nome,
-      if (conta != null) conta!.nome,
-      if (l.recorrencia == RecorrenciaTipo.fixa) 'Fixa',
-      if (l.recorrencia == RecorrenciaTipo.parcelada && l.parcelasTotal != null)
-        '${l.parcelaAtual ?? 1}/${l.parcelasTotal}',
-    ].join(' | ');
+    final r = context.clxR;
+    final title = _txTitle(l);
+    final meta = _txMeta(l, cat, conta);
+    final note = _txNote(l, cat);
+    final pago = l.status == LancamentoStatus.pago;
+    final isComissao = isLancamentoComissao(l);
+    final dependente = isLancamentoDependenteExterno(l);
+    final atrasado =
+        !dependente && isLancamentoAtrasado(l, todayLocalDate());
+    // APK / mobile: tipografia e densidade menores (ref Mobills).
+    final avatar = r.s(28).clamp(26.0, 30.0);
+    final titleSize = r.sp(12.5).clamp(11.5, 13.0);
+    final metaSize = r.sp(10).clamp(9.5, 11.0);
+    final valueSize = r.sp(12).clamp(11.0, 13.0);
+    // Comissão = fundo azul; atraso (não-comissão) = vermelho.
+    final rowBg = isComissao
+        ? clx.infoBg
+        : atrasado
+            ? clx.error.withValues(alpha: 0.08)
+            : Colors.transparent;
 
-    return ListTile(
-      onTap: onOpen,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      leading: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          FinCategoriaAvatar(categoria: cat, size: 40),
-          if (l.status != LancamentoStatus.pago)
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: clx.finExpense,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: clx.bg, width: 1.5),
+    return Material(
+      color: rowBg,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(r.s(8), r.s(6), r.s(4), r.s(6)),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar compacto + bolinha de pendente/atrasado.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  FinCategoriaAvatar(categoria: cat, size: avatar),
+                  if (!pago)
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: atrasado ? clx.error : clx.finExpense,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: clx.bg, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(width: r.s(8)),
+              // Título (cliente) + meta curta (conta) — sem serviço prestado.
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: atrasado ? clx.error : clx.ink,
+                        fontWeight: FontWeight.w600,
+                        fontSize: titleSize,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      SizedBox(height: r.s(1)),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: atrasado
+                              ? clx.error.withValues(alpha: 0.75)
+                              : clx.ink3,
+                          fontSize: metaSize,
+                          height: 1.1,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    if (note != null) ...[
+                      SizedBox(height: r.s(1)),
+                      Text(
+                        note,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: clx.ink3,
+                          fontSize: metaSize,
+                          height: 1.1,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
-        ],
-      ),
-      title: Text(
-        l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        meta,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: clx.ink3, fontSize: 12),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatCurrency(l.valor),
-                style: TextStyle(
-                  color: tipoColor(clx, l.tipo),
-                  fontWeight: FontWeight.w800,
-                ),
+              SizedBox(width: r.s(4)),
+              // Valor + ações compactas.
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formatCurrency(l.valor),
+                    style: TextStyle(
+                      color: atrasado ? clx.error : tipoColor(clx, l.tipo),
+                      fontWeight: FontWeight.w800,
+                      fontSize: valueSize,
+                      height: 1.1,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  SizedBox(height: r.s(1)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _TxIconAction(
+                        tooltip: l.favorito ? 'Remover favorito' : 'Favoritar',
+                        onTap: onToggleFav,
+                        icon: l.favorito
+                            ? Icons.push_pin
+                            : Icons.push_pin_outlined,
+                        color: l.favorito ? clx.primary : clx.ink3,
+                      ),
+                      if (dependente)
+                        _TxIconAction(
+                          tooltip: isComissao
+                              ? 'Comissão — status em Equipe'
+                              : 'OS — status da ordem de serviço',
+                          onTap: () {},
+                          icon: Icons.link_rounded,
+                          color: clx.ink3,
+                        )
+                      else
+                        _TxIconAction(
+                          tooltip: pago
+                              ? 'Pago — toque para marcar pendente'
+                              : atrasado
+                                  ? 'Em atraso — toque para marcar pago'
+                                  : 'Pendente — toque para marcar pago',
+                          onTap: onTogglePago,
+                          icon: pago
+                              ? Icons.thumb_up_alt_rounded
+                              : Icons.thumb_down_alt_rounded,
+                          color: pago
+                              ? clx.success
+                              : (atrasado ? clx.error : clx.ink3),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
-          IconButton(
-            tooltip: l.favorito ? 'Remover favorito' : 'Favoritar',
-            onPressed: onToggleFav,
-            icon: Icon(
-              l.favorito ? Icons.push_pin : Icons.push_pin_outlined,
-              size: 18,
-              color: l.favorito ? clx.primary : clx.ink3,
-            ),
-          ),
-          IconButton(
-            tooltip: l.status == LancamentoStatus.pago
-                ? 'Marcar pendente'
-                : 'Marcar pago',
-            onPressed: onTogglePago,
-            icon: Icon(
-              l.status == LancamentoStatus.pago
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              size: 20,
-              color: l.status == LancamentoStatus.pago
-                  ? clx.finIncome
-                  : clx.ink3,
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ação ~28dp com ícone 16 — denso no APK.
+class _TxIconAction extends StatelessWidget {
+  const _TxIconAction({
+    required this.tooltip,
+    required this.onTap,
+    required this.icon,
+    required this.color,
+  });
+
+  final String tooltip;
+  final VoidCallback onTap;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(icon, size: 16, color: color),
+        ),
       ),
     );
   }
@@ -777,8 +1030,6 @@ class _DesktopTable extends StatelessWidget {
     required this.onOpen,
     required this.onTogglePago,
     required this.onToggleFav,
-    required this.onEdit,
-    required this.onDelete,
   });
 
   final ScrollController scroll;
@@ -789,8 +1040,6 @@ class _DesktopTable extends StatelessWidget {
   final ValueChanged<FinLancamento> onOpen;
   final ValueChanged<FinLancamento> onTogglePago;
   final ValueChanged<FinLancamento> onToggleFav;
-  final ValueChanged<FinLancamento> onEdit;
-  final ValueChanged<FinLancamento> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -805,22 +1054,25 @@ class _DesktopTable extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              // header
+              // header: mãos | categoria | data | descrição | conta | valor | pin
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border(bottom: BorderSide(color: clx.line)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    _H('Situação', 72),
+                    // Mãozinha — sem rótulo
+                    _H('', 56),
+                    // Categoria (ícone) logo ao lado das mãos
+                    _H('', 48),
                     _H('Data', 100),
-                    const Expanded(flex: 3, child: _H('Descrição', null)),
-                    const Expanded(flex: 2, child: _H('Categoria', null)),
-                    const Expanded(child: _H('Conta', null)),
-                    SizedBox(width: 110, child: _H('Valor', null, end: true)),
-                    const SizedBox(width: 96, child: _H('Ações', null, end: true)),
+                    // Só Descrição alinhada à esquerda
+                    Expanded(flex: 3, child: _H('Descrição', null, left: true)),
+                    Expanded(child: _H('Conta', null)),
+                    SizedBox(width: 110, child: _H('Valor', null)),
+                    SizedBox(width: 48, child: _H('', null)),
                   ],
                 ),
               ),
@@ -833,8 +1085,6 @@ class _DesktopTable extends StatelessWidget {
                     onOpen: () => onOpen(l),
                     onTogglePago: () => onTogglePago(l),
                     onToggleFav: () => onToggleFav(l),
-                    onEdit: () => onEdit(l),
-                    onDelete: () => onDelete(l),
                   ),
                 // chip saldo previsto do dia
                 if (prevPorDia[g.data] != null)
@@ -886,23 +1136,30 @@ class _DesktopTable extends StatelessWidget {
 }
 
 class _H extends StatelessWidget {
-  const _H(this.label, this.width, {this.end = false});
+  const _H(this.label, this.width, {this.left = false});
   final String label;
   final double? width;
-  final bool end;
+
+  /// Só a coluna Descrição usa alinhamento à esquerda.
+  final bool left;
 
   @override
   Widget build(BuildContext context) {
     final t = Text(
       label,
-      textAlign: end ? TextAlign.right : TextAlign.left,
+      textAlign: left ? TextAlign.left : TextAlign.center,
       style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: context.clx.ink3,
             fontWeight: FontWeight.w700,
           ),
     );
-    if (width == null) return t;
-    return SizedBox(width: width, child: t);
+    if (width == null) {
+      return left ? t : Center(child: t);
+    }
+    return SizedBox(
+      width: width,
+      child: left ? t : Center(child: t),
+    );
   }
 }
 
@@ -914,8 +1171,6 @@ class _TableRow extends StatelessWidget {
     required this.onOpen,
     required this.onTogglePago,
     required this.onToggleFav,
-    required this.onEdit,
-    required this.onDelete,
   });
 
   final FinLancamento l;
@@ -924,15 +1179,25 @@ class _TableRow extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onTogglePago;
   final VoidCallback onToggleFav;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final pago = l.status == LancamentoStatus.pago;
+    final isComissao = isLancamentoComissao(l);
+    final dependente = isLancamentoDependenteExterno(l);
+    // Vermelho: não pago + data/vencimento no passado (ou status em_atraso).
+    // OS/comissão não usam atraso "editável" na lista — status vem de fora.
+    final atrasado =
+        !dependente && isLancamentoAtrasado(l, todayLocalDate());
+    // Comissão = fundo azul (marca); atraso (não-comissão) = vermelho.
+    final rowBg = isComissao
+        ? clx.infoBg
+        : atrasado
+            ? clx.error.withValues(alpha: 0.08)
+            : Colors.transparent;
     return Material(
-      color: pago ? Colors.transparent : clx.warning.withValues(alpha: 0.06),
+      color: rowBg,
       child: InkWell(
         onTap: onOpen,
         child: Container(
@@ -942,31 +1207,88 @@ class _TableRow extends StatelessWidget {
           ),
           child: Row(
             children: [
+              // 1) 👍 / 👎 (oculto em OS/comissão — status dependente)
               SizedBox(
-                width: 72,
-                child: Icon(
-                  pago ? Icons.check_circle : Icons.error_outline,
-                  size: 20,
-                  color: pago ? clx.finIncome : clx.finExpense,
+                width: 56,
+                child: Center(
+                  child: dependente
+                      ? Tooltip(
+                          message: isComissao
+                              ? 'Comissão — status em Equipe / comissões'
+                              : 'OS — status da ordem de serviço',
+                          child: Icon(
+                            Icons.link_rounded,
+                            size: 20,
+                            color: clx.ink3,
+                          ),
+                        )
+                      : Tooltip(
+                          message: pago
+                              ? 'Pago — toque para marcar pendente'
+                              : atrasado
+                                  ? 'Em atraso — toque para marcar pago'
+                                  : 'Pendente — toque para marcar pago',
+                          child: IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
+                            onPressed: onTogglePago,
+                            icon: Icon(
+                              pago
+                                  ? Icons.thumb_up_alt_rounded
+                                  : Icons.thumb_down_alt_rounded,
+                              size: 22,
+                              color: pago
+                                  ? clx.success
+                                  : (atrasado ? clx.error : clx.ink3),
+                            ),
+                          ),
+                        ),
                 ),
               ),
+              // 2) Categoria (só ícone) — ao lado das mãos
+              SizedBox(
+                width: 48,
+                child: Tooltip(
+                  message: cat?.nome ?? 'Sem categoria',
+                  child: Center(
+                    child: FinCategoriaAvatar(categoria: cat, size: 28),
+                  ),
+                ),
+              ),
+              // 3) Data
               SizedBox(
                 width: 100,
                 child: Text(
                   formatDateOnlyBr(l.data),
-                  style: TextStyle(color: clx.ink2, fontSize: 13),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: atrasado ? clx.error : clx.ink2,
+                    fontSize: 13,
+                    fontWeight: atrasado ? FontWeight.w700 : FontWeight.w400,
+                  ),
                 ),
               ),
+              // 4) Descrição — única coluna de texto alinhada à esquerda
               Expanded(
                 flex: 3,
                 child: Row(
                   children: [
                     Flexible(
                       child: Text(
-                        l.descricao.isEmpty ? '(sem descrição)' : l.descricao,
-                        maxLines: 1,
+                        isComissao
+                            ? l.descricao
+                            : _txTitleWithServico(l),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.left,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: atrasado ? clx.error : null,
+                        ),
                       ),
                     ),
                     if (l.favorito) ...[
@@ -976,86 +1298,44 @@ class _TableRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Expanded(
-                flex: 2,
-                child: Row(
-                  children: [
-                    FinCategoriaAvatar(categoria: cat, size: 28),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        cat?.nome ?? '—',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // 5) Conta
               Expanded(
                 child: Text(
                   conta?.nome ?? '—',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: atrasado ? clx.error.withValues(alpha: 0.85) : null,
+                  ),
                 ),
               ),
+              // 6) Valor
               SizedBox(
                 width: 110,
                 child: Text(
                   formatCurrency(l.valor),
-                  textAlign: TextAlign.right,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: tipoColor(clx, l.tipo),
+                    color: atrasado ? clx.error : tipoColor(clx, l.tipo),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
+              // 7) Pin
               SizedBox(
-                width: 96,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: l.favorito ? 'Desfavoritar' : 'Favoritar',
-                      onPressed: onToggleFav,
-                      icon: Icon(
-                        l.favorito
-                            ? Icons.push_pin
-                            : Icons.push_pin_outlined,
-                        size: 18,
-                        color: l.favorito ? clx.primary : clx.ink3,
-                      ),
+                width: 48,
+                child: Center(
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: l.favorito ? 'Desfavoritar' : 'Favoritar',
+                    onPressed: onToggleFav,
+                    icon: Icon(
+                      l.favorito ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 18,
+                      color: l.favorito ? clx.primary : clx.ink3,
                     ),
-                    PopupMenuButton<String>(
-                      onSelected: (v) {
-                        switch (v) {
-                          case 'pago':
-                            onTogglePago();
-                          case 'edit':
-                            onEdit();
-                          case 'delete':
-                            onDelete();
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: 'pago',
-                          child: Text(
-                            pago ? 'Marcar pendente' : 'Marcar pago',
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Editar'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Excluir'),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],

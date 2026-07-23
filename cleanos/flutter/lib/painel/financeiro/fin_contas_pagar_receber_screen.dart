@@ -12,7 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
+import '../data/painel_providers.dart' show comissaoRepositoryProvider;
 import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
@@ -137,13 +139,47 @@ class _FinContasPagarReceberScreenState
   Future<void> _marcarPago(FinLancamento l) async {
     setState(() => _savingId = l.id);
     try {
-      await ref.read(financeiroRepositoryProvider).updateLancamento(l.id, {
-        'status': LancamentoStatus.pago.wire,
-      });
-      ref
-        ..invalidate(finPendentesProvider)
-        ..invalidate(finContasProvider)
-        ..invalidate(finPeriodLancamentosProvider);
+      // Comissão agregada (1 linha por profissional): paga todas as pendentes.
+      final profId = finComissaoPrevistoProfId(l.id);
+      if (profId != null) {
+        final all = await ref.read(finComissoesProvider.future);
+        final ids = [
+          for (final c in all)
+            if (c.profissional == profId &&
+                c.status == ComissaoStatus.pendente)
+              c.id,
+        ];
+        if (ids.isNotEmpty) {
+          await ref.read(comissaoRepositoryProvider).marcarLotePagas(ids);
+        }
+        ref
+          ..invalidate(finComissoesProvider)
+          ..invalidate(finComissoesPendentesTotalProvider)
+          ..invalidate(finPendentesProvider)
+          ..invalidate(finContasProvider)
+          ..invalidate(finPeriodLancamentosProvider);
+      } else if (l.id.startsWith(kFinComissaoPrevistoIdPrefix)) {
+        // Legado 1:1 (se ainda existir em cache).
+        final comissaoId =
+            l.id.substring(kFinComissaoPrevistoIdPrefix.length);
+        await ref
+            .read(comissaoRepositoryProvider)
+            .setStatus(comissaoId, ComissaoStatus.paga);
+        ref
+          ..invalidate(finComissoesProvider)
+          ..invalidate(finComissoesPendentesTotalProvider)
+          ..invalidate(finPendentesProvider)
+          ..invalidate(finContasProvider)
+          ..invalidate(finPeriodLancamentosProvider);
+      } else {
+        await ref.read(financeiroRepositoryProvider).updateLancamento(l.id, {
+          'status': LancamentoStatus.pago.wire,
+        });
+        ref
+          ..invalidate(finPendentesProvider)
+          ..invalidate(finContasProvider)
+          ..invalidate(finPeriodLancamentosProvider);
+      }
       if (mounted) {
         showClxToast(context, 'Marcado como pago.', type: ToastType.success);
       }

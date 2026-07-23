@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/financeiro.dart';
 import '../../../core/repositories/repo_types.dart';
+import '../fin_derivations.dart';
 import '../fin_filters.dart';
 import '../fin_providers.dart';
 
@@ -133,12 +134,13 @@ class FinLancController extends StateNotifier<FinLancState> {
           .read(financeiroRepositoryProvider)
           .ensureRecorrenciasNoPeriodo(period);
       final res = await _fetch(1);
+      final items = await _comComissoesDoCiclo(res.items, period);
       state = state.copyWith(
-        items: res.items,
+        items: items,
         loading: false,
         page: res.page,
         totalPages: res.totalPages,
-        totalItems: res.totalItems,
+        totalItems: res.totalItems + (items.length - res.items.length),
         error: null,
       );
     } catch (_) {
@@ -147,6 +149,85 @@ class FinLancController extends StateNotifier<FinLancState> {
         error: 'Não foi possível carregar os lançamentos.',
       );
     }
+  }
+
+  /// Mescla despesas sintéticas de comissão (1 por profissional no dia de
+  /// repasse) com valor = pendente + previsto de OS atribuídas.
+  Future<List<FinLancamento>> _comComissoesDoCiclo(
+    List<FinLancamento> base,
+    Periodo period,
+  ) async {
+    try {
+      final comissoes = await _ref.read(finComissoesProvider.future);
+      final categorias = await _ref.read(finCategoriasProvider.future);
+      final contas = await _ref.read(finContasProvider.future);
+      final profs = await _ref.read(finProfissionaisProvider.future);
+      final nomePorProf = {
+        for (final u in profs)
+          if (u.displayName.trim().isNotEmpty) u.id: u.displayName.trim(),
+      };
+      var contaPadrao = '';
+      for (final c in contas) {
+        if (c.ativo) {
+          contaPadrao = c.id;
+          break;
+        }
+      }
+
+      // Só comissões de OS **concluídas** (status pendente em prof_comissoes).
+      // Não mistura “previsto” de OS ainda abertas na movimentação.
+      final previstos = finComissoesPendentesComoLancamentos(
+        comissoes: comissoes,
+        categorias: categorias,
+        profissionais: profs,
+        nomePorProfId: nomePorProf,
+        previstoOsByProf: const {},
+        contaId: contaPadrao,
+      );
+      if (previstos.isEmpty) return base;
+
+      final f = state.filters;
+      final q = f.search.trim().toLowerCase();
+      final extras = <FinLancamento>[];
+      for (final l in previstos) {
+        if (!dentroDoPeriodo(l, period)) continue;
+        if (f.tipo != null && l.tipo != f.tipo) continue;
+        if (f.status != null && l.status != f.status) continue;
+        if ((f.contaId?.isNotEmpty ?? false) && l.contaId != f.contaId) {
+          continue;
+        }
+        if ((f.categoriaId?.isNotEmpty ?? false) &&
+            l.categoriaId != f.categoriaId &&
+            l.subcategoriaId != f.categoriaId) {
+          continue;
+        }
+        if (q.isNotEmpty && !l.descricao.toLowerCase().contains(q)) continue;
+        extras.add(l);
+      }
+      if (extras.isEmpty) return base;
+
+      final ids = {for (final l in base) l.id};
+      final out = [
+        ...base,
+        ...extras.where((l) => !ids.contains(l.id)),
+      ];
+      out.sort((a, b) {
+        final byDate = b.data.compareTo(a.data);
+        if (byDate != 0) return byDate;
+        return a.descricao.compareTo(b.descricao);
+      });
+      return out;
+    } catch (_) {
+      return base;
+    }
+  }
+
+  /// Remove linhas sintéticas de comissão do profissional (após pagar lote).
+  void removeComissaoPrevistaLocally(String profId) {
+    final id = '$kFinComissaoPrevistoProfPrefix$profId';
+    state = state.copyWith(
+      items: [for (final l in state.items) if (l.id != id) l],
+    );
   }
 
   Future<void> setFilters(FinLancFilters filters) async {

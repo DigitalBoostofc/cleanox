@@ -70,9 +70,21 @@ class PbComissaoRepository implements ComissaoRepository {
 
   @override
   Future<ProfComissao> setStatus(String id, ComissaoStatus status) async {
+    final body = <String, dynamic>{'status': status.wire};
+    // Paga: manda pago_em no mesmo update (BRT yyyy-MM-dd) para o hook não
+    // precisar de 2º save e para o repasse upsertar 1 despesa por dia.
+    if (status == ComissaoStatus.paga) {
+      final now = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+      final y = now.year.toString().padLeft(4, '0');
+      final m = now.month.toString().padLeft(2, '0');
+      final d = now.day.toString().padLeft(2, '0');
+      body['pago_em'] = '$y-$m-$d';
+    } else if (status == ComissaoStatus.pendente) {
+      body['pago_em'] = '';
+    }
     final rec = await _pb
         .collection(Collections.profComissoes)
-        .update(id, body: {'status': status.wire});
+        .update(id, body: body);
     return ProfComissao.fromRecord(rec);
   }
 

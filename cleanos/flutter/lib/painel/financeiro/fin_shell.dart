@@ -1,9 +1,9 @@
 /// fin_shell.dart — Casco do módulo Financeiro v2.
 ///
-/// Mobile / web estreita: bottom nav Principal · Transações · FAB · Planejamento · Mais.
-/// Desktop: rail interno de ícones + corpo.
+/// Mobile / web estreita: bottom nav Principal · Extrato · Equipe · Mais.
+/// Desktop: rail Principal · Extrato · Equipe · A pagar · Relatórios · Mais.
 ///
-/// Slugs legados (`visao-geral`, `lancamentos`, …) redirecionam para os novos.
+/// Slugs legados (`visao-geral`, `lancamentos`, `planejamento`, …) redirecionam.
 library;
 
 import 'package:flutter/material.dart';
@@ -30,17 +30,17 @@ import 'lancamentos/lancamento_form.dart';
 enum FinTab {
   principal('Principal', 'principal'),
   transacoes('Transações', 'transacoes'),
-  planejamento('Planejamento', 'planejamento'),
-  mais('Mais', 'mais'),
-  // Deep links do hub Mais / legado
-  carteiras('Carteiras', 'carteiras'),
-  categorias('Categorias', 'categorias'),
-  comissoes('Equipe', 'comissoes'),
-  relatorios('Relatórios', 'relatorios'),
+  comissoes('Equipe / comissões', 'comissoes'),
   contas('A receber / A pagar', 'contas'),
-  limites('Limites', 'limites'),
+  relatorios('Relatórios', 'relatorios'),
+  mais('Mais', 'mais'),
+  // Deep links do hub Mais / legado (fora do menu lateral)
+  categorias('Categorias', 'categorias'),
   objetivos('Objetivos', 'objetivos'),
-  tags('Tags', 'tags');
+  tags('Tags', 'tags'),
+  carteiras('Carteiras', 'carteiras'),
+  planejamento('Planejamento', 'planejamento'),
+  limites('Limites', 'limites');
 
   const FinTab(this.label, this.slug);
   final String label;
@@ -57,25 +57,26 @@ enum FinTab {
       case 'transacoes':
       case 'lancamentos':
         return FinTab.transacoes;
-      case 'planejamento':
-      case 'limites':
-        return FinTab.planejamento;
-      case 'mais':
-        return FinTab.mais;
-      case 'carteiras':
-        return FinTab.carteiras;
-      case 'categorias':
-        return FinTab.categorias;
       case 'comissoes':
         return FinTab.comissoes;
-      case 'relatorios':
-        return FinTab.relatorios;
       case 'contas':
         return FinTab.contas;
+      case 'relatorios':
+        return FinTab.relatorios;
+      case 'mais':
+        return FinTab.mais;
+      case 'categorias':
+        return FinTab.categorias;
       case 'objetivos':
         return FinTab.objetivos;
       case 'tags':
         return FinTab.tags;
+      case 'carteiras':
+        return FinTab.carteiras;
+      case 'planejamento':
+        return FinTab.planejamento;
+      case 'limites':
+        return FinTab.limites;
       default:
         return FinTab.principal;
     }
@@ -88,25 +89,28 @@ enum FinTab {
       'visao-geral',
       'transacoes',
       'lancamentos',
-      'planejamento',
-      'limites',
-      'mais',
-      'carteiras',
-      'categorias',
       'comissoes',
-      'relatorios',
       'contas',
+      'relatorios',
+      'mais',
+      'categorias',
       'objetivos',
       'tags',
+      'carteiras',
+      'planejamento',
+      'limites',
     };
     return known.contains(slug);
   }
 
-  /// Aba do bottom nav (4 itens). Deep links caem em Mais.
+  /// Abas primárias do rail / bottom nav (destaque quando abertas).
   FinTab get navRoot => switch (this) {
         FinTab.principal => FinTab.principal,
         FinTab.transacoes => FinTab.transacoes,
-        FinTab.planejamento || FinTab.limites => FinTab.planejamento,
+        FinTab.comissoes => FinTab.comissoes,
+        FinTab.contas => FinTab.contas,
+        FinTab.relatorios => FinTab.relatorios,
+        // Legado / secundário → Mais
         _ => FinTab.mais,
       };
 }
@@ -141,7 +145,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
       final canonical = switch (slug) {
         'visao-geral' => 'principal',
         'lancamentos' => 'transacoes',
-        'limites' => 'planejamento',
+        'limites' => 'planejamento', // alias; fora do menu, deep link ainda abre
         _ => null,
       };
       if (canonical != null && slug != canonical) {
@@ -259,7 +263,7 @@ class _FintechSubNav extends StatelessWidget {
   static const _items = [
     (FinTab.principal, Icons.home_rounded, 'Principal'),
     (FinTab.transacoes, Icons.swap_horiz_rounded, 'Extrato'),
-    (FinTab.planejamento, Icons.flag_rounded, 'Plano'),
+    (FinTab.comissoes, Icons.groups_outlined, 'Equipe'),
     (FinTab.mais, Icons.grid_view_rounded, 'Mais'),
   ];
 
@@ -267,6 +271,13 @@ class _FintechSubNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final r = context.clxR;
+    // Contas / relatórios caem em "Mais" no chip (sem espaço para 6 abas).
+    final selected = switch (active) {
+      FinTab.principal => FinTab.principal,
+      FinTab.transacoes => FinTab.transacoes,
+      FinTab.comissoes => FinTab.comissoes,
+      _ => FinTab.mais,
+    };
     return Padding(
       padding: EdgeInsets.fromLTRB(r.pagePadH, r.s(4), r.pagePadH, r.s(10)),
       child: Container(
@@ -290,7 +301,7 @@ class _FintechSubNav extends StatelessWidget {
                 child: _SegTab(
                   icon: item.$2,
                   label: item.$3,
-                  selected: item.$1 == active,
+                  selected: item.$1 == selected,
                   onTap: () => onSelect(item.$1),
                 ),
               ),
@@ -364,15 +375,31 @@ class _MobileNav extends StatelessWidget {
   final ValueChanged<FinTab> onSelect;
 
   static const _items = [
-    (FinTab.principal, Icons.home_outlined, Icons.home_rounded),
-    (FinTab.transacoes, Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
-    (FinTab.planejamento, Icons.flag_outlined, Icons.flag_rounded),
-    (FinTab.mais, Icons.more_horiz_rounded, Icons.more_horiz_rounded),
+    (FinTab.principal, Icons.home_outlined, Icons.home_rounded, 'Principal'),
+    (
+      FinTab.transacoes,
+      Icons.swap_horiz_outlined,
+      Icons.swap_horiz_rounded,
+      'Extrato',
+    ),
+    (FinTab.comissoes, Icons.groups_outlined, Icons.groups_rounded, 'Equipe'),
+    (
+      FinTab.mais,
+      Icons.more_horiz_rounded,
+      Icons.more_horiz_rounded,
+      'Mais',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final selected = switch (active) {
+      FinTab.principal => FinTab.principal,
+      FinTab.transacoes => FinTab.transacoes,
+      FinTab.comissoes => FinTab.comissoes,
+      _ => FinTab.mais,
+    };
     return BottomAppBar(
       color: clx.bg,
       surfaceTintColor: Colors.transparent,
@@ -384,11 +411,11 @@ class _MobileNav extends StatelessWidget {
           for (var i = 0; i < 2; i++)
             Expanded(
               child: _NavBtn(
-                label: _items[i].$1.label,
-                icon: active == _items[i].$1
+                label: _items[i].$4,
+                icon: selected == _items[i].$1
                     ? _items[i].$3
                     : _items[i].$2,
-                selected: active == _items[i].$1,
+                selected: selected == _items[i].$1,
                 onTap: () => onSelect(_items[i].$1),
               ),
             ),
@@ -396,11 +423,11 @@ class _MobileNav extends StatelessWidget {
           for (var i = 2; i < 4; i++)
             Expanded(
               child: _NavBtn(
-                label: _items[i].$1.label,
-                icon: active == _items[i].$1
+                label: _items[i].$4,
+                icon: selected == _items[i].$1
                     ? _items[i].$3
                     : _items[i].$2,
-                selected: active == _items[i].$1,
+                selected: selected == _items[i].$1,
                 onTap: () => onSelect(_items[i].$1),
               ),
             ),
@@ -461,21 +488,21 @@ class _DesktopRail extends StatelessWidget {
   final ValueChanged<FinTab> onSelect;
   final VoidCallback onAdd;
 
+  /// Menu lateral: Principal · Extrato · Equipe · A pagar · Relatórios · Mais.
+  /// (Planejamento/limites e Carteiras removidos do nav.)
   static const _main = [
     (FinTab.principal, Icons.home_rounded),
     (FinTab.transacoes, Icons.swap_horiz_rounded),
-    (FinTab.planejamento, Icons.flag_rounded),
-    (FinTab.carteiras, Icons.account_balance_wallet_rounded),
+    (FinTab.comissoes, Icons.groups_outlined),
+    (FinTab.contas, Icons.receipt_long_outlined),
+    (FinTab.relatorios, Icons.bar_chart_rounded),
     (FinTab.mais, Icons.more_horiz_rounded),
   ];
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final root = active.navRoot;
-    // Destaca deep link de carteiras no ícone carteiras
-    FinTab highlight = root;
-    if (active == FinTab.carteiras) highlight = FinTab.carteiras;
+    final highlight = active.navRoot;
 
     return Container(
       width: 72,
