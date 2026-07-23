@@ -65,8 +65,8 @@ check "core/agenda/agenda_layout.dart" \
   "layout agrupa colunas por profissional (groupKey)"
 
 check "core/agenda/agenda_layout.dart" \
-  "ordemGlobal|_denseColsDoCluster" \
-  "lados estáveis no dia (ordemGlobal / dense por cluster)"
+  "ordemGlobal|_empacotaLanes|rankProfissionais" \
+  "faixas por profissional (1º/2º/3º… sem misturar lado)"
 
 # Teste de regressão que trava o card alto
 if ! grep -q "bloco alto mostra serviço, valor e bairro" \

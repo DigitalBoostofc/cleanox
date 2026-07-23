@@ -234,6 +234,30 @@ void main() {
       expect(byId['p1']!.columnCount, 2);
     });
 
+    test('1º prof com 2 OS no mesmo horário NÃO invade o lado do 2º', () {
+      // Regressão print 2026-07-23: 2 OS verdes (Hendrio) + 1 azul (João)
+      // → verdes à esquerda (cols 0 e 1), azul à direita (col 2). Nunca
+      // verde–azul–verde.
+      final l = layoutDayEvents(
+        [
+          _iv('h1', _min('13:00'), _min('16:00'), groupKey: 'hendrio'),
+          _iv('h2', _min('13:00'), _min('16:00'), groupKey: 'hendrio'),
+          _iv('j1', _min('14:00'), _min('17:00'), groupKey: 'joao'),
+        ],
+        groupOrder: const ['hendrio', 'joao'],
+      );
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['h1']!.column, 0);
+      expect(byId['h2']!.column, 1);
+      expect(byId['j1']!.column, 2, reason: '2º prof fica DEPOIS da faixa do 1º');
+      for (final e in l.eventos) {
+        expect(e.columnCount, 3);
+      }
+      // Todas as cols de hendrio < joao
+      expect(byId['h1']!.column < byId['j1']!.column, isTrue);
+      expect(byId['h2']!.column < byId['j1']!.column, isTrue);
+    });
+
     test('no mesmo aglomerado, o mesmo profissional reusa a coluna', () {
       // G 09–12 mantém o aglomerado aberto; J 09–10 e J 10:30–11:30 ficam
       // no MESMO cluster (half-open: 11:00 encostando em 11:00 sairia).

@@ -207,9 +207,11 @@ List<Intervalo> sobreposicoes(List<Intervalo> ocupados, int start, int dur) {
 /// - **Aglomerados** (clusters) conectados por sobreposição; dentro de cada um,
 ///   o evento vai para a 1ª coluna livre e a largura é `1 / columnCount` — o
 ///   número FINAL de colunas do aglomerado (não o máximo corrente).
-/// - **Mesmo profissional** ([Intervalo.groupKey]): lado ESTÁVEL e RANKEADO —
-///   1º profissional da [groupOrder] sempre à esquerda, 2º à direita dele, etc.
-///   A ordem é a da lista de profissionais da agenda (nome), não o id PB.
+/// - **Faixas por profissional** ([Intervalo.groupKey] + [groupOrder]):
+///   cada profissional ocupa um **bloco contíguo de colunas** (lane). O 1º da
+///   lista fica sempre à esquerda, o 2º à direita dele, etc. Se o 1º tem 2 OS
+///   no mesmo horário, as duas ficam no lado esquerdo (subcolunas da lane) —
+///   **não** invadem a coluna do 2º (regressão do print 2026-07-23).
 /// - **Teto de colunas** [maxColunas]: o excedente não é desenhado, vira
 ///   [ExcedenteAglomerado] ("+N", que a UI abre como lista).
 /// - **Duração mínima** de 15 min aplicada ANTES do algoritmo.
@@ -225,9 +227,8 @@ DayLayout layoutDayEvents(
   int maxColunas = kMaxColunasDesktop,
 
   /// Ordem canônica dos profissionais (ids): índice 0 = 1º (esquerda),
-  /// 1 = 2º, … Quando dois profs se sobrepõem, o de menor índice fica à
-  /// esquerda — sempre, manhã e tarde, todos os dias. Vazio/null = fallback
-  /// lexicográfico do groupKey (testes antigos).
+  /// 1 = 2º, … Todas as OS do 1º ficam no lado esquerdo; as do 2º à direita.
+  /// Vazio/null = fallback lexicográfico do groupKey (testes antigos).
   List<String>? groupOrder,
 }) {
   if (eventos.isEmpty) {
@@ -315,61 +316,15 @@ DayLayout layoutDayEvents(
     // fora de ordem de rank).
     cluster.sort(cmp);
 
-    // Coluna densa do aglomerado: só os profs PRESENTES, na ordem rankeada.
-    // Ex.: rank A<B<C; cluster só A+C → A=0, C=1 (sem buraco da B).
-    // Só um prof no cluster → coluna 0 (largura cheia).
-    final denseCol = _denseColsDoCluster(cluster, ordemGlobal);
-
-    // Empacota: prefere a coluna estável do profissional se livre;
-    // senão a 1ª coluna livre; senão abre coluna nova.
-    final fimPorColuna = <int>[];
-    final colunaDe = <int>[]; // índice de coluna por evento do aglomerado
-    for (final n in cluster) {
-      final group = n.evento.groupKey;
-      var col = -1;
-
-      // 1) Coluna preferida do profissional neste aglomerado (ordem do dia).
-      if (group.isNotEmpty) {
-        final pref = denseCol[group];
-        if (pref != null) {
-          // Garante slots até a coluna preferida (livres = fim 0).
-          // Quem começa primeiro e tem coluna 1 abre a 0 vazia; o outro a ocupa.
-          while (fimPorColuna.length <= pref) {
-            fimPorColuna.add(0);
-          }
-          if (fimPorColuna[pref] <= n.startMin) {
-            col = pref;
-          }
-        }
-      }
-
-      // 2) 1ª coluna livre (comportamento clássico / conflito no mesmo prof).
-      if (col == -1) {
-        for (var c = 0; c < fimPorColuna.length; c++) {
-          if (fimPorColuna[c] <= n.startMin) {
-            col = c;
-            break;
-          }
-        }
-      }
-
-      // 3) Nova coluna.
-      if (col == -1) {
-        fimPorColuna.add(n.endMin);
-        col = fimPorColuna.length - 1;
-      } else {
-        fimPorColuna[col] = n.endMin;
-      }
-      colunaDe.add(col);
-    }
-
-    // Largura = 1 / colunas FINAIS do aglomerado, respeitando o teto.
-    // Descarta colunas "fantasma" abertas e nunca usadas (fim ainda 0).
+    // Empacota por FAIXA de profissional (lane):
+    // 1º prof → colunas 0..k-1; 2º prof → k..; nunca mistura lado.
+    // Dentro da faixa, empacotamento clássico (2 OS do mesmo prof no mesmo
+    // horário abrem 2 subcolunas SÓ na faixa dele).
+    final colunaDe = _empacotaLanes(cluster, ordemGlobal);
     var colunasUsadas = 0;
-    for (var c = 0; c < fimPorColuna.length; c++) {
-      if (fimPorColuna[c] > 0) colunasUsadas = c + 1;
+    for (final c in colunaDe) {
+      if (c + 1 > colunasUsadas) colunasUsadas = c + 1;
     }
-    if (colunasUsadas == 0) colunasUsadas = fimPorColuna.length;
     final columnCount = colunasUsadas > maxColunas ? maxColunas : colunasUsadas;
 
     final sobrando = <Intervalo>[];
@@ -446,28 +401,65 @@ Map<String, int> rankProfissionais(
   return rank;
 }
 
-/// Colunas densas dos profissionais presentes no aglomerado, na ordem rankeada
-/// (1º → col 0, 2º → col 1, …). 1 prof → só coluna 0; estável manhã/tarde.
-Map<String, int> _denseColsDoCluster(
+/// Empacota o aglomerado em faixas por profissional.
+///
+/// Retorna, para cada índice do [cluster], a coluna absoluta (0-based).
+/// Ordem das faixas = [ordemGlobal] (1º, 2º, 3º…). Sem groupKey = uma faixa
+/// clássica (compatível com testes A/B/C).
+List<int> _empacotaLanes(
   List<_Normalizado> cluster,
   Map<String, int> ordemGlobal,
 ) {
-  final presentes = <String>{};
-  for (final n in cluster) {
-    final g = n.evento.groupKey;
-    if (g.isNotEmpty) presentes.add(g);
+  // groupKey → índices no cluster (ordem de tempo já está em cluster.sort).
+  final porGrupo = <String, List<int>>{};
+  final grupos = <String>[];
+  for (var k = 0; k < cluster.length; k++) {
+    final g = cluster[k].evento.groupKey;
+    if (!porGrupo.containsKey(g)) {
+      grupos.add(g);
+      porGrupo[g] = <int>[];
+    }
+    porGrupo[g]!.add(k);
   }
-  if (presentes.isEmpty) return const {};
-  // Rank desconhecido (não deveria) vai para o fim, não para a esquerda.
+
   const desconhecido = 1 << 20;
-  final ordered = presentes.toList()
-    ..sort((a, b) {
-      final oa = ordemGlobal[a] ?? desconhecido;
-      final ob = ordemGlobal[b] ?? desconhecido;
-      final c = oa.compareTo(ob);
-      return c != 0 ? c : a.compareTo(b);
-    });
-  return {for (var i = 0; i < ordered.length; i++) ordered[i]: i};
+  grupos.sort((a, b) {
+    // Sem groupKey por último (não tem rank de profissional).
+    if (a.isEmpty && b.isEmpty) return 0;
+    if (a.isEmpty) return 1;
+    if (b.isEmpty) return -1;
+    final oa = ordemGlobal[a] ?? desconhecido;
+    final ob = ordemGlobal[b] ?? desconhecido;
+    final c = oa.compareTo(ob);
+    return c != 0 ? c : a.compareTo(b);
+  });
+
+  final colunaDe = List<int>.filled(cluster.length, 0);
+  var offset = 0;
+  for (final g in grupos) {
+    final indices = porGrupo[g]!;
+    // Empacotamento clássico SÓ dentro da faixa deste profissional.
+    final fimPorColuna = <int>[];
+    for (final idx in indices) {
+      final n = cluster[idx];
+      var col = -1;
+      for (var c = 0; c < fimPorColuna.length; c++) {
+        if (fimPorColuna[c] <= n.startMin) {
+          col = c;
+          break;
+        }
+      }
+      if (col == -1) {
+        fimPorColuna.add(n.endMin);
+        col = fimPorColuna.length - 1;
+      } else {
+        fimPorColuna[col] = n.endMin;
+      }
+      colunaDe[idx] = offset + col;
+    }
+    offset += fimPorColuna.length;
+  }
+  return colunaDe;
 }
 
 /// Ordenação estável dos eventos normalizados (e dos aglomerados).
