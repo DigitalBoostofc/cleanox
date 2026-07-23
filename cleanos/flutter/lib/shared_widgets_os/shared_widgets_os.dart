@@ -10,6 +10,7 @@ export 'checklist_execucao.dart';
 export 'evidencias_section.dart';
 export 'labels.dart';
 export 'laudo_pdf.dart';
+export 'os_financeiro_resumo.dart';
 export 'relatorio_os.dart';
 export 'relatorio_os_modal.dart';
 export 'snapshot_resumo.dart';

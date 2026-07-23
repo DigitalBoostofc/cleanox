@@ -10,8 +10,10 @@ import 'package:flutter/services.dart';
 
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
+import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/os_execucao.dart';
 
 /// Abre o sheet de pagamento. [onSubmit] persiste (pode lançar).
 /// `outro` só vem preenchido quando a forma é [FormaPagamento.outros]
@@ -143,6 +145,51 @@ class _PagamentoFormState extends State<_PagamentoForm> {
             '${widget.os.descontos > 0 ? ' − descontos' : ''}).',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
+          const SizedBox(height: ClxSpace.x2),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(ClxSpace.x3),
+            decoration: BoxDecoration(
+              color: clx.bg2,
+              borderRadius: ClxRadii.rMd,
+              border: Border.all(color: clx.line),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _breakLine(
+                  context,
+                  (widget.os.tipoServicoNome ?? '').trim().isEmpty
+                      ? 'Serviço principal'
+                      : widget.os.tipoServicoNome!,
+                  widget.os.valorServico ?? 0,
+                ),
+                for (final a in widget.os.adicionais.where(
+                  (x) =>
+                      x.aprovacao == AprovacaoStatus.aprovado ||
+                      x.aprovacao == AprovacaoStatus.naoRequer,
+                ))
+                  _breakLine(
+                    context,
+                    a.nome.isEmpty ? 'Serviço extra' : a.nome,
+                    a.valor * a.quantidade,
+                  ),
+                if (widget.os.descontos > 0)
+                  _breakLine(
+                    context,
+                    'Descontos',
+                    -widget.os.descontos,
+                  ),
+                const SizedBox(height: 4),
+                _breakLine(
+                  context,
+                  'Total a pagar',
+                  widget.os.valorTotal,
+                  strong: true,
+                ),
+              ],
+            ),
+          ),
         ],
         const SizedBox(height: ClxSpace.x1),
         TextField(
@@ -216,6 +263,39 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _breakLine(
+    BuildContext context,
+    String label,
+    double valor, {
+    bool strong = false,
+  }) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: (strong ? tt.labelLarge : tt.bodySmall)?.copyWith(
+                color: strong ? clx.ink : clx.ink2,
+                fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            formatCurrency(valor),
+            style: (strong ? tt.labelLarge : tt.bodySmall)?.copyWith(
+              color: strong ? clx.accent : clx.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

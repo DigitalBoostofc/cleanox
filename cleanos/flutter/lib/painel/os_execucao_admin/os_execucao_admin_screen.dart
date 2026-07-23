@@ -565,7 +565,21 @@ class _BodyState extends ConsumerState<_Body> {
             ),
           ),
           const SizedBox(height: ClxSpace.x3),
-          _linha(clx, 'Valor do serviço', formatCurrency(os.valorServico ?? 0)),
+          _linha(
+            clx,
+            (os.tipoServicoNome ?? '').trim().isEmpty
+                ? 'Serviço principal'
+                : os.tipoServicoNome!,
+            formatCurrency(os.valorServico ?? 0),
+          ),
+          for (final a in adicionaisCobraveis(os))
+            _linha(
+              clx,
+              a.nome.isEmpty
+                  ? 'Serviço extra'
+                  : 'Extra: ${a.nome}${a.quantidade > 1 ? ' ×${a.quantidade}' : ''}',
+              formatCurrency(a.valor * a.quantidade),
+            ),
           // Desconto EDITÁVEL (campo liberado ao Painel) — espelha o input do React.
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
@@ -590,10 +604,15 @@ class _BodyState extends ConsumerState<_Body> {
               ],
             ),
           ),
-          if (os.valorPago != null)
-            _linha(clx, 'Valor pago', formatCurrency(os.valorPago!)),
           Divider(height: ClxSpace.x5, color: clx.line),
-          _linha(clx, 'Total', formatCurrency(os.valorTotal), strong: true),
+          _linha(clx, 'Valor total da OS', formatCurrency(os.valorTotal), strong: true),
+          if (os.valorPago != null)
+            _linha(
+              clx,
+              'Valor pago (movimentação)',
+              formatCurrency(os.valorPago!),
+              strong: true,
+            ),
         ],
       ),
     );
