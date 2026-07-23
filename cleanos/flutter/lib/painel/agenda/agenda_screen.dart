@@ -1187,13 +1187,14 @@ class _AgendaMiniCard extends StatelessWidget {
 /// Profissional fica só no avatar (quando atribuída/em andamento).
 String _agendaCardSubtitle(OrdemServico os) {
   final servico = (os.tipoServicoNome ?? '').trim();
-  final valor = os.valorServico;
+  // Total da OS (principal + extras cobráveis − descontos).
+  final valor = os.valorTotal;
   final end = (os.enderecoLiberado ?? '').trim();
   final bairro = os.bairro.trim();
   final local = end.isNotEmpty ? end : bairro;
   final parts = <String>[
     if (servico.isNotEmpty) servico else '—',
-    if (valor != null && valor > 0) formatCurrency(valor),
+    if (valor > 0) formatCurrency(valor),
     if (local.isNotEmpty) local,
   ];
   return parts.join(' · ');

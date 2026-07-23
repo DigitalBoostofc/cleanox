@@ -738,7 +738,8 @@ class _OrdemRow extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Text(
-                formatCurrency(os.valorServico ?? 0),
+                // Total da OS (principal + extras cobráveis − descontos).
+                formatCurrency(os.valorTotal),
                 style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
                   fontWeight: FontWeight.w600,
@@ -1002,7 +1003,8 @@ class _OrdemCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                formatCurrency(os.valorServico ?? 0),
+                // Total da OS (principal + extras cobráveis − descontos).
+                formatCurrency(os.valorTotal),
                 style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
                   fontWeight: FontWeight.w700,

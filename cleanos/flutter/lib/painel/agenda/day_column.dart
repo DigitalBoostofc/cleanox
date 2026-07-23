@@ -493,12 +493,13 @@ const List<String> kDowShortDrag = [
   OrdemServico os,
 ) {
   final servico = (os.tipoServicoNome ?? '').trim();
-  final valor = os.valorServico;
+  // Total da OS (principal + extras cobráveis − descontos), igual à lista de OS.
+  final valor = os.valorTotal;
   final end = (os.enderecoLiberado ?? '').trim();
   final bairro = os.bairro.trim();
   return (
     servico: servico.isEmpty ? null : servico,
-    valor: (valor == null || valor <= 0) ? null : formatCurrency(valor),
+    valor: valor <= 0 ? null : formatCurrency(valor),
     local: end.isNotEmpty ? end : (bairro.isEmpty ? null : bairro),
   );
 }
