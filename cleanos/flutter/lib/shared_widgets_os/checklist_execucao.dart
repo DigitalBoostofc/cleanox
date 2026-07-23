@@ -30,12 +30,16 @@ class ChecklistSecao {
     required this.titulo,
     required this.items,
     this.extra = false,
+    this.valorLabel,
   });
 
   final String key;
   final String titulo;
   final List<ChecklistExecItem> items;
   final bool extra;
+
+  /// Ex.: "R$ 150,00" no cabeçalho do serviço extra.
+  final String? valorLabel;
 }
 
 /// Agrupa [items] em seção principal + uma por serviço extra.
@@ -91,12 +95,14 @@ List<ChecklistSecao> agruparChecklistSecoes(
     final list = byAdd[a.id];
     if (list == null || list.isEmpty) continue;
     seen.add(a.id);
+    final subtotal = a.valor * a.quantidade;
     secoes.add(
       ChecklistSecao(
         key: a.id,
         titulo: a.nome.isEmpty ? 'Serviço extra' : a.nome,
         items: list,
         extra: true,
+        valorLabel: subtotal > 0 ? formatCurrency(subtotal) : null,
       ),
     );
   }
@@ -343,6 +349,7 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
                   extra: secoes[si].extra,
                   done: secoes[si].items.where((i) => i.concluido).length,
                   total: secoes[si].items.length,
+                  valorLabel: secoes[si].valorLabel,
                 ),
               if (multiSecao || secoes[si].extra)
                 const SizedBox(height: ClxSpace.x2),
@@ -399,12 +406,14 @@ class _SecaoHeader extends StatelessWidget {
     required this.extra,
     required this.done,
     required this.total,
+    this.valorLabel,
   });
 
   final String titulo;
   final bool extra;
   final int done;
   final int total;
+  final String? valorLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -454,6 +463,16 @@ class _SecaoHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (valorLabel != null) ...[
+            Text(
+              valorLabel!,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: extra ? clx.primary : clx.ink2,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: ClxSpace.x2),
+          ],
           if (total > 0)
             Text(
               '$done/$total',

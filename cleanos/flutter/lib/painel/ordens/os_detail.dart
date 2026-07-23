@@ -18,6 +18,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import '../../shared_widgets_os/cancelar_os_dialog.dart';
+import '../../shared_widgets_os/os_financeiro_resumo.dart';
 import 'ordens_controller.dart';
 import 'os_rebaixar_confirm.dart';
 
@@ -370,14 +371,29 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                 _section(clx, 'Financeiro', [
                   _row(
                     clx,
-                    'Valor do serviço',
+                    'Serviço principal',
                     _os.valorServico == null
                         ? '—'
                         : formatCurrency(_os.valorServico!),
                   ),
+                  for (final a in adicionaisCobraveis(_os))
+                    _row(
+                      clx,
+                      a.nome.isEmpty
+                          ? 'Serviço extra'
+                          : 'Extra: ${a.nome}${a.quantidade > 1 ? ' ×${a.quantidade}' : ''}',
+                      formatCurrency(a.valor * a.quantidade),
+                    ),
+                  if (_os.descontos > 0)
+                    _row(clx, 'Descontos', '− ${formatCurrency(_os.descontos)}'),
                   _row(
                     clx,
-                    'Valor pago',
+                    'Valor total da OS',
+                    formatCurrency(_os.valorTotal),
+                  ),
+                  _row(
+                    clx,
+                    'Valor pago (movimentação)',
                     _os.valorPago == null
                         ? '—'
                         : formatCurrency(_os.valorPago!),

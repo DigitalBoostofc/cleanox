@@ -499,6 +499,10 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
         ),
         const SizedBox(height: ClxSpace.x3),
 
+        // Valores: principal + extras cobráveis = total (pré-preenche pagamento).
+        OsFinanceiroResumo(os: os, dense: true),
+        const SizedBox(height: ClxSpace.x3),
+
         // (c2) Observações do serviço (ex.: tecido rasgado, mancha que não
         // sai, muito pelo de pet…) — pedido do dono, 16/07.
         _ObservacoesProfCard(
