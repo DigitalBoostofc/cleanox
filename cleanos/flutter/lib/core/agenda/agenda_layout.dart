@@ -57,9 +57,9 @@ class Intervalo {
   /// Rótulo humano (ex.: nome curto do cliente) — usado no aviso do formulário.
   final String label;
 
-  /// Agrupa colunas no layout: normalmente o id do profissional. OS do MESMO
-  /// grupo ficam no MESMO lado o dia inteiro (ex.: Gabriela à esquerda, José
-  /// à direita em todo slot lado a lado). Vazio = sem preferência.
+  /// Agrupa colunas no layout: id do profissional. OS do MESMO grupo ficam no
+  /// MESMO lado; a posição (1º/2º/3º…) vem de [layoutDayEvents.groupOrder].
+  /// Vazio = sem preferência de profissional.
   final String groupKey;
 
   int get duracaoMin => endMin - startMin;
@@ -207,13 +207,13 @@ List<Intervalo> sobreposicoes(List<Intervalo> ocupados, int start, int dur) {
 /// - **Aglomerados** (clusters) conectados por sobreposição; dentro de cada um,
 ///   o evento vai para a 1ª coluna livre e a largura é `1 / columnCount` — o
 ///   número FINAL de colunas do aglomerado (não o máximo corrente).
-/// - **Mesmo profissional** ([Intervalo.groupKey]): lado ESTÁVEL no dia inteiro
-///   (ex.: Gabriela sempre à esquerda, José sempre à direita quando lado a lado),
-///   não só dentro de um aglomerado — senão manhã/tarde invertia os lados.
+/// - **Mesmo profissional** ([Intervalo.groupKey]): lado ESTÁVEL e RANKEADO —
+///   1º profissional da [groupOrder] sempre à esquerda, 2º à direita dele, etc.
+///   A ordem é a da lista de profissionais da agenda (nome), não o id PB.
 /// - **Teto de colunas** [maxColunas]: o excedente não é desenhado, vira
 ///   [ExcedenteAglomerado] ("+N", que a UI abre como lista).
 /// - **Duração mínima** de 15 min aplicada ANTES do algoritmo.
-/// - **Ordenação estável**: início ↑, fim ↓, groupKey ↑, id ↑.
+/// - **Ordenação estável**: início ↑, fim ↓, rank do prof ↑, id ↑.
 /// - **Janela dinâmica**: `dayStart = min(padrão, chão da hora do 1º início)` e
 ///   `dayEnd = max(padrão, teto da hora do último fim)` — evento fora de 6h–22h
 ///   não some nem estoura o Stack. `truncTop/truncBottom` só marcam o que ainda
@@ -223,6 +223,12 @@ DayLayout layoutDayEvents(
   int dayStart = kDiaInicioPadraoMin,
   int dayEnd = kDiaFimPadraoMin,
   int maxColunas = kMaxColunasDesktop,
+
+  /// Ordem canônica dos profissionais (ids): índice 0 = 1º (esquerda),
+  /// 1 = 2º, … Quando dois profs se sobrepõem, o de menor índice fica à
+  /// esquerda — sempre, manhã e tarde, todos os dias. Vazio/null = fallback
+  /// lexicográfico do groupKey (testes antigos).
+  List<String>? groupOrder,
 }) {
   if (eventos.isEmpty) {
     return DayLayout(
@@ -263,25 +269,18 @@ DayLayout layoutDayEvents(
     );
   }
 
-  // 2) Ordenação estável: início ↑, fim ↓, groupKey ↑, id ↑.
-  //    groupKey (profissional) antes do id → no mesmo horário, o mesmo prof
-  //    sempre cai na coluna mais à esquerda que o outro.
-  normalizados.sort(_cmpNormalizado);
+  // Rank global: 1º / 2º / 3º profissional (groupOrder) → índice 0, 1, 2…
+  // Quem não está na lista cai no fim (lexico), para não sumir do layout.
+  final presentes = <String>{
+    for (final n in normalizados)
+      if (n.evento.groupKey.isNotEmpty) n.evento.groupKey,
+  };
+  final ordemGlobal = rankProfissionais(presentes, groupOrder: groupOrder);
 
-  // Ordem global do dia: groupKey lexicográfico → índice preferido.
-  // Assim manhã e tarde NÃO trocam de lado (Gabriela sempre 0, José sempre 1).
-  final ordemGlobal = <String, int>{};
-  {
-    final keys = <String>{};
-    for (final n in normalizados) {
-      final g = n.evento.groupKey;
-      if (g.isNotEmpty) keys.add(g);
-    }
-    final sorted = keys.toList()..sort();
-    for (var k = 0; k < sorted.length; k++) {
-      ordemGlobal[sorted[k]] = k;
-    }
-  }
+  // 2) Ordenação estável: início ↑, fim ↓, rank do prof ↑, id ↑.
+  int cmp(_Normalizado n1, _Normalizado n2) =>
+      _cmpNormalizado(n1, n2, ordemGlobal);
+  normalizados.sort(cmp);
 
   // 3) Janela dinâmica: só EXPANDE (o padrão 6h–22h é o piso).
   var minStart = normalizados.first.startMin;
@@ -296,7 +295,7 @@ DayLayout layoutDayEvents(
     _max(dayEnd, ((maxEnd + 59) ~/ 60) * 60),
   );
 
-  // 4) Aglomerados + colunas (lado estável por profissional no DIA).
+  // 4) Aglomerados + colunas (1º prof à esquerda, 2º à direita, …).
   final posicionados = <EventoPosicionado>[];
   final excedentes = <ExcedenteAglomerado>[];
   var i = 0;
@@ -313,11 +312,11 @@ DayLayout layoutDayEvents(
     i = j;
 
     // Reordena o aglomerado com a mesma chave (entrada pode ter crescido
-    // fora de ordem de groupKey).
-    cluster.sort(_cmpNormalizado);
+    // fora de ordem de rank).
+    cluster.sort(cmp);
 
-    // Coluna densa do aglomerado: só os profs PRESENTES, na ordem global do dia.
-    // Ex.: dia tem A,B,C; cluster só A+C → A=0, C=1 (sem buraco da B).
+    // Coluna densa do aglomerado: só os profs PRESENTES, na ordem rankeada.
+    // Ex.: rank A<B<C; cluster só A+C → A=0, C=1 (sem buraco da B).
     // Só um prof no cluster → coluna 0 (largura cheia).
     final denseCol = _denseColsDoCluster(cluster, ordemGlobal);
 
@@ -412,9 +411,43 @@ DayLayout layoutDayEvents(
   );
 }
 
-/// Colunas densas dos profissionais presentes no aglomerado, na ordem global
-/// do dia (groupKey lexicográfico). 1 prof → só coluna 0; 2 profs → 0 e 1
-/// estáveis manhã/tarde.
+/// Rank de profissionais presentes: 1º, 2º, 3º… conforme [groupOrder].
+///
+/// - [groupOrder]: ids na ordem canônica (lista da agenda / nome). Índice 0 =
+///   sempre a coluna mais à esquerda quando há sobreposição.
+/// - Presentes fora da lista entram no fim, em ordem lexicográfica do id.
+/// - Sem [groupOrder]: fallback lexicográfico (compatível com testes antigos).
+///
+/// Função PURA e pública para testes e para a UI montar o mesmo ranking.
+Map<String, int> rankProfissionais(
+  Iterable<String> presentes, {
+  List<String>? groupOrder,
+}) {
+  final presentSet = <String>{
+    for (final g in presentes)
+      if (g.isNotEmpty) g,
+  };
+  if (presentSet.isEmpty) return const {};
+
+  final rank = <String, int>{};
+  var i = 0;
+  if (groupOrder != null && groupOrder.isNotEmpty) {
+    for (final id in groupOrder) {
+      if (id.isEmpty) continue;
+      if (presentSet.contains(id) && !rank.containsKey(id)) {
+        rank[id] = i++;
+      }
+    }
+  }
+  final rest = presentSet.where((g) => !rank.containsKey(g)).toList()..sort();
+  for (final g in rest) {
+    rank[g] = i++;
+  }
+  return rank;
+}
+
+/// Colunas densas dos profissionais presentes no aglomerado, na ordem rankeada
+/// (1º → col 0, 2º → col 1, …). 1 prof → só coluna 0; estável manhã/tarde.
 Map<String, int> _denseColsDoCluster(
   List<_Normalizado> cluster,
   Map<String, int> ordemGlobal,
@@ -425,10 +458,12 @@ Map<String, int> _denseColsDoCluster(
     if (g.isNotEmpty) presentes.add(g);
   }
   if (presentes.isEmpty) return const {};
+  // Rank desconhecido (não deveria) vai para o fim, não para a esquerda.
+  const desconhecido = 1 << 20;
   final ordered = presentes.toList()
     ..sort((a, b) {
-      final oa = ordemGlobal[a] ?? 0;
-      final ob = ordemGlobal[b] ?? 0;
+      final oa = ordemGlobal[a] ?? desconhecido;
+      final ob = ordemGlobal[b] ?? desconhecido;
       final c = oa.compareTo(ob);
       return c != 0 ? c : a.compareTo(b);
     });
@@ -436,11 +471,24 @@ Map<String, int> _denseColsDoCluster(
 }
 
 /// Ordenação estável dos eventos normalizados (e dos aglomerados).
-int _cmpNormalizado(_Normalizado a, _Normalizado b) {
+int _cmpNormalizado(
+  _Normalizado a,
+  _Normalizado b,
+  Map<String, int> ordemGlobal,
+) {
   final s = a.startMin.compareTo(b.startMin);
   if (s != 0) return s;
   final e = b.endMin.compareTo(a.endMin);
   if (e != 0) return e;
+  const desconhecido = 1 << 20;
+  final ra = a.evento.groupKey.isEmpty
+      ? desconhecido
+      : (ordemGlobal[a.evento.groupKey] ?? desconhecido);
+  final rb = b.evento.groupKey.isEmpty
+      ? desconhecido
+      : (ordemGlobal[b.evento.groupKey] ?? desconhecido);
+  final r = ra.compareTo(rb);
+  if (r != 0) return r;
   final g = a.evento.groupKey.compareTo(b.evento.groupKey);
   if (g != 0) return g;
   return a.evento.id.compareTo(b.evento.id);

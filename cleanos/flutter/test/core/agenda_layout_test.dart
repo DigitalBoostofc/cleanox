@@ -174,7 +174,7 @@ void main() {
     });
 
     test('mesmo horário: profissionais distintos ficam em colunas estáveis', () {
-      // Gabriela (g) e José (j) no mesmo slot → colunas 0 e 1 por groupKey.
+      // Sem groupOrder: fallback lexicográfico do groupKey.
       final l = layoutDayEvents([
         _iv('os-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
         _iv('os-j', _min('14:00'), _min('16:00'), groupKey: 'jose'),
@@ -184,6 +184,54 @@ void main() {
       expect(byId['os-g']!.column, 0);
       expect(byId['os-j']!.column, 1);
       expect(byId['os-g']!.columnCount, 2);
+    });
+
+    test('groupOrder: 1º prof sempre à esquerda (mesmo se id for depois no lexico)', () {
+      // Ordem canônica: José = 1º, Gabriela = 2º — José à esquerda SEMPRE.
+      final l = layoutDayEvents(
+        [
+          _iv('os-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+          _iv('os-j', _min('14:00'), _min('16:00'), groupKey: 'jose'),
+        ],
+        groupOrder: const ['jose', 'gabriela'],
+      );
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['os-j']!.column, 0, reason: '1º da lista → esquerda');
+      expect(byId['os-g']!.column, 1, reason: '2º da lista → direita');
+    });
+
+    test('groupOrder: 1º/2º/3º/4º no mesmo horário', () {
+      final l = layoutDayEvents(
+        [
+          _iv('d', _min('10:00'), _min('11:00'), groupKey: 'd'),
+          _iv('b', _min('10:00'), _min('11:00'), groupKey: 'b'),
+          _iv('a', _min('10:00'), _min('11:00'), groupKey: 'a'),
+          _iv('c', _min('10:00'), _min('11:00'), groupKey: 'c'),
+        ],
+        groupOrder: const ['a', 'b', 'c', 'd'],
+      );
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['a']!.column, 0);
+      expect(byId['b']!.column, 1);
+      expect(byId['c']!.column, 2);
+      expect(byId['d']!.column, 3);
+      for (final e in l.eventos) {
+        expect(e.columnCount, 4);
+      }
+    });
+
+    test('groupOrder: só 1º e 3º no slot — 1º esquerda, 3º direita (sem buraco)', () {
+      final l = layoutDayEvents(
+        [
+          _iv('p3', _min('10:00'), _min('12:00'), groupKey: 'p3'),
+          _iv('p1', _min('10:00'), _min('12:00'), groupKey: 'p1'),
+        ],
+        groupOrder: const ['p1', 'p2', 'p3', 'p4'],
+      );
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['p1']!.column, 0);
+      expect(byId['p3']!.column, 1);
+      expect(byId['p1']!.columnCount, 2);
     });
 
     test('no mesmo aglomerado, o mesmo profissional reusa a coluna', () {
@@ -205,37 +253,49 @@ void main() {
     });
 
     test('lados estáveis no DIA: manhã e tarde não trocam profissional de lado', () {
-      // Regressão: preferência só por aglomerado invertia os lados.
-      // Manhã: José começa primeiro → sem ordem global, J ia p/ col 0 e G p/ 1.
-      // Tarde: Gabriela começa primeiro → G col 0 e J col 1 (trocava de lado).
-      // Com ordem do dia (groupKey lexico): G SEMPRE 0, J SEMPRE 1.
-      final l = layoutDayEvents([
-        _iv('j-manha', _min('08:00'), _min('10:00'), groupKey: 'jose'),
-        _iv('g-manha', _min('09:00'), _min('11:00'), groupKey: 'gabriela'),
-        // buraco: clusters separados
-        _iv('g-tarde', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
-        _iv('j-tarde', _min('15:00'), _min('17:00'), groupKey: 'jose'),
-      ]);
+      // Com groupOrder fixo: José = 1º (esquerda), Gabriela = 2º (direita).
+      final l = layoutDayEvents(
+        [
+          _iv('j-manha', _min('08:00'), _min('10:00'), groupKey: 'jose'),
+          _iv('g-manha', _min('09:00'), _min('11:00'), groupKey: 'gabriela'),
+          _iv('g-tarde', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+          _iv('j-tarde', _min('15:00'), _min('17:00'), groupKey: 'jose'),
+        ],
+        groupOrder: const ['jose', 'gabriela'],
+      );
       final byId = {for (final e in l.eventos) e.id: e};
-      expect(byId['g-manha']!.column, 0, reason: 'Gabriela à esquerda de manhã');
-      expect(byId['j-manha']!.column, 1, reason: 'José à direita de manhã');
-      expect(byId['g-tarde']!.column, 0, reason: 'Gabriela à esquerda à tarde');
-      expect(byId['j-tarde']!.column, 1, reason: 'José à direita à tarde');
+      expect(byId['j-manha']!.column, 0, reason: 'José 1º à esquerda de manhã');
+      expect(byId['g-manha']!.column, 1, reason: 'Gabriela 2º à direita de manhã');
+      expect(byId['j-tarde']!.column, 0, reason: 'José 1º à esquerda à tarde');
+      expect(byId['g-tarde']!.column, 1, reason: 'Gabriela 2º à direita à tarde');
       for (final id in ['g-manha', 'j-manha', 'g-tarde', 'j-tarde']) {
         expect(byId[id]!.columnCount, 2);
       }
     });
 
     test('profissional sozinho no slot usa largura cheia (sem buraco)', () {
-      final l = layoutDayEvents([
-        _iv('so-j', _min('08:00'), _min('10:00'), groupKey: 'jose'),
-        _iv('so-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
-      ]);
+      final l = layoutDayEvents(
+        [
+          _iv('so-j', _min('08:00'), _min('10:00'), groupKey: 'jose'),
+          _iv('so-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+        ],
+        groupOrder: const ['jose', 'gabriela'],
+      );
       final byId = {for (final e in l.eventos) e.id: e};
       expect(byId['so-j']!.column, 0);
       expect(byId['so-j']!.columnCount, 1);
       expect(byId['so-g']!.column, 0);
       expect(byId['so-g']!.columnCount, 1);
+    });
+
+    test('rankProfissionais respeita 1º/2º/3º da lista', () {
+      final r = rankProfissionais(
+        ['c', 'a'],
+        groupOrder: const ['a', 'b', 'c', 'd'],
+      );
+      expect(r['a'], 0);
+      expect(r['c'], 1);
+      expect(r.containsKey('b'), isFalse);
     });
 
     test('sem groupKey, cadeia clássica A/B/C não muda', () {
