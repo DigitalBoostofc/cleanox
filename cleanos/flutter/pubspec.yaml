@@ -1,7 +1,7 @@
 name: cleanos
 description: "CleanOS — Painel Web + App Profissional (unificado Flutter)"
 publish_to: "none"
-version: 1.2.0+77
+version: 1.2.0+78
 
 environment:
   sdk: ^3.9.2

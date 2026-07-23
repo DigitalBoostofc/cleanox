@@ -724,4 +724,88 @@ void main() {
       expect(r.valor, 100); // 1 dia × 100
     });
   });
+
+  group('consolidarViaOsPorOs', () {
+    test('2 linhas via_os da mesma OS → 1 linha com valor total', () {
+      const a = FinLancamento(
+        id: 'l1',
+        tipo: TipoLancamento.receita,
+        descricao: 'OS 3041NH - Adriano - S10 · Cleanox Completo',
+        valor: 200,
+        data: '2026-07-25',
+        status: LancamentoStatus.previsto,
+        origem: OrigemLancamento.viaOs,
+        osId: 'rrnwqvuac3041nh',
+        clienteNome: 'Adriano - S10 e Honda City',
+        servicoNome: 'Cleanox Completo - Promoção',
+      );
+      const b = FinLancamento(
+        id: 'l2',
+        tipo: TipoLancamento.receita,
+        descricao: 'OS 3041NH - Adriano - S10 · Cleanox Completo',
+        valor: 200,
+        data: '2026-07-25',
+        status: LancamentoStatus.previsto,
+        origem: OrigemLancamento.viaOs,
+        osId: 'rrnwqvuac3041nh',
+        clienteNome: 'Adriano - S10 e Honda City',
+        servicoNome: 'Cleanox Completo - Promoção',
+      );
+      final out = consolidarViaOsPorOs([a, b]);
+      expect(out, hasLength(1));
+      expect(out.first.valor, 400);
+      expect(out.first.descricao, contains('2 serviços'));
+      expect(out.first.clienteNome, 'Adriano - S10 e Honda City');
+    });
+
+    test('OS distintas e manual não se misturam', () {
+      const osA = FinLancamento(
+        id: '1',
+        tipo: TipoLancamento.receita,
+        valor: 200,
+        data: '2026-07-25',
+        origem: OrigemLancamento.viaOs,
+        osId: 'osA',
+        clienteNome: 'A',
+      );
+      const osB = FinLancamento(
+        id: '2',
+        tipo: TipoLancamento.receita,
+        valor: 150,
+        data: '2026-07-25',
+        origem: OrigemLancamento.viaOs,
+        osId: 'osB',
+        clienteNome: 'B',
+      );
+      final manual = fakeLanc(id: '3', valor: 50, data: '2026-07-25');
+      final out = consolidarViaOsPorOs([osA, osB, manual]);
+      expect(out, hasLength(3));
+      expect(out.map((e) => e.valor).toList(), [200.0, 150.0, 50.0]);
+    });
+
+    test('agruparPorData consolida por padrão', () {
+      const a = FinLancamento(
+        id: 'l1',
+        tipo: TipoLancamento.receita,
+        valor: 200,
+        data: '2026-07-25',
+        origem: OrigemLancamento.viaOs,
+        osId: 'os1',
+        status: LancamentoStatus.previsto,
+      );
+      const b = FinLancamento(
+        id: 'l2',
+        tipo: TipoLancamento.receita,
+        valor: 200,
+        data: '2026-07-25',
+        origem: OrigemLancamento.viaOs,
+        osId: 'os1',
+        status: LancamentoStatus.previsto,
+      );
+      final g = agruparPorData([a, b]);
+      expect(g, hasLength(1));
+      expect(g.first.itens, hasLength(1));
+      expect(g.first.itens.first.valor, 400);
+    });
+  });
 }

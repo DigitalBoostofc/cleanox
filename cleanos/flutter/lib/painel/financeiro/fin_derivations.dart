@@ -244,14 +244,84 @@ class GrupoPorData {
   final double totalDia;
 }
 
+/// Consolida receitas `via_os` do **mesmo os_id** em uma linha com o valor
+/// **total da OS** (soma das linhas principal + extras).
+///
+/// Na movimentação/Transações o dono vê 1 entrada por OS (ex.: R$ 400), não
+/// N linhas de R$ 200. Lançamentos manuais e comissão ficam 1:1.
+///
+/// Ordem de primeira aparição é preservada. Função PURA (testável).
+List<FinLancamento> consolidarViaOsPorOs(List<FinLancamento> lancs) {
+  if (lancs.isEmpty) return const [];
+
+  final buckets = <String, List<FinLancamento>>{};
+  final order = <String>[];
+  for (final l in lancs) {
+    final oid = (l.osId ?? '').trim();
+    final viaOsMulti = !isLancamentoComissao(l) &&
+        (l.origem == OrigemLancamento.viaOs || oid.isNotEmpty) &&
+        oid.isNotEmpty;
+    final key = viaOsMulti ? 'os:$oid' : 'one:${l.id}';
+    if (!buckets.containsKey(key)) {
+      order.add(key);
+      buckets[key] = <FinLancamento>[];
+    }
+    buckets[key]!.add(l);
+  }
+
+  final out = <FinLancamento>[];
+  for (final k in order) {
+    final group = buckets[k]!;
+    if (group.length == 1) {
+      out.add(group.first);
+      continue;
+    }
+    var cents = 0;
+    final nomes = <String>[];
+    for (final l in group) {
+      cents += _cents(l.valor);
+      final s = (l.servicoNome ?? '').trim();
+      if (s.isNotEmpty && !nomes.contains(s)) nomes.add(s);
+    }
+    final first = group.first;
+    final n = group.length;
+    final servicoLabel = nomes.isEmpty
+        ? '$n serviços'
+        : (nomes.length == 1 ? nomes.first : nomes.join(' + '));
+    var desc = first.descricao.trim();
+    final mid = desc.indexOf(' · ');
+    if (mid > 0) {
+      desc = '${desc.substring(0, mid)} · $n serviços';
+    } else if (desc.isNotEmpty) {
+      desc = '$desc · $n serviços';
+    } else {
+      desc = 'OS · $n serviços';
+    }
+    out.add(
+      first.copyWith(
+        valor: _reais(cents),
+        descricao: desc,
+        servicoNome: servicoLabel,
+      ),
+    );
+  }
+  return out;
+}
+
 /// Agrupa por dia, do mais recente ao mais antigo.
 ///
 /// `totalDia` = só lançamentos **realizados** (pago), com sinal. Itens
 /// previstos continuam na lista do dia, mas **não** entram no total do dia
 /// (regra: receita do mês = OS concluída + manual paga).
-List<GrupoPorData> agruparPorData(List<FinLancamento> lancs) {
+///
+/// Por padrão consolida `via_os` multi-linha no **total da OS** ([consolidarViaOs]).
+List<GrupoPorData> agruparPorData(
+  List<FinLancamento> lancs, {
+  bool consolidarViaOs = true,
+}) {
+  final fonte = consolidarViaOs ? consolidarViaOsPorOs(lancs) : lancs;
   final map = <String, List<FinLancamento>>{};
-  for (final l in lancs) {
+  for (final l in fonte) {
     (map[dateOnly(l.data)] ??= []).add(l);
   }
   final grupos = map.entries.map((e) {
