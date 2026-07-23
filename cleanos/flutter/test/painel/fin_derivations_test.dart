@@ -3,7 +3,11 @@
 /// filtros PB. Cobre dinheiro (centavos) e datas de parede (sem fuso).
 library;
 
+import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/financeiro.dart';
+import 'package:cleanos/core/models/ordem_servico.dart';
+import 'package:cleanos/core/models/prof_comissao.dart';
+import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/financeiro/fin_derivations.dart';
 import 'package:cleanos/painel/financeiro/fin_filters.dart';
 import 'package:cleanos/painel/financeiro/fin_shell.dart';
@@ -107,6 +111,42 @@ void main() {
       expect(totalReceitasPrevistas(lancs), closeTo(600, 1e-9));
     });
 
+    test('resumoPeriodoCompetencia soma pago + não pago (balanço Extrato)', () {
+      final lancs = [
+        fakeLanc(
+          id: 'r1',
+          tipo: TipoLancamento.receita,
+          valor: 1000,
+          status: LancamentoStatus.pago,
+        ),
+        fakeLanc(
+          id: 'r2',
+          tipo: TipoLancamento.receita,
+          valor: 500,
+          status: LancamentoStatus.previsto,
+        ),
+        fakeLanc(
+          id: 'd1',
+          tipo: TipoLancamento.despesa,
+          valor: 300,
+          status: LancamentoStatus.pendente,
+        ),
+        fakeLanc(
+          id: 'd2',
+          tipo: TipoLancamento.despesa,
+          valor: 200,
+          status: LancamentoStatus.pago,
+        ),
+      ];
+      // Realizado: 1000 - 200 = 800
+      expect(resumoPeriodo(lancs).saldoMes, closeTo(800, 1e-9));
+      // Competência: 1500 - 500 = 1000
+      final c = resumoPeriodoCompetencia(lancs);
+      expect(c.entradas, closeTo(1500, 1e-9));
+      expect(c.saidas, closeTo(500, 1e-9));
+      expect(c.saldoMes, closeTo(1000, 1e-9));
+    });
+
     test('compromissosResumo projeta realizado + a receber − comissões', () {
       final lancs = [
         fakeLanc(
@@ -197,6 +237,133 @@ void main() {
     });
   });
 
+  group('isLancamentoDependenteExterno', () {
+    test('via_os e os_id são dependentes da OS', () {
+      expect(
+        isLancamentoDependenteExterno(
+          fakeLanc(id: '1', status: LancamentoStatus.pago)
+              .copyWith(origem: OrigemLancamento.viaOs),
+        ),
+        isTrue,
+      );
+      expect(
+        isLancamentoViaOs(
+          fakeLanc(id: '2').copyWith(osId: 'os-abc'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('comissão sintética e repasse são dependentes da equipe', () {
+      expect(
+        isLancamentoComissao(
+          fakeLanc(id: 'comissao-previsto-prof-jp'),
+        ),
+        isTrue,
+      );
+      expect(
+        isLancamentoComissao(
+          fakeLanc(id: 'r1', descricao: 'Repasse comissões · JP'),
+        ),
+        isTrue,
+      );
+      expect(
+        isLancamentoDependenteExterno(
+          fakeLanc(id: 'manual', status: LancamentoStatus.pendente),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('isLancamentoAtrasado', () {
+    const hoje = '2026-07-22';
+
+    test('pago nunca é atrasado', () {
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '1',
+            status: LancamentoStatus.pago,
+            data: '2026-07-01',
+            vencimento: '2026-07-01',
+          ),
+          hoje,
+        ),
+        isFalse,
+      );
+    });
+
+    test('pendente com data futura não é atrasado', () {
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '2',
+            status: LancamentoStatus.pendente,
+            data: '2026-07-27',
+          ),
+          hoje,
+        ),
+        isFalse,
+      );
+    });
+
+    test('pendente com data passada é atrasado', () {
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '3',
+            status: LancamentoStatus.pendente,
+            data: '2026-07-10',
+          ),
+          hoje,
+        ),
+        isTrue,
+      );
+    });
+
+    test('usa vencimento quando presente; data só como fallback', () {
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '4',
+            status: LancamentoStatus.pendente,
+            data: '2026-07-01',
+            vencimento: '2026-07-30',
+          ),
+          hoje,
+        ),
+        isFalse,
+      );
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '5',
+            status: LancamentoStatus.pendente,
+            data: '2026-07-30',
+            vencimento: '2026-07-10',
+          ),
+          hoje,
+        ),
+        isTrue,
+      );
+    });
+
+    test('status em_atraso conta mesmo com data futura', () {
+      expect(
+        isLancamentoAtrasado(
+          fakeLanc(
+            id: '6',
+            status: LancamentoStatus.emAtraso,
+            data: '2026-07-30',
+          ),
+          hoje,
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('contasAPagar / contasAReceber', () {
     test('separa por tipo, marca atraso/vencendo-hoje e ordena por venc', () {
       const hoje = '2026-07-15';
@@ -229,6 +396,22 @@ void main() {
       final receber = contasAReceber(lancs, hoje);
       expect(receber.length, 1);
       expect(receber.first.lancamento.id, 'receber');
+    });
+
+    test('sem vencimento usa data do lançamento para atraso', () {
+      const hoje = '2026-07-15';
+      final pagar = contasAPagar(
+        [
+          fakeLanc(
+            id: 'por-data',
+            tipo: TipoLancamento.despesa,
+            status: LancamentoStatus.pendente,
+            data: '2026-07-01',
+          ),
+        ],
+        hoje,
+      );
+      expect(pagar.single.emAtraso, isTrue);
     });
   });
 
@@ -276,9 +459,165 @@ void main() {
       expect(f, contains(r"a\' || 1=1"));
     });
 
-    test('finContasPendentesFilter filtra tipo + não pago', () {
+    test('finLancamentosFilter exclui comissão 1:1 legada (via_comissao+id)', () {
+      final f = finLancamentosFilter();
+      expect(f, contains("origem != 'via_comissao'"));
+      expect(f, contains("comissao_id = ''"));
+    });
+
+    test('finContasPendentesFilter filtra tipo + não pago + sem comissão 1:1',
+        () {
       final f = finContasPendentesFilter(TipoLancamento.despesa);
-      expect(f, "tipo = 'despesa' && status != 'pago'");
+      expect(f, contains("tipo = 'despesa' && status != 'pago'"));
+      expect(f, contains("origem != 'via_comissao'"));
+    });
+  });
+
+  group('finCategoriaComissaoIds + finComissoesPendentesComoLancamentos', () {
+    final cats = [
+      fakeCategoria(id: 'eq', nome: 'Equipe', tipo: TipoLancamento.despesa),
+      fakeCategoria(
+        id: 'prof',
+        nome: 'Profissionais',
+        tipo: TipoLancamento.despesa,
+        parentId: 'eq',
+      ),
+      fakeCategoria(
+        id: 'com',
+        nome: 'Comissões',
+        tipo: TipoLancamento.despesa,
+        parentId: 'eq',
+      ),
+    ];
+
+    test('resolve Equipe → Profissionais (canônico)', () {
+      final ids = finCategoriaComissaoIds(cats)!;
+      expect(ids.categoriaId, 'eq');
+      expect(ids.subcategoriaId, 'prof');
+    });
+
+    test('1 linha por profissional com total e data de repasse', () {
+      final now = DateTime.utc(2026, 7, 21, 15); // BRT 21/07
+      final jp = User(
+        id: 'jp',
+        name: 'João Pedro',
+        role: Role.profissional,
+        pagamentoFrequencia: PagamentoFrequencia.quinzenal,
+        pagamentoDia: 15,
+        pagamentoDia2: 0, // último dia do mês
+      );
+      final lancs = finComissoesPendentesComoLancamentos(
+        comissoes: [
+          const ProfComissao(
+            id: 'c1',
+            profissional: 'jp',
+            os: 'os1',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-16',
+            descricao: 'Cleanox Completo',
+          ),
+          const ProfComissao(
+            id: 'c2',
+            profissional: 'jp',
+            os: 'os2',
+            valorComissao: 90,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-18',
+            descricao: 'Premium',
+          ),
+          const ProfComissao(
+            id: 'c3',
+            profissional: 'jp',
+            os: 'os3',
+            valorComissao: 100,
+            status: ComissaoStatus.paga,
+            data: '2026-07-16',
+            descricao: 'já paga',
+          ),
+        ],
+        categorias: cats,
+        profissionais: [jp],
+        nomePorProfId: const {'jp': 'João Pedro'},
+        contaId: 'caixa',
+        now: now,
+      );
+      expect(lancs, hasLength(1));
+      final l = lancs.single;
+      expect(l.id, '$kFinComissaoPrevistoProfPrefix${'jp'}');
+      expect(finComissaoPrevistoProfId(l.id), 'jp');
+      expect(l.tipo, TipoLancamento.despesa);
+      expect(l.status, LancamentoStatus.previsto);
+      expect(l.categoriaId, 'eq');
+      expect(l.subcategoriaId, 'prof');
+      // 60+90; paga não entra
+      expect(l.valor, 150);
+      // quinzenal 15 + último dia → próximo após 21/07 = 31/07
+      expect(l.data, '2026-07-31');
+      expect(l.vencimento, '2026-07-31');
+      expect(l.descricao, 'Comissão · João Pedro');
+      expect(l.descricao, isNot(contains('Cleanox Completo')));
+      expect(l.descricao, isNot(contains('previsto')));
+      final aPagar = contasAPagar(lancs, '2026-07-21');
+      expect(aPagar, hasLength(1));
+      expect(aPagar.single.lancamento.valor, 150);
+    });
+
+    test('soma por profissional (não 1 por OS)', () {
+      final now = DateTime.utc(2026, 7, 21, 15);
+      final profs = [
+        User(
+          id: 'jp',
+          name: 'João Pedro',
+          role: Role.profissional,
+          pagamentoFrequencia: PagamentoFrequencia.quinzenal,
+          pagamentoDia: 15,
+          pagamentoDia2: 0,
+        ),
+        User(
+          id: 'hp',
+          name: 'Hendrio Piter',
+          role: Role.profissional,
+          pagamentoFrequencia: PagamentoFrequencia.quinzenal,
+          pagamentoDia: 15,
+          pagamentoDia2: 0,
+        ),
+      ];
+      final lancs = finComissoesPendentesComoLancamentos(
+        comissoes: [
+          for (var i = 0; i < 7; i++)
+            ProfComissao(
+              id: 'j$i',
+              profissional: 'jp',
+              os: 'os$i',
+              valorComissao: i == 3 ? 90 : 60,
+              status: ComissaoStatus.pendente,
+              data: '2026-07-16',
+            ),
+          for (var i = 0; i < 3; i++)
+            ProfComissao(
+              id: 'h$i',
+              profissional: 'hp',
+              os: 'osh$i',
+              valorComissao: 100,
+              status: ComissaoStatus.pendente,
+              data: '2026-07-18',
+            ),
+        ],
+        categorias: cats,
+        profissionais: profs,
+        now: now,
+      );
+      // 2 profissionais, não 10 linhas
+      expect(lancs, hasLength(2));
+      final byId = {for (final l in lancs) finComissaoPrevistoProfId(l.id)!: l};
+      // 6×60 + 90 = 450
+      expect(byId['jp']!.valor, 450);
+      expect(byId['hp']!.valor, 300);
+      expect(byId['jp']!.data, '2026-07-31');
+      expect(byId['hp']!.data, '2026-07-31');
+      final total = lancs.fold<int>(0, (s, x) => s + (x.valor * 100).round());
+      expect(total / 100.0, 750);
     });
   });
 
@@ -294,7 +633,95 @@ void main() {
       expect(FinTab.isKnownSlug(null), isFalse);
       expect(FinTab.isKnownSlug(''), isFalse);
       // fromSlug segue caindo no fallback defensivo enquanto a URL é corrigida.
-      expect(FinTab.fromSlug('lixo'), FinTab.visaoGeral);
+      expect(FinTab.fromSlug('lixo'), FinTab.principal);
+    });
+  });
+
+  group('comissaoPrevistaAtribuidas (até próximo pagamento)', () {
+    const prof = User(
+      id: 'jp',
+      name: 'João Pedro',
+      role: Role.profissional,
+      comissaoTipo: ComissaoTipo.percentual,
+      comissaoValor: 30,
+    );
+
+    OrdemServico os({
+      required String id,
+      required String dataHora,
+      double valor = 200,
+    }) =>
+        OrdemServico(
+          id: id,
+          nomeCurto: id,
+          dataHora: dataHora,
+          profissional: 'jp',
+          status: OSStatus.atribuida,
+          valorServico: valor,
+        );
+
+    test('sem limite: soma todas as OS abertas', () {
+      final r = comissaoPrevistaAtribuidas(
+        prof: prof,
+        osAbertas: [
+          os(id: 'a', dataHora: '2026-07-25 12:00:00.000Z'), // 25 BRT 09h
+          os(id: 'b', dataHora: '2026-08-01 12:00:00.000Z'), // 01/08
+        ],
+      );
+      // 2× 200 × 30% = 120
+      expect(r.valor, 120);
+      expect(r.qtdOs, 2);
+    });
+
+    test('com ate: só OS com dia BRT <= próximo pagamento', () {
+      final r = comissaoPrevistaAtribuidas(
+        prof: prof,
+        osAbertas: [
+          os(id: 'a', dataHora: '2026-07-25 12:00:00.000Z'), // 25
+          os(id: 'b', dataHora: '2026-07-31 15:00:00.000Z'), // 31 BRT 12h
+          os(id: 'c', dataHora: '2026-08-01 12:00:00.000Z'), // 01/08 — fora
+        ],
+        ate: DateTime.utc(2026, 7, 31),
+      );
+      // 2 × 200 × 30% = 120 (c excluída)
+      expect(r.qtdOs, 2);
+      expect(r.valor, 120);
+    });
+
+    test('diária conta dias únicos até o limite', () {
+      const h = User(
+        id: 'hp',
+        name: 'Hendrio',
+        role: Role.profissional,
+        comissaoTipo: ComissaoTipo.diaria,
+        comissaoValor: 100,
+      );
+      final r = comissaoPrevistaAtribuidas(
+        prof: h,
+        osAbertas: [
+          OrdemServico(
+            id: '1',
+            profissional: 'hp',
+            status: OSStatus.atribuida,
+            dataHora: '2026-07-22 12:00:00.000Z',
+          ),
+          OrdemServico(
+            id: '2',
+            profissional: 'hp',
+            status: OSStatus.atribuida,
+            dataHora: '2026-07-22 18:00:00.000Z', // mesmo dia BRT
+          ),
+          OrdemServico(
+            id: '3',
+            profissional: 'hp',
+            status: OSStatus.atribuida,
+            dataHora: '2026-08-05 12:00:00.000Z', // após limite
+          ),
+        ],
+        ate: DateTime.utc(2026, 7, 31),
+      );
+      expect(r.qtdOs, 2);
+      expect(r.valor, 100); // 1 dia × 100
     });
   });
 }

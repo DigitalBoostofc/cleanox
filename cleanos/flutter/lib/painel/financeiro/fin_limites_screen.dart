@@ -602,13 +602,13 @@ class _CatLimiteRow extends StatelessWidget {
                   height: 32,
                   margin: const EdgeInsets.only(right: ClxSpace.x2),
                   decoration: BoxDecoration(
-                    color: cor.withValues(alpha: 0.16),
+                    color: cor,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     finCategoriaIcon(categoria.icone),
                     size: 16,
-                    color: cor,
+                    color: finOnCategoriaColor(cor),
                   ),
                 ),
               Expanded(

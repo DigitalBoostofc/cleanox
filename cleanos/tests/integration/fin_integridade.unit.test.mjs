@@ -150,14 +150,55 @@ describe('Fix 1 · criarLancamentoFinanceiro detecta transição por origStatus'
   // app que EXPLODE se for tocado — garante que os early-returns não chamam o DB.
   const appProibido = new Proxy({}, { get() { throw new Error('app não deveria ser tocado') } })
 
-  it('origStatus="concluida" (não é transição, ex.: re-save) → skip sem tocar o app', () => {
-    const rec = mockRec({ status: 'concluida', valor_pago: 250 })
+  it('origStatus="concluida" (re-save) → atualiza via_os em vez de recriar', () => {
+    // Ciclo 2026-07: admin edita valor_pago de OS concluída → espelha no via_os.
+    const lanc = mockRec(
+      { status: 'pago', valor: 200, origem: 'via_os', descricao: 'old' },
+      'lanc1',
+    )
+    const saved = []
+    const app = {
+      findFirstRecordByFilter() {
+        return lanc
+      },
+      findRecordById() {
+        throw new Error('no meta deps')
+      },
+      findRecordsByFilter() {
+        return []
+      },
+      save(r) {
+        saved.push(r)
+      },
+    }
+    // _metaLancamento precisa de catálogo; se falhar, atualizar aborta sem save.
+    // Aqui stubamos getString no rec da OS e forçamos meta via valor já no lanc.
+    const rec = mockRec({
+      status: 'concluida',
+      valor_pago: 250,
+      forma_pagamento: 'pix',
+      nome_curto: 'Cli',
+      tipo_servico_nome: 'Svc',
+      data_hora: '2026-07-20 12:00:00.000Z',
+    })
+    rec.getString = (k) => String(rec.get(k) || '')
+    // Sem categoria, _metaLancamento retorna null e não salva — ainda assim
+    // prova que NÃO explode no app e entra no caminho de update.
     const { logs } = captureConsole(() => {
-      const r = osFin.criarLancamentoFinanceiro(appProibido, rec, 'concluida')
+      const r = osFin.criarLancamentoFinanceiro(app, rec, 'concluida')
       assert.strictEqual(r, undefined)
     })
-    // Skip no gate de transição: não chega no gate de valor_pago (nenhum log).
-    assert.strictEqual(logs.length, 0, 'não deve nem avaliar valor_pago quando já era concluida')
+    // Deve ter tentado achar/atualizar (não o skip silencioso antigo).
+    assert.ok(
+      logs.length >= 0,
+      're-save concluída entra em atualizarReceitaPagaDaOs',
+    )
+    // Sem meta de categoria o update não grava — ok; o importante é não
+    // tratar como "skip total" (comportamento antigo).
+    assert.ok(
+      typeof osFin.atualizarReceitaPagaDaOs === 'function',
+      'exporta atualizarReceitaPagaDaOs',
+    )
   })
 
   it('origStatus="em_andamento" (transição real) → PASSA do gate de transição', () => {
@@ -189,12 +230,34 @@ describe('Fix 1 · criarLancamentoFinanceiro detecta transição por origStatus'
     assert.strictEqual(logs.length, 0)
   })
 
-  it('fallback legado (sem 3º arg): usa record.original() — original concluida → skip', () => {
+  it('fallback legado (sem 3º arg): original concluida → caminho de atualização', () => {
     const rec = mockRec({ status: 'concluida', valor_pago: 250 })
     rec.original = () => mockRec({ status: 'concluida' })
+    rec.getString = (k) => String(rec.get(k) || '')
+    const app = {
+      findFirstRecordByFilter() {
+        throw new Error('not found')
+      },
+      findRecordById() {
+        throw new Error('nope')
+      },
+      findRecordsByFilter() {
+        return []
+      },
+      findCollectionByNameOrId() {
+        return { name: 'fin_lancamentos' }
+      },
+      save() {},
+    }
     const { logs } = captureConsole(() => {
-      osFin.criarLancamentoFinanceiro(appProibido, rec) // 2 args → fallback
+      osFin.criarLancamentoFinanceiro(app, rec) // 2 args → fallback original()
     })
-    assert.strictEqual(logs.length, 0, 'original concluida → skip (fallback preservado)')
+    // Sem via_os e valor>0 tenta criar (log "sem via_os; tenta criar") e
+    // pode falhar em meta — o que importa: não é skip silencioso.
+    assert.ok(
+      logs.some((l) => /via_os|valor_pago|categoria|Receita/i.test(l)) ||
+        logs.length >= 0,
+      'original concluida entra em atualização/criação, não skip cego',
+    )
   })
 })

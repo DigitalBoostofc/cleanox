@@ -6,6 +6,8 @@
 /// cancelar (via detalhe), e abrir a Execução (visão admin). Todos os estados.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -298,16 +300,46 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
   }
 }
 
-class _Toolbar extends ConsumerWidget {
+class _Toolbar extends ConsumerStatefulWidget {
   const _Toolbar({required this.onNovaOS});
 
   final VoidCallback onNovaOS;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Toolbar> createState() => _ToolbarState();
+}
+
+class _ToolbarState extends ConsumerState<_Toolbar> {
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      ref.read(ordensControllerProvider.notifier).setSearch(value);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final clx = context.clx;
     final filter = ref.watch(ordensControllerProvider.select((s) => s.filter));
     final lookups = ref.watch(ordensLookupsProvider);
+    // Mantém o campo em sync se o filtro for limpo por fora.
+    if (_searchCtrl.text != filter.search &&
+        filter.search.isEmpty &&
+        _searchCtrl.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchCtrl.clear();
+      });
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -318,60 +350,89 @@ class _Toolbar extends ConsumerWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: ClxSpace.x3,
+        runSpacing: ClxSpace.x3,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           ClxButton(
             label: 'Nova OS',
             icon: Icons.add_rounded,
-            onPressed: onNovaOS,
+            onPressed: widget.onNovaOS,
           ),
-          const SizedBox(width: ClxSpace.x3),
-          // Filtro por profissional (server-side).
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 280),
-              child: lookups.maybeWhen(
-                data: (lk) => DropdownButtonFormField<String>(
-                  initialValue: filter.profissionalId ?? '',
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: clx.bg2,
-                    prefixIcon: const Icon(Icons.badge_outlined, size: 18),
-                    border: const OutlineInputBorder(
-                      borderRadius: ClxRadii.rMd,
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('Todos os profissionais'),
-                    ),
-                    for (final p in lk.profissionais)
-                      DropdownMenuItem(
-                        value: p.id,
-                        child: Text(
-                          p.displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (v) => ref
-                      .read(ordensControllerProvider.notifier)
-                      .setProfissional((v ?? '').isEmpty ? null : v),
+          // Busca por nome (cliente / serviço / bairro) — server-side.
+          SizedBox(
+            width: 260,
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: _onSearchChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: clx.bg2,
+                hintText: 'Buscar por nome…',
+                prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                suffixIcon: filter.search.isNotEmpty
+                    ? IconButton(
+                        tooltip: 'Limpar busca',
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          ref
+                              .read(ordensControllerProvider.notifier)
+                              .setSearch('');
+                        },
+                      )
+                    : null,
+                border: const OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide.none,
                 ),
-                orElse: () => const SizedBox.shrink(),
               ),
             ),
           ),
-          const SizedBox(width: ClxSpace.x3),
-          // Filtro de período (server-side): janela de data_hora na lista e nas
-          // contagens. Era uma linha de chips; virou dropdown ao lado do
-          // ordenador (pedido do dono, 16/07).
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 190),
+          // Filtro por profissional (server-side).
+          SizedBox(
+            width: 240,
+            child: lookups.maybeWhen(
+              data: (lk) => DropdownButtonFormField<String>(
+                initialValue: filter.profissionalId ?? '',
+                isExpanded: true,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: clx.bg2,
+                  prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+                  border: const OutlineInputBorder(
+                    borderRadius: ClxRadii.rMd,
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Todos os profissionais'),
+                  ),
+                  for (final p in lk.profissionais)
+                    DropdownMenuItem(
+                      value: p.id,
+                      child: Text(
+                        p.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (v) => ref
+                    .read(ordensControllerProvider.notifier)
+                    .setProfissional((v ?? '').isEmpty ? null : v),
+              ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+          ),
+          // Filtro de período (server-side).
+          SizedBox(
+            width: 180,
             child: DropdownButtonFormField<OrdensPeriodo>(
               initialValue: filter.periodo,
               isExpanded: true,
@@ -399,12 +460,10 @@ class _Toolbar extends ConsumerWidget {
               },
             ),
           ),
-          const SizedBox(width: ClxSpace.x3),
-          // Ordenação por ABA de status (salva em prefs — cada status independente).
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 260),
+          // Ordenação por ABA de status.
+          SizedBox(
+            width: 240,
             child: DropdownButtonFormField<OrdensSort>(
-              // Key força rebuild ao trocar de aba (initialValue não reage sozinho).
               key: ValueKey(
                 'ordens-sort-${filter.status?.wire ?? 'all'}-${filter.sort.name}',
               ),
@@ -696,6 +755,7 @@ class _OrdemRow extends StatelessWidget {
                     status: os.status,
                     dense: true,
                     refazer: os.refazer,
+                    vitrine: os.isVitrine,
                   ),
                   if (os.avaliacaoNota != null) ...[
                     const SizedBox(height: 3),
@@ -819,10 +879,11 @@ class _OrdemCard extends StatelessWidget {
                             ),
                           ),
                           StatusBadge(
-                    status: os.status,
-                    dense: true,
-                    refazer: os.refazer,
-                  ),
+                            status: os.status,
+                            dense: true,
+                            refazer: os.refazer,
+                            vitrine: os.isVitrine,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -927,7 +988,7 @@ class _OrdemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              StatusBadge(status: os.status, dense: true, refazer: os.refazer),
+              StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),

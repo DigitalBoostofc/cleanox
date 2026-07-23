@@ -1259,13 +1259,25 @@ class _GastosCard extends StatelessWidget {
     final top = entries.take(6).toList();
     final resto = entries.skip(6).fold<double>(0, (a, e) => a + e.value);
     final cores = finSeriesColors(context, top.length + 1);
+    Color corCat(String id, int i) {
+      final c = cat(id);
+      final direct = finParseHex(c?.cor);
+      if (direct != null) return direct;
+      final pid = c?.parentId;
+      if (pid != null && pid.isNotEmpty) {
+        final parent = finParseHex(cat(pid)?.cor);
+        if (parent != null) return parent;
+      }
+      return cores[i % cores.length];
+    }
+
     final slices = <FinSlice>[
       for (var i = 0; i < top.length; i++)
         FinSlice(
           label: cat(top[i].key)?.nome ?? 'Categoria',
           value: top[i].value,
-          // Prefere cor da categoria; senão série do tema.
-          color: finParseHex(cat(top[i].key)?.cor) ?? cores[i],
+          // Mesma cor do ícone da categoria (fallback: série do tema).
+          color: corCat(top[i].key, i),
         ),
       if (resto > 0)
         FinSlice(label: 'Outros', value: resto, color: cores.last),

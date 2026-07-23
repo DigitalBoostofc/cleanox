@@ -20,18 +20,21 @@ import '../fin_derivations.dart';
 import '../fin_labels.dart';
 
 /// Abre o painel de detalhes. Resolve com a ação escolhida (ou `null` se fechou).
+/// [readOnly] esconde Editar/Duplicar/Excluir (OS e comissão).
 Future<String?> showLancamentoDetail(
   BuildContext context, {
   required FinLancamento lancamento,
   FinCategoria? categoria,
   FinCategoria? subcategoria,
   FinConta? conta,
+  bool readOnly = false,
 }) {
   final panel = _LancamentoDetailPanel(
     lancamento: lancamento,
     categoria: categoria,
     subcategoria: subcategoria,
     conta: conta,
+    readOnly: readOnly,
   );
   final wide = MediaQuery.sizeOf(context).width >= 720;
   final clx = context.clx;
@@ -79,12 +82,14 @@ class _LancamentoDetailPanel extends StatelessWidget {
     this.categoria,
     this.subcategoria,
     this.conta,
+    this.readOnly = false,
   });
 
   final FinLancamento lancamento;
   final FinCategoria? categoria;
   final FinCategoria? subcategoria;
   final FinConta? conta;
+  final bool readOnly;
 
   String _recorrenciaDescricao(FinLancamento l) => switch (l.recorrencia) {
     RecorrenciaTipo.unica => 'Não se aplica',
@@ -327,40 +332,52 @@ class _LancamentoDetailPanel extends StatelessWidget {
                     spacing: ClxSpace.x2,
                     runSpacing: ClxSpace.x2,
                     children: [
-                      for (final t in l.tags)
-                        ClxChip(label: t, color: clx.ink3, dense: true),
+                      for (final t in l.tags) FinTagChip(label: t),
                     ],
                   ),
                 ),
             ],
           ),
         ),
-        Divider(height: 1, color: clx.line),
-        // Rodapé: ações.
-        // "Duplicar" cria outra movimentação idêntica (não "próxima parcela").
-        Padding(
-          padding: const EdgeInsets.all(ClxSpace.x4),
-          child: Row(
-            children: [
-              _Action(
-                icon: Icons.copy_rounded,
-                label: 'Duplicar',
-                onTap: () => Navigator.of(context).pop('duplicate'),
-              ),
-              _Action(
-                icon: Icons.edit_outlined,
-                label: 'Editar',
-                onTap: () => Navigator.of(context).pop('edit'),
-              ),
-              _Action(
-                icon: Icons.delete_outline_rounded,
-                label: 'Excluir',
-                danger: true,
-                onTap: () => Navigator.of(context).pop('delete'),
-              ),
-            ],
+        if (readOnly) ...[
+          Divider(height: 1, color: clx.line),
+          Padding(
+            padding: const EdgeInsets.all(ClxSpace.x4),
+            child: Text(
+              isLancamentoComissao(l)
+                  ? 'Comissão gerenciada em Equipe — não editável na movimentação.'
+                  : 'Lançamento da OS — status e valores seguem a ordem de serviço.',
+              style: tt.bodySmall?.copyWith(color: clx.ink3, height: 1.35),
+            ),
           ),
-        ),
+        ] else ...[
+          Divider(height: 1, color: clx.line),
+          // Rodapé: ações.
+          // "Duplicar" cria outra movimentação idêntica (não "próxima parcela").
+          Padding(
+            padding: const EdgeInsets.all(ClxSpace.x4),
+            child: Row(
+              children: [
+                _Action(
+                  icon: Icons.copy_rounded,
+                  label: 'Duplicar',
+                  onTap: () => Navigator.of(context).pop('duplicate'),
+                ),
+                _Action(
+                  icon: Icons.edit_outlined,
+                  label: 'Editar',
+                  onTap: () => Navigator.of(context).pop('edit'),
+                ),
+                _Action(
+                  icon: Icons.delete_outline_rounded,
+                  label: 'Excluir',
+                  danger: true,
+                  onTap: () => Navigator.of(context).pop('delete'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

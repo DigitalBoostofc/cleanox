@@ -16,6 +16,8 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
+import '../../core/models/prof_comissao.dart';
+import '../../core/models/user.dart';
 import '../data/painel_providers.dart' show comissaoRepositoryProvider;
 import '../data/pb_financeiro_repository.dart';
 import 'fin_derivations.dart';
@@ -122,7 +124,9 @@ Future<List<FinLancamento>> _fetchLancamentosDoPeriodo(
   if (ensureRecorrencias) {
     await repo.ensureRecorrenciasNoPeriodo(periodo);
   }
-  final filter = finPeriodoFilter(periodo);
+  // Período + sem comissão 1:1 legada (Equipe acumula; repasse só no pagamento).
+  final filter =
+      '${finPeriodoFilter(periodo)} && ${finExcludeComissaoPorOsFilter()}';
   final out = <FinLancamento>[];
   var page = 1;
   while (true) {
@@ -175,11 +179,22 @@ final finRelatorioLancamentosProvider =
       );
     });
 
+/// Extrato de comissões (Equipe) — base do relatório "Incluir não pagas" e KPIs.
+final finComissoesProvider =
+    FutureProvider.autoDispose<List<ProfComissao>>((ref) {
+      return ref.watch(comissaoRepositoryProvider).listComissoes();
+    });
+
+/// Profissionais (nomes) para descrever comissões sintéticas no relatório.
+final finProfissionaisProvider = FutureProvider.autoDispose<List<User>>((ref) {
+  return ref.watch(comissaoRepositoryProvider).listProfissionais();
+});
+
 /// Total de comissões PENDENTES (equipe) — obrigação global, não só do mês.
 /// Usado no Painel (compromissos) e KPIs de Movimentações.
 final finComissoesPendentesTotalProvider =
     FutureProvider.autoDispose<double>((ref) async {
-      final list = await ref.watch(comissaoRepositoryProvider).listComissoes();
+      final list = await ref.watch(finComissoesProvider.future);
       var cents = 0;
       for (final c in list) {
         if (c.status == ComissaoStatus.pendente) {
@@ -192,6 +207,10 @@ final finComissoesPendentesTotalProvider =
 /// TODOS os lançamentos EM ABERTO (status != pago), paginando. Base de "Contas a
 /// pagar/receber" — bounded pelos itens não quitados (não é lista infinita de
 /// UI). Ordenados por vencimento asc no servidor.
+///
+/// Inclui comissões **pendentes** da equipe como despesas sintéticas `previsto`
+/// em Equipe → Profissionais (mesmo contrato do relatório "Incluir não pagas"),
+/// para o total a pagar refletir a obrigação acumulada.
 final finPendentesProvider = FutureProvider.autoDispose<List<FinLancamento>>((
   ref,
 ) async {
@@ -202,12 +221,50 @@ final finPendentesProvider = FutureProvider.autoDispose<List<FinLancamento>>((
     final res = await repo.listLancamentos(
       page: page,
       perPage: _kFinPageSize,
-      filter: "status != 'pago'",
+      filter: "status != 'pago' && ${finExcludeComissaoPorOsFilter()}",
       sort: 'vencimento',
     );
     out.addAll(res.items);
     if (page >= res.totalPages || res.items.isEmpty) break;
     page++;
   }
+
+  // Comissões pendentes → a pagar (Equipe / Profissionais).
+  try {
+    final comissoes = await ref.watch(finComissoesProvider.future);
+    final categorias = await ref.watch(finCategoriasProvider.future);
+    final contas = await ref.watch(finContasProvider.future);
+    final profs = await ref.watch(finProfissionaisProvider.future);
+    final nomePorProf = {
+      for (final u in profs)
+        if (u.displayName.trim().isNotEmpty) u.id: u.displayName.trim(),
+    };
+    var contaPadrao = '';
+    for (final c in contas) {
+      if (c.ativo) {
+        contaPadrao = c.id;
+        break;
+      }
+    }
+    final previstos = finComissoesPendentesComoLancamentos(
+      comissoes: comissoes,
+      categorias: categorias,
+      profissionais: profs,
+      nomePorProfId: nomePorProf,
+      contaId: contaPadrao,
+    );
+    if (previstos.isNotEmpty) {
+      final ids = {for (final l in out) l.id};
+      out.addAll(previstos.where((l) => !ids.contains(l.id)));
+      out.sort((a, b) {
+        final va = (a.vencimento?.isNotEmpty ?? false) ? a.vencimento! : a.data;
+        final vb = (b.vencimento?.isNotEmpty ?? false) ? b.vencimento! : b.data;
+        return va.compareTo(vb);
+      });
+    }
+  } catch (_) {
+    // Best-effort: se falhar extrato/categorias, mantém só fin_lancamentos.
+  }
+
   return out;
 });

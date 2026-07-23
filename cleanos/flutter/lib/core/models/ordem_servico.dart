@@ -116,6 +116,9 @@ class OrdemServico with _$OrdemServico {
     /// OS reaberta após conclusão (etiqueta "Refazer" na UI).
     @Default(false) bool refazer,
 
+    /// Canal de criação: manual | vitrine | whatsapp | outro ("" = legado).
+    @JsonKey(name: 'canal_origem') @Default('') String canalOrigem,
+
     /// Avaliação (preenchida pelo backend após pesquisa).
     @JsonKey(name: 'avaliacao_nota') double? avaliacaoNota,
     @JsonKey(name: 'avaliacao_motivo') String? avaliacaoMotivo,
@@ -221,6 +224,9 @@ class OrdemServico with _$OrdemServico {
 
   /// Refazer sem cobrança (valor zero / sem pagamento registrado com valor).
   bool get refazerSemCobranca => refazer && (valorPago ?? 0) <= 0;
+
+  /// OS criada pela vitrine pública (`agendar.cleanox.com.br`).
+  bool get isVitrine => canalOrigem.trim().toLowerCase() == 'vitrine';
 }
 
 /// `duracao_min` do PB → minutos, ou `null` quando "sem duração própria".

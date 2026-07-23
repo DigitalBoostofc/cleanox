@@ -739,7 +739,7 @@ class _TxCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              StatusBadge(status: os.status, dense: true, refazer: os.refazer),
+              StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
             ],
           ),
         ),
@@ -1094,7 +1094,7 @@ class _UpcomingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: ClxSpace.x3),
-          StatusBadge(status: os.status, dense: true, refazer: os.refazer),
+          StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
         ],
       ),
     );

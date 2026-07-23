@@ -204,6 +204,40 @@ void main() {
       }
     });
 
+    test('lados estáveis no DIA: manhã e tarde não trocam profissional de lado', () {
+      // Regressão: preferência só por aglomerado invertia os lados.
+      // Manhã: José começa primeiro → sem ordem global, J ia p/ col 0 e G p/ 1.
+      // Tarde: Gabriela começa primeiro → G col 0 e J col 1 (trocava de lado).
+      // Com ordem do dia (groupKey lexico): G SEMPRE 0, J SEMPRE 1.
+      final l = layoutDayEvents([
+        _iv('j-manha', _min('08:00'), _min('10:00'), groupKey: 'jose'),
+        _iv('g-manha', _min('09:00'), _min('11:00'), groupKey: 'gabriela'),
+        // buraco: clusters separados
+        _iv('g-tarde', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+        _iv('j-tarde', _min('15:00'), _min('17:00'), groupKey: 'jose'),
+      ]);
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['g-manha']!.column, 0, reason: 'Gabriela à esquerda de manhã');
+      expect(byId['j-manha']!.column, 1, reason: 'José à direita de manhã');
+      expect(byId['g-tarde']!.column, 0, reason: 'Gabriela à esquerda à tarde');
+      expect(byId['j-tarde']!.column, 1, reason: 'José à direita à tarde');
+      for (final id in ['g-manha', 'j-manha', 'g-tarde', 'j-tarde']) {
+        expect(byId[id]!.columnCount, 2);
+      }
+    });
+
+    test('profissional sozinho no slot usa largura cheia (sem buraco)', () {
+      final l = layoutDayEvents([
+        _iv('so-j', _min('08:00'), _min('10:00'), groupKey: 'jose'),
+        _iv('so-g', _min('14:00'), _min('16:00'), groupKey: 'gabriela'),
+      ]);
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['so-j']!.column, 0);
+      expect(byId['so-j']!.columnCount, 1);
+      expect(byId['so-g']!.column, 0);
+      expect(byId['so-g']!.columnCount, 1);
+    });
+
     test('sem groupKey, cadeia clássica A/B/C não muda', () {
       // Regressão: empacotamento antigo (sem profissional) continua válido.
       final l = layoutDayEvents([

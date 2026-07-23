@@ -58,8 +58,8 @@ class Intervalo {
   final String label;
 
   /// Agrupa colunas no layout: normalmente o id do profissional. OS do MESMO
-  /// grupo preferem a MESMA coluna quando se sobrepõem (ex.: José à esquerda,
-  /// Gabriela à direita o dia inteiro no aglomerado). Vazio = sem preferência.
+  /// grupo ficam no MESMO lado o dia inteiro (ex.: Gabriela à esquerda, José
+  /// à direita em todo slot lado a lado). Vazio = sem preferência.
   final String groupKey;
 
   int get duracaoMin => endMin - startMin;
@@ -207,8 +207,9 @@ List<Intervalo> sobreposicoes(List<Intervalo> ocupados, int start, int dur) {
 /// - **Aglomerados** (clusters) conectados por sobreposição; dentro de cada um,
 ///   o evento vai para a 1ª coluna livre e a largura é `1 / columnCount` — o
 ///   número FINAL de colunas do aglomerado (não o máximo corrente).
-/// - **Mesmo profissional** ([Intervalo.groupKey]): prefere a MESMA coluna no
-///   aglomerado (José à esquerda, Gabriela à direita) em vez de misturar.
+/// - **Mesmo profissional** ([Intervalo.groupKey]): lado ESTÁVEL no dia inteiro
+///   (ex.: Gabriela sempre à esquerda, José sempre à direita quando lado a lado),
+///   não só dentro de um aglomerado — senão manhã/tarde invertia os lados.
 /// - **Teto de colunas** [maxColunas]: o excedente não é desenhado, vira
 ///   [ExcedenteAglomerado] ("+N", que a UI abre como lista).
 /// - **Duração mínima** de 15 min aplicada ANTES do algoritmo.
@@ -267,6 +268,21 @@ DayLayout layoutDayEvents(
   //    sempre cai na coluna mais à esquerda que o outro.
   normalizados.sort(_cmpNormalizado);
 
+  // Ordem global do dia: groupKey lexicográfico → índice preferido.
+  // Assim manhã e tarde NÃO trocam de lado (Gabriela sempre 0, José sempre 1).
+  final ordemGlobal = <String, int>{};
+  {
+    final keys = <String>{};
+    for (final n in normalizados) {
+      final g = n.evento.groupKey;
+      if (g.isNotEmpty) keys.add(g);
+    }
+    final sorted = keys.toList()..sort();
+    for (var k = 0; k < sorted.length; k++) {
+      ordemGlobal[sorted[k]] = k;
+    }
+  }
+
   // 3) Janela dinâmica: só EXPANDE (o padrão 6h–22h é o piso).
   var minStart = normalizados.first.startMin;
   var maxEnd = normalizados.first.endMin;
@@ -280,7 +296,7 @@ DayLayout layoutDayEvents(
     _max(dayEnd, ((maxEnd + 59) ~/ 60) * 60),
   );
 
-  // 4) Aglomerados + colunas (com preferência por profissional).
+  // 4) Aglomerados + colunas (lado estável por profissional no DIA).
   final posicionados = <EventoPosicionado>[];
   final excedentes = <ExcedenteAglomerado>[];
   var i = 0;
@@ -300,26 +316,35 @@ DayLayout layoutDayEvents(
     // fora de ordem de groupKey).
     cluster.sort(_cmpNormalizado);
 
-    // Empacota: prefere a coluna do MESMO profissional se ainda livre;
+    // Coluna densa do aglomerado: só os profs PRESENTES, na ordem global do dia.
+    // Ex.: dia tem A,B,C; cluster só A+C → A=0, C=1 (sem buraco da B).
+    // Só um prof no cluster → coluna 0 (largura cheia).
+    final denseCol = _denseColsDoCluster(cluster, ordemGlobal);
+
+    // Empacota: prefere a coluna estável do profissional se livre;
     // senão a 1ª coluna livre; senão abre coluna nova.
     final fimPorColuna = <int>[];
     final colunaDe = <int>[]; // índice de coluna por evento do aglomerado
-    final colPreferidaDoGrupo = <String, int>{};
     for (final n in cluster) {
       final group = n.evento.groupKey;
       var col = -1;
 
-      // 1) Coluna já usada por este profissional neste aglomerado — se livre.
+      // 1) Coluna preferida do profissional neste aglomerado (ordem do dia).
       if (group.isNotEmpty) {
-        final pref = colPreferidaDoGrupo[group];
-        if (pref != null &&
-            pref < fimPorColuna.length &&
-            fimPorColuna[pref] <= n.startMin) {
-          col = pref;
+        final pref = denseCol[group];
+        if (pref != null) {
+          // Garante slots até a coluna preferida (livres = fim 0).
+          // Quem começa primeiro e tem coluna 1 abre a 0 vazia; o outro a ocupa.
+          while (fimPorColuna.length <= pref) {
+            fimPorColuna.add(0);
+          }
+          if (fimPorColuna[pref] <= n.startMin) {
+            col = pref;
+          }
         }
       }
 
-      // 2) 1ª coluna livre (comportamento clássico).
+      // 2) 1ª coluna livre (comportamento clássico / conflito no mesmo prof).
       if (col == -1) {
         for (var c = 0; c < fimPorColuna.length; c++) {
           if (fimPorColuna[c] <= n.startMin) {
@@ -336,16 +361,16 @@ DayLayout layoutDayEvents(
       } else {
         fimPorColuna[col] = n.endMin;
       }
-
-      // Fixa a coluna preferida do profissional na 1ª vez que ele aparece.
-      if (group.isNotEmpty) {
-        colPreferidaDoGrupo.putIfAbsent(group, () => col);
-      }
       colunaDe.add(col);
     }
 
     // Largura = 1 / colunas FINAIS do aglomerado, respeitando o teto.
-    final colunasUsadas = fimPorColuna.length;
+    // Descarta colunas "fantasma" abertas e nunca usadas (fim ainda 0).
+    var colunasUsadas = 0;
+    for (var c = 0; c < fimPorColuna.length; c++) {
+      if (fimPorColuna[c] > 0) colunasUsadas = c + 1;
+    }
+    if (colunasUsadas == 0) colunasUsadas = fimPorColuna.length;
     final columnCount = colunasUsadas > maxColunas ? maxColunas : colunasUsadas;
 
     final sobrando = <Intervalo>[];
@@ -385,6 +410,29 @@ DayLayout layoutDayEvents(
     eventos: posicionados,
     excedentes: excedentes,
   );
+}
+
+/// Colunas densas dos profissionais presentes no aglomerado, na ordem global
+/// do dia (groupKey lexicográfico). 1 prof → só coluna 0; 2 profs → 0 e 1
+/// estáveis manhã/tarde.
+Map<String, int> _denseColsDoCluster(
+  List<_Normalizado> cluster,
+  Map<String, int> ordemGlobal,
+) {
+  final presentes = <String>{};
+  for (final n in cluster) {
+    final g = n.evento.groupKey;
+    if (g.isNotEmpty) presentes.add(g);
+  }
+  if (presentes.isEmpty) return const {};
+  final ordered = presentes.toList()
+    ..sort((a, b) {
+      final oa = ordemGlobal[a] ?? 0;
+      final ob = ordemGlobal[b] ?? 0;
+      final c = oa.compareTo(ob);
+      return c != 0 ? c : a.compareTo(b);
+    });
+  return {for (var i = 0; i < ordered.length; i++) ordered[i]: i};
 }
 
 /// Ordenação estável dos eventos normalizados (e dos aglomerados).

@@ -12,13 +12,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/ordem_servico.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
+import '../../profissional/financeiro/prof_pagamento.dart';
 import '../data/painel_providers.dart';
 import 'charts/fin_charts.dart';
+import 'fin_derivations.dart';
 import 'fin_fechar_ciclo.dart';
 
 /// Percentual legível (F-230): 10.0 → "10%", 12.5 → "12,5%".
@@ -40,6 +44,26 @@ final _comissoesExtratoProvider =
       return ref.watch(comissaoRepositoryProvider).listComissoes();
     });
 
+/// OS atribuídas / em andamento — base do card **Previsto** até o próximo pagamento.
+final _osAtribuidasProvider =
+    FutureProvider.autoDispose<List<OrdemServico>>((ref) async {
+      final repo = ref.watch(ordensRepositoryProvider);
+      final out = <OrdemServico>[];
+      var page = 1;
+      while (true) {
+        final res = await repo.list(
+          page: page,
+          perPage: 200,
+          filter: "status = 'atribuida' || status = 'em_andamento'",
+          sort: 'data_hora',
+        );
+        out.addAll(res.items);
+        if (page >= res.totalPages || res.items.isEmpty) break;
+        page++;
+      }
+      return out;
+    });
+
 /// Filtro do sheet flutuante (null = todos).
 enum _FiltroSheet { abertas, pagas, todas }
 
@@ -51,12 +75,14 @@ class FinComissoesScreen extends ConsumerWidget {
     final clx = context.clx;
     final profs = ref.watch(_comissoesProfissionaisProvider);
     final extrato = ref.watch(_comissoesExtratoProvider);
+    final osAtribuidas = ref.watch(_osAtribuidasProvider);
     final narrow = MediaQuery.sizeOf(context).width < 600;
 
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(_comissoesProfissionaisProvider);
         ref.invalidate(_comissoesExtratoProvider);
+        ref.invalidate(_osAtribuidasProvider);
       },
       child: ListView(
         padding: EdgeInsets.fromLTRB(
@@ -138,9 +164,12 @@ class FinComissoesScreen extends ConsumerWidget {
             ),
             data: (items) {
               final profList = profs.asData?.value ?? const <User>[];
+              final osList =
+                  osAtribuidas.asData?.value ?? const <OrdemServico>[];
               return _Dashboard(
                 items: items,
                 profs: profList,
+                osAtribuidas: osList,
                 narrow: narrow,
                 onToggle: (c) => _toggleStatus(context, ref, c),
                 onOpenSheet: (filtro, {String? profId}) => _openSheet(
@@ -158,6 +187,7 @@ class FinComissoesScreen extends ConsumerWidget {
                   onPaid: () {
                     ref.invalidate(_comissoesExtratoProvider);
                     ref.invalidate(_comissoesProfissionaisProvider);
+                    ref.invalidate(_osAtribuidasProvider);
                   },
                 ),
               );
@@ -287,6 +317,7 @@ class _Dashboard extends StatelessWidget {
   const _Dashboard({
     required this.items,
     required this.profs,
+    required this.osAtribuidas,
     required this.narrow,
     required this.onToggle,
     required this.onOpenSheet,
@@ -295,6 +326,7 @@ class _Dashboard extends StatelessWidget {
 
   final List<ProfComissao> items;
   final List<User> profs;
+  final List<OrdemServico> osAtribuidas;
   final bool narrow;
   final Future<void> Function(ProfComissao) onToggle;
   final void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet;
@@ -351,15 +383,39 @@ class _Dashboard extends StatelessWidget {
             (b.value.aberto + b.value.pago).compareTo(a.value.aberto + a.value.pago),
       );
 
-    final series = finSeriesColors(context, profEntries.length);
-    final slices = [
-      for (var i = 0; i < profEntries.length; i++)
-        FinSlice(
-          label: shortName(profEntries[i].value.nome),
-          value: profEntries[i].value.aberto + profEntries[i].value.pago,
-          color: series[i],
-        ),
-    ];
+    // Cores estáveis por profissional (mesmas nos 2 donuts).
+    final sortedProfIds = profEntries.map((e) => e.key).toList()
+      ..sort((a, b) {
+        final na = byProf[a]?.nome ?? nomeProf(a);
+        final nb = byProf[b]?.nome ?? nomeProf(b);
+        return na.toLowerCase().compareTo(nb.toLowerCase());
+      });
+    final series = finSeriesColors(context, sortedProfIds.length);
+    final colorByProf = <String, Color>{
+      for (var i = 0; i < sortedProfIds.length; i++)
+        sortedProfIds[i]: series[i],
+    };
+
+    // Dois gráficos separados: em aberto × pagas (não misturar no mesmo donut).
+    final slicesAberto = [
+      for (final e in profEntries)
+        if (e.value.aberto > 0)
+          FinSlice(
+            label: shortName(e.value.nome),
+            value: e.value.aberto,
+            color: colorByProf[e.key] ?? clx.warning,
+          ),
+    ]..sort((a, b) => b.value.compareTo(a.value));
+
+    final slicesPago = [
+      for (final e in profEntries)
+        if (e.value.pago > 0)
+          FinSlice(
+            label: shortName(e.value.nome),
+            value: e.value.pago,
+            color: colorByProf[e.key] ?? clx.success,
+          ),
+    ]..sort((a, b) => b.value.compareTo(a.value));
 
     final kpis = [
       _KpiTap(
@@ -463,60 +519,42 @@ class _Dashboard extends StatelessWidget {
             ],
           ),
         const SizedBox(height: ClxSpace.x4),
-        ClxCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Por profissional',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: clx.ink,
+        if (items.isEmpty)
+          ClxCard(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: ClxSpace.x5),
+              child: Center(
+                child: Text(
+                  'Nenhuma comissão ainda. Elas surgem ao concluir OS '
+                  'de profissionais com comissão ativa.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
                 ),
               ),
-              const SizedBox(height: ClxSpace.x1),
-              Text(
-                'Toque na legenda para ver o extrato daquele profissional.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: clx.ink3),
-              ),
-              const SizedBox(height: ClxSpace.x4),
-              if (items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: ClxSpace.x5),
-                  child: Center(
-                    child: Text(
-                      'Nenhuma comissão ainda. Elas surgem ao concluir OS '
-                      'de profissionais com comissão ativa.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
-                    ),
-                  ),
-                )
-              else if (slices.every((s) => s.value <= 0))
-                const SizedBox.shrink()
-              else
-                FinDonutChart(slices: slices, centerLabel: 'Comissões'),
-              if (profEntries.isNotEmpty) ...[
-                const SizedBox(height: ClxSpace.x4),
-                for (var i = 0; i < profEntries.length; i++)
-                  _ProfBarRow(
-                    nome: profEntries[i].value.nome,
-                    aberto: profEntries[i].value.aberto,
-                    pago: profEntries[i].value.pago,
-                    color: series[i],
-                    onTap: () => onOpenSheet(
-                      _FiltroSheet.todas,
-                      profId: profEntries[i].key,
-                    ),
-                  ),
-              ],
-            ],
+            ),
+          )
+        else
+          _ProfChartsRow(
+            narrow: narrow,
+            slicesAberto: slicesAberto,
+            slicesPago: slicesPago,
+            totalAberto: totalAberto,
+            totalPago: totalPago,
+            onTapAberto: (slice) {
+              final id = _profIdByShortName(slice.label, byProf);
+              if (id != null) {
+                onOpenSheet(_FiltroSheet.abertas, profId: id);
+              }
+            },
+            onTapPago: (slice) {
+              final id = _profIdByShortName(slice.label, byProf);
+              if (id != null) {
+                onOpenSheet(_FiltroSheet.pagas, profId: id);
+              }
+            },
           ),
-        ),
         const SizedBox(height: ClxSpace.x4),
         Text(
           'Extrato por profissional',
@@ -527,7 +565,7 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: ClxSpace.x1),
         Text(
-          'Profissionais que recebem comissão. Toque para ver o extrato.',
+          'Em aberto, previsto (OS até o próximo pagamento) e pagas. Toque para o detalhe.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: clx.ink3),
@@ -538,11 +576,23 @@ class _Dashboard extends StatelessWidget {
           clx: clx,
           items: items,
           profs: profs,
+          osAtribuidas: osAtribuidas,
           byProf: byProf,
           onOpenSheet: onOpenSheet,
         ),
       ],
     );
+  }
+
+  /// Resolve id do profissional a partir do shortName da legenda do donut.
+  String? _profIdByShortName(
+    String label,
+    Map<String, ({double aberto, double pago, String nome})> byProf,
+  ) {
+    for (final e in byProf.entries) {
+      if (shortName(e.value.nome) == label) return e.key;
+    }
+    return null;
   }
 
   /// Profissionais com comissão ativa OU com lançamentos no extrato.
@@ -551,6 +601,7 @@ class _Dashboard extends StatelessWidget {
     required CleanoxColors clx,
     required List<ProfComissao> items,
     required List<User> profs,
+    required List<OrdemServico> osAtribuidas,
     required Map<String, ({double aberto, double pago, String nome})> byProf,
     required void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet,
   }) {
@@ -583,6 +634,13 @@ class _Dashboard extends StatelessWidget {
       return null;
     }
 
+    String fmtPayDay(DateTime? d) {
+      if (d == null) return '';
+      final dd = d.day.toString().padLeft(2, '0');
+      final mm = d.month.toString().padLeft(2, '0');
+      return '$dd/$mm';
+    }
+
     final rows = ids.map((id) {
       final u = findUser(id);
       final agg = byProf[id];
@@ -600,6 +658,17 @@ class _Dashboard extends StatelessWidget {
             (c) => c.profissional == id && c.status == ComissaoStatus.paga,
           )
           .length;
+
+      // Previsto: OS abertas com data ≤ próximo pagamento do prof.
+      final nextPay = u != null ? proximaDataPagamento(u) : null;
+      final prev = u != null
+          ? comissaoPrevistaAtribuidas(
+              prof: u,
+              osAbertas: osAtribuidas,
+              ate: nextPay,
+            )
+          : (valor: 0.0, qtdOs: 0);
+
       return (
         id: id,
         nome: nome,
@@ -610,7 +679,10 @@ class _Dashboard extends StatelessWidget {
         pago: pago,
         nAbertas: nAbertas,
         nPagas: nPagas,
-        total: aberto + pago,
+        previsto: prev.valor,
+        nPrevistas: prev.qtdOs,
+        proximoPagamentoLabel: fmtPayDay(nextPay),
+        total: aberto + pago + prev.valor,
       );
     }).toList()
       ..sort((a, b) {
@@ -630,11 +702,162 @@ class _Dashboard extends StatelessWidget {
           pago: r.pago,
           nAbertas: r.nAbertas,
           nPagas: r.nPagas,
+          previsto: r.previsto,
+          nPrevistas: r.nPrevistas,
+          proximoPagamentoLabel: r.proximoPagamentoLabel,
           onTap: () => onOpenSheet(_FiltroSheet.todas, profId: r.id),
         ),
         const SizedBox(height: ClxSpace.x2),
       ],
     ];
+  }
+}
+
+class _ProfChartsRow extends StatelessWidget {
+  const _ProfChartsRow({
+    required this.narrow,
+    required this.slicesAberto,
+    required this.slicesPago,
+    required this.totalAberto,
+    required this.totalPago,
+    required this.onTapAberto,
+    required this.onTapPago,
+  });
+
+  final bool narrow;
+  final List<FinSlice> slicesAberto;
+  final List<FinSlice> slicesPago;
+  final double totalAberto;
+  final double totalPago;
+  final ValueChanged<FinSlice> onTapAberto;
+  final ValueChanged<FinSlice> onTapPago;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final aberto = _ChartCard(
+      title: 'Em aberto',
+      subtitle: 'Comissões pendentes de repasse',
+      slices: slicesAberto,
+      centerLabel: 'Aberto',
+      emptyHint: totalAberto <= 0
+          ? 'Nada em aberto no momento.'
+          : 'Sem fatias para exibir.',
+      accent: clx.warning,
+      onSectionTap: onTapAberto,
+    );
+    final pago = _ChartCard(
+      title: 'Pagas',
+      subtitle: 'Comissões já quitadas',
+      slices: slicesPago,
+      centerLabel: 'Pagas',
+      emptyHint: totalPago <= 0
+          ? 'Nenhuma comissão paga ainda.'
+          : 'Sem fatias para exibir.',
+      accent: clx.success,
+      onSectionTap: onTapPago,
+    );
+
+    if (narrow) {
+      return Column(
+        children: [
+          aberto,
+          const SizedBox(height: ClxSpace.x3),
+          pago,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: aberto),
+        const SizedBox(width: ClxSpace.x3),
+        Expanded(child: pago),
+      ],
+    );
+  }
+}
+
+class _ChartCard extends StatelessWidget {
+  const _ChartCard({
+    required this.title,
+    required this.subtitle,
+    required this.slices,
+    required this.centerLabel,
+    required this.emptyHint,
+    required this.accent,
+    required this.onSectionTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<FinSlice> slices;
+  final String centerLabel;
+  final String emptyHint;
+  final Color accent;
+  final ValueChanged<FinSlice> onSectionTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final hasData = slices.any((s) => s.value > 0);
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x2),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.ink,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          if (!hasData)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: ClxSpace.x5),
+              child: Center(
+                child: Text(
+                  emptyHint,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
+                ),
+              ),
+            )
+          else
+            FinDonutChart(
+              slices: slices,
+              centerLabel: centerLabel,
+              size: 160,
+              onSectionTap: onSectionTap,
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -648,6 +871,9 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.pago,
     required this.nAbertas,
     required this.nPagas,
+    required this.previsto,
+    required this.nPrevistas,
+    required this.proximoPagamentoLabel,
     required this.onTap,
   });
 
@@ -659,13 +885,22 @@ class _ProfExtratoCard extends StatelessWidget {
   final double pago;
   final int nAbertas;
   final int nPagas;
+  final double previsto;
+  final int nPrevistas;
+  final String proximoPagamentoLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final total = aberto + pago;
     final inicial = nome.trim().isNotEmpty ? nome.trim()[0].toUpperCase() : '?';
+    final hintPrevisto = proximoPagamentoLabel.isEmpty
+        ? (nPrevistas > 0
+            ? '$nPrevistas OS'
+            : 'Sem OS no ciclo')
+        : (nPrevistas > 0
+            ? '$nPrevistas OS · até $proximoPagamentoLabel'
+            : 'Até $proximoPagamentoLabel');
 
     return Material(
       color: Colors.transparent,
@@ -673,87 +908,171 @@ class _ProfExtratoCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: ClxRadii.rLg,
         child: ClxCard(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: clx.primary.withValues(alpha: 0.14),
-                child: Text(
-                  inicial,
-                  style: TextStyle(
-                    color: clx.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: clx.primary.withValues(alpha: 0.14),
+                    child: Text(
+                      inicial,
+                      style: TextStyle(
+                        color: clx.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: ClxSpace.x3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  const SizedBox(width: ClxSpace.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            nome,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                nome,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: clx.ink,
+                                    ),
+                              ),
+                            ),
+                            if (resumo.isNotEmpty) ...[
+                              const SizedBox(width: ClxSpace.x2),
+                              ClxChip(
+                                label: resumo,
+                                color: ativo ? clx.success : clx.ink3,
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (email.isNotEmpty)
+                          Text(
+                            email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: clx.ink,
-                                ),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(color: clx.ink2),
                           ),
-                        ),
-                        if (resumo.isNotEmpty) ...[
-                          const SizedBox(width: ClxSpace.x2),
-                          ClxChip(
-                            label: resumo,
-                            color: ativo ? clx.success : clx.ink3,
-                          ),
-                        ],
                       ],
-                    ),
-                    if (email.isNotEmpty)
-                      Text(
-                        email,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: clx.ink2),
-                      ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Em aberto ${formatCurrency(aberto)}'
-                      '${nAbertas > 0 ? ' ($nAbertas)' : ''}'
-                      ' · Pagas ${formatCurrency(pago)}'
-                      '${nPagas > 0 ? ' ($nPagas)' : ''}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelSmall?.copyWith(color: clx.ink3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: ClxSpace.x2),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    formatCurrency(total),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: clx.ink,
                     ),
                   ),
                   Icon(Icons.chevron_right_rounded, color: clx.ink3),
                 ],
               ),
+              const SizedBox(height: ClxSpace.x3),
+              // Em aberto | Previsto | Pagas
+              Row(
+                children: [
+                  Expanded(
+                    child: _ValorBloco(
+                      label: 'Em aberto',
+                      valor: aberto,
+                      hint: nAbertas > 0
+                          ? '$nAbertas comissão${nAbertas == 1 ? '' : 'ões'}'
+                          : null,
+                      color: clx.warning,
+                    ),
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                  Expanded(
+                    child: _ValorBloco(
+                      label: 'Previsto',
+                      valor: previsto,
+                      hint: hintPrevisto,
+                      color: clx.info,
+                    ),
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                  Expanded(
+                    child: _ValorBloco(
+                      label: 'Pagas',
+                      valor: pago,
+                      hint: nPagas > 0
+                          ? '$nPagas comissão${nPagas == 1 ? '' : 'ões'}'
+                          : null,
+                      color: clx.success,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bloco compacto de valor (Em aberto / Previsto / Pagas).
+class _ValorBloco extends StatelessWidget {
+  const _ValorBloco({
+    required this.label,
+    required this.valor,
+    required this.color,
+    this.hint,
+  });
+
+  final String label;
+  final double valor;
+  final Color color;
+  final String? hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ClxSpace.x2,
+        vertical: ClxSpace.x2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: ClxRadii.rMd,
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: clx.ink2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              formatCurrency(valor),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ),
+          if (hint != null && hint!.isNotEmpty)
+            Text(
+              hint!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: clx.ink3, fontSize: 10),
+            ),
+        ],
       ),
     );
   }
@@ -826,94 +1145,6 @@ class _KpiTap extends StatelessWidget {
               Icon(Icons.chevron_right_rounded, color: clx.ink3),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfBarRow extends StatelessWidget {
-  const _ProfBarRow({
-    required this.nome,
-    required this.aberto,
-    required this.pago,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String nome;
-  final double aberto;
-  final double pago;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final total = aberto + pago;
-    if (total <= 0) return const SizedBox.shrink();
-    final pctPago = pago / total;
-    final pctAberto = aberto / total;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: ClxRadii.rMd,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: clx.ink,
-                    ),
-                  ),
-                ),
-                Text(
-                  formatCurrency(total),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: clx.ink,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: ClxRadii.rSm,
-              child: SizedBox(
-                height: 8,
-                child: Row(
-                  children: [
-                    if (pctPago > 0)
-                      Expanded(
-                        flex: (pctPago * 1000).round().clamp(1, 1000),
-                        child: ColoredBox(color: clx.success),
-                      ),
-                    if (pctAberto > 0)
-                      Expanded(
-                        flex: (pctAberto * 1000).round().clamp(1, 1000),
-                        child: ColoredBox(color: color.withValues(alpha: 0.45)),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Pagas ${formatCurrency(pago)} · Em aberto ${formatCurrency(aberto)}',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: clx.ink3),
-            ),
-          ],
         ),
       ),
     );

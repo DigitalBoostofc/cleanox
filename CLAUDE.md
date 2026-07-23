@@ -275,6 +275,12 @@ Antes de `flutter build web` + rsync:
 `bash cleanos/scripts/assert-agenda-features.sh`  
 Garante cards serviço/valor/bairro, showOSDetail + Editar, colunas por profissional.
 
+**R14 — Deploy web NUNCA a partir de checkout sem o snapshot de produção.**  
+Causa (2026-07-23): `main` sem Extrato/Equipe/hooks vitrine sobrescreveu `pb_public`
+e tirou features já em prod (`1.2.0+73`). Antes de build + rsync:
+`bash cleanos/scripts/assert-prod-snapshot.sh`  
+Ver `docs/PROD-SNAPSHOT-2026-07-23.md`.
+
 Estado **medido** em 14/07/2026 (revalidado nesta análise):
 
 ```bash
@@ -347,9 +353,13 @@ ssh hostinger "systemctl restart cleanos.service"
 
 # 5) Frontend web
 bash cleanos/scripts/assert-agenda-features.sh   # R13
+bash cleanos/scripts/assert-prod-snapshot.sh    # R14 — extrato/equipe/vitrine
 cd cleanos/flutter
 flutter build web --release -t lib/main_painel.dart
 # Validar: app.cleanox.com.br no main.dart.js; SEM 127.0.0.1:8090; sw.js presente
+# Marker (anti-mentira se main.dart.js for trocado depois):
+# GIT=$(git rev-parse --short HEAD)
+# echo "{\"git\":\"$GIT\",\"features\":[\"agenda-cards\",\"extrato\",\"equipe-op-desktop-center\",\"prod-snapshot-2026-07-23\"]}" > build/web/agenda-features.json
 rsync --delete build/web/ hostinger:/opt/cleanos/pb/pb_public/
 ssh hostinger "chown -R ubuntu:ubuntu /opt/cleanos/pb/pb_public"
 

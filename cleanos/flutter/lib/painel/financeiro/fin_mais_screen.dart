@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/design/design.dart';
 import '../../core/models/financeiro.dart';
+import 'fin_common.dart';
 import 'fin_export.dart';
 import 'fin_providers.dart';
 import 'ui/fin_ui.dart';
@@ -35,6 +36,10 @@ class FinMaisScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
+    // Desktop: rail já tem Equipe / A pagar / Relatórios — não repetir.
+    // Mobile: chips só têm Equipe; mantém A pagar + Relatórios no hub.
+    final mobile = finIsMobile(context);
+
     return ColoredBox(
       color: clx.bg2,
       child: ListView(
@@ -67,11 +72,6 @@ class FinMaisScreen extends ConsumerWidget {
             child: Column(
               children: [
                 _Item(
-                  icon: Icons.account_balance_outlined,
-                  label: 'Contas',
-                  onTap: () => context.go('/painel/financeiro/carteiras'),
-                ),
-                _Item(
                   icon: Icons.bookmark_border_rounded,
                   label: 'Categorias',
                   onTap: () => context.go('/painel/financeiro/categorias'),
@@ -85,47 +85,39 @@ class FinMaisScreen extends ConsumerWidget {
                   icon: Icons.track_changes_outlined,
                   label: 'Objetivos',
                   onTap: () => context.go('/painel/financeiro/objetivos'),
-                ),
-                _Item(
-                  icon: Icons.flag_outlined,
-                  label: 'Planejamento / limites',
-                  onTap: () => context.go('/painel/financeiro/planejamento'),
                   last: true,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: ClxSpace.x5),
-          Text(
-            'Acompanhar',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: clx.ink3,
-                ),
-          ),
-          const SizedBox(height: ClxSpace.x2),
-          FinCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _Item(
-                  icon: Icons.groups_outlined,
-                  label: 'Equipe / comissões',
-                  onTap: () => context.go('/painel/financeiro/comissoes'),
-                ),
-                _Item(
-                  icon: Icons.receipt_long_outlined,
-                  label: 'A receber / A pagar',
-                  onTap: () => context.go('/painel/financeiro/contas'),
-                ),
-                _Item(
-                  icon: Icons.bar_chart_rounded,
-                  label: 'Relatórios',
-                  onTap: () => context.go('/painel/financeiro/relatorios'),
-                  last: true,
-                ),
-              ],
+          if (mobile) ...[
+            const SizedBox(height: ClxSpace.x5),
+            Text(
+              'Acompanhar',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: clx.ink3,
+                  ),
             ),
-          ),
+            const SizedBox(height: ClxSpace.x2),
+            FinCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _Item(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'A receber / A pagar',
+                    onTap: () => context.go('/painel/financeiro/contas'),
+                  ),
+                  _Item(
+                    icon: Icons.bar_chart_rounded,
+                    label: 'Relatórios',
+                    onTap: () => context.go('/painel/financeiro/relatorios'),
+                    last: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: ClxSpace.x5),
           Text(
             'Exportar',

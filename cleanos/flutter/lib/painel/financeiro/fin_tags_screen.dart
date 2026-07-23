@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
+import 'fin_chips.dart';
 import 'fin_derivations.dart';
 import 'fin_labels.dart';
 import 'fin_providers.dart';
@@ -88,20 +89,11 @@ class FinTagsScreen extends ConsumerWidget {
                   runSpacing: 8,
                   children: [
                     for (final t in tags)
-                      ActionChip(
-                        avatar: CircleAvatar(
-                          backgroundColor: clx.primary.withValues(alpha: 0.15),
-                          child: Text(
-                            '${counts[t]}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: clx.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        label: Text(t),
-                        onPressed: () => _showTagDetail(
+                      FinTagChip(
+                        label: t,
+                        count: counts[t],
+                        dense: false,
+                        onTap: () => _showTagDetail(
                           context,
                           tag: t,
                           items: byTag[t] ?? const [],
@@ -151,16 +143,8 @@ class FinTagsScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.sell_outlined, color: clx.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          tag,
-                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ),
+                      FinTagChip(label: tag, dense: false),
+                      const Spacer(),
                       Text(
                         '${items.length} lanç.',
                         style: TextStyle(color: clx.ink3),

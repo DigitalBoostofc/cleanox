@@ -65,17 +65,36 @@ class _LazySectionState extends State<LazySection> {
           return const Center(child: Spinner());
         }
         if (snap.hasError) {
+          final detail = '${snap.error}';
+          // ignore: avoid_print — diagnóstico web (chunk deferred / SW)
+          print('[LazySection] load failed: $detail');
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(ClxSpace.x6),
               child: ErrorBanner(
-                message: 'Não foi possível carregar este módulo.',
+                message: detail.isNotEmpty && detail != 'null'
+                    ? 'Não foi possível carregar este módulo.\n$detail'
+                    : 'Não foi possível carregar este módulo.',
                 onRetry: _retry,
               ),
             ),
           );
         }
-        return widget.builder();
+        try {
+          return widget.builder();
+        } catch (e, st) {
+          // ignore: avoid_print
+          print('[LazySection] builder failed: $e\n$st');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(ClxSpace.x6),
+              child: ErrorBanner(
+                message: 'Erro ao abrir o módulo.\n$e',
+                onRetry: _retry,
+              ),
+            ),
+          );
+        }
       },
     );
   }

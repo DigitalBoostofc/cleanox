@@ -59,10 +59,14 @@ check "painel/ordens/os_form.dart" \
   "_horarioCongelado" \
   "form congela data/hora/duração de OS finalizada"
 
-# Colunas por profissional
+# Colunas por profissional (lado estável no DIA — não só no aglomerado)
 check "core/agenda/agenda_layout.dart" \
   "groupKey" \
   "layout agrupa colunas por profissional (groupKey)"
+
+check "core/agenda/agenda_layout.dart" \
+  "ordemGlobal|_denseColsDoCluster" \
+  "lados estáveis no dia (ordemGlobal / dense por cluster)"
 
 # Teste de regressão que trava o card alto
 if ! grep -q "bloco alto mostra serviço, valor e bairro" \

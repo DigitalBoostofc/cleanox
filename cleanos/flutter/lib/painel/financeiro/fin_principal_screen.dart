@@ -16,6 +16,7 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
 import 'carteiras/conta_form.dart';
 import 'charts/fin_charts.dart';
+import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
 import 'fin_providers.dart';
@@ -61,6 +62,11 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
         ref.watch(finPendentesProvider).valueOrNull ?? const <FinLancamento>[];
     final objetivos =
         ref.watch(finObjetivosProvider).valueOrNull ?? const <FinObjetivo>[];
+    final limites =
+        ref.watch(finLimitesProvider).valueOrNull ?? const <FinLimite>[];
+    final anoMes =
+        '${period.year.toString().padLeft(4, '0')}-${period.month.toString().padLeft(2, '0')}';
+    final limitesDoMes = limites.where((l) => l.anoMes == anoMes).toList();
 
     return ColoredBox(
       color: clx.bg2,
@@ -68,20 +74,38 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
         value: lancAsync,
         onRetry: () => ref.invalidate(finPeriodLancamentosProvider),
         data: (lancs) {
+          // Realizado (só pago): OS atribuídas/previstas NÃO entram no total.
+          // Receita de OS só conta quando a OS está concluída (via_os pago).
           final resumo = resumoPeriodo(lancs);
           final saldo = saldoGeral(contas.where((c) => c.ativo).toList());
           final catMap = {for (final c in categorias) c.id: c};
+          // Gráficos do dashboard: só o que já foi pago / OS concluída.
           final gasto = gastoPorCategoria(lancs);
           final receitaCat =
               totalPagoPorCategoria(lancs, TipoLancamento.receita);
-          final despPend = totalDespesasEmAberto(pendentes);
+          // Pendências: globais + despesas em aberto do mês (fixas do extrato).
+          final despPend = totalDespesasEmAberto([
+            ...pendentes,
+            ...lancs.where(
+              (l) =>
+                  l.tipo == TipoLancamento.despesa &&
+                  l.status != LancamentoStatus.pago,
+            ),
+          ].fold<Map<String, FinLancamento>>({}, (m, l) {
+            m[l.id] = l;
+            return m;
+          }).values.toList());
           final recPend = totalReceitasPrevistas(pendentes);
-          final nDespPend = pendentes
-              .where(
-                (l) =>
-                    l.tipo == TipoLancamento.despesa && emAberto(l),
-              )
-              .length;
+          final nDespPend = [
+            ...pendentes.where(
+              (l) => l.tipo == TipoLancamento.despesa && emAberto(l),
+            ),
+            ...lancs.where(
+              (l) =>
+                  l.tipo == TipoLancamento.despesa &&
+                  l.status != LancamentoStatus.pago,
+            ),
+          ].map((l) => l.id).toSet().length;
           final economiaPct = resumo.entradas > 0
               ? ((resumo.saldoMes / resumo.entradas) * 100).clamp(0.0, 100.0)
               : 0.0;
@@ -110,6 +134,8 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   contas: contas.where((c) => c.ativo).toList(),
                   favoritos: lancs.where((l) => l.favorito).take(5).toList(),
                   objetivos: objetivos.where((o) => o.ativo).take(3).toList(),
+                  limites: limitesDoMes,
+                  lancs: lancs,
                   economiaPct: economiaPct,
                   freq: freq,
                   onNovaReceita: () => _novo(TipoLancamento.receita),
@@ -145,6 +171,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   contas: contas.where((c) => c.ativo).toList(),
                   objetivos:
                       objetivos.where((o) => o.ativo).take(3).toList(),
+                  limites: limitesDoMes,
                   economiaPct: economiaPct,
                   freq: freq,
                   lancs: lancs,
@@ -162,7 +189,8 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
               ref
                 ..invalidate(finPeriodLancamentosProvider)
                 ..invalidate(finContasProvider)
-                ..invalidate(finPendentesProvider);
+                ..invalidate(finPendentesProvider)
+                ..invalidate(finLimitesProvider);
               await ref.read(finPeriodLancamentosProvider.future);
             },
             child: body,
@@ -203,6 +231,8 @@ class _MobileBody extends StatelessWidget {
     required this.onGoContas,
     required this.onGoObjetivos,
     required this.onNovaConta,
+    required this.limites,
+    required this.lancs,
   });
 
   final bool fintech;
@@ -222,6 +252,8 @@ class _MobileBody extends StatelessWidget {
   final List<FinConta> contas;
   final List<FinLancamento> favoritos;
   final List<FinObjetivo> objetivos;
+  final List<FinLimite> limites;
+  final List<FinLancamento> lancs;
   final double economiaPct;
   final List<_FreqPoint> freq;
   final VoidCallback onNovaReceita;
@@ -493,13 +525,11 @@ class _MobileBody extends StatelessWidget {
           trailing: const Text('Ver'),
           onTrailing: onGoPlanejamento,
         ),
-        FinEmptyCta(
-          icon: Icons.receipt_long_outlined,
-          message:
-              'Opa! Você ainda não possui um planejamento definido para este mês.',
-          hint: 'Melhore o controle do caixa da operação.',
-          ctaLabel: 'Definir novo planejamento',
-          onCta: onGoPlanejamento,
+        _PlanejamentoResumoCard(
+          limites: limites,
+          lancs: lancs,
+          catMap: catMap,
+          onVer: onGoPlanejamento,
         ),
         const SizedBox(height: ClxSpace.x6),
         FinDashSectionHeader(
@@ -660,6 +690,7 @@ class _DesktopBody extends StatelessWidget {
     required this.catMap,
     required this.contas,
     required this.objetivos,
+    required this.limites,
     required this.economiaPct,
     required this.freq,
     required this.lancs,
@@ -684,6 +715,7 @@ class _DesktopBody extends StatelessWidget {
   final Map<String, FinCategoria> catMap;
   final List<FinConta> contas;
   final List<FinObjetivo> objetivos;
+  final List<FinLimite> limites;
   final double economiaPct;
   final List<_FreqPoint> freq;
   final List<FinLancamento> lancs;
@@ -865,13 +897,16 @@ class _DesktopBody extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                FinDashSectionHeader(title: 'Planejamento mensal'),
-                FinEmptyCta(
-                  icon: Icons.flag_outlined,
-                  message:
-                      'Opa! Você ainda não possui um planejamento definido para este mês.',
-                  ctaLabel: 'DEFINIR MEU PLANEJAMENTO',
-                  onCta: onGoPlanejamento,
+                FinDashSectionHeader(
+                  title: 'Planejamento mensal',
+                  trailing: const Text('VER'),
+                  onTrailing: onGoPlanejamento,
+                ),
+                _PlanejamentoResumoCard(
+                  limites: limites,
+                  lancs: lancs,
+                  catMap: catMap,
+                  onVer: onGoPlanejamento,
                 ),
               ],
             );
@@ -1213,14 +1248,26 @@ class _DonutBlock extends StatelessWidget {
     final clx = context.clx;
     final entries = map.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final colors = finSeriesColors(context, entries.length);
+    final fallback = finSeriesColors(context, entries.length);
+    Color corCat(String id, int i) {
+      final cat = catMap[id];
+      final direct = finParseHex(cat?.cor);
+      if (direct != null) return direct;
+      final parentId = cat?.parentId;
+      if (parentId != null && parentId.isNotEmpty) {
+        final parent = finParseHex(catMap[parentId]?.cor);
+        if (parent != null) return parent;
+      }
+      return fallback[i % fallback.length];
+    }
+
     final slices = [
       for (var i = 0; i < entries.length; i++)
         FinSlice(
           id: entries[i].key,
           label: catMap[entries[i].key]?.nome ?? 'Outros',
           value: entries[i].value,
-          color: colors[i],
+          color: corCat(entries[i].key, i),
         ),
     ];
 
@@ -1404,6 +1451,172 @@ class _EconomiaCard extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: clx.ink2,
                   ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Despesas do período por categoria (pago + em aberto — fixas contam).
+Map<String, double> _gastoPeriodoPorCategoria(List<FinLancamento> lancs) {
+  final cents = <String, int>{};
+  for (final l in lancs) {
+    if (l.tipo != TipoLancamento.despesa) continue;
+    final id = l.categoriaId;
+    if (id.isEmpty) continue;
+    cents[id] = (cents[id] ?? 0) + (l.valor * 100).round();
+  }
+  return {for (final e in cents.entries) e.key: e.value / 100.0};
+}
+
+/// Receitas do período por categoria (pago + previsto).
+Map<String, double> _receitaPeriodoPorCategoria(List<FinLancamento> lancs) {
+  final cents = <String, int>{};
+  for (final l in lancs) {
+    if (l.tipo != TipoLancamento.receita) continue;
+    final id = l.categoriaId;
+    if (id.isEmpty) continue;
+    cents[id] = (cents[id] ?? 0) + (l.valor * 100).round();
+  }
+  return {for (final e in cents.entries) e.key: e.value / 100.0};
+}
+
+/// Card de planejamento mensal (limites do mês) no dashboard.
+class _PlanejamentoResumoCard extends StatelessWidget {
+  const _PlanejamentoResumoCard({
+    required this.limites,
+    required this.lancs,
+    required this.catMap,
+    required this.onVer,
+  });
+
+  final List<FinLimite> limites;
+  final List<FinLancamento> lancs;
+  final Map<String, FinCategoria> catMap;
+  final VoidCallback onVer;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    if (limites.isEmpty) {
+      return FinEmptyCta(
+        icon: Icons.receipt_long_outlined,
+        message:
+            'Opa! Você ainda não possui um planejamento definido para este mês.',
+        hint: 'Melhore o controle do caixa da operação.',
+        ctaLabel: 'Definir novo planejamento',
+        onCta: onVer,
+      );
+    }
+
+    var gastoTotal = 0.0;
+    var limiteTotal = 0.0;
+    final rows = <({FinLimite lim, ProgressoLimite prog, String nome})>[];
+    for (final lim in limites) {
+      final p = progressoLimite(lim, lancs);
+      // Progresso só conta pago; no dashboard somamos também em aberto do mês.
+      var emAbertoCents = 0;
+      for (final l in lancs) {
+        if (l.tipo != TipoLancamento.despesa) continue;
+        if (l.status == LancamentoStatus.pago) continue;
+        if (l.categoriaId != lim.categoriaId &&
+            l.subcategoriaId != lim.categoriaId) {
+          continue;
+        }
+        emAbertoCents += (l.valor * 100).round();
+      }
+      final gasto = p.gasto + emAbertoCents / 100.0;
+      final prog = ProgressoLimite(
+        gasto: gasto,
+        limite: lim.limite,
+        pct: lim.limite > 0 ? (gasto / lim.limite).clamp(0.0, 2.0) : 0.0,
+      );
+      gastoTotal += gasto;
+      limiteTotal += lim.limite;
+      rows.add((
+        lim: lim,
+        prog: prog,
+        nome: catMap[lim.categoriaId]?.nome ?? 'Categoria',
+      ));
+    }
+    rows.sort((a, b) => b.prog.pct.compareTo(a.prog.pct));
+    final pct =
+        limiteTotal > 0 ? (gastoTotal / limiteTotal).clamp(0.0, 1.5) : 0.0;
+
+    return FinCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Orçamento do mês',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              Text(
+                '${(pct * 100).toStringAsFixed(0)}% usado',
+                style: TextStyle(
+                  color: pct > 1 ? clx.finExpense : clx.ink2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: ClxRadii.rPill,
+            child: LinearProgressIndicator(
+              value: pct.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: clx.line2,
+              color: pct > 1 ? clx.finExpense : clx.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${formatCurrency(gastoTotal)} de ${formatCurrency(limiteTotal)}',
+            style: TextStyle(color: clx.ink3, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          for (final row in rows.take(4)) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    row.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: clx.ink2,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                Text(
+                  '${(row.prog.pct * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: row.prog.pct > 1 ? clx.error : clx.ink3,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            FinProgressBar(value: row.prog.pct),
+            const SizedBox(height: 8),
+          ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onVer,
+              child: const Text('Ver planejamento'),
             ),
           ),
         ],

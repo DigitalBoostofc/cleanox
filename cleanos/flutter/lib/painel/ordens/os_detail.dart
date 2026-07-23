@@ -307,6 +307,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
                 status: _os.status,
                 dense: true,
                 refazer: _os.refazer,
+                vitrine: _os.isVitrine,
               ),
               const SizedBox(width: ClxSpace.x2),
               IconButton(

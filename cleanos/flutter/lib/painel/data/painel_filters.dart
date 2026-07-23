@@ -96,13 +96,16 @@ String? andAll(List<String?> parts) {
 }
 
 /// Filtro de Ordens de Serviço para a lista do Painel: por status e/ou
-/// profissional e/ou janela de datas [inicio, fim) (strings UTC do PB).
+/// profissional e/ou janela de datas [inicio, fim) (strings UTC do PB) e/ou
+/// busca por nome (cliente denormalizado, serviço, bairro).
 String? ordensFilter({
   OSStatus? status,
   String? profissionalId,
   String? dataInicio,
   String? dataFim,
+  String? search,
 }) {
+  final q = (search ?? '').trim();
   return andAll([
     if (status != null) 'status = ${pbStringLiteral(status.wire)}',
     if (profissionalId != null && profissionalId.isNotEmpty)
@@ -111,5 +114,9 @@ String? ordensFilter({
       "data_hora >= ${pbStringLiteral(dataInicio)}",
     if (dataFim != null && dataFim.isNotEmpty)
       "data_hora < ${pbStringLiteral(dataFim)}",
+    if (q.isNotEmpty)
+      '(nome_curto ~ ${pbStringLiteral(q)} '
+          '|| tipo_servico_nome ~ ${pbStringLiteral(q)} '
+          '|| bairro ~ ${pbStringLiteral(q)})',
   ]);
 }

@@ -918,23 +918,57 @@ class _Body extends StatelessWidget {
     return l.where((x) => x.status == LancamentoStatus.pago).toList();
   }
 
+  bool _passaFiltrosCatConta(FinLancamento l) {
+    if (catIds.isNotEmpty &&
+        !catIds.contains(l.categoriaId) &&
+        !(l.subcategoriaId != null && catIds.contains(l.subcategoriaId))) {
+      return false;
+    }
+    if (contaIds.isNotEmpty && !contaIds.contains(l.contaId)) return false;
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filtro multi-select (vazio = todas) sobre os 6 meses.
-    final base = todos.where((l) {
-      if (catIds.isNotEmpty &&
-          !catIds.contains(l.categoriaId) &&
-          !(l.subcategoriaId != null && catIds.contains(l.subcategoriaId))) {
-        return false;
-      }
-      if (contaIds.isNotEmpty && !contaIds.contains(l.contaId)) return false;
-      return true;
-    }).toList();
-
     return Consumer(
       builder: (context, ref, _) {
         final period = ref.watch(finPeriodProvider);
         final periodo = period.periodo;
+
+        // Comissões pendentes → despesas previstas em Equipe → Profissionais.
+        // Entram na lista base; _applyStatus só as mantém com "Incluir não pagas"
+        // (status previsto) ou filtro "só não pagas".
+        final comissoes =
+            ref.watch(finComissoesProvider).valueOrNull ?? const [];
+        final profs =
+            ref.watch(finProfissionaisProvider).valueOrNull ?? const [];
+        final nomePorProf = {
+          for (final u in profs)
+            if (u.displayName.trim().isNotEmpty) u.id: u.displayName.trim(),
+        };
+        String contaPadrao = '';
+        for (final c in contas) {
+          if (c.ativo) {
+            contaPadrao = c.id;
+            break;
+          }
+        }
+        final comissaoPrevistas = finComissoesPendentesComoLancamentos(
+          comissoes: comissoes,
+          categorias: categorias,
+          profissionais: profs,
+          nomePorProfId: nomePorProf,
+          contaId: contaPadrao,
+        );
+
+        final idsTodos = {for (final l in todos) l.id};
+        final unidos = [
+          ...todos,
+          ...comissaoPrevistas.where((l) => !idsTodos.contains(l.id)),
+        ];
+
+        // Filtro multi-select (vazio = todas) sobre os 6 meses + sintéticos.
+        final base = unidos.where(_passaFiltrosCatConta).toList();
 
         final viewLancs = _applyStatus(lancamentosDoPeriodo(base, periodo));
         final periodoVazio = viewLancs.isEmpty;
