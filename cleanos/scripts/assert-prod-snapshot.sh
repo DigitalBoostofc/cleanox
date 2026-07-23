@@ -48,8 +48,8 @@ check "cleanos/flutter/lib/painel/financeiro/lancamentos/fin_transacoes_screen.d
 
 # ── Agenda: lados estáveis (groupKey + ordem do dia) ────────────────────────
 check "cleanos/flutter/lib/core/agenda/agenda_layout.dart" \
-  "ordemGlobal|_denseColsDoCluster" \
-  "agenda: lados estáveis por profissional no dia"
+  "ordemGlobal|_empacotaLanes|rankProfissionais" \
+  "agenda: faixas por profissional (1º esquerda, 2º direita)"
 
 # ── Hooks de comissão / OS financeiro (prod ≠ main antiga) ──────────────────
 check "cleanos/pb/pb_hooks/prof_comissao_pago_lib.js" \
