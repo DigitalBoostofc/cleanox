@@ -169,6 +169,7 @@ class DayColumn extends StatefulWidget {
     required this.dayStart,
     required this.dayEnd,
     this.dispByProf = const {},
+    this.profOrder = const [],
     this.editable = false,
     this.maxColunas = kMaxColunasDesktop,
     this.showLeftBorder = true,
@@ -194,6 +195,10 @@ class DayColumn extends StatefulWidget {
 
   /// Disponibilidade por profissional — alimenta o fallback de duração (D9).
   final Map<String, Disponibilidade> dispByProf;
+
+  /// Ordem canônica dos profissionais (ids): 1º → esquerda, 2º → direita…
+  /// Mesma lista da legenda/filtro da agenda (`nome` asc).
+  final List<String> profOrder;
 
   /// Liga a camada de gestos (arrastar/redimensionar) — desktop web.
   final bool editable;
@@ -322,6 +327,7 @@ class _DayColumnState extends State<DayColumn> {
       dayStart: widget.dayStart,
       dayEnd: widget.dayEnd,
       maxColunas: widget.maxColunas,
+      groupOrder: widget.profOrder.isEmpty ? null : widget.profOrder,
     );
     final alturaTotal = (widget.dayEnd - widget.dayStart) * kAgendaPxPorMin;
     final horaInicial = (widget.dayStart + 59) ~/ 60;

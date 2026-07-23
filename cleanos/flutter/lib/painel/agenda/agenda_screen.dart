@@ -660,6 +660,10 @@ class _WeekView extends StatelessWidget {
                       dayStart: janela.inicio,
                       dayEnd: janela.fim,
                       dispByProf: state.dispByProf,
+                      // 1º prof da lista (nome) → esquerda; 2º → direita; …
+                      profOrder: [
+                        for (final p in state.profissionais) p.id,
+                      ],
                       // Semana desktop: arrasta e MUDA DE DIA (D8).
                       editable: true,
                       permiteCrossDay: true,
@@ -992,6 +996,10 @@ class _DayView extends StatelessWidget {
                     dayStart: janela.inicio,
                     dayEnd: janela.fim,
                     dispByProf: state.dispByProf,
+                    // 1º prof da lista (nome) → esquerda; 2º → direita; …
+                    profOrder: [
+                      for (final p in state.profissionais) p.id,
+                    ],
                     // Visão dia: arrasta no tempo, mas não há coluna vizinha —
                     // sem cross-day (o arraste horizontal é ignorado).
                     editable: true,
