@@ -1,9 +1,8 @@
 /// lancamento_form.dart — Modal de criar/editar um Lançamento (`fin_lancamentos`).
 ///
-/// Espelha `LancamentoFormModal.tsx`: tipo (receita/despesa), descrição, valor,
-/// data (parede/BRT), conta, **categoria unificada** (raiz + sub no mesmo
-/// dropdown — [FinCategoriaTreePicker]), status, vencimento, recorrência, forma
-/// de pagamento, observação e anexos.
+/// Tipo (receita/despesa), descrição, valor, **uma data** (= vencimento),
+/// conta, categoria, **pago / não pago** na 1ª tela, recorrência, forma de
+/// pagamento, observação e anexos.
 ///
 /// 🔒 ANTI-DESVIO: um lançamento criado no painel nasce `origem = 'manual'` e
 /// NUNCA vira `via_os`. Na EDIÇÃO, `origem`/vínculo com OS NÃO são tocados (para
@@ -19,8 +18,8 @@ import '../../../core/formatters/formatters.dart';
 import '../../../core/models/financeiro.dart';
 import '../fin_categoria_picker.dart';
 import '../fin_form_kit.dart';
-import '../fin_labels.dart';
 import '../fin_providers.dart';
+import 'fin_lancamentos_controller.dart';
 
 Future<bool?> showLancamentoForm(
   BuildContext context, {
@@ -47,8 +46,8 @@ class LancamentoForm extends ConsumerStatefulWidget {
 class _LancamentoFormState extends ConsumerState<LancamentoForm> {
   late final TextEditingController _descricao;
   late final TextEditingController _valor;
+  /// Única data do lançamento = vencimento (competência e atraso usam isto).
   late final TextEditingController _data;
-  late final TextEditingController _vencimento;
   late final TextEditingController _formaPagamento;
   late final TextEditingController _observacao;
   late final TextEditingController _tags;
@@ -95,8 +94,13 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _valor = TextEditingController(
       text: l == null ? '' : formatMoedaInput(l.valor),
     );
-    _data = TextEditingController(text: l?.data ?? todayLocalDate());
-    _vencimento = TextEditingController(text: l?.vencimento ?? '');
+    // Data principal = vencimento (se preenchido); senão `data`; senão hoje.
+    final dataUnica = (l?.vencimento?.trim().isNotEmpty ?? false)
+        ? l!.vencimento!.trim()
+        : (l?.data.trim().isNotEmpty ?? false)
+            ? l!.data.trim()
+            : todayLocalDate();
+    _data = TextEditingController(text: dataUnica);
     _formaPagamento = TextEditingController(text: l?.formaPagamento ?? '');
     _observacao = TextEditingController(text: l?.observacao ?? '');
     _tags = TextEditingController(text: (l?.tags ?? const []).join(', '));
@@ -104,7 +108,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _contaId = l?.contaId.isNotEmpty == true ? l!.contaId : null;
     _categoriaId = l?.categoriaId.isNotEmpty == true ? l!.categoriaId : null;
     _subcategoriaId = l?.subcategoriaId;
-    // Novo lançamento: default PAGO (lançamento rápido, como Organizze).
+    // Novo lançamento: default PAGO (lançamento rápido).
     _status = l?.status ?? LancamentoStatus.pago;
     _anexos = List<Anexo>.from(l?.anexos ?? const []);
     // Na edição, abre seções que já têm conteúdo.
@@ -113,9 +117,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       _showObs = (l.observacao?.trim().isNotEmpty ?? false);
       _showTags = l.tags.isNotEmpty;
       _showAnexos = l.anexos.isNotEmpty;
-      _showAvancado = l.status != LancamentoStatus.pago ||
-          (l.vencimento?.isNotEmpty ?? false) ||
-          (l.formaPagamento?.isNotEmpty ?? false);
+      _showAvancado = l.formaPagamento?.isNotEmpty ?? false;
       if (l.recorrencia == RecorrenciaTipo.parcelada) {
         _repetirModo = _RepetirModo.parcelada;
         _parcelasN = (l.parcelasTotal != null && l.parcelasTotal! >= 2)
@@ -134,11 +136,35 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     _descricao.dispose();
     _valor.dispose();
     _data.dispose();
-    _vencimento.dispose();
     _formaPagamento.dispose();
     _observacao.dispose();
     _tags.dispose();
     super.dispose();
+  }
+
+  /// UI binária: pago vs não pago (pendente/previsto/atraso = não pago).
+  bool get _isPago => _status == LancamentoStatus.pago;
+
+  void _setPago(bool pago) {
+    setState(() {
+      if (pago) {
+        _status = LancamentoStatus.pago;
+      } else if (_status == LancamentoStatus.pago) {
+        _status = LancamentoStatus.pendente;
+      }
+      // Se já era pendente/previsto/em_atraso, mantém o status “não pago”.
+    });
+  }
+
+  /// Após criar/editar: atualiza listas e saldos sem exigir F5.
+  Future<void> _refreshListsAfterSave() async {
+    ref.invalidate(finContasProvider);
+    ref.invalidate(finPeriodLancamentosProvider);
+    ref.invalidate(finPendentesProvider);
+    // Transações montada → controller vivo; senão não cria provider órfão.
+    if (ref.exists(finLancControllerProvider)) {
+      await ref.read(finLancControllerProvider.notifier).refresh();
+    }
   }
 
   /// Recorrência efetiva a gravar (unica se o painel estiver fechado).
@@ -185,6 +211,8 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
         .map((t) => t.trim())
         .where((t) => t.isNotEmpty)
         .toList();
+    // Uma data só: principal = vencimento (espelha nos dois campos do PB).
+    final dataYmd = _data.text.trim();
     final baseBody = <String, dynamic>{
       'tipo': _tipo.wire,
       'descricao': _descricao.text.trim(),
@@ -192,10 +220,8 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       'subcategoria_id': _subcategoriaId,
       'valor': valor,
       'conta_id': _contaId,
-      'data': _data.text.trim(),
-      'vencimento': _vencimento.text.trim().isEmpty
-          ? null
-          : _vencimento.text.trim(),
+      'data': dataYmd,
+      'vencimento': dataYmd,
       'status': _status.wire,
       'recorrencia': rec.wire,
       // Frequência da série (semanal, mensal…) — só em fixa/recorrente.
@@ -226,24 +252,18 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       if (_isEdit) {
         await repo.updateLancamento(widget.editing!.id, baseBody);
       } else if (rec == RecorrenciaTipo.parcelada) {
-        // Cria TODAS as parcelas (Organizze): divide o valor e avança a data.
+        // Cria TODAS as parcelas: divide o valor e avança a data (= vencimento).
         final valores = _dividirParcelas(valor!, _parcelasN);
-        final baseDate = _parseYmd(_data.text.trim()) ?? DateTime.now();
-        final baseVenc = _vencimento.text.trim().isEmpty
-            ? null
-            : _parseYmd(_vencimento.text.trim());
+        final baseDate = _parseYmd(dataYmd) ?? DateTime.now();
         for (var i = 0; i < _parcelasN; i++) {
           final dataI = _formatYmd(
             _addPeriodo(baseDate, i, _parcelaUnidade),
           );
-          final vencI = baseVenc == null
-              ? null
-              : _formatYmd(_addPeriodo(baseVenc, i, _parcelaUnidade));
           await repo.createLancamento({
             ...baseBody,
             'valor': valores[i],
             'data': dataI,
-            'vencimento': vencI,
+            'vencimento': dataI,
             'parcela_atual': i + 1,
             'parcelas_total': _parcelasN,
             // 1ª parcela herda o status escolhido; demais ficam previstas.
@@ -259,6 +279,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           await repo.materializarRecorrenciaAFrente(criado);
         }
       }
+      await _refreshListsAfterSave();
       if (!mounted) return;
       if (andAnother && !_isEdit) {
         // Mantém data/conta/categoria; limpa o que muda a cada lançamento.
@@ -268,7 +289,6 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           _observacao.clear();
           _tags.clear();
           _formaPagamento.clear();
-          _vencimento.clear();
           _anexos = [];
           _showObs = false;
           _showTags = false;
@@ -388,7 +408,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               onChanged: (_) => _clearErr('valor'),
             ),
             FinDateField(
-              label: 'Data',
+              label: 'Data (vencimento)',
               controller: _data,
               required: true,
               enabled: !_saving,
@@ -429,7 +449,43 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               }),
             ),
           ),
-          // ── Extras em ícones (Organizze: Repetir / Obs / Anexo / Tags) ─
+          // Pago / Não pago na 1ª tela (sem abrir "Mais").
+          Padding(
+            padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Status',
+                  style: tt.bodyMedium?.copyWith(
+                    color: clx.ink2,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: ClxSpace.x2),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment<bool>(
+                      value: true,
+                      label: Text('Pago'),
+                      icon: Icon(Icons.check_circle_outline_rounded, size: 16),
+                    ),
+                    ButtonSegment<bool>(
+                      value: false,
+                      label: Text('Não pago'),
+                      icon: Icon(Icons.schedule_rounded, size: 16),
+                    ),
+                  ],
+                  selected: {_isPago},
+                  showSelectedIcon: false,
+                  onSelectionChanged: _saving
+                      ? null
+                      : (s) => _setPago(s.first),
+                ),
+              ],
+            ),
+          ),
+          // ── Extras em ícones (Repetir / Obs / Anexo / Tags / Mais) ─
           Padding(
             padding: const EdgeInsets.only(
               top: ClxSpace.x2,
@@ -496,29 +552,13 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
               hint: 'separe, por, vírgulas',
             ),
           if (_showAnexos) _anexosSection(clx, tt),
-          if (_showAvancado) ...[
-            FinTwoCol(
-              FinDropdown<LancamentoStatus>(
-                label: 'Status',
-                value: _status,
-                enabled: !_saving,
-                items: LancamentoStatus.values,
-                itemLabel: statusLancamentoLabel,
-                onChanged: (v) => setState(() => _status = v ?? _status),
-              ),
-              FinDateField(
-                label: 'Vencimento',
-                controller: _vencimento,
-                enabled: !_saving,
-              ),
-            ),
+          if (_showAvancado)
             FinField(
               label: 'Forma de pagamento',
               controller: _formaPagamento,
               enabled: !_saving,
               hint: 'Pix, Crédito, Dinheiro…',
             ),
-          ],
           if (_isEdit && widget.editing!.origem == OrigemLancamento.viaOs)
             Padding(
               padding: const EdgeInsets.only(bottom: ClxSpace.x2),

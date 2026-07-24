@@ -165,6 +165,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
   }
 
   Future<void> _fabAdd() async {
+    // O form já invalida listas / refresh do controller após salvar.
     final saved = await showLancamentoForm(context);
     if (saved == true && mounted) {
       showClxToast(context, 'Lançamento criado.', type: ToastType.success);
