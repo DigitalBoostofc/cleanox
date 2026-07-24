@@ -275,7 +275,7 @@ void main() {
       );
     });
 
-    test('mão só-leitura: via OS sim; comissão e manual não', () {
+    test('mão só-leitura: via OS e comissão sim; manual não', () {
       final viaOs = fakeLanc(id: '1').copyWith(origem: OrigemLancamento.viaOs);
       expect(finMostraMaoSomenteLeitura(viaOs), isTrue);
       expect(
@@ -290,11 +290,19 @@ void main() {
         ),
         contains('Pago (OS concluída)'),
       );
+      final comissao = fakeLanc(id: 'comissao-previsto-prof-jp');
+      expect(finMostraMaoSomenteLeitura(comissao), isTrue);
       expect(
-        finMostraMaoSomenteLeitura(
-          fakeLanc(id: 'comissao-previsto-prof-jp'),
+        finPagoHandTooltipDependente(
+          comissao.copyWith(status: LancamentoStatus.pendente),
         ),
-        isFalse,
+        contains('Equipe'),
+      );
+      expect(
+        finPagoHandTooltipDependente(
+          comissao.copyWith(status: LancamentoStatus.pago),
+        ),
+        contains('Pago (marcado em Equipe)'),
       );
       expect(
         finMostraMaoSomenteLeitura(fakeLanc(id: 'manual')),

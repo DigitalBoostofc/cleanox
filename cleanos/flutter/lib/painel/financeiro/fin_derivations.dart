@@ -544,16 +544,20 @@ bool isLancamentoViaOs(FinLancamento l) {
 bool isLancamentoDependenteExterno(FinLancamento l) =>
     isLancamentoComissao(l) || isLancamentoViaOs(l);
 
-/// Via OS: mostra a mãozinha (👍/👎) só como **indicador** — status segue a OS.
-/// Comissão: mantém ícone de vínculo (status em Equipe).
+/// Via OS ou comissão: mãozinha (👍/👎) só como **indicador** — não é
+/// clicável na movimentação.
+///   • OS → status segue a ordem (concluída = pago)
+///   • Comissão → status segue Equipe (paga = pago)
 bool finMostraMaoSomenteLeitura(FinLancamento l) =>
-    isLancamentoViaOs(l) && !isLancamentoComissao(l);
+    isLancamentoDependenteExterno(l);
 
-/// Tooltip da mão/link quando o status não é editável na movimentação.
+/// Tooltip da mão quando o status não é editável na movimentação.
 String finPagoHandTooltipDependente(FinLancamento l) {
   final pago = l.status == LancamentoStatus.pago;
   if (isLancamentoComissao(l)) {
-    return 'Comissão — status em Equipe / comissões';
+    return pago
+        ? 'Pago (marcado em Equipe) — não alterável na movimentação'
+        : 'Não pago (pendente em Equipe) — atualiza ao pagar em Equipe';
   }
   if (isLancamentoViaOs(l)) {
     return pago

@@ -1107,8 +1107,8 @@ class _LancamentoRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Mãozinha: 👍/👎 — via OS só leitura; comissão = link; resto toca.
-                  if (dependente && finMostraMaoSomenteLeitura(l))
+                  // Mãozinha: 👍/👎 — OS/comissão só leitura; manual toca.
+                  if (dependente)
                     Tooltip(
                       message: finPagoHandTooltipDependente(l),
                       child: Padding(
@@ -1119,18 +1119,6 @@ class _LancamentoRow extends StatelessWidget {
                               : Icons.thumb_down_alt_rounded,
                           size: 20,
                           color: pago ? clx.success : clx.ink3,
-                        ),
-                      ),
-                    )
-                  else if (dependente)
-                    Tooltip(
-                      message: finPagoHandTooltipDependente(l),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(
-                          Icons.link_rounded,
-                          size: 18,
-                          color: clx.ink3,
                         ),
                       ),
                     )
