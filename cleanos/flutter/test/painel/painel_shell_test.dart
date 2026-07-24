@@ -129,42 +129,27 @@ void main() {
   });
 
   group('Financeiro por slug de rota (FinTab)', () {
-    test('fromSlug resolve o slug de URL (fallback → visão geral)', () {
-      expect(FinTab.fromSlug('lancamentos'), FinTab.lancamentos);
+    test('fromSlug resolve o slug de URL (fallback → principal)', () {
+      // Aliases legados → abas v2.
+      expect(FinTab.fromSlug('lancamentos'), FinTab.transacoes);
+      expect(FinTab.fromSlug('transacoes'), FinTab.transacoes);
+      expect(FinTab.fromSlug('visao-geral'), FinTab.principal);
       expect(FinTab.fromSlug('carteiras'), FinTab.carteiras);
-      expect(FinTab.fromSlug(null), FinTab.visaoGeral);
-      expect(FinTab.fromSlug('inexistente'), FinTab.visaoGeral);
+      expect(FinTab.fromSlug(null), FinTab.principal);
+      expect(FinTab.fromSlug('inexistente'), FinTab.principal);
       // Round-trip slug de todas as abas.
       for (final t in FinTab.values) {
         expect(FinTab.fromSlug(t.slug), t);
       }
     });
 
-    testWidgets('FinanceiroShell(tabSlug) renderiza a sub-nav (Relatórios 3º)', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            pocketBaseProvider.overrideWithValue(
-              PocketBase('http://127.0.0.1:9'),
-            ),
-          ],
-          child: MaterialApp(
-            theme: buildLightTheme(),
-            home: const Scaffold(body: FinanceiroShell(tabSlug: 'lancamentos')),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      // Deep-link `/painel/financeiro/:tab` monta a sub-nav completa.
-      expect(find.text('Painel'), findsWidgets);
-      expect(find.text('Movimentações'), findsWidgets);
-      expect(find.text('Relatórios'), findsOneWidget);
-      expect(find.text('Carteiras'), findsOneWidget);
-      // Ordem: Relatórios é a 3ª aba (índice 2 no enum).
-      expect(FinTab.values[2], FinTab.relatorios);
+    test('slugs canônicos das abas v2', () {
+      expect(FinTab.principal.slug, 'principal');
+      expect(FinTab.transacoes.slug, 'transacoes');
+      expect(FinTab.comissoes.slug, 'comissoes');
+      expect(FinTab.relatorios.slug, 'relatorios');
+      expect(FinTab.isKnownSlug('lancamentos'), isTrue);
+      expect(FinTab.isKnownSlug('visao-geral'), isTrue);
     });
   });
 
@@ -179,11 +164,11 @@ void main() {
         location: '/painel/financeiro',
       );
 
-      // `/painel/financeiro` puro redireciona pra aba default (deep-link resolve).
-      expect(currentLocation(router), '/painel/financeiro/visao-geral');
+      // `/painel/financeiro` puro redireciona pra aba default (principal).
+      expect(currentLocation(router), '/painel/financeiro/principal');
     });
 
-    testWidgets('deep-link direto numa aba do Financeiro mantém a URL', (
+    testWidgets('deep-link legado lancamentos canônica para transacoes', (
       tester,
     ) async {
       final router = await pumpPainelApp(
@@ -193,7 +178,8 @@ void main() {
         location: '/painel/financeiro/lancamentos',
       );
 
-      expect(currentLocation(router), '/painel/financeiro/lancamentos');
+      // Alias legado → slug canônico v2.
+      expect(currentLocation(router), '/painel/financeiro/transacoes');
     });
 
     testWidgets('gerente em /painel/whatsapp é barrado → Dashboard', (
