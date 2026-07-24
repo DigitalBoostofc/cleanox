@@ -28,8 +28,7 @@
  *   cat_equipamentos_maquinas → catdequipmaq001
  *   cat_equipamentos_acessorios→catdequipacc001
  *   cat_equipe                → catdequipe00001
- *   cat_equipe_profissionais  → catdequipeprof1
- *   cat_equipe_comissoes      → catdequipecomi1
+ *   (subs Comissões/Profissionais removidas — mig 1700000047)
  *   cat_socios                → catdsocios00001
  *   cat_socios_dennis         → catdsociodenn01
  *   cat_socios_diego          → catdsociodieg01
@@ -126,10 +125,8 @@ migrate(
       { id: "catdequipm00001", nome: "Equipamentos",          tipo: "despesa", icone: "wrench",        cor: "#6366F1", parent_id: "",                     arquivada: false },
       { id: "catdequipmaq001", nome: "Máquinas",              tipo: "despesa", icone: "cog",           cor: "#6366F1", parent_id: "catdequipm00001",      arquivada: false },
       { id: "catdequipacc001", nome: "Acessórios",            tipo: "despesa", icone: "plug",          cor: "#818CF8", parent_id: "catdequipm00001",      arquivada: false },
-      // Despesas — Equipe
+      // Despesas — Equipe (sem subcategorias; mig 47 remove Comissões/Profissionais)
       { id: "catdequipe00001", nome: "Equipe",                tipo: "despesa", icone: "users",         cor: "#F59E0B", parent_id: "",              arquivada: false },
-      { id: "catdequipeprof1", nome: "Profissionais",         tipo: "despesa", icone: "user-check",   cor: "#F59E0B", parent_id: "catdequipe00001", arquivada: false },
-      { id: "catdequipecomi1", nome: "Comissões",             tipo: "despesa", icone: "hand-coins",   cor: "#FBBF24", parent_id: "catdequipe00001", arquivada: false },
       // Despesas — Sócios
       { id: "catdsocios00001", nome: "Sócios / Retiradas",    tipo: "despesa", icone: "briefcase",    cor: "#8B5CF6", parent_id: "",               arquivada: false },
       { id: "catdsociodenn01", nome: "Dennis",                tipo: "despesa", icone: "user",         cor: "#8B5CF6", parent_id: "catdsocios00001", arquivada: false },

@@ -22,85 +22,36 @@
  */
 
 /**
- * Resolve categoria Equipe + subcategoria Profissionais (comissão da equipe).
- * Retorna { categoriaId, subcategoriaId } ou null.
+ * Resolve categoria de despesa da comissão/repasse.
+ * Retorna { categoriaId, subcategoriaId } — sub sempre vazia ("").
  *
- * Preferência (dono 2026-07):
- *   1) sub "Profissionais" filha de "Equipe"  ← canônico (seed catdequipeprof1)
- *   2) sub "Comissões"/"Comissão" filha de "Equipe" (legado)
- *   3) sub "Profissionais" com qualquer parent
- *   4) raiz "Equipe" só (sem sub)
- *   5) qualquer despesa (fallback)
+ * Canônico (dono 2026-07-24): só a raiz **"Equipe"** (sem subcategorias
+ * Comissões/Profissionais). Subs legadas, se ainda existirem, são ignoradas
+ * (migração 1700000047 remove e re-aponta lançamentos).
  */
 function acharCategoriaComissao(app) {
-  // 1) Equipe → Profissionais (canônico)
+  // 1) Raiz Equipe
   try {
     const equipe = app.findFirstRecordByFilter(
       "fin_categorias",
       "tipo = 'despesa' && nome = 'Equipe' && (parent_id = '' || parent_id = null)",
     );
     if (equipe) {
-      try {
-        const prof = app.findFirstRecordByFilter(
-          "fin_categorias",
-          "tipo = 'despesa' && parent_id = {:pid} && nome = 'Profissionais'",
-          { pid: equipe.id },
-        );
-        if (prof) {
-          return { categoriaId: equipe.id, subcategoriaId: prof.id };
-        }
-      } catch (_) {}
-      // 2) Legado: Comissões sob Equipe
-      try {
-        const sub = app.findFirstRecordByFilter(
-          "fin_categorias",
-          "tipo = 'despesa' && parent_id = {:pid} && (nome = 'Comissões' || nome = 'Comissão')",
-          { pid: equipe.id },
-        );
-        if (sub) {
-          return { categoriaId: equipe.id, subcategoriaId: sub.id };
-        }
-      } catch (_) {}
-      // Equipe sem sub conhecida — usa a raiz
       return { categoriaId: equipe.id, subcategoriaId: null };
     }
   } catch (_) {}
 
-  // 3) Qualquer "Profissionais" com parent
+  // 2) Fallback: id canônico do seed
   try {
-    const sub = app.findFirstRecordByFilter(
-      "fin_categorias",
-      "tipo = 'despesa' && nome = 'Profissionais' && parent_id != '' && parent_id != null",
-    );
-    if (sub) {
-      const parentId = String(sub.get("parent_id") || "");
-      return {
-        categoriaId: parentId || sub.id,
-        subcategoriaId: parentId ? sub.id : null,
-      };
-    }
+    const e = app.findRecordById("fin_categorias", "catdequipe00001");
+    if (e) return { categoriaId: e.id, subcategoriaId: null };
   } catch (_) {}
 
-  // 4) Legado: "Comissões" com parent
-  try {
-    const sub = app.findFirstRecordByFilter(
-      "fin_categorias",
-      "tipo = 'despesa' && (nome = 'Comissões' || nome = 'Comissão') && parent_id != '' && parent_id != null",
-    );
-    if (sub) {
-      const parentId = String(sub.get("parent_id") || "");
-      return {
-        categoriaId: parentId || sub.id,
-        subcategoriaId: parentId ? sub.id : null,
-      };
-    }
-  } catch (_) {}
-
-  // 5) Fallback: 1ª despesa
+  // 3) Fallback: 1ª despesa raiz
   try {
     const list = app.findRecordsByFilter(
       "fin_categorias",
-      "tipo = 'despesa'",
+      "tipo = 'despesa' && (parent_id = '' || parent_id = null)",
       "nome",
       1,
       0,
@@ -548,7 +499,7 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
   lanc.set("tipo", "despesa");
   lanc.set("descricao", descricao);
   lanc.set("categoria_id", cats.categoriaId);
-  // Subcategoria Profissionais sob Equipe (PB: "" se vazia, nunca null — R2)
+  // Sem sub: só Equipe raiz (PB: "" se vazia, nunca null — R2)
   lanc.set("subcategoria_id", cats.subcategoriaId || "");
   lanc.set("valor", valor);
   lanc.set("conta_id", contaId);
@@ -592,7 +543,7 @@ function garantirLancamentoStatus(app, comissao, statusLanc) {
     lanc.set("status", status);
     mudou = true;
   }
-  // Mantém categoria Equipe / sub Profissionais alinhadas
+  // Mantém categoria Equipe (raiz) alinhada
   if (cats && cats.categoriaId) {
     if (String(lanc.get("categoria_id") || "") !== cats.categoriaId) {
       lanc.set("categoria_id", cats.categoriaId);
@@ -864,15 +815,15 @@ function realinharDatasComissaoComOs(app) {
 
 /**
  * Realinha categoria/sub de todas as despesas via_comissao para
- * Equipe → Profissionais (canônico). Não mexe em status/valor/saldo (R1).
+ * a raiz **Equipe** (sem sub). Não mexe em status/valor/saldo (R1).
  */
 function realinharCategoriasComissao(app) {
   const cats = acharCategoriaComissao(app);
   if (!cats || !cats.categoriaId) {
-    console.log("[comissao-pago] realinhar categorias: sem Equipe/Profissionais.");
+    console.log("[comissao-pago] realinhar categorias: sem Equipe.");
     return 0;
   }
-  const wantSub = cats.subcategoriaId || "";
+  const wantSub = "";
   let list = [];
   try {
     list = app.findRecordsByFilter(
@@ -911,7 +862,7 @@ function realinharCategoriasComissao(app) {
   console.log(
     "[comissao-pago] realinhar categorias: " +
       n +
-      " despesa(s) → Equipe/Profissionais.",
+      " despesa(s) → Equipe (raiz).",
   );
   return n;
 }
