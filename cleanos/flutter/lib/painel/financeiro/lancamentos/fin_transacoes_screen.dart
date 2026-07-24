@@ -951,8 +951,8 @@ class _TxTile extends StatelessWidget {
                             : Icons.push_pin_outlined,
                         color: l.favorito ? clx.primary : clx.ink3,
                       ),
-                      if (dependente && finMostraMaoSomenteLeitura(l))
-                        // Via OS: mão 👍/👎 só leitura (pago = OS concluída).
+                      if (dependente)
+                        // OS / comissão: mão 👍/👎 só leitura (status externo).
                         _TxIconAction(
                           tooltip: finPagoHandTooltipDependente(l),
                           onTap: () {},
@@ -960,13 +960,6 @@ class _TxTile extends StatelessWidget {
                               ? Icons.thumb_up_alt_rounded
                               : Icons.thumb_down_alt_rounded,
                           color: pago ? clx.success : clx.ink3,
-                        )
-                      else if (dependente)
-                        _TxIconAction(
-                          tooltip: finPagoHandTooltipDependente(l),
-                          onTap: () {},
-                          icon: Icons.link_rounded,
-                          color: clx.ink3,
                         )
                       else
                         _TxIconAction(
@@ -1215,11 +1208,11 @@ class _TableRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 1) 👍 / 👎 — manual toca; via OS só leitura; comissão = link
+              // 1) 👍 / 👎 — manual toca; OS/comissão só leitura
               SizedBox(
                 width: 56,
                 child: Center(
-                  child: dependente && finMostraMaoSomenteLeitura(l)
+                  child: dependente
                       ? Tooltip(
                           message: finPagoHandTooltipDependente(l),
                           child: Icon(
@@ -1230,40 +1223,31 @@ class _TableRow extends StatelessWidget {
                             color: pago ? clx.success : clx.ink3,
                           ),
                         )
-                      : dependente
-                          ? Tooltip(
-                              message: finPagoHandTooltipDependente(l),
-                              child: Icon(
-                                Icons.link_rounded,
-                                size: 20,
-                                color: clx.ink3,
-                              ),
-                            )
-                          : Tooltip(
-                              message: pago
-                                  ? 'Pago — toque para marcar pendente'
-                                  : atrasado
-                                      ? 'Em atraso — toque para marcar pago'
-                                      : 'Pendente — toque para marcar pago',
-                              child: IconButton(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 40,
-                                  minHeight: 40,
-                                ),
-                                onPressed: onTogglePago,
-                                icon: Icon(
-                                  pago
-                                      ? Icons.thumb_up_alt_rounded
-                                      : Icons.thumb_down_alt_rounded,
-                                  size: 22,
-                                  color: pago
-                                      ? clx.success
-                                      : (atrasado ? clx.error : clx.ink3),
-                                ),
-                              ),
+                      : Tooltip(
+                          message: pago
+                              ? 'Pago — toque para marcar pendente'
+                              : atrasado
+                                  ? 'Em atraso — toque para marcar pago'
+                                  : 'Pendente — toque para marcar pago',
+                          child: IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
                             ),
+                            onPressed: onTogglePago,
+                            icon: Icon(
+                              pago
+                                  ? Icons.thumb_up_alt_rounded
+                                  : Icons.thumb_down_alt_rounded,
+                              size: 22,
+                              color: pago
+                                  ? clx.success
+                                  : (atrasado ? clx.error : clx.ink3),
+                            ),
+                          ),
+                        ),
                 ),
               ),
               // 2) Categoria (só ícone) — ao lado das mãos
