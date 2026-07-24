@@ -400,14 +400,34 @@ function _scaleLinhasToTotal(lines, total) {
 
 function _parseAdicionais(record) {
   try {
-    var raw = record.get("adicionais");
-    if (raw == null || raw === "") return [];
-    if (typeof raw === "string") {
-      if (raw === "null" || raw === "[]") return raw === "[]" ? [] : [];
-      raw = JSON.parse(raw);
+    var raw = null;
+    // Preferir getString quando devolve JSON textual (JSVM/JSONRaw).
+    // Só se começar com '[' — mocks/unit com get() array caem no ramo abaixo.
+    if (record.getString) {
+      var s = String(record.getString("adicionais") || "").trim();
+      // JSON real: "[]" / "[{...". Evita String([obj]) → "[object Object]".
+      if (
+        s &&
+        s !== "null" &&
+        (s === "[]" || s.indexOf("[{") === 0 || s.indexOf("[\n") === 0)
+      ) {
+        raw = JSON.parse(s);
+      }
     }
-    // PB JSON field às vezes já vem como array/objeto
+    if (raw == null) {
+      raw = record.get("adicionais");
+      if (raw == null || raw === "") return [];
+      if (typeof raw === "string") {
+        if (raw === "null" || raw === "[]") return raw === "[]" ? [] : [];
+        raw = JSON.parse(raw);
+      }
+    }
     if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw.length === "number" && raw.length >= 0) {
+      var out = [];
+      for (var i = 0; i < raw.length; i++) out.push(raw[i]);
+      return out;
+    }
     return [];
   } catch (_) {
     return [];

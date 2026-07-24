@@ -1,6 +1,7 @@
 import 'package:cleanos/core/formatters/formatters.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
+import 'package:cleanos/core/models/os_execucao.dart';
 import 'package:cleanos/core/models/prof_comissao.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/profissional/financeiro/prof_estimativa.dart';
@@ -46,7 +47,26 @@ void main() {
       expect(estimarComissaoOs(mePct, os), 15);
     });
 
-    test('percentual prefere valor_pago quando > 0', () {
+    test('percentual inclui serviço extra no total (valorTotal)', () {
+      final os = OrdemServico(
+        id: '1',
+        status: OSStatus.atribuida,
+        valorServico: 200,
+        adicionais: const [
+          ServicoAdicionalOS(
+            id: 'add1',
+            nome: 'Extra',
+            valor: 100,
+            quantidade: 1,
+            aprovacao: AprovacaoStatus.naoRequer,
+          ),
+        ],
+      );
+      // 10% de 300
+      expect(estimarComissaoOs(mePct, os), 30);
+    });
+
+    test('percentual prefere valor_pago quando maior que o total', () {
       final os = OrdemServico(
         id: '1',
         status: OSStatus.concluida,

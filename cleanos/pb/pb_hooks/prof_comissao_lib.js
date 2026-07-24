@@ -84,23 +84,111 @@ function listarComissoesDaOs(app, osId) {
 }
 
 /**
- * Recalcula valor_comissao a partir do tipo congelado na linha + valor_pago da OS.
- *   percentual → valor_pago × base_valor%
+ * Recalcula valor_comissao a partir do tipo congelado na linha + base da OS.
+ *   percentual → baseOs × base_valor%
  *   fixo | diaria → base_valor (não escala com o valor da OS)
+ *
+ * [baseOs] = total da OS (principal + extras cobráveis − descontos), ver
+ * [valorBaseComissaoOs] — NÃO usar só valor_servico do orçamento inicial.
  */
-function calcValorComissao(tipoAplicado, baseValor, valorPago) {
+function calcValorComissao(tipoAplicado, baseValor, baseOs) {
   const tipo = String(tipoAplicado || "").toLowerCase();
   const base = Number(baseValor || 0);
-  const pago = Number(valorPago || 0);
+  const osValor = Number(baseOs || 0);
   if (!(base > 0)) return 0;
   if (tipo === "percentual") {
-    if (!(pago > 0)) return 0;
-    return Math.round(((pago * base) / 100) * 100) / 100;
+    if (!(osValor > 0)) return 0;
+    return Math.round(((osValor * base) / 100) * 100) / 100;
   }
   if (tipo === "fixo" || tipo === "diaria") {
     return Math.round(base * 100) / 100;
   }
   return 0;
+}
+
+/**
+ * Adicionais cobráveis (mesmo critério do Flutter `valorTotal` e da receita
+ * multi-linha em os_financeiro_lib): aprovado | nao_requer | vazio.
+ *
+ * Preferir getString: no JSVM, get() de JSONField devolve JSONRaw (bytes)
+ * e Array.isArray falha — o total ficava só no principal (bug de extra).
+ */
+function _parseAdicionaisOs(record) {
+  try {
+    var raw = null;
+    // getString devolve o JSON textual no JSVM (evita JSONRaw/bytes).
+    // Só parsear se parecer JSON de array; senão cair no get().
+    if (record.getString) {
+      var s = String(record.getString("adicionais") || "").trim();
+      // JSON real começa com "[{", "[]" ou whitespace+[. Evita String([obj])
+      // do mock/JS que vira "[object Object]" e quebra o parse.
+      if (
+        s &&
+        s !== "null" &&
+        (s === "[]" || s.indexOf("[{") === 0 || s.indexOf("[\n") === 0)
+      ) {
+        raw = JSON.parse(s);
+      }
+    }
+    if (raw == null) {
+      raw = record.get("adicionais");
+      if (raw == null || raw === "") return [];
+      if (typeof raw === "string") {
+        if (raw === "null" || raw === "[]") return raw === "[]" ? [] : [];
+        raw = JSON.parse(raw);
+      }
+    }
+    if (Array.isArray(raw)) return raw;
+    // Array-like do goja (tem length, mas não é Array nativo)
+    if (raw && typeof raw.length === "number" && raw.length >= 0) {
+      var out = [];
+      for (var i = 0; i < raw.length; i++) out.push(raw[i]);
+      return out;
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function _isAdicionalCobravelOs(a) {
+  if (!a) return false;
+  const ap = String(a.aprovacao || "nao_requer");
+  return ap === "aprovado" || ap === "nao_requer" || ap === "";
+}
+
+/**
+ * Total da OS = principal (valor_servico) + extras cobráveis − descontos.
+ * Espelha `OrdemServico.valorTotal` no Flutter.
+ */
+function calcValorTotalOs(record) {
+  const principal = Number(record.get("valor_servico") || 0);
+  var extras = 0;
+  const ads = _parseAdicionaisOs(record);
+  for (var i = 0; i < ads.length; i++) {
+    const a = ads[i];
+    if (!_isAdicionalCobravelOs(a)) continue;
+    const v = Number(a.valor || 0) * Number(a.quantidade || 1);
+    if (v > 0) extras += v;
+  }
+  const descontos = Number(record.get("descontos") || 0);
+  const d = descontos > 0 ? descontos : 0;
+  var total = principal + extras - d;
+  if (total < 0) total = 0;
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Base da comissão: total da OS (com extras). Se o valor_pago for MAIOR
+ * (ex.: arredondamento/gorjeta), usa o pago. Assim serviço extra nunca fica
+ * de fora quando o profissional esqueceu de atualizar valor_pago.
+ */
+function valorBaseComissaoOs(record) {
+  const total = calcValorTotalOs(record);
+  const pago = Number(record.get("valor_pago") || 0);
+  if (pago > total) return Math.round(pago * 100) / 100;
+  if (total > 0) return total;
+  return pago > 0 ? Math.round(pago * 100) / 100 : 0;
 }
 
 /**
@@ -114,7 +202,7 @@ function atualizarComissaoDaOs(app, record) {
   const osId = record.id;
   if (!osId) return;
 
-  const valorPago = Number(record.get("valor_pago") || 0);
+  const baseOs = valorBaseComissaoOs(record);
   const list = listarComissoesDaOs(app, osId);
 
   if (!list || list.length === 0) {
@@ -137,7 +225,7 @@ function atualizarComissaoDaOs(app, record) {
     try {
       const tipo = String(rec.get("tipo_aplicado") || "").toLowerCase();
       const base = Number(rec.get("base_valor") || 0);
-      const novoValor = calcValorComissao(tipo, base, valorPago);
+      const novoValor = calcValorComissao(tipo, base, baseOs);
       const velhoValor = Number(rec.get("valor_comissao") || 0);
       const velhoOs = Number(rec.get("valor_os") || 0);
 
@@ -156,8 +244,8 @@ function atualizarComissaoDaOs(app, record) {
       }
 
       let mudou = false;
-      if (velhoOs !== valorPago) {
-        rec.set("valor_os", valorPago);
+      if (velhoOs !== baseOs) {
+        rec.set("valor_os", baseOs);
         mudou = true;
       }
       if (velhoValor !== novoValor) {
@@ -197,8 +285,8 @@ function atualizarComissaoDaOs(app, record) {
       console.log(
         "[comissao] OS " +
           osId +
-          " valor_pago → R$ " +
-          valorPago +
+          " base total → R$ " +
+          baseOs +
           "; comissão " +
           rec.id +
           " " +
@@ -371,14 +459,14 @@ function criarComissaoProfissional(app, record, origStatus) {
       return;
     }
     const valorComissao = Math.round(base * 100) / 100;
-    const valorPago = Number(record.get("valor_pago") || 0);
+    const baseOs = valorBaseComissaoOs(record);
     const nomeCurto = String(record.get("nome_curto") || "");
     try {
       salvarComissao(app, {
         profissional: profId,
         profissional_nome: String(prof.get("name") || ""),
         os: osId,
-        valor_os: valorPago,
+        valor_os: baseOs,
         valor_comissao: valorComissao,
         tipo_aplicado: "diaria",
         base_valor: base,
@@ -408,9 +496,12 @@ function criarComissaoProfissional(app, record, origStatus) {
     return;
   }
 
-  const valorPago = Number(record.get("valor_pago") || 0);
-  if (!(valorPago > 0)) {
-    console.log("[comissao] OS sem valor_pago > 0; skip.");
+  // Base = total da OS (principal + extras cobráveis − descontos).
+  // Não depende só de valor_pago: extras adicionados após o pagamento
+  // ainda entram na comissão percentual.
+  const baseOs = valorBaseComissaoOs(record);
+  if (!(baseOs > 0)) {
+    console.log("[comissao] OS sem valor total > 0; skip.");
     return;
   }
 
@@ -428,7 +519,7 @@ function criarComissaoProfissional(app, record, origStatus) {
 
   let valorComissao = 0;
   if (tipo === "percentual") {
-    valorComissao = Math.round(((valorPago * base) / 100) * 100) / 100;
+    valorComissao = Math.round(((baseOs * base) / 100) * 100) / 100;
   } else {
     valorComissao = Math.round(base * 100) / 100;
   }
@@ -441,7 +532,7 @@ function criarComissaoProfissional(app, record, origStatus) {
       profissional: profId,
       profissional_nome: String(prof.get("name") || ""),
       os: osId,
-      valor_os: valorPago,
+      valor_os: baseOs,
       valor_comissao: valorComissao,
       tipo_aplicado: tipo,
       base_valor: base,
@@ -452,7 +543,9 @@ function criarComissaoProfissional(app, record, origStatus) {
     console.log(
       "[comissao] OS " +
         osId +
-        " → R$ " +
+        " (total R$ " +
+        baseOs +
+        ") → R$ " +
         valorComissao +
         " (" +
         tipo +
@@ -469,6 +562,8 @@ module.exports = {
   criarComissaoProfissional,
   atualizarComissaoDaOs,
   calcValorComissao,
+  calcValorTotalOs,
+  valorBaseComissaoOs,
   removerComissoesDaOs,
   dataBrtAgora,
   dataParedeDaOs,
