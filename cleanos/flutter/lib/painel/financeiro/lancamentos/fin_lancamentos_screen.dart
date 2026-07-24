@@ -1107,12 +1107,24 @@ class _LancamentoRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Mãozinha: 👍/👎 — oculto em OS/comissão (status dependente).
-                  if (dependente)
+                  // Mãozinha: 👍/👎 — via OS só leitura; comissão = link; resto toca.
+                  if (dependente && finMostraMaoSomenteLeitura(l))
                     Tooltip(
-                      message: isLancamentoComissao(l)
-                          ? 'Comissão — status em Equipe'
-                          : 'OS — status da ordem de serviço',
+                      message: finPagoHandTooltipDependente(l),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(
+                          pago
+                              ? Icons.thumb_up_alt_rounded
+                              : Icons.thumb_down_alt_rounded,
+                          size: 20,
+                          color: pago ? clx.success : clx.ink3,
+                        ),
+                      ),
+                    )
+                  else if (dependente)
+                    Tooltip(
+                      message: finPagoHandTooltipDependente(l),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Icon(
