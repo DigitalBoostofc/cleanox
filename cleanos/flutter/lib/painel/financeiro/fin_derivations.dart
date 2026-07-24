@@ -544,6 +544,25 @@ bool isLancamentoViaOs(FinLancamento l) {
 bool isLancamentoDependenteExterno(FinLancamento l) =>
     isLancamentoComissao(l) || isLancamentoViaOs(l);
 
+/// Via OS: mostra a mãozinha (👍/👎) só como **indicador** — status segue a OS.
+/// Comissão: mantém ícone de vínculo (status em Equipe).
+bool finMostraMaoSomenteLeitura(FinLancamento l) =>
+    isLancamentoViaOs(l) && !isLancamentoComissao(l);
+
+/// Tooltip da mão/link quando o status não é editável na movimentação.
+String finPagoHandTooltipDependente(FinLancamento l) {
+  final pago = l.status == LancamentoStatus.pago;
+  if (isLancamentoComissao(l)) {
+    return 'Comissão — status em Equipe / comissões';
+  }
+  if (isLancamentoViaOs(l)) {
+    return pago
+        ? 'Pago (OS concluída) — não alterável na movimentação'
+        : 'Não pago (OS em aberto) — atualiza ao concluir a OS';
+  }
+  return '';
+}
+
 String _ymdFromDateTime(DateTime d) {
   String p2(int n) => n.toString().padLeft(2, '0');
   return '${d.year}-${p2(d.month)}-${p2(d.day)}';

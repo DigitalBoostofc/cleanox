@@ -274,6 +274,33 @@ void main() {
         isFalse,
       );
     });
+
+    test('mão só-leitura: via OS sim; comissão e manual não', () {
+      final viaOs = fakeLanc(id: '1').copyWith(origem: OrigemLancamento.viaOs);
+      expect(finMostraMaoSomenteLeitura(viaOs), isTrue);
+      expect(
+        finPagoHandTooltipDependente(
+          viaOs.copyWith(status: LancamentoStatus.previsto),
+        ),
+        contains('Não pago'),
+      );
+      expect(
+        finPagoHandTooltipDependente(
+          viaOs.copyWith(status: LancamentoStatus.pago),
+        ),
+        contains('Pago (OS concluída)'),
+      );
+      expect(
+        finMostraMaoSomenteLeitura(
+          fakeLanc(id: 'comissao-previsto-prof-jp'),
+        ),
+        isFalse,
+      );
+      expect(
+        finMostraMaoSomenteLeitura(fakeLanc(id: 'manual')),
+        isFalse,
+      );
+    });
   });
 
   group('isLancamentoAtrasado', () {

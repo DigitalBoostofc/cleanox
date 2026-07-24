@@ -951,11 +951,19 @@ class _TxTile extends StatelessWidget {
                             : Icons.push_pin_outlined,
                         color: l.favorito ? clx.primary : clx.ink3,
                       ),
-                      if (dependente)
+                      if (dependente && finMostraMaoSomenteLeitura(l))
+                        // Via OS: mão 👍/👎 só leitura (pago = OS concluída).
                         _TxIconAction(
-                          tooltip: isComissao
-                              ? 'Comissão — status em Equipe'
-                              : 'OS — status da ordem de serviço',
+                          tooltip: finPagoHandTooltipDependente(l),
+                          onTap: () {},
+                          icon: pago
+                              ? Icons.thumb_up_alt_rounded
+                              : Icons.thumb_down_alt_rounded,
+                          color: pago ? clx.success : clx.ink3,
+                        )
+                      else if (dependente)
+                        _TxIconAction(
+                          tooltip: finPagoHandTooltipDependente(l),
                           onTap: () {},
                           icon: Icons.link_rounded,
                           color: clx.ink3,
@@ -1207,46 +1215,55 @@ class _TableRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 1) 👍 / 👎 (oculto em OS/comissão — status dependente)
+              // 1) 👍 / 👎 — manual toca; via OS só leitura; comissão = link
               SizedBox(
                 width: 56,
                 child: Center(
-                  child: dependente
+                  child: dependente && finMostraMaoSomenteLeitura(l)
                       ? Tooltip(
-                          message: isComissao
-                              ? 'Comissão — status em Equipe / comissões'
-                              : 'OS — status da ordem de serviço',
+                          message: finPagoHandTooltipDependente(l),
                           child: Icon(
-                            Icons.link_rounded,
-                            size: 20,
-                            color: clx.ink3,
+                            pago
+                                ? Icons.thumb_up_alt_rounded
+                                : Icons.thumb_down_alt_rounded,
+                            size: 22,
+                            color: pago ? clx.success : clx.ink3,
                           ),
                         )
-                      : Tooltip(
-                          message: pago
-                              ? 'Pago — toque para marcar pendente'
-                              : atrasado
-                                  ? 'Em atraso — toque para marcar pago'
-                                  : 'Pendente — toque para marcar pago',
-                          child: IconButton(
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
+                      : dependente
+                          ? Tooltip(
+                              message: finPagoHandTooltipDependente(l),
+                              child: Icon(
+                                Icons.link_rounded,
+                                size: 20,
+                                color: clx.ink3,
+                              ),
+                            )
+                          : Tooltip(
+                              message: pago
+                                  ? 'Pago — toque para marcar pendente'
+                                  : atrasado
+                                      ? 'Em atraso — toque para marcar pago'
+                                      : 'Pendente — toque para marcar pago',
+                              child: IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 40,
+                                ),
+                                onPressed: onTogglePago,
+                                icon: Icon(
+                                  pago
+                                      ? Icons.thumb_up_alt_rounded
+                                      : Icons.thumb_down_alt_rounded,
+                                  size: 22,
+                                  color: pago
+                                      ? clx.success
+                                      : (atrasado ? clx.error : clx.ink3),
+                                ),
+                              ),
                             ),
-                            onPressed: onTogglePago,
-                            icon: Icon(
-                              pago
-                                  ? Icons.thumb_up_alt_rounded
-                                  : Icons.thumb_down_alt_rounded,
-                              size: 22,
-                              color: pago
-                                  ? clx.success
-                                  : (atrasado ? clx.error : clx.ink3),
-                            ),
-                          ),
-                        ),
                 ),
               ),
               // 2) Categoria (só ícone) — ao lado das mãos
