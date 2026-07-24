@@ -342,9 +342,24 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
         (l) => dentroDoPeriodo(l, period.periodo) && !idsPeriodo.contains(l.id),
       ),
     ];
-    final balancoMes = resumoPeriodoCompetencia(
+    final resumoMes = resumoPeriodoCompetencia(
       lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
-    ).saldoMes;
+    );
+    // Rótulo/KPI do card direito muda com o filtro de tipo:
+    // Todos → Balanço; Receitas → Receita mensal; Despesas → Despesa mensal.
+    final tipoFiltro = state.filters.tipo;
+    final String kpiMensalLabel;
+    final double kpiMensalValor;
+    if (tipoFiltro == TipoLancamento.receita) {
+      kpiMensalLabel = 'Receita mensal';
+      kpiMensalValor = resumoMes.entradas;
+    } else if (tipoFiltro == TipoLancamento.despesa) {
+      kpiMensalLabel = 'Despesa mensal';
+      kpiMensalValor = resumoMes.saidas;
+    } else {
+      kpiMensalLabel = 'Balanço mensal';
+      kpiMensalValor = resumoMes.saldoMes;
+    }
     final prevPorDia = saldoPrevistoPorDia(
       saldoAtual: saldo,
       lancs: lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
@@ -365,7 +380,8 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
             onNext: () =>
                 ref.read(finPeriodProvider.notifier).state = period.shift(1),
             saldo: saldo,
-            balanco: balancoMes,
+            kpiMensalLabel: kpiMensalLabel,
+            kpiMensalValor: kpiMensalValor,
             searchCtrl: _searchCtrl,
             onSearch: _onSearch,
             onNovo: () => _openForm(),
@@ -448,7 +464,8 @@ class _HeaderKpis extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.saldo,
-    required this.balanco,
+    required this.kpiMensalLabel,
+    required this.kpiMensalValor,
     required this.searchCtrl,
     required this.onSearch,
     required this.onNovo,
@@ -462,7 +479,9 @@ class _HeaderKpis extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final double saldo;
-  final double balanco;
+  /// "Balanço mensal" | "Receita mensal" | "Despesa mensal" (filtro de tipo).
+  final String kpiMensalLabel;
+  final double kpiMensalValor;
   final TextEditingController searchCtrl;
   final ValueChanged<String> onSearch;
   final VoidCallback onNovo;
@@ -516,8 +535,8 @@ class _HeaderKpis extends StatelessWidget {
                 Expanded(
                   child: _KpiMini(
                     icon: Icons.account_balance_wallet_outlined,
-                    label: 'Balanço mensal',
-                    value: balanco,
+                    label: kpiMensalLabel,
+                    value: kpiMensalValor,
                     compact: fintech,
                   ),
                 ),
