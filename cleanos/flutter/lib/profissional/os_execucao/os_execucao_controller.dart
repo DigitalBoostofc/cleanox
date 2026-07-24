@@ -654,12 +654,23 @@ class OSExecucaoController
 
     final newChecklist = [...state.checklist, ...novosItens];
     final newAdicionais = [...os.adicionais, adicional];
+    // Se o pagamento já foi registrado, realinha valor_pago ao total com o
+    // extra — senão a comissão percentual (e o caixa) ficam só no principal.
+    final osComExtra = os.copyWith(adicionais: newAdicionais);
+    final totalComExtra = osComExtra.valorTotal;
+    final pagoAtual = os.valorPago ?? 0;
+    final precisaSyncPago =
+        pagoAtual > 0 &&
+        totalComExtra > 0 &&
+        (totalComExtra - pagoAtual).abs() > 0.009;
 
     // Cancela debounce pendente — este save é imediato e inclui adicionais.
     _saveTimer?.cancel();
     state = state.copyWith(
       checklist: newChecklist,
-      os: os.copyWith(adicionais: newAdicionais),
+      os: osComExtra.copyWith(
+        valorPago: precisaSyncPago ? totalComExtra : os.valorPago,
+      ),
       saveState: SaveState.saving,
       saveError: null,
     );
@@ -671,6 +682,7 @@ class OSExecucaoController
         OSExecPatch(
           checklistExec: newChecklist.map((e) => e.toJson()).toList(),
           adicionais: newAdicionais.map((e) => e.toJson()).toList(),
+          valorPago: precisaSyncPago ? totalComExtra : null,
         ),
       );
       _lastSavedChecklist = serialized;
@@ -715,6 +727,23 @@ class OSExecucaoController
   /// só habilita o botão sem obrigatórios pendentes e com pagamento
   /// registrado; o servidor (`os_logic.js`) segue sendo a trava definitiva.
   Future<void> concluir() async {
+    // Garante que valor_pago espelha o total (principal + extras) antes de
+    // fechar — a comissão percentual e a receita via_os usam esse valor.
+    final os = state.os;
+    if (os != null) {
+      final total = os.valorTotal;
+      final pago = os.valorPago ?? 0;
+      if (total > 0 &&
+          pago > 0 &&
+          (total - pago).abs() > 0.009 &&
+          os.formaPagamento != null) {
+        await registrarPagamento(
+          valor: total,
+          forma: os.formaPagamento!,
+          outro: os.formaPagamentoOutro ?? '',
+        );
+      }
+    }
     final updated = await _repo.updateStatus(_osId, OSStatus.concluida);
     state = state.copyWith(os: updated);
   }

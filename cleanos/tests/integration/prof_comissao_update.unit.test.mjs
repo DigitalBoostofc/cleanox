@@ -134,11 +134,93 @@ describe('calcValorComissao', () => {
   it('percentual com valor 0 → 0', () => {
     assert.equal(lib.calcValorComissao('percentual', 30, 0), 0)
   })
-  it('fixo ignora valor_pago', () => {
+  it('fixo ignora valor da OS', () => {
     assert.equal(lib.calcValorComissao('fixo', 100, 999), 100)
   })
-  it('diaria ignora valor_pago', () => {
+  it('diaria ignora valor da OS', () => {
     assert.equal(lib.calcValorComissao('diaria', 100, 50), 100)
+  })
+})
+
+describe('calcValorTotalOs / valorBaseComissaoOs — serviço extra', () => {
+  it('total = principal + extras cobráveis − descontos', () => {
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 200,
+      descontos: 0,
+      adicionais: [
+        {
+          id: 'add1',
+          nome: 'Sofá',
+          valor: 150,
+          quantidade: 1,
+          aprovacao: 'nao_requer',
+        },
+      ],
+    })
+    assert.equal(lib.calcValorTotalOs(os), 350)
+  })
+
+  it('base de comissão usa total com extra mesmo se valor_pago ficou no principal', () => {
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 200, // bug legado: não atualizou após extra
+      adicionais: [
+        {
+          id: 'add1',
+          nome: 'Extra',
+          valor: 150,
+          quantidade: 1,
+          aprovacao: 'nao_requer',
+        },
+      ],
+    })
+    assert.equal(lib.valorBaseComissaoOs(os), 350)
+  })
+
+  it('base prefere valor_pago se for maior que o total (gorjeta)', () => {
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 400,
+      adicionais: [],
+    })
+    assert.equal(lib.valorBaseComissaoOs(os), 400)
+  })
+
+  it('atualizarComissao recalcula % sobre total com extra', () => {
+    const com = rec(
+      {
+        os: 'os1',
+        profissional: 'prof1',
+        valor_os: 200,
+        valor_comissao: 60,
+        tipo_aplicado: 'percentual',
+        base_valor: 30,
+        status: 'pendente',
+        descricao: 'Cleanox Completo · Cliente X',
+      },
+      'com1',
+    )
+    const app = mockApp({ comissoes: [com] })
+    lib.atualizarComissaoDaOs(
+      app,
+      osRec({
+        valor_servico: 200,
+        valor_pago: 200,
+        adicionais: [
+          {
+            id: 'add1',
+            nome: 'Extra',
+            valor: 150,
+            quantidade: 1,
+            aprovacao: 'nao_requer',
+          },
+        ],
+      }),
+    )
+    assert.equal(com.get('valor_os'), 350)
+    assert.equal(com.get('valor_comissao'), 105) // 30% de 350
+    assert.equal(app._saved.length, 1)
   })
 })
 

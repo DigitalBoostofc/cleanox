@@ -136,11 +136,17 @@ class EstimativaGanho {
   int get qtdConcluidas => linhas.where((l) => l.isConcluida).length;
 }
 
-/// Base de cálculo da ESTIMATIVA: valor pago se > 0, senão valor do serviço.
+/// Base de cálculo da ESTIMATIVA: total da OS (principal + extras cobráveis −
+/// descontos). Se o valor pago for maior (gorjeta), usa o pago.
+///
+/// Antes usava só `valor_servico` quando ainda não havia pagamento — e o
+/// serviço extra ficava de fora da comissão prevista.
 double baseValorOs(OrdemServico os) {
+  final total = os.valorTotal;
   final pago = os.valorPago ?? 0;
-  if (pago > 0) return pago;
-  return os.valorServico ?? 0;
+  if (pago > total) return pago;
+  if (total > 0) return total;
+  return pago > 0 ? pago : 0;
 }
 
 /// Comissão ESTIMADA para [os] com a config ATUAL de [me]. Canceladas = 0.
