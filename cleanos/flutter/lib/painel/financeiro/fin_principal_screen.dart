@@ -1459,30 +1459,6 @@ class _EconomiaCard extends StatelessWidget {
   }
 }
 
-/// Despesas do período por categoria (pago + em aberto — fixas contam).
-Map<String, double> _gastoPeriodoPorCategoria(List<FinLancamento> lancs) {
-  final cents = <String, int>{};
-  for (final l in lancs) {
-    if (l.tipo != TipoLancamento.despesa) continue;
-    final id = l.categoriaId;
-    if (id.isEmpty) continue;
-    cents[id] = (cents[id] ?? 0) + (l.valor * 100).round();
-  }
-  return {for (final e in cents.entries) e.key: e.value / 100.0};
-}
-
-/// Receitas do período por categoria (pago + previsto).
-Map<String, double> _receitaPeriodoPorCategoria(List<FinLancamento> lancs) {
-  final cents = <String, int>{};
-  for (final l in lancs) {
-    if (l.tipo != TipoLancamento.receita) continue;
-    final id = l.categoriaId;
-    if (id.isEmpty) continue;
-    cents[id] = (cents[id] ?? 0) + (l.valor * 100).round();
-  }
-  return {for (final e in cents.entries) e.key: e.value / 100.0};
-}
-
 /// Card de planejamento mensal (limites do mês) no dashboard.
 class _PlanejamentoResumoCard extends StatelessWidget {
   const _PlanejamentoResumoCard({
