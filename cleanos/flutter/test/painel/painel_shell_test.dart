@@ -5,16 +5,11 @@
 /// e o GUARD de papel (gerente barrado de `/painel/whatsapp`).
 library;
 
-import 'package:cleanos/core/auth/auth_providers.dart';
-import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/painel/avaliacoes/avaliacoes_screen.dart';
 import 'package:cleanos/painel/financeiro/fin_shell.dart';
 import 'package:cleanos/painel/shell/painel_nav.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pocketbase/pocketbase.dart';
 
 import 'fakes_painel.dart';
 import 'painel_test_helpers.dart';
