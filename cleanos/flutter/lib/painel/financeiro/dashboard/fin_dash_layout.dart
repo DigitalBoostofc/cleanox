@@ -276,4 +276,107 @@ class FinDashLayout {
     var y = p.y < 0 ? 0 : p.y;
     return p.copyWith(x: x, y: y, w: w, h: h);
   }
+
+  /// Retângulos se sobrepõem (grade half-open em células).
+  static bool overlaps(FinDashPlacement a, FinDashPlacement b) {
+    if (a.id == b.id) return false;
+    return a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y;
+  }
+
+  /// Aplica [active] (já na posição/tamanho desejados) e **empurra** os outros
+  /// cards visíveis para baixo até não haver colisão.
+  ///
+  /// O card ativo fica fixo; os demais se adaptam (resize/move no editor).
+  FinDashLayout placeWithReflow(FinDashPlacement active) {
+    active = clampPlacement(active);
+    final byId = <String, FinDashPlacement>{
+      for (final p in items) p.id: p,
+    };
+    byId[active.id] = active;
+
+    var changed = true;
+    var guard = 0;
+    while (changed && guard < 800) {
+      guard++;
+      changed = false;
+      final visible = byId.values.where((p) => p.visible).toList();
+
+      for (var i = 0; i < visible.length; i++) {
+        for (var j = i + 1; j < visible.length; j++) {
+          final a = byId[visible[i].id]!;
+          final b = byId[visible[j].id]!;
+          if (!overlaps(a, b)) continue;
+
+          // Quem mover: nunca o ativo; se nenhum for ativo, empurra o de baixo.
+          final FinDashPlacement fixed;
+          final FinDashPlacement moving;
+          if (a.id == active.id) {
+            fixed = a;
+            moving = b;
+          } else if (b.id == active.id) {
+            fixed = b;
+            moving = a;
+          } else if (a.y + a.h <= b.y + b.h) {
+            // a termina antes ou igual → empurra b
+            fixed = a;
+            moving = b;
+          } else {
+            fixed = b;
+            moving = a;
+          }
+
+          final newY = fixed.y + fixed.h;
+          if (moving.y < newY) {
+            byId[moving.id] = moving.copyWith(y: newY);
+            changed = true;
+          } else {
+            // Já está "abaixo" em y mas ainda colide (lado a lado vertical
+            // parcial): desce 1 célula para destravar.
+            byId[moving.id] = moving.copyWith(y: moving.y + 1);
+            changed = true;
+          }
+        }
+      }
+    }
+
+    // Compacta para cima os não-ativos (fecha buracos criados por encolher).
+    _compactUp(byId, pinnedId: active.id);
+
+    return FinDashLayout([
+      for (final p in items) byId[p.id] ?? p,
+    ]);
+  }
+
+  /// Sobe cada card (exceto [pinnedId]) o máximo sem colidir — "gravidade".
+  static void _compactUp(
+    Map<String, FinDashPlacement> byId, {
+    required String pinnedId,
+  }) {
+    final order = byId.values.where((p) => p.visible).toList()
+      ..sort((a, b) {
+        final cy = a.y.compareTo(b.y);
+        if (cy != 0) return cy;
+        return a.x.compareTo(b.x);
+      });
+
+    for (final raw in order) {
+      if (raw.id == pinnedId) continue;
+      var p = byId[raw.id]!;
+      var y = p.y;
+      while (y > 0) {
+        final trial = p.copyWith(y: y - 1);
+        final hit = byId.values.any(
+          (o) => o.visible && o.id != p.id && overlaps(trial, o),
+        );
+        if (hit) break;
+        y--;
+      }
+      if (y != p.y) {
+        byId[p.id] = p.copyWith(y: y);
+      }
+    }
+  }
 }
