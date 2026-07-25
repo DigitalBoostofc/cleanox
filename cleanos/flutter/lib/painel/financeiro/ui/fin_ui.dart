@@ -132,6 +132,8 @@ class FinKpiTile extends StatelessWidget {
     required this.iconBg,
     this.valueColor,
     this.onTap,
+    /// No freeform, a fileira de KPIs já tem o slot; `false` evita quadro duplo.
+    this.bordered = true,
   });
 
   final String label;
@@ -140,12 +142,14 @@ class FinKpiTile extends StatelessWidget {
   final Color iconBg;
   final Color? valueColor;
   final VoidCallback? onTap;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     return FinCard(
       onTap: onTap,
+      bordered: bordered,
       padding: const EdgeInsets.symmetric(
         horizontal: ClxSpace.x4,
         vertical: ClxSpace.x3,
