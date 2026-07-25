@@ -72,4 +72,80 @@ void main() {
       expect(o.visible, isFalse);
     });
   });
+
+  group('placeWithReflow', () {
+    test('aumentar altura empurra o card de baixo', () {
+      // A em (0,0) 6x3; B em (0,3) 6x3 — colados.
+      final layout = const FinDashLayout([
+        FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 6, h: 3),
+        FinDashPlacement(id: FinDashCardId.balanco, x: 0, y: 3, w: 6, h: 3),
+      ]);
+      final next = layout.placeWithReflow(
+        const FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 6, h: 5),
+      );
+      final a = next.byId(FinDashCardId.freq)!;
+      final b = next.byId(FinDashCardId.balanco)!;
+      expect(a.h, 5);
+      expect(b.y, greaterThanOrEqualTo(a.y + a.h));
+      expect(FinDashLayout.overlaps(a, b), isFalse);
+    });
+
+    test('aumentar largura empurra vizinho que colide', () {
+      // A esquerda 0..6; B direita 6..12 mesma linha.
+      final layout = const FinDashLayout([
+        FinDashPlacement(
+          id: FinDashCardId.receitasCat,
+          x: 0,
+          y: 0,
+          w: 6,
+          h: 4,
+        ),
+        FinDashPlacement(
+          id: FinDashCardId.despesasCat,
+          x: 6,
+          y: 0,
+          w: 6,
+          h: 4,
+        ),
+      ]);
+      // A cresce para w=8 → invade B.
+      final next = layout.placeWithReflow(
+        const FinDashPlacement(
+          id: FinDashCardId.receitasCat,
+          x: 0,
+          y: 0,
+          w: 8,
+          h: 4,
+        ),
+      );
+      final a = next.byId(FinDashCardId.receitasCat)!;
+      final b = next.byId(FinDashCardId.despesasCat)!;
+      expect(a.w, 8);
+      expect(FinDashLayout.overlaps(a, b), isFalse);
+      // B desceu (não cabe ao lado).
+      expect(b.y, greaterThanOrEqualTo(a.y + a.h));
+    });
+
+    test('ativo permanece na posição pedida', () {
+      final layout = FinDashLayout.defaultLayout();
+      final active = const FinDashPlacement(
+        id: FinDashCardId.calendario,
+        x: 0,
+        y: 5,
+        w: 12,
+        h: 6,
+      );
+      final next = layout.placeWithReflow(active);
+      final c = next.byId(FinDashCardId.calendario)!;
+      expect(c.x, 0);
+      expect(c.y, 5);
+      expect(c.w, 12);
+      expect(c.h, 6);
+      // Nenhum visível sobrepõe o ativo.
+      for (final p in next.items.where((e) => e.visible)) {
+        if (p.id == c.id) continue;
+        expect(FinDashLayout.overlaps(c, p), isFalse, reason: p.id);
+      }
+    });
+  });
 }

@@ -69,20 +69,23 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
     final dCol = (dx / cellW).round();
     final dRow = (dy / widget.rowPx).round();
 
+    // Posição/tamanho do card ativo a partir do gesto; os demais reflow.
+    // Usa o layout **atual** (já com pushes) mas ancora o ativo no origin do
+    // gesto para o cursor não “pular”.
     if (_dragId != null) {
-      final next = FinDashLayout.clampPlacement(
+      final active = FinDashLayout.clampPlacement(
         origin.copyWith(x: origin.x + dCol, y: origin.y + dRow),
       );
-      _emit(widget.layout.upsert(next));
+      _emit(widget.layout.placeWithReflow(active));
     } else if (_resizeId != null) {
       final min = FinDashCardId.minSize(origin.id);
-      final next = FinDashLayout.clampPlacement(
+      final active = FinDashLayout.clampPlacement(
         origin.copyWith(
           w: (origin.w + dCol).clamp(min.$1, kFinDashCols - origin.x),
           h: (origin.h + dRow).clamp(min.$2, 40),
         ),
       );
-      _emit(widget.layout.upsert(next));
+      _emit(widget.layout.placeWithReflow(active));
     }
   }
 
