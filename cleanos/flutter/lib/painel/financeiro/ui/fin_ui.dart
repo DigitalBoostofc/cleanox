@@ -17,6 +17,8 @@ class FinCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(ClxSpace.x4),
     this.onTap,
     this.elevated = false,
+    /// `false` = sem traço (ex.: miolo do freeform, que já tem borda no slot).
+    this.bordered = true,
   });
 
   final Widget child;
@@ -25,6 +27,9 @@ class FinCard extends StatelessWidget {
 
   /// Sombra suave (mobile fintech).
   final bool elevated;
+
+  /// Desliga a borda interna (evita “quadro dentro de quadro”).
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +40,11 @@ class FinCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: dark ? clx.bg : clx.bg,
+        color: bordered ? clx.bg : Colors.transparent,
         borderRadius: radius,
-        border: Border.all(color: clx.line.withValues(alpha: dark ? 0.9 : 1)),
+        border: bordered
+            ? Border.all(color: clx.line.withValues(alpha: dark ? 0.9 : 1))
+            : null,
         boxShadow: elevated
             ? [
                 BoxShadow(
@@ -193,6 +200,7 @@ class FinEmptyCta extends StatelessWidget {
     this.icon = Icons.inbox_outlined,
     this.ctaLabel,
     this.onCta,
+    this.bordered = true,
   });
 
   final String message;
@@ -200,11 +208,13 @@ class FinEmptyCta extends StatelessWidget {
   final IconData icon;
   final String? ctaLabel;
   final VoidCallback? onCta;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     return FinCard(
+      bordered: bordered,
       child: Column(
         children: [
           Icon(icon, size: 36, color: clx.ink3),
