@@ -1,7 +1,7 @@
 /// fin_dash_canvas.dart — Canvas freeform do Dashboard (desktop).
 ///
-/// Grade densa ([kFinDashCols]×[kFinDashRowPx]). Em [editing]: arraste,
-/// redimensionar (E / S / SE), ocultar. Snap fino + reflow dos vizinhos.
+/// Grade densa. Em [editing]: arraste, resize (E/S/SE), fixar, alinhar L/C/R,
+/// ocultar. A **borda** do card ocupa o retângulo completo do slot (w×h).
 library;
 
 import 'package:flutter/material.dart';
@@ -11,7 +11,6 @@ import 'fin_dash_layout.dart';
 
 typedef FinDashCardBuilder = Widget Function(BuildContext context, String id);
 
-/// Qual borda/canto está sendo redimensionado.
 enum _ResizeEdge { se, e, s }
 
 class FinDashCanvas extends StatefulWidget {
@@ -45,7 +44,7 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
 
   void _beginDrag(String id, Offset global) {
     final p = widget.layout.byId(id);
-    if (p == null || !p.visible) return;
+    if (p == null || !p.visible || p.pinned) return;
     setState(() {
       _dragId = id;
       _resizeId = null;
@@ -95,9 +94,7 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
       case _ResizeEdge.s:
         h = (origin.h + dRow).clamp(min.$2, kFinDashMaxH);
     }
-    final active = FinDashLayout.clampPlacement(
-      origin.copyWith(w: w, h: h),
-    );
+    final active = FinDashLayout.clampPlacement(origin.copyWith(w: w, h: h));
     _emit(widget.layout.placeWithReflow(active));
   }
 
@@ -113,6 +110,18 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
     final p = widget.layout.byId(id);
     if (p == null) return;
     _emit(widget.layout.upsert(p.copyWith(visible: false)));
+  }
+
+  void _togglePin(String id) {
+    final p = widget.layout.byId(id);
+    if (p == null) return;
+    _emit(widget.layout.upsert(p.copyWith(pinned: !p.pinned)));
+  }
+
+  void _setAlign(String id, FinDashAlign align) {
+    final p = widget.layout.byId(id);
+    if (p == null) return;
+    _emit(widget.layout.upsert(p.copyWith(align: align)));
   }
 
   @override
@@ -150,23 +159,32 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
                   ),
                 ),
               for (final p in visible)
+                // Slot = exatamente w×h células; gap só como margem interna
+                // para a borda visual acompanhar o redimensionamento.
                 Positioned(
-                  left: p.x * cellW + kFinDashGap / 2,
-                  top: p.y * widget.rowPx + kFinDashGap / 2,
-                  width: p.w * cellW - kFinDashGap,
-                  height: p.h * widget.rowPx - kFinDashGap,
-                  child: _DashTileChrome(
-                    editing: widget.editing,
-                    title: FinDashCardId.label(p.id),
-                    sizeLabel: '${p.w}×${p.h}',
-                    active: p.id == _dragId || p.id == _resizeId,
-                    onHide: () => _hide(p.id),
-                    onDragStart: (g) => _beginDrag(p.id, g),
-                    onResizeStart: (g, edge) =>
-                        _beginResize(p.id, g, edge),
-                    onPointerMove: (g) => _onPointerMove(g, cellW),
-                    onPointerEnd: _endGesture,
-                    child: widget.cardBuilder(context, p.id),
+                  left: p.x * cellW,
+                  top: p.y * widget.rowPx,
+                  width: p.w * cellW,
+                  height: p.h * widget.rowPx,
+                  child: Padding(
+                    padding: const EdgeInsets.all(kFinDashGap / 2),
+                    child: _DashTileChrome(
+                      editing: widget.editing,
+                      title: FinDashCardId.label(p.id),
+                      sizeLabel: '${p.w}×${p.h}',
+                      pinned: p.pinned,
+                      align: p.align,
+                      active: p.id == _dragId || p.id == _resizeId,
+                      onHide: () => _hide(p.id),
+                      onTogglePin: () => _togglePin(p.id),
+                      onAlign: (a) => _setAlign(p.id, a),
+                      onDragStart: (g) => _beginDrag(p.id, g),
+                      onResizeStart: (g, edge) =>
+                          _beginResize(p.id, g, edge),
+                      onPointerMove: (g) => _onPointerMove(g, cellW),
+                      onPointerEnd: _endGesture,
+                      child: widget.cardBuilder(context, p.id),
+                    ),
                   ),
                 ),
             ],
@@ -182,9 +200,13 @@ class _DashTileChrome extends StatelessWidget {
     required this.editing,
     required this.title,
     required this.sizeLabel,
+    required this.pinned,
+    required this.align,
     required this.active,
     required this.child,
     required this.onHide,
+    required this.onTogglePin,
+    required this.onAlign,
     required this.onDragStart,
     required this.onResizeStart,
     required this.onPointerMove,
@@ -194,210 +216,314 @@ class _DashTileChrome extends StatelessWidget {
   final bool editing;
   final String title;
   final String sizeLabel;
+  final bool pinned;
+  final FinDashAlign align;
   final bool active;
   final Widget child;
   final VoidCallback onHide;
+  final VoidCallback onTogglePin;
+  final ValueChanged<FinDashAlign> onAlign;
   final ValueChanged<Offset> onDragStart;
   final void Function(Offset global, _ResizeEdge edge) onResizeStart;
   final ValueChanged<Offset> onPointerMove;
   final VoidCallback onPointerEnd;
 
+  Alignment get _contentAlign => switch (align) {
+        FinDashAlign.left => Alignment.topLeft,
+        FinDashAlign.center => Alignment.topCenter,
+        FinDashAlign.right => Alignment.topRight,
+      };
+
+  Widget _alignedBody() {
+    // Conteúdo alinhado L/C/R dentro da borda do card.
+    return SizedBox.expand(
+      child: Align(
+        alignment: _contentAlign,
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final body = Material(
-      color: Colors.transparent,
-      child: child,
+
+    // Borda sempre no retângulo do slot (view + edição).
+    final frame = DecoratedBox(
+      decoration: BoxDecoration(
+        color: clx.bg,
+        borderRadius: ClxRadii.rLg,
+        border: Border.all(
+          color: editing
+              ? (active
+                  ? clx.primary
+                  : (pinned
+                      ? clx.warning.withValues(alpha: 0.7)
+                      : clx.primary.withValues(alpha: 0.45)))
+              : clx.line,
+          width: editing && active ? 2 : 1,
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: clx.primary.withValues(alpha: 0.18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: ClxRadii.rLg,
+        child: editing
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Toolbar do card
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: pinned
+                        ? null
+                        : (d) => onDragStart(d.globalPosition),
+                    onPanUpdate: pinned
+                        ? null
+                        : (d) => onPointerMove(d.globalPosition),
+                    onPanEnd: pinned ? null : (_) => onPointerEnd(),
+                    child: Container(
+                      height: 34,
+                      color: (pinned ? clx.warning : clx.primary)
+                          .withValues(alpha: 0.12),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            pinned
+                                ? Icons.push_pin_rounded
+                                : Icons.drag_indicator_rounded,
+                            size: 16,
+                            color: pinned ? clx.warning : clx.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: pinned ? clx.warning : clx.primary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            sizeLabel,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: clx.ink3,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                          // Alinhar
+                          _TinyIconBtn(
+                            tooltip: 'Alinhar à esquerda',
+                            selected: align == FinDashAlign.left,
+                            icon: Icons.format_align_left_rounded,
+                            onTap: () => onAlign(FinDashAlign.left),
+                          ),
+                          _TinyIconBtn(
+                            tooltip: 'Centralizar',
+                            selected: align == FinDashAlign.center,
+                            icon: Icons.format_align_center_rounded,
+                            onTap: () => onAlign(FinDashAlign.center),
+                          ),
+                          _TinyIconBtn(
+                            tooltip: 'Alinhar à direita',
+                            selected: align == FinDashAlign.right,
+                            icon: Icons.format_align_right_rounded,
+                            onTap: () => onAlign(FinDashAlign.right),
+                          ),
+                          _TinyIconBtn(
+                            tooltip: pinned
+                                ? 'Desafixar card'
+                                : 'Fixar card (não move no reflow)',
+                            selected: pinned,
+                            icon: pinned
+                                ? Icons.push_pin_rounded
+                                : Icons.push_pin_outlined,
+                            onTap: onTogglePin,
+                          ),
+                          _TinyIconBtn(
+                            tooltip: 'Ocultar card',
+                            icon: Icons.visibility_off_outlined,
+                            onTap: onHide,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 4, 12, 12),
+                            child: _alignedBody(),
+                          ),
+                        ),
+                        // Resize E
+                        Positioned(
+                          right: 0,
+                          top: 4,
+                          bottom: 24,
+                          width: 12,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.resizeLeftRight,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onPanStart: (d) => onResizeStart(
+                                d.globalPosition,
+                                _ResizeEdge.e,
+                              ),
+                              onPanUpdate: (d) =>
+                                  onPointerMove(d.globalPosition),
+                              onPanEnd: (_) => onPointerEnd(),
+                              child: Center(
+                                child: Container(
+                                  width: 3,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: clx.primary.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Resize S
+                        Positioned(
+                          left: 8,
+                          right: 24,
+                          bottom: 0,
+                          height: 12,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.resizeUpDown,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onPanStart: (d) => onResizeStart(
+                                d.globalPosition,
+                                _ResizeEdge.s,
+                              ),
+                              onPanUpdate: (d) =>
+                                  onPointerMove(d.globalPosition),
+                              onPanEnd: (_) => onPointerEnd(),
+                              child: Center(
+                                child: Container(
+                                  height: 3,
+                                  width: 24,
+                                  decoration: BoxDecoration(
+                                    color: clx.primary.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Resize SE
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          width: 24,
+                          height: 24,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.resizeDownRight,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onPanStart: (d) => onResizeStart(
+                                d.globalPosition,
+                                _ResizeEdge.se,
+                              ),
+                              onPanUpdate: (d) =>
+                                  onPointerMove(d.globalPosition),
+                              onPanEnd: (_) => onPointerEnd(),
+                              child: Align(
+                                alignment: Alignment.bottomRight,
+                                child: Icon(
+                                  Icons.south_east_rounded,
+                                  size: 14,
+                                  color: clx.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Padding(
+                padding: const EdgeInsets.all(8),
+                child: _alignedBody(),
+              ),
+      ),
     );
 
-    if (!editing) {
-      return ClipRRect(
-        borderRadius: ClxRadii.rLg,
-        child: body,
-      );
-    }
+    if (!editing) return frame;
 
     return Listener(
       onPointerMove: (e) => onPointerMove(e.position),
       onPointerUp: (_) => onPointerEnd(),
       onPointerCancel: (_) => onPointerEnd(),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: clx.bg,
-          borderRadius: ClxRadii.rLg,
-          border: Border.all(
-            color: active ? clx.primary : clx.primary.withValues(alpha: 0.45),
-            width: active ? 2 : 1.5,
-          ),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: clx.primary.withValues(alpha: 0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: ClxRadii.rLg,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanStart: (d) => onDragStart(d.globalPosition),
-                onPanUpdate: (d) => onPointerMove(d.globalPosition),
-                onPanEnd: (_) => onPointerEnd(),
-                child: Container(
-                  height: 32,
-                  color: clx.primary.withValues(alpha: 0.12),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.drag_indicator_rounded,
-                          size: 18, color: clx.primary),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: clx.primary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        sizeLabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: clx.ink3,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Ocultar card',
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        onPressed: onHide,
-                        icon: Icon(
-                          Icons.visibility_off_outlined,
-                          size: 18,
-                          color: clx.ink2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 4, 14, 14),
-                        child: body,
-                      ),
-                    ),
-                    // Borda direita (só largura)
-                    Positioned(
-                      right: 0,
-                      top: 8,
-                      bottom: 28,
-                      width: 14,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.resizeLeftRight,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onPanStart: (d) =>
-                              onResizeStart(d.globalPosition, _ResizeEdge.e),
-                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
-                          onPanEnd: (_) => onPointerEnd(),
-                          child: Center(
-                            child: Container(
-                              width: 3,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: clx.primary.withValues(alpha: 0.45),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Borda inferior (só altura)
-                    Positioned(
-                      left: 8,
-                      right: 28,
-                      bottom: 0,
-                      height: 14,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.resizeUpDown,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onPanStart: (d) =>
-                              onResizeStart(d.globalPosition, _ResizeEdge.s),
-                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
-                          onPanEnd: (_) => onPointerEnd(),
-                          child: Center(
-                            child: Container(
-                              height: 3,
-                              width: 28,
-                              decoration: BoxDecoration(
-                                color: clx.primary.withValues(alpha: 0.45),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Canto SE (largura + altura)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      width: 28,
-                      height: 28,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.resizeDownRight,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onPanStart: (d) =>
-                              onResizeStart(d.globalPosition, _ResizeEdge.se),
-                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
-                          onPanEnd: (_) => onPointerEnd(),
-                          child: Align(
-                            alignment: Alignment.bottomRight,
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.south_east_rounded,
-                                size: 16,
-                                color: clx.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+      child: frame,
+    );
+  }
+}
+
+class _TinyIconBtn extends StatelessWidget {
+  const _TinyIconBtn({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final btn = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: 26,
+        height: 26,
+        alignment: Alignment.center,
+        decoration: selected
+            ? BoxDecoration(
+                color: clx.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              )
+            : null,
+        child: Icon(
+          icon,
+          size: 15,
+          color: selected ? clx.primary : clx.ink2,
         ),
       ),
     );
+    if (tooltip == null) return btn;
+    return Tooltip(message: tooltip!, child: btn);
   }
 }
 
@@ -414,7 +540,6 @@ class _GridPainter extends CustomPainter {
   final Color minor;
   final Color major;
 
-  /// Linha forte a cada N células (visão “tabela” legível).
   static const int majorEvery = 2;
 
   @override

@@ -158,5 +158,59 @@ void main() {
       expect(p.w, 2);
       expect(p.h, 2);
     });
+
+    test('card pinned não é empurrado no reflow', () {
+      final layout = const FinDashLayout([
+        FinDashPlacement(
+          id: FinDashCardId.freq,
+          x: 0,
+          y: 0,
+          w: 12,
+          h: 6,
+        ),
+        FinDashPlacement(
+          id: FinDashCardId.balanco,
+          x: 0,
+          y: 4,
+          w: 12,
+          h: 6,
+          pinned: true,
+        ),
+      ]);
+      // Aumenta freq invadindo o balanço pinned → o ativo (freq) cede.
+      final next = layout.placeWithReflow(
+        const FinDashPlacement(
+          id: FinDashCardId.freq,
+          x: 0,
+          y: 0,
+          w: 12,
+          h: 10,
+        ),
+      );
+      final pinned = next.byId(FinDashCardId.balanco)!;
+      final freq = next.byId(FinDashCardId.freq)!;
+      expect(pinned.y, 4);
+      expect(pinned.pinned, isTrue);
+      expect(FinDashLayout.overlaps(freq, pinned), isFalse);
+    });
+
+    test('persistência de pin e align', () {
+      final a = FinDashLayout.defaultLayout().upsert(
+        const FinDashPlacement(
+          id: FinDashCardId.economia,
+          x: 2,
+          y: 2,
+          w: 8,
+          h: 6,
+          pinned: true,
+          align: FinDashAlign.center,
+        ),
+      );
+      final b = FinDashLayout.fromJson(a.toJson());
+      final e = b.byId(FinDashCardId.economia)!;
+      expect(e.pinned, isTrue);
+      expect(e.align, FinDashAlign.center);
+      expect(a.toJson()['v'], kFinDashLayoutVersion);
+    });
   });
 }

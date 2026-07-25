@@ -20,7 +20,26 @@ const double kFinDashGap = 8;
 const int kFinDashMaxH = 80;
 
 /// Versão atual do JSON persistido.
-const int kFinDashLayoutVersion = 2;
+/// v3: `pinned` + `align` (esquerda/centro/direita).
+const int kFinDashLayoutVersion = 3;
+
+/// Alinhamento horizontal do **conteúdo** dentro do card.
+enum FinDashAlign {
+  left,
+  center,
+  right;
+
+  static FinDashAlign parse(Object? raw) {
+    final s = (raw ?? '').toString().trim().toLowerCase();
+    return switch (s) {
+      'center' || 'centro' || 'c' => FinDashAlign.center,
+      'right' || 'direita' || 'r' => FinDashAlign.right,
+      _ => FinDashAlign.left,
+    };
+  }
+
+  String get wire => name;
+}
 
 /// IDs canônicos dos cards do Dashboard (desktop freeform).
 abstract final class FinDashCardId {
@@ -102,6 +121,8 @@ class FinDashPlacement {
     required this.w,
     required this.h,
     this.visible = true,
+    this.pinned = false,
+    this.align = FinDashAlign.left,
   });
 
   final String id;
@@ -111,12 +132,20 @@ class FinDashPlacement {
   final int h;
   final bool visible;
 
+  /// Fixo no reflow: não é empurrado por outros cards.
+  final bool pinned;
+
+  /// Alinhamento do conteúdo (esquerda / centro / direita).
+  final FinDashAlign align;
+
   FinDashPlacement copyWith({
     int? x,
     int? y,
     int? w,
     int? h,
     bool? visible,
+    bool? pinned,
+    FinDashAlign? align,
   }) =>
       FinDashPlacement(
         id: id,
@@ -125,6 +154,8 @@ class FinDashPlacement {
         w: w ?? this.w,
         h: h ?? this.h,
         visible: visible ?? this.visible,
+        pinned: pinned ?? this.pinned,
+        align: align ?? this.align,
       );
 
   Map<String, dynamic> toJson() => {
@@ -134,6 +165,8 @@ class FinDashPlacement {
         'w': w,
         'h': h,
         'visible': visible,
+        'pinned': pinned,
+        'align': align.wire,
       };
 
   factory FinDashPlacement.fromJson(
@@ -158,6 +191,8 @@ class FinDashPlacement {
       w: w,
       h: h,
       visible: j['visible'] as bool? ?? true,
+      pinned: j['pinned'] as bool? ?? false,
+      align: FinDashAlign.parse(j['align']),
     );
   }
 }
@@ -308,67 +343,93 @@ class FinDashLayout {
   /// Aplica [active] (já na posição/tamanho desejados) e **empurra** os outros
   /// cards visíveis para baixo até não haver colisão.
   ///
-  /// O card ativo fica fixo; os demais se adaptam (resize/move no editor).
+  /// - Card **ativo** do gesto tende a ficar onde o usuário colocou.
+  /// - Cards **pinned** nunca se movem no reflow (o outro cede).
+  /// - `pinned` / `align` vêm do item já salvo (gesto só mexe x/y/w/h).
   FinDashLayout placeWithReflow(FinDashPlacement active) {
-    active = clampPlacement(active);
-    final byId = <String, FinDashPlacement>{
+    final map = <String, FinDashPlacement>{
       for (final p in items) p.id: p,
     };
-    byId[active.id] = active;
+    final existing = map[active.id];
+    active = clampPlacement(
+      FinDashPlacement(
+        id: active.id,
+        x: active.x,
+        y: active.y,
+        w: active.w,
+        h: active.h,
+        visible: existing?.visible ?? active.visible,
+        pinned: existing?.pinned ?? active.pinned,
+        align: existing?.align ?? active.align,
+      ),
+    );
+    map[active.id] = active;
 
     var changed = true;
     var guard = 0;
     while (changed && guard < 1200) {
       guard++;
       changed = false;
-      final visible = byId.values.where((p) => p.visible).toList();
+      final visible = map.values.where((p) => p.visible).toList();
 
       for (var i = 0; i < visible.length; i++) {
         for (var j = i + 1; j < visible.length; j++) {
-          final a = byId[visible[i].id]!;
-          final b = byId[visible[j].id]!;
+          final a = map[visible[i].id]!;
+          final b = map[visible[j].id]!;
           if (!overlaps(a, b)) continue;
 
-          // Quem mover: nunca o ativo; se nenhum for ativo, empurra o de baixo.
-          final FinDashPlacement fixed;
-          final FinDashPlacement moving;
-          if (a.id == active.id) {
-            fixed = a;
-            moving = b;
-          } else if (b.id == active.id) {
-            fixed = b;
-            moving = a;
-          } else if (a.y + a.h <= b.y + b.h) {
-            fixed = a;
-            moving = b;
-          } else {
-            fixed = b;
-            moving = a;
-          }
+          final resolved = _whoMoves(a, b, activeId: active.id);
+          if (resolved == null) continue;
+          final stay = resolved.$1;
+          final moving = resolved.$2;
 
-          final newY = fixed.y + fixed.h;
+          final newY = stay.y + stay.h;
           if (moving.y < newY) {
-            byId[moving.id] = moving.copyWith(y: newY);
+            map[moving.id] = moving.copyWith(y: newY);
             changed = true;
           } else {
-            byId[moving.id] = moving.copyWith(y: moving.y + 1);
+            map[moving.id] = moving.copyWith(y: moving.y + 1);
             changed = true;
           }
         }
       }
     }
 
-    _compactUp(byId, pinnedId: active.id);
+    _compactUp(map, gestureId: active.id);
 
     return FinDashLayout([
-      for (final p in items) byId[p.id] ?? p,
+      for (final p in items) map[p.id] ?? p,
     ]);
   }
 
-  /// Sobe cada card (exceto [pinnedId]) o máximo sem colidir — "gravidade".
+  /// Decide (stay, moving). Null = não resolve (dois pinned).
+  static (FinDashPlacement, FinDashPlacement)? _whoMoves(
+    FinDashPlacement a,
+    FinDashPlacement b, {
+    required String activeId,
+  }) {
+    final aActive = a.id == activeId;
+    final bActive = b.id == activeId;
+
+    // Preferir não mover pinned; se o outro for pinned e o ativo colide, move o ativo.
+    if (aActive && !b.pinned) return (a, b);
+    if (bActive && !a.pinned) return (b, a);
+    if (aActive && b.pinned) return (b, a);
+    if (bActive && a.pinned) return (a, b);
+    if (a.pinned && !b.pinned) return (a, b);
+    if (b.pinned && !a.pinned) return (b, a);
+    if (a.pinned && b.pinned) return null;
+
+    // Nenhum pinned/ativo especial: empurra o de baixo.
+    if (a.y + a.h <= b.y + b.h) return (a, b);
+    return (b, a);
+  }
+
+  /// Sobe cada card livre o máximo sem colidir — "gravidade".
+  /// Não move [gestureId] nem cards `pinned`.
   static void _compactUp(
     Map<String, FinDashPlacement> byId, {
-    required String pinnedId,
+    required String gestureId,
   }) {
     final order = byId.values.where((p) => p.visible).toList()
       ..sort((a, b) {
@@ -378,7 +439,7 @@ class FinDashLayout {
       });
 
     for (final raw in order) {
-      if (raw.id == pinnedId) continue;
+      if (raw.id == gestureId || raw.pinned) continue;
       var p = byId[raw.id]!;
       var y = p.y;
       while (y > 0) {
