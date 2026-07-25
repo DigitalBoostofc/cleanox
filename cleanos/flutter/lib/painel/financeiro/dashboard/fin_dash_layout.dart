@@ -2,16 +2,25 @@
 ///
 /// Grade de [kFinDashCols] colunas × unidades de linha. Cada card é um retângulo
 /// (x, y, w, h) em células. Serializa em JSON para preferência por usuário.
+///
+/// v2 (2026-07): 24 colunas + linha 28px (antes v1: 12 × 56px) — mais precisão
+/// no editor. Layouts v1 são migrados com escala ×2.
 library;
 
-/// Colunas da grade (desktop).
-const int kFinDashCols = 12;
+/// Colunas da grade (desktop). v2 = 24 (v1 era 12).
+const int kFinDashCols = 24;
 
-/// Altura de 1 unidade de linha (px).
-const double kFinDashRowPx = 56;
+/// Altura de 1 unidade de linha (px). v2 = 28 (v1 era 56).
+const double kFinDashRowPx = 28;
 
 /// Gap entre cards (px).
-const double kFinDashGap = 12;
+const double kFinDashGap = 8;
+
+/// Altura máxima de um card em unidades de linha.
+const int kFinDashMaxH = 80;
+
+/// Versão atual do JSON persistido.
+const int kFinDashLayoutVersion = 2;
 
 /// IDs canônicos dos cards do Dashboard (desktop freeform).
 abstract final class FinDashCardId {
@@ -59,29 +68,28 @@ abstract final class FinDashCardId {
         _ => id,
       };
 
-  /// Mínimos de grade por card.
+  /// Mínimos de grade por card (v2 — mais livres para personalizar).
   static (int w, int h) minSize(String id) => switch (id) {
         kpis => (6, 2),
-        receitasCat || despesasCat => (4, 4),
-        freq => (4, 4),
-        calendario => (6, 5),
-        _ => (3, 3),
+        receitasCat || despesasCat || freq => (3, 3),
+        calendario => (6, 4),
+        _ => (2, 2),
       };
 
-  /// Tamanho padrão (layout inicial).
+  /// Tamanho padrão (layout inicial) na grade v2 (24×).
   static (int w, int h) defaultSize(String id) => switch (id) {
-        kpis => (12, 2),
-        receitasCat || despesasCat => (6, 5),
-        freq => (6, 5),
-        objetivos => (6, 4),
-        balanco => (6, 4),
-        economia => (6, 3),
-        pendencias => (6, 3),
-        contas => (6, 4),
-        favoritas => (6, 3),
-        planejamento => (6, 4),
-        calendario => (12, 6),
-        _ => (6, 3),
+        kpis => (24, 4),
+        receitasCat || despesasCat => (12, 10),
+        freq => (12, 10),
+        objetivos => (12, 8),
+        balanco => (12, 8),
+        economia => (12, 6),
+        pendencias => (12, 6),
+        contas => (12, 8),
+        favoritas => (12, 6),
+        planejamento => (12, 8),
+        calendario => (24, 12),
+        _ => (12, 6),
       };
 }
 
@@ -128,15 +136,18 @@ class FinDashPlacement {
         'visible': visible,
       };
 
-  factory FinDashPlacement.fromJson(Map<String, dynamic> j) {
+  factory FinDashPlacement.fromJson(
+    Map<String, dynamic> j, {
+    int scale = 1,
+  }) {
     final id = (j['id'] as String? ?? '').trim();
     final min = FinDashCardId.minSize(id);
-    var w = (j['w'] as num?)?.toInt() ?? min.$1;
-    var h = (j['h'] as num?)?.toInt() ?? min.$2;
-    var x = (j['x'] as num?)?.toInt() ?? 0;
-    var y = (j['y'] as num?)?.toInt() ?? 0;
+    var w = ((j['w'] as num?)?.toInt() ?? min.$1) * scale;
+    var h = ((j['h'] as num?)?.toInt() ?? min.$2) * scale;
+    var x = ((j['x'] as num?)?.toInt() ?? 0) * scale;
+    var y = ((j['y'] as num?)?.toInt() ?? 0) * scale;
     w = w.clamp(min.$1, kFinDashCols);
-    h = h.clamp(min.$2, 40);
+    h = h.clamp(min.$2, kFinDashMaxH);
     x = x.clamp(0, kFinDashCols - 1);
     if (x + w > kFinDashCols) x = (kFinDashCols - w).clamp(0, kFinDashCols - 1);
     y = y < 0 ? 0 : y;
@@ -184,20 +195,20 @@ class FinDashLayout {
 
   /// Altura total em linhas (maior y+h entre visíveis).
   int get contentRows {
-    var max = 8;
+    var max = 16;
     for (final p in items) {
       if (!p.visible) continue;
       final bottom = p.y + p.h;
       if (bottom > max) max = bottom;
     }
-    return max + 1; // folga p/ drop
+    return max + 4; // folga p/ drop e grade densa
   }
 
   double contentHeightPx({double rowPx = kFinDashRowPx}) =>
       contentRows * rowPx;
 
   Map<String, dynamic> toJson() => {
-        'v': 1,
+        'v': kFinDashLayoutVersion,
         'items': [for (final p in items) p.toJson()],
       };
 
@@ -205,11 +216,19 @@ class FinDashLayout {
     if (j == null) return FinDashLayout.defaultLayout();
     final raw = j['items'];
     if (raw is! List || raw.isEmpty) return FinDashLayout.defaultLayout();
+
+    // v1 = 12 cols / linha 56px → v2 = 24 cols / 28px: escala ×2.
+    final ver = (j['v'] as num?)?.toInt() ?? 1;
+    final scale = ver < kFinDashLayoutVersion ? 2 : 1;
+
     final parsed = <FinDashPlacement>[];
     final seen = <String>{};
     for (final e in raw) {
       if (e is! Map) continue;
-      final p = FinDashPlacement.fromJson(Map<String, dynamic>.from(e));
+      final p = FinDashPlacement.fromJson(
+        Map<String, dynamic>.from(e),
+        scale: scale,
+      );
       if (p.id.isEmpty || !FinDashCardId.all.contains(p.id)) continue;
       if (seen.contains(p.id)) continue;
       seen.add(p.id);
@@ -225,44 +244,44 @@ class FinDashLayout {
     return FinDashLayout(parsed);
   }
 
-  /// Layout inicial espelhando o dashboard clássico (2 colunas).
+  /// Layout inicial espelhando o dashboard clássico (2 colunas) na grade v2.
   factory FinDashLayout.defaultLayout() {
     return const FinDashLayout([
-      FinDashPlacement(id: FinDashCardId.kpis, x: 0, y: 0, w: 12, h: 2),
+      FinDashPlacement(id: FinDashCardId.kpis, x: 0, y: 0, w: 24, h: 4),
       FinDashPlacement(
         id: FinDashCardId.receitasCat,
         x: 0,
-        y: 2,
-        w: 6,
-        h: 5,
+        y: 4,
+        w: 12,
+        h: 10,
       ),
       FinDashPlacement(
         id: FinDashCardId.despesasCat,
-        x: 6,
-        y: 2,
-        w: 6,
-        h: 5,
+        x: 12,
+        y: 4,
+        w: 12,
+        h: 10,
       ),
-      FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 7, w: 6, h: 5),
-      FinDashPlacement(id: FinDashCardId.objetivos, x: 6, y: 7, w: 6, h: 4),
-      FinDashPlacement(id: FinDashCardId.balanco, x: 0, y: 12, w: 6, h: 4),
-      FinDashPlacement(id: FinDashCardId.economia, x: 6, y: 11, w: 6, h: 3),
-      FinDashPlacement(id: FinDashCardId.pendencias, x: 0, y: 16, w: 6, h: 3),
-      FinDashPlacement(id: FinDashCardId.contas, x: 6, y: 14, w: 6, h: 4),
+      FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 14, w: 12, h: 10),
+      FinDashPlacement(id: FinDashCardId.objetivos, x: 12, y: 14, w: 12, h: 8),
+      FinDashPlacement(id: FinDashCardId.balanco, x: 0, y: 24, w: 12, h: 8),
+      FinDashPlacement(id: FinDashCardId.economia, x: 12, y: 22, w: 12, h: 6),
+      FinDashPlacement(id: FinDashCardId.pendencias, x: 0, y: 32, w: 12, h: 6),
+      FinDashPlacement(id: FinDashCardId.contas, x: 12, y: 28, w: 12, h: 8),
       FinDashPlacement(
         id: FinDashCardId.planejamento,
         x: 0,
-        y: 19,
-        w: 6,
-        h: 4,
+        y: 38,
+        w: 12,
+        h: 8,
       ),
-      FinDashPlacement(id: FinDashCardId.favoritas, x: 6, y: 18, w: 6, h: 3),
+      FinDashPlacement(id: FinDashCardId.favoritas, x: 12, y: 36, w: 12, h: 6),
       FinDashPlacement(
         id: FinDashCardId.calendario,
         x: 0,
-        y: 23,
-        w: 12,
-        h: 6,
+        y: 46,
+        w: 24,
+        h: 12,
       ),
     ]);
   }
@@ -271,7 +290,7 @@ class FinDashLayout {
   static FinDashPlacement clampPlacement(FinDashPlacement p) {
     final min = FinDashCardId.minSize(p.id);
     var w = p.w.clamp(min.$1, kFinDashCols);
-    var h = p.h.clamp(min.$2, 40);
+    var h = p.h.clamp(min.$2, kFinDashMaxH);
     var x = p.x.clamp(0, kFinDashCols - w);
     var y = p.y < 0 ? 0 : p.y;
     return p.copyWith(x: x, y: y, w: w, h: h);
@@ -299,7 +318,7 @@ class FinDashLayout {
 
     var changed = true;
     var guard = 0;
-    while (changed && guard < 800) {
+    while (changed && guard < 1200) {
       guard++;
       changed = false;
       final visible = byId.values.where((p) => p.visible).toList();
@@ -320,7 +339,6 @@ class FinDashLayout {
             fixed = b;
             moving = a;
           } else if (a.y + a.h <= b.y + b.h) {
-            // a termina antes ou igual → empurra b
             fixed = a;
             moving = b;
           } else {
@@ -333,8 +351,6 @@ class FinDashLayout {
             byId[moving.id] = moving.copyWith(y: newY);
             changed = true;
           } else {
-            // Já está "abaixo" em y mas ainda colide (lado a lado vertical
-            // parcial): desce 1 célula para destravar.
             byId[moving.id] = moving.copyWith(y: moving.y + 1);
             changed = true;
           }
@@ -342,7 +358,6 @@ class FinDashLayout {
       }
     }
 
-    // Compacta para cima os não-ativos (fecha buracos criados por encolher).
     _compactUp(byId, pinnedId: active.id);
 
     return FinDashLayout([
