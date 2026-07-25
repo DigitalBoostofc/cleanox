@@ -1177,8 +1177,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         if (_editing) ...[
           const SizedBox(height: 8),
           Text(
-            'Grade fina (24 colunas × 28px): arraste a barra para mover · '
-            'bordas direita/inferior ou canto ↘ para redimensionar · olho para ocultar. '
+            'Grade 24×28px · a borda do card é o tamanho do slot · '
+            'arraste a barra (cards não fixados) · resize nas bordas/canto · '
+            '📌 fixar · ≡ alinhar L/C/R · olho ocultar. '
             'Layout salvo neste navegador para o seu usuário.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: clx.ink2,
