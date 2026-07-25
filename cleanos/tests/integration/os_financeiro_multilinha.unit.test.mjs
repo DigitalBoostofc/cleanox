@@ -75,12 +75,13 @@ describe('_linhasReceitaOs — split principal + extras', () => {
     )
   })
 
-  it('pago: escala linhas para bater com valor_pago (ex.: desconto no total)', () => {
+  it('pago: escala linhas para bater com valor_pago quando pago > total (gorjeta)', () => {
+    // total OS = 350; valor_pago 360 → usa o pago (maior).
     const lines = osFin._linhasReceitaOs(
       osRec({
         valor_servico: 200,
         tipo_servico_nome: 'Auto',
-        valor_pago: 300,
+        valor_pago: 360,
         service_snapshot: JSON.stringify({ categoria: 'veicular' }),
         adicionais: [
           {
@@ -96,8 +97,49 @@ describe('_linhasReceitaOs — split principal + extras', () => {
       true,
     )
     const sum = lines.reduce((a, l) => a + l.valor, 0)
-    assert.ok(Math.abs(sum - 300) < 0.01, `soma=${sum}`)
+    assert.ok(Math.abs(sum - 360) < 0.01, `soma=${sum}`)
     assert.equal(lines.length, 2)
+  })
+
+  it('pago: valor_pago defasado (só principal) NÃO esmaga o extra — usa total OS', () => {
+    // Caso Evandro: principal 200 + extra 200, valor_pago ficou 200.
+    // Movimentação deve somar R$ 400 (como a comissão já faz).
+    const lines = osFin._linhasReceitaOs(
+      osRec({
+        valor_servico: 200,
+        tipo_servico_nome: 'Cleanox Completo - Promoção',
+        valor_pago: 200,
+        service_snapshot: JSON.stringify({ categoria: 'veicular' }),
+        adicionais: [
+          {
+            id: 'add_mrz3uh9b_2ggrrb',
+            nome: 'Cleanox Completo - Promoção',
+            valor: 200,
+            quantidade: 1,
+            categoria: 'veicular',
+            aprovacao: 'nao_requer',
+          },
+        ],
+      }),
+      true,
+    )
+    const sum = lines.reduce((a, l) => a + l.valor, 0)
+    assert.equal(lines.length, 2)
+    assert.ok(Math.abs(sum - 400) < 0.01, `soma=${sum} (esperado 400)`)
+    assert.equal(osFin._valorAlvoReceitaOs(
+      osRec({
+        valor_servico: 200,
+        valor_pago: 200,
+        adicionais: [
+          {
+            id: 'x',
+            valor: 200,
+            quantidade: 1,
+            aprovacao: 'nao_requer',
+          },
+        ],
+      }),
+    ), 400)
   })
 
   it('adicional recusado não entra', () => {

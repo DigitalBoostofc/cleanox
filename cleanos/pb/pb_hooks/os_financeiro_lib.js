@@ -296,8 +296,44 @@ function _sincronizarLinhas(app, record, linhas, opts) {
 }
 
 /**
+ * Total da OS = principal + extras cobráveis − descontos.
+ * Espelha `calcValorTotalOs` (prof_comissao_lib) e `OrdemServico.valorTotal`.
+ */
+function _calcValorTotalOs(record) {
+  const principal = Number(record.get("valor_servico") || 0);
+  var extras = 0;
+  const ads = _parseAdicionais(record);
+  for (var i = 0; i < ads.length; i++) {
+    const a = ads[i];
+    if (!_isAdicionalCobravel(a)) continue;
+    const v = Number(a.valor || 0) * Number(a.quantidade || 1);
+    if (v > 0) extras += v;
+  }
+  const descontos = Number(record.get("descontos") || 0);
+  const d = descontos > 0 ? descontos : 0;
+  var total = principal + extras - d;
+  if (total < 0) total = 0;
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Alvo da receita paga: total da OS (com extras). Se valor_pago for MAIOR
+ * (gorjeta/arredondamento), usa o pago. Assim serviço extra nunca fica de
+ * fora quando valor_pago ficou desatualizado após o extra (bug Evandro).
+ * Espelha `valorBaseComissaoOs`.
+ */
+function _valorAlvoReceitaOs(record) {
+  const total = _calcValorTotalOs(record);
+  const pago = Number(record.get("valor_pago") || 0);
+  if (pago > total) return Math.round(pago * 100) / 100;
+  if (total > 0) return total;
+  return pago > 0 ? Math.round(pago * 100) / 100 : 0;
+}
+
+/**
  * Monta linhas de receita da OS.
- * @param {boolean} pago — se true, alinha a soma ao valor_pago.
+ * @param {boolean} pago — se true, alinha a soma ao total da OS (com extras),
+ *   não só ao valor_pago (que pode ficar defasado após serviço extra).
  * @returns {{key:string, valor:number, servicoNome:string, catNome:string}[]}
  */
 function _linhasReceitaOs(record, pago) {
@@ -350,11 +386,11 @@ function _linhasReceitaOs(record, pago) {
 
   // Sem principal no orçamento mas com valor_pago (legado): 1 linha única.
   if (!lines.length && pago) {
-    const valorPago = Number(record.get("valor_pago") || 0);
-    if (valorPago > 0) {
+    const alvoLegado = _valorAlvoReceitaOs(record);
+    if (alvoLegado > 0) {
       lines.push({
         key: "principal",
-        valor: valorPago,
+        valor: alvoLegado,
         servicoNome: servicoNome,
         catNome: _catNomeFromSnapshot(record),
       });
@@ -362,9 +398,9 @@ function _linhasReceitaOs(record, pago) {
   }
 
   if (pago) {
-    const valorPago = Number(record.get("valor_pago") || 0);
-    if (valorPago > 0) {
-      _scaleLinhasToTotal(lines, valorPago);
+    const alvo = _valorAlvoReceitaOs(record);
+    if (alvo > 0) {
+      _scaleLinhasToTotal(lines, alvo);
     }
   }
 
@@ -712,6 +748,8 @@ module.exports = {
   // helpers exportados p/ testes unitários
   _linhasReceitaOs: _linhasReceitaOs,
   _scaleLinhasToTotal: _scaleLinhasToTotal,
+  _calcValorTotalOs: _calcValorTotalOs,
+  _valorAlvoReceitaOs: _valorAlvoReceitaOs,
   _parseAdicionais: _parseAdicionais,
   _isAdicionalCobravel: _isAdicionalCobravel,
   _catNomeFromCategoria: _catNomeFromCategoria,
