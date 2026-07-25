@@ -39,6 +39,11 @@ enum FinDashAlign {
   }
 
   String get wire => name;
+
+  /// Helpers de layout (sem import Flutter — mapeados no UI).
+  bool get isStart => this == FinDashAlign.left;
+  bool get isCenter => this == FinDashAlign.center;
+  bool get isEnd => this == FinDashAlign.right;
 }
 
 /// IDs canônicos dos cards do Dashboard (desktop freeform).

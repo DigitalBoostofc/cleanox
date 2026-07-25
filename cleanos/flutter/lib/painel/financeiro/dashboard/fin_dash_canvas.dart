@@ -9,7 +9,11 @@ import 'package:flutter/material.dart';
 import '../../../core/design/design.dart';
 import 'fin_dash_layout.dart';
 
-typedef FinDashCardBuilder = Widget Function(BuildContext context, String id);
+typedef FinDashCardBuilder = Widget Function(
+  BuildContext context,
+  String id,
+  FinDashAlign align,
+);
 
 enum _ResizeEdge { se, e, s }
 
@@ -183,7 +187,7 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
                           _beginResize(p.id, g, edge),
                       onPointerMove: (g) => _onPointerMove(g, cellW),
                       onPointerEnd: _endGesture,
-                      child: widget.cardBuilder(context, p.id),
+                      child: widget.cardBuilder(context, p.id, p.align),
                     ),
                   ),
                 ),
@@ -228,27 +232,20 @@ class _DashTileChrome extends StatelessWidget {
   final ValueChanged<Offset> onPointerMove;
   final VoidCallback onPointerEnd;
 
-  Alignment get _contentAlign => switch (align) {
-        FinDashAlign.left => Alignment.topLeft,
-        FinDashAlign.center => Alignment.topCenter,
-        FinDashAlign.right => Alignment.topRight,
-      };
-
-  Widget _alignedBody() {
-    // Conteúdo alinhado L/C/R dentro da borda do card.
-    return SizedBox.expand(
-      child: Align(
-        alignment: _contentAlign,
-        child: child,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
 
-    // Borda sempre no retângulo do slot (view + edição).
+    // Borda sempre no retângulo do slot. O alinhamento L/C/R é aplicado
+    // **dentro** do [child] (cardBuilder), não aqui — senão o stretch
+    // de Column/Row anula o Align.
+    final body = Padding(
+      padding: editing
+          ? const EdgeInsets.fromLTRB(8, 4, 12, 12)
+          : const EdgeInsets.all(8),
+      child: child,
+    );
+
     final frame = DecoratedBox(
       decoration: BoxDecoration(
         color: clx.bg,
@@ -279,7 +276,6 @@ class _DashTileChrome extends StatelessWidget {
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Toolbar do card
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onPanStart: pinned
@@ -327,21 +323,20 @@ class _DashTileChrome extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // Alinhar
                           _TinyIconBtn(
-                            tooltip: 'Alinhar à esquerda',
+                            tooltip: 'Conteúdo à esquerda',
                             selected: align == FinDashAlign.left,
                             icon: Icons.format_align_left_rounded,
                             onTap: () => onAlign(FinDashAlign.left),
                           ),
                           _TinyIconBtn(
-                            tooltip: 'Centralizar',
+                            tooltip: 'Conteúdo centralizado',
                             selected: align == FinDashAlign.center,
                             icon: Icons.format_align_center_rounded,
                             onTap: () => onAlign(FinDashAlign.center),
                           ),
                           _TinyIconBtn(
-                            tooltip: 'Alinhar à direita',
+                            tooltip: 'Conteúdo à direita',
                             selected: align == FinDashAlign.right,
                             icon: Icons.format_align_right_rounded,
                             onTap: () => onAlign(FinDashAlign.right),
@@ -369,13 +364,7 @@ class _DashTileChrome extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 4, 12, 12),
-                            child: _alignedBody(),
-                          ),
-                        ),
-                        // Resize E
+                        Positioned.fill(child: body),
                         Positioned(
                           right: 0,
                           top: 4,
@@ -405,7 +394,6 @@ class _DashTileChrome extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // Resize S
                         Positioned(
                           left: 8,
                           right: 24,
@@ -435,7 +423,6 @@ class _DashTileChrome extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // Resize SE
                         Positioned(
                           right: 0,
                           bottom: 0,
@@ -468,10 +455,7 @@ class _DashTileChrome extends StatelessWidget {
                   ),
                 ],
               )
-            : Padding(
-                padding: const EdgeInsets.all(8),
-                child: _alignedBody(),
-              ),
+            : body,
       ),
     );
 
