@@ -24,6 +24,69 @@ void main() {
     });
   });
 
+  group('pendentesDoPeriodo — card Pendências do Dashboard', () {
+    final agosto = mesPeriodo(2026, 8);
+
+    test('não herda previsto de outro mês (bug Agosto com total global)', () {
+      final list = [
+        fakeLanc(
+          id: 'jul-rec',
+          tipo: TipoLancamento.receita,
+          valor: 4320,
+          status: LancamentoStatus.previsto,
+          data: '2026-07-15',
+        ),
+        fakeLanc(
+          id: 'ago-rec',
+          tipo: TipoLancamento.receita,
+          valor: 860,
+          status: LancamentoStatus.previsto,
+          data: '2026-08-01',
+        ),
+        fakeLanc(
+          id: 'ago-desp',
+          tipo: TipoLancamento.despesa,
+          valor: 279,
+          status: LancamentoStatus.pendente,
+          data: '2026-08-01',
+        ),
+        fakeLanc(
+          id: 'set-parcela',
+          tipo: TipoLancamento.despesa,
+          valor: 279,
+          status: LancamentoStatus.previsto,
+          data: '2026-09-01',
+        ),
+        fakeLanc(
+          id: 'pago-ago',
+          tipo: TipoLancamento.despesa,
+          valor: 100,
+          status: LancamentoStatus.pago,
+          data: '2026-08-10',
+        ),
+      ];
+      final mes = pendentesDoPeriodo(list, agosto);
+      expect(mes.map((l) => l.id).toSet(), {'ago-rec', 'ago-desp'});
+      expect(totalReceitasPrevistas(mes), closeTo(860, 1e-9));
+      expect(totalDespesasEmAberto(mes), closeTo(279, 1e-9));
+    });
+
+    test('usa vencimento quando presente (não a data de competência)', () {
+      final list = [
+        fakeLanc(
+          id: 'v1',
+          tipo: TipoLancamento.despesa,
+          valor: 50,
+          status: LancamentoStatus.previsto,
+          data: '2026-07-01',
+          vencimento: '2026-08-15',
+        ),
+      ];
+      expect(pendentesDoPeriodo(list, mesPeriodo(2026, 8)).single.id, 'v1');
+      expect(pendentesDoPeriodo(list, mesPeriodo(2026, 7)), isEmpty);
+    });
+  });
+
   group('bordas de mês BRT (dentroDoPeriodo — data de PAREDE, sem fuso)', () {
     final julho = mesPeriodo(2026, 7); // [2026-07-01, 2026-08-01)
 
