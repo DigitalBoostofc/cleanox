@@ -1209,11 +1209,13 @@ class _DesktopBodyState extends State<_DesktopBody> {
               const SizedBox(width: 8),
             ],
             FilledButton.tonalIcon(
-              onPressed: () {
+              onPressed: () async {
+                final leaving = _editing;
                 setState(() => _editing = !_editing);
-                if (!_editing) {
-                  // Garante persistência ao sair.
-                  saveFinDashLayout(widget.userId, _layout);
+                if (leaving) {
+                  // Flush local + PB ao sair do editor.
+                  await saveFinDashLayout(widget.userId, _layout);
+                  await flushFinDashLayoutSave();
                 }
               },
               icon: Icon(
@@ -1246,7 +1248,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
             'Grade 24×28px · a borda do card é o tamanho do slot · '
             'arraste a barra (cards não fixados) · resize nas bordas/canto · '
             '📌 fixar · ≡ alinhar L/C/R · olho ocultar. '
-            'Layout salvo neste navegador para o seu usuário.',
+            'Layout salvo na sua conta (sincroniza entre dispositivos).',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: clx.ink2,
                 ),
