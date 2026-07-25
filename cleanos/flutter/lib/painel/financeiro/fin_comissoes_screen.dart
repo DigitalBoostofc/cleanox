@@ -24,6 +24,8 @@ import '../data/painel_providers.dart';
 import 'charts/fin_charts.dart';
 import 'fin_derivations.dart';
 import 'fin_fechar_ciclo.dart';
+import 'fin_providers.dart';
+import 'ui/fin_ui.dart';
 
 /// Percentual legível (F-230): 10.0 → "10%", 12.5 → "12,5%".
 String formatPercent(double v) {
@@ -67,6 +69,38 @@ final _osAtribuidasProvider =
 /// Filtro do sheet flutuante (null = todos).
 enum _FiltroSheet { abertas, pagas, todas }
 
+/// Data de parede 'YYYY-MM-DD' da comissão (`data` ou `created`).
+String _comissaoYmd(ProfComissao c) {
+  final raw = (c.data ?? c.created ?? '').trim();
+  return raw.length >= 10 ? raw.substring(0, 10) : '';
+}
+
+/// Data de parede BRT da OS (`data_hora` UTC → dia BRT).
+String _osYmdBrt(OrdemServico o) {
+  final raw = o.dataHora.trim();
+  final dt = parsePbUtc(raw);
+  if (dt == null) {
+    return raw.length >= 10 ? raw.substring(0, 10) : '';
+  }
+  final brt = dt.subtract(kBrtOffset);
+  String p2(int n) => n.toString().padLeft(2, '0');
+  return '${brt.year}-${p2(brt.month)}-${p2(brt.day)}';
+}
+
+bool _ymdNoPeriodo(String ymd, Periodo p) {
+  if (ymd.isEmpty) return false;
+  return ymd.compareTo(p.start) >= 0 && ymd.compareTo(p.end) < 0;
+}
+
+List<ProfComissao> _comissoesDoPeriodo(
+  List<ProfComissao> items,
+  Periodo p,
+) =>
+    items.where((c) => _ymdNoPeriodo(_comissaoYmd(c), p)).toList();
+
+List<OrdemServico> _osDoPeriodo(List<OrdemServico> items, Periodo p) =>
+    items.where((o) => _ymdNoPeriodo(_osYmdBrt(o), p)).toList();
+
 class FinComissoesScreen extends ConsumerWidget {
   const FinComissoesScreen({super.key});
 
@@ -76,6 +110,7 @@ class FinComissoesScreen extends ConsumerWidget {
     final profs = ref.watch(_comissoesProfissionaisProvider);
     final extrato = ref.watch(_comissoesExtratoProvider);
     final osAtribuidas = ref.watch(_osAtribuidasProvider);
+    final period = ref.watch(finPeriodProvider);
     final narrow = MediaQuery.sizeOf(context).width < 600;
 
     return RefreshIndicator(
@@ -122,6 +157,7 @@ class FinComissoesScreen extends ConsumerWidget {
               IconButton(
                 tooltip: 'Fechar ciclo de pagamento',
                 onPressed: () {
+                  // Ciclo de pagamento usa todas as pendentes (não só o mês).
                   final items = extrato.asData?.value ?? const <ProfComissao>[];
                   final profList = profs.asData?.value ?? const <User>[];
                   openFecharCicloSheet(
@@ -152,6 +188,18 @@ class FinComissoesScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: ClxSpace.x3),
+          // Filtro por mês (compartilha [finPeriodProvider] com o Extrato).
+          Center(
+            child: FinMonthBar(
+              label: period.label,
+              onPrev: () => ref.read(finPeriodProvider.notifier).state =
+                  period.shift(-1),
+              onNext: () =>
+                  ref.read(finPeriodProvider.notifier).state = period.shift(1),
+              pill: true,
+            ),
+          ),
           const SizedBox(height: ClxSpace.x4),
           extrato.when(
             loading: () => const Padding(
@@ -162,15 +210,21 @@ class FinComissoesScreen extends ConsumerWidget {
               message: 'Não foi possível carregar o extrato.',
               onRetry: () => ref.invalidate(_comissoesExtratoProvider),
             ),
-            data: (items) {
+            data: (allItems) {
               final profList = profs.asData?.value ?? const <User>[];
-              final osList =
+              final osAll =
                   osAtribuidas.asData?.value ?? const <OrdemServico>[];
+              final p = period.periodo;
+              final items = _comissoesDoPeriodo(allItems, p);
+              final osList = _osDoPeriodo(osAll, p);
               return _Dashboard(
                 items: items,
+                // Ciclo de pagamento: todas as pendentes (não só o mês).
+                comissoesCiclo: allItems,
                 profs: profList,
                 osAtribuidas: osList,
                 narrow: narrow,
+                periodLabel: period.label,
                 onToggle: (c) => _toggleStatus(context, ref, c),
                 onOpenSheet: (filtro, {String? profId}) => _openSheet(
                   context,
@@ -183,7 +237,7 @@ class FinComissoesScreen extends ConsumerWidget {
                 onFecharCiclo: () => openFecharCicloSheet(
                   context,
                   profs: profList,
-                  comissoes: items,
+                  comissoes: allItems,
                   onPaid: () {
                     ref.invalidate(_comissoesExtratoProvider);
                     ref.invalidate(_comissoesProfissionaisProvider);
@@ -316,18 +370,25 @@ Future<T?> _showCenteredBlurDialog<T>({
 class _Dashboard extends StatelessWidget {
   const _Dashboard({
     required this.items,
+    required this.comissoesCiclo,
     required this.profs,
     required this.osAtribuidas,
     required this.narrow,
+    required this.periodLabel,
     required this.onToggle,
     required this.onOpenSheet,
     required this.onFecharCiclo,
   });
 
+  /// Comissões do mês selecionado (KPIs, gráficos, extrato, sheet).
   final List<ProfComissao> items;
+
+  /// Todas as comissões — base do CTA "Fechar ciclo" (pendentes globais).
+  final List<ProfComissao> comissoesCiclo;
   final List<User> profs;
   final List<OrdemServico> osAtribuidas;
   final bool narrow;
+  final String periodLabel;
   final Future<void> Function(ProfComissao) onToggle;
   final void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet;
   final VoidCallback onFecharCiclo;
@@ -444,7 +505,8 @@ class _Dashboard extends StatelessWidget {
       ),
     ];
 
-    final cicloLinhas = buildFecharCicloLinhas(profs: profs, comissoes: items);
+    final cicloLinhas =
+        buildFecharCicloLinhas(profs: profs, comissoes: comissoesCiclo);
     final totalCiclo = cicloLinhas.fold<double>(0, (s, l) => s + l.total);
 
     return Column(
@@ -557,7 +619,7 @@ class _Dashboard extends StatelessWidget {
           ),
         const SizedBox(height: ClxSpace.x4),
         Text(
-          'Extrato por profissional',
+          'Extrato por profissional · $periodLabel',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
             color: clx.ink,
@@ -565,7 +627,8 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: ClxSpace.x1),
         Text(
-          'Em aberto, previsto (OS até o próximo pagamento) e pagas. Toque para o detalhe.',
+          'Em aberto, previsto (OS do mês até o próximo pagamento) e pagas. '
+          'Toque para o detalhe.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: clx.ink3),
