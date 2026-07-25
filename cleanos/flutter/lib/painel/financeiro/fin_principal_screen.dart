@@ -83,29 +83,22 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
           final gasto = gastoPorCategoria(lancs);
           final receitaCat =
               totalPagoPorCategoria(lancs, TipoLancamento.receita);
-          // Pendências: globais + despesas em aberto do mês (fixas do extrato).
-          final despPend = totalDespesasEmAberto([
-            ...pendentes,
-            ...lancs.where(
-              (l) =>
-                  l.tipo == TipoLancamento.despesa &&
-                  l.status != LancamentoStatus.pago,
-            ),
+          // Pendências do **mês selecionado** (vencimento/`data` no período).
+          // Antes: finPendentesProvider era global e "Agosto" herdava julho +
+          // parcelas futuras (ex.: R$ 7.796). KPI de realizado já filtra mês.
+          final periodo = period.periodo;
+          final pendMes = [
+            ...pendentesDoPeriodo(pendentes, periodo),
+            ...pendentesDoPeriodo(lancs, periodo),
           ].fold<Map<String, FinLancamento>>({}, (m, l) {
             m[l.id] = l;
             return m;
-          }).values.toList());
-          final recPend = totalReceitasPrevistas(pendentes);
-          final nDespPend = [
-            ...pendentes.where(
-              (l) => l.tipo == TipoLancamento.despesa && emAberto(l),
-            ),
-            ...lancs.where(
-              (l) =>
-                  l.tipo == TipoLancamento.despesa &&
-                  l.status != LancamentoStatus.pago,
-            ),
-          ].map((l) => l.id).toSet().length;
+          }).values.toList();
+          final despPend = totalDespesasEmAberto(pendMes);
+          final recPend = totalReceitasPrevistas(pendMes);
+          final nDespPend = pendMes
+              .where((l) => l.tipo == TipoLancamento.despesa)
+              .length;
           final economiaPct = resumo.entradas > 0
               ? ((resumo.saldoMes / resumo.entradas) * 100).clamp(0.0, 100.0)
               : 0.0;
@@ -452,7 +445,7 @@ class _MobileBody extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          'Despesas pendentes',
+                          'Despesas pendentes do mês',
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
@@ -885,12 +878,12 @@ class _DesktopBody extends StatelessWidget {
                   child: Column(
                     children: [
                       _PendRow(
-                        label: 'Total de despesas pendentes',
+                        label: 'Despesas pendentes do mês',
                         amount: -despPend.abs(),
                       ),
                       const SizedBox(height: 10),
                       _PendRow(
-                        label: 'Total de receitas pendentes',
+                        label: 'Receitas pendentes do mês',
                         amount: recPend,
                       ),
                     ],

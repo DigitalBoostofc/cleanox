@@ -77,6 +77,24 @@ List<FinLancamento> lancamentosDoPeriodo(
   Periodo p,
 ) => lancs.where((l) => dentroDoPeriodo(l, p)).toList();
 
+/// Está no período pela data de **referência** (vencimento se houver, senão
+/// `data`) — certo para contas a pagar/receber e o card Pendências do
+/// Dashboard (não misturar parcelas de outros meses).
+bool dentroDoPeriodoPorRef(FinLancamento l, Periodo p) {
+  final d = dataRefLancamento(l);
+  return d.compareTo(dateOnly(p.start)) >= 0 &&
+      d.compareTo(dateOnly(p.end)) < 0;
+}
+
+/// Pendências do mês: em aberto com vencimento/`data` no período.
+List<FinLancamento> pendentesDoPeriodo(
+  List<FinLancamento> lancs,
+  Periodo p,
+) =>
+    lancs
+        .where((l) => emAberto(l) && dentroDoPeriodoPorRef(l, p))
+        .toList();
+
 /* ─────────────────────── resumo do período ─────────────────────── */
 
 /// Totais REALIZADOS (status 'pago') de um conjunto de lançamentos.
