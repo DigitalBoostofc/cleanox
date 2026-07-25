@@ -246,21 +246,23 @@ class _DashTileChrome extends StatelessWidget {
       child: child,
     );
 
+    // Borda do slot só no modo edição (resize/drag). Em visualização não
+    // desenha o “quadro branco” extra em volta do miolo (ex.: fileira de KPIs).
     final frame = DecoratedBox(
       decoration: BoxDecoration(
         color: clx.bg,
         borderRadius: ClxRadii.rLg,
-        border: Border.all(
-          color: editing
-              ? (active
-                  ? clx.primary
-                  : (pinned
-                      ? clx.warning.withValues(alpha: 0.7)
-                      : clx.primary.withValues(alpha: 0.45)))
-              : clx.line,
-          width: editing && active ? 2 : 1,
-        ),
-        boxShadow: active
+        border: editing
+            ? Border.all(
+                color: active
+                    ? clx.primary
+                    : (pinned
+                        ? clx.warning.withValues(alpha: 0.7)
+                        : clx.primary.withValues(alpha: 0.45)),
+                width: active ? 2 : 1.5,
+              )
+            : null,
+        boxShadow: editing && active
             ? [
                 BoxShadow(
                   color: clx.primary.withValues(alpha: 0.18),
