@@ -10,12 +10,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/financeiro.dart';
 import 'carteiras/conta_form.dart';
 import 'charts/fin_charts.dart';
+import 'dashboard/fin_dash_canvas.dart';
+import 'dashboard/fin_dash_layout.dart';
+import 'dashboard/fin_dash_layout_store.dart';
 import 'fin_chips.dart';
 import 'fin_common.dart';
 import 'fin_derivations.dart';
@@ -146,6 +150,7 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   },
                 )
               : _DesktopBody(
+                  userId: ref.watch(currentUserProvider)?.id ?? '',
                   periodLabel: period.label,
                   periodYear: period.year,
                   periodMonth: period.month,
@@ -666,8 +671,9 @@ class _MobileBody extends StatelessWidget {
 
 /* ─────────────────────── desktop ─────────────────────── */
 
-class _DesktopBody extends StatelessWidget {
+class _DesktopBody extends StatefulWidget {
   const _DesktopBody({
+    required this.userId,
     required this.periodLabel,
     required this.periodYear,
     required this.periodMonth,
@@ -693,6 +699,7 @@ class _DesktopBody extends StatelessWidget {
     required this.onGoObjetivos,
   });
 
+  final String userId;
   final String periodLabel;
   final int periodYear;
   final int periodMonth;
@@ -718,8 +725,403 @@ class _DesktopBody extends StatelessWidget {
   final VoidCallback onGoObjetivos;
 
   @override
+  State<_DesktopBody> createState() => _DesktopBodyState();
+}
+
+class _DesktopBodyState extends State<_DesktopBody> {
+  FinDashLayout _layout = FinDashLayout.defaultLayout();
+  bool _editing = false;
+  bool _loaded = false;
+  String _loadedUserId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLayout();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _loadLayout();
+    }
+  }
+
+  Future<void> _loadLayout() async {
+    final uid = widget.userId;
+    final layout = await loadFinDashLayout(uid);
+    if (!mounted) return;
+    setState(() {
+      _layout = layout;
+      _loaded = true;
+      _loadedUserId = uid;
+    });
+  }
+
+  Future<void> _persist(FinDashLayout layout) async {
+    setState(() => _layout = layout);
+    await saveFinDashLayout(widget.userId, layout);
+  }
+
+  Future<void> _resetLayout() async {
+    await clearFinDashLayout(widget.userId);
+    final def = FinDashLayout.defaultLayout();
+    setState(() {
+      _layout = def;
+      _editing = false;
+    });
+    await saveFinDashLayout(widget.userId, def);
+    if (mounted) {
+      showClxToast(
+        context,
+        'Layout restaurado ao padrão.',
+        type: ToastType.success,
+      );
+    }
+  }
+
+  void _showCard(String id) {
+    final existing = _layout.byId(id);
+    final min = FinDashCardId.minSize(id);
+    final def = FinDashCardId.defaultSize(id);
+    final p = (existing ??
+            FinDashPlacement(
+              id: id,
+              x: 0,
+              y: _layout.contentRows,
+              w: def.$1,
+              h: def.$2,
+            ))
+        .copyWith(
+          visible: true,
+          w: existing?.w ?? def.$1,
+          h: existing?.h ?? def.$2,
+        );
+    // Garante mínimos.
+    _persist(
+      _layout.upsert(
+        FinDashLayout.clampPlacement(
+          p.copyWith(
+            w: p.w < min.$1 ? min.$1 : p.w,
+            h: p.h < min.$2 ? min.$2 : p.h,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scrollCard(Widget child) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(BuildContext context, String id) {
+    final clx = context.clx;
+    final w = widget;
+    switch (id) {
+      case FinDashCardId.kpis:
+        return _scrollCard(
+          LayoutBuilder(
+            builder: (context, c) {
+              final cols = c.maxWidth > 900
+                  ? 4
+                  : (c.maxWidth > 520 ? 2 : 1);
+              final tileW = (c.maxWidth - (cols - 1) * 12) / cols;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: tileW,
+                    child: FinKpiTile(
+                      label: 'Saldo atual',
+                      value: formatCurrency(w.saldo),
+                      icon: Icons.account_balance_rounded,
+                      iconBg: clx.primary,
+                      valueColor:
+                          w.saldo < 0 ? clx.finExpense : clx.ink,
+                      onTap: _editing ? null : w.onGoContas,
+                    ),
+                  ),
+                  SizedBox(
+                    width: tileW,
+                    child: FinKpiTile(
+                      label: 'Receitas',
+                      value: formatCurrency(w.resumo.entradas),
+                      icon: Icons.arrow_upward_rounded,
+                      iconBg: clx.finIncome,
+                      valueColor: clx.finIncome,
+                      onTap: _editing ? null : w.onGoTransacoes,
+                    ),
+                  ),
+                  SizedBox(
+                    width: tileW,
+                    child: FinKpiTile(
+                      label: 'Despesas',
+                      value: formatCurrency(w.resumo.saidas),
+                      icon: Icons.arrow_downward_rounded,
+                      iconBg: clx.finExpense,
+                      valueColor: clx.finExpense,
+                      onTap: _editing ? null : w.onGoTransacoes,
+                    ),
+                  ),
+                  SizedBox(
+                    width: tileW,
+                    child: FinKpiTile(
+                      label: 'Balanço mensal',
+                      value: formatCurrency(w.resumo.saldoMes),
+                      icon: Icons.balance_rounded,
+                      iconBg: clx.accent,
+                      valueColor: w.resumo.saldoMes < 0
+                          ? clx.finExpense
+                          : clx.finIncome,
+                      onTap: _editing ? null : w.onGoTransacoes,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      case FinDashCardId.receitasCat:
+        return _scrollCard(
+          _DonutBlock(
+            title: 'Receitas por categoria',
+            map: w.receitaCat,
+            catMap: w.catMap,
+            totalLabel: formatCurrency(w.resumo.entradas),
+            emptyLabel: 'Sem receitas pagas neste mês.',
+          ),
+        );
+      case FinDashCardId.despesasCat:
+        return _scrollCard(
+          _DonutBlock(
+            title: 'Despesas por categoria',
+            map: w.gasto,
+            catMap: w.catMap,
+            totalLabel: formatCurrency(w.resumo.saidas),
+            emptyLabel: 'Sem despesas pagas neste mês.',
+          ),
+        );
+      case FinDashCardId.freq:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(title: 'Frequência de gastos'),
+              _FreqChart(points: w.freq),
+            ],
+          ),
+        );
+      case FinDashCardId.objetivos:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(
+                title: 'Objetivos',
+                trailing: const Text('VER MAIS'),
+                onTrailing: _editing ? null : w.onGoObjetivos,
+              ),
+              if (w.objetivos.isEmpty)
+                FinEmptyCta(
+                  icon: Icons.track_changes_outlined,
+                  message:
+                      'Opa! Você ainda não possui objetivos definidos.',
+                  ctaLabel: 'DEFINIR MEUS OBJETIVOS',
+                  onCta: _editing ? null : w.onGoObjetivos,
+                )
+              else
+                FinCard(
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < w.objetivos.length; i++) ...[
+                        if (i > 0) Divider(color: clx.line),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          onTap: _editing ? null : w.onGoObjetivos,
+                          title: Text(w.objetivos[i].nome),
+                          subtitle: Text(
+                            '${formatCurrency(w.objetivos[i].valorAtual)} de ${formatCurrency(w.objetivos[i].metaValor)}',
+                          ),
+                          trailing: Text(
+                            '${(w.objetivos[i].progresso * 100).toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: clx.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      case FinDashCardId.balanco:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(title: 'Balanço mensal'),
+              _BalancoMensalCard(resumo: w.resumo),
+            ],
+          ),
+        );
+      case FinDashCardId.economia:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(title: 'Economia mensal'),
+              _EconomiaCard(pct: w.economiaPct, resumo: w.resumo),
+            ],
+          ),
+        );
+      case FinDashCardId.pendencias:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(
+                title: 'Pendências e alertas',
+                trailing: const Text('VER MAIS'),
+                onTrailing: _editing ? null : w.onGoTransacoes,
+              ),
+              FinCard(
+                child: Column(
+                  children: [
+                    _PendRow(
+                      label: 'Despesas pendentes do mês',
+                      amount: -w.despPend.abs(),
+                    ),
+                    const SizedBox(height: 10),
+                    _PendRow(
+                      label: 'Receitas pendentes do mês',
+                      amount: w.recPend,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      case FinDashCardId.contas:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(
+                title: 'Minhas contas',
+                trailing: const Text('VER MAIS'),
+                onTrailing: _editing ? null : w.onGoContas,
+              ),
+              FinCard(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < w.contas.length; i++) ...[
+                      if (i > 0) Divider(color: clx.line),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: clx.primary,
+                        ),
+                        title: Text(w.contas[i].nome),
+                        subtitle: Text(
+                          'Saldo atual',
+                          style: TextStyle(color: clx.ink3, fontSize: 12),
+                        ),
+                        trailing: FinMoneyText(w.contas[i].saldoAtual),
+                        onTap: _editing ? null : w.onGoContas,
+                      ),
+                    ],
+                    if (w.contas.isEmpty)
+                      Text(
+                        'Nenhuma conta.',
+                        style: TextStyle(color: clx.ink3),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      case FinDashCardId.favoritas:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(
+                title: 'Transações favoritas',
+                trailing: const Text('VER MAIS'),
+                onTrailing: _editing ? null : w.onGoTransacoes,
+              ),
+              FinEmptyCta(
+                message: 'Você não possui transações favoritas.',
+                hint:
+                    'Que tal começar adicionando despesas e receitas pelo botão +?',
+              ),
+            ],
+          ),
+        );
+      case FinDashCardId.planejamento:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(
+                title: 'Planejamento mensal',
+                trailing: const Text('VER'),
+                onTrailing: _editing ? null : w.onGoPlanejamento,
+              ),
+              _PlanejamentoResumoCard(
+                limites: w.limites,
+                lancs: w.lancs,
+                catMap: w.catMap,
+                onVer: w.onGoPlanejamento,
+              ),
+            ],
+          ),
+        );
+      case FinDashCardId.calendario:
+        return _scrollCard(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinDashSectionHeader(title: 'Calendário do mês'),
+              _MiniCalendar(
+                year: w.periodYear,
+                month: w.periodMonth,
+                lancs: w.lancs,
+              ),
+            ],
+          ),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final layout =
+        _loaded && _loadedUserId == widget.userId
+            ? _layout
+            : FinDashLayout.defaultLayout();
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       children: [
@@ -732,6 +1134,31 @@ class _DesktopBody extends StatelessWidget {
                   ),
             ),
             const Spacer(),
+            if (_editing) ...[
+              TextButton.icon(
+                onPressed: _resetLayout,
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: const Text('Restaurar'),
+              ),
+              const SizedBox(width: 8),
+            ],
+            FilledButton.tonalIcon(
+              onPressed: () {
+                setState(() => _editing = !_editing);
+                if (!_editing) {
+                  // Garante persistência ao sair.
+                  saveFinDashLayout(widget.userId, _layout);
+                }
+              },
+              icon: Icon(
+                _editing
+                    ? Icons.check_rounded
+                    : Icons.dashboard_customize_outlined,
+                size: 18,
+              ),
+              label: Text(_editing ? 'Concluir' : 'Editar layout'),
+            ),
+            const SizedBox(width: 12),
             Container(
               decoration: BoxDecoration(
                 color: clx.bg3,
@@ -739,274 +1166,38 @@ class _DesktopBody extends StatelessWidget {
                 border: Border.all(color: clx.line),
               ),
               child: FinMonthBar(
-                label: periodLabel,
-                onPrev: onPrev,
-                onNext: onNext,
+                label: widget.periodLabel,
+                onPrev: widget.onPrev,
+                onNext: widget.onNext,
                 center: false,
               ),
             ),
           ],
         ),
-        const SizedBox(height: ClxSpace.x5),
-        LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            final cols = w > 1100 ? 4 : (w > 720 ? 2 : 1);
-            final tileW = (w - (cols - 1) * 12) / cols;
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: tileW,
-                  child: FinKpiTile(
-                    label: 'Saldo atual',
-                    value: formatCurrency(saldo),
-                    icon: Icons.account_balance_rounded,
-                    iconBg: clx.primary,
-                    valueColor: saldo < 0 ? clx.finExpense : clx.ink,
-                    onTap: onGoContas,
-                  ),
+        if (_editing) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Arraste pela barra superior para mover · canto inferior direito para redimensionar · olho para ocultar. Layout salvo neste navegador para o seu usuário.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: clx.ink2,
                 ),
-                SizedBox(
-                  width: tileW,
-                  child: FinKpiTile(
-                    label: 'Receitas',
-                    value: formatCurrency(resumo.entradas),
-                    icon: Icons.arrow_upward_rounded,
-                    iconBg: clx.finIncome,
-                    valueColor: clx.finIncome,
-                    onTap: onGoTransacoes,
-                  ),
-                ),
-                SizedBox(
-                  width: tileW,
-                  child: FinKpiTile(
-                    label: 'Despesas',
-                    value: formatCurrency(resumo.saidas),
-                    icon: Icons.arrow_downward_rounded,
-                    iconBg: clx.finExpense,
-                    valueColor: clx.finExpense,
-                    onTap: onGoTransacoes,
-                  ),
-                ),
-                SizedBox(
-                  width: tileW,
-                  child: FinKpiTile(
-                    label: 'Balanço mensal',
-                    value: formatCurrency(resumo.saldoMes),
-                    icon: Icons.balance_rounded,
-                    iconBg: clx.accent,
-                    valueColor:
-                        resumo.saldoMes < 0 ? clx.finExpense : clx.finIncome,
-                    onTap: onGoTransacoes,
-                  ),
-                ),
-              ],
-            );
+          ),
+          const SizedBox(height: 8),
+          FinDashHiddenTray(
+            layout: layout,
+            onShow: _showCard,
+          ),
+        ],
+        const SizedBox(height: ClxSpace.x4),
+        FinDashCanvas(
+          layout: layout,
+          editing: _editing,
+          onLayoutChanged: (next) {
+            setState(() => _layout = next);
+            // Debounce leve: salva a cada mudança (localStorage é barato).
+            saveFinDashLayout(widget.userId, next);
           },
-        ),
-        const SizedBox(height: ClxSpace.x5),
-        LayoutBuilder(
-          builder: (context, c) {
-            final two = c.maxWidth >= 900;
-            if (!two) {
-              return Column(
-                children: [
-                  _DonutBlock(
-                    title: 'Receitas por categoria',
-                    map: receitaCat,
-                    catMap: catMap,
-                    totalLabel: formatCurrency(resumo.entradas),
-                    emptyLabel: 'Sem receitas pagas neste mês.',
-                  ),
-                  const SizedBox(height: 16),
-                  _DonutBlock(
-                    title: 'Despesas por categoria',
-                    map: gasto,
-                    catMap: catMap,
-                    totalLabel: formatCurrency(resumo.saidas),
-                    emptyLabel: 'Sem despesas pagas neste mês.',
-                  ),
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _DonutBlock(
-                    title: 'Receitas por categoria',
-                    map: receitaCat,
-                    catMap: catMap,
-                    totalLabel: formatCurrency(resumo.entradas),
-                    emptyLabel: 'Sem receitas pagas neste mês.',
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _DonutBlock(
-                    title: 'Despesas por categoria',
-                    map: gasto,
-                    catMap: catMap,
-                    totalLabel: formatCurrency(resumo.saidas),
-                    emptyLabel: 'Sem despesas pagas neste mês.',
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: ClxSpace.x5),
-        LayoutBuilder(
-          builder: (context, c) {
-            final two = c.maxWidth >= 900;
-            final left = Column(
-              children: [
-                FinDashSectionHeader(title: 'Frequência de gastos'),
-                _FreqChart(points: freq),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(title: 'Balanço mensal'),
-                _BalancoMensalCard(resumo: resumo),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(
-                  title: 'Pendências e alertas',
-                  trailing: const Text('VER MAIS'),
-                  onTrailing: onGoTransacoes,
-                ),
-                FinCard(
-                  child: Column(
-                    children: [
-                      _PendRow(
-                        label: 'Despesas pendentes do mês',
-                        amount: -despPend.abs(),
-                      ),
-                      const SizedBox(height: 10),
-                      _PendRow(
-                        label: 'Receitas pendentes do mês',
-                        amount: recPend,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(
-                  title: 'Planejamento mensal',
-                  trailing: const Text('VER'),
-                  onTrailing: onGoPlanejamento,
-                ),
-                _PlanejamentoResumoCard(
-                  limites: limites,
-                  lancs: lancs,
-                  catMap: catMap,
-                  onVer: onGoPlanejamento,
-                ),
-              ],
-            );
-            final right = Column(
-              children: [
-                FinDashSectionHeader(
-                  title: 'Objetivos',
-                  trailing: const Text('VER MAIS'),
-                  onTrailing: onGoObjetivos,
-                ),
-                if (objetivos.isEmpty)
-                  FinEmptyCta(
-                    icon: Icons.track_changes_outlined,
-                    message:
-                        'Opa! Você ainda não possui objetivos definidos.',
-                    ctaLabel: 'DEFINIR MEUS OBJETIVOS',
-                    onCta: onGoObjetivos,
-                  )
-                else
-                  FinCard(
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < objetivos.length; i++) ...[
-                          if (i > 0) Divider(color: clx.line),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            onTap: onGoObjetivos,
-                            title: Text(objetivos[i].nome),
-                            subtitle: Text(
-                              '${formatCurrency(objetivos[i].valorAtual)} de ${formatCurrency(objetivos[i].metaValor)}',
-                            ),
-                            trailing: Text(
-                              '${(objetivos[i].progresso * 100).toStringAsFixed(0)}%',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: clx.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(title: 'Economia mensal'),
-                _EconomiaCard(pct: economiaPct, resumo: resumo),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(
-                  title: 'Minhas contas',
-                  trailing: const Text('VER MAIS'),
-                  onTrailing: onGoContas,
-                ),
-                FinCard(
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < contas.length; i++) ...[
-                        if (i > 0) Divider(color: clx.line),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.account_balance_wallet_outlined,
-                              color: clx.primary),
-                          title: Text(contas[i].nome),
-                          subtitle: Text(
-                            'Saldo atual',
-                            style: TextStyle(color: clx.ink3, fontSize: 12),
-                          ),
-                          trailing: FinMoneyText(contas[i].saldoAtual),
-                          onTap: onGoContas,
-                        ),
-                      ],
-                      if (contas.isEmpty)
-                        Text('Nenhuma conta.', style: TextStyle(color: clx.ink3)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FinDashSectionHeader(
-                  title: 'Transações favoritas',
-                  trailing: const Text('VER MAIS'),
-                  onTrailing: onGoTransacoes,
-                ),
-                FinEmptyCta(
-                  message: 'Você não possui transações favoritas.',
-                  hint:
-                      'Que tal começar adicionando despesas e receitas pelo botão +?',
-                ),
-              ],
-            );
-            if (!two) {
-              return Column(children: [left, const SizedBox(height: 16), right]);
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: left),
-                const SizedBox(width: 16),
-                Expanded(child: right),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: ClxSpace.x5),
-        FinDashSectionHeader(title: 'Calendário do mês'),
-        _MiniCalendar(
-          year: periodYear,
-          month: periodMonth,
-          lancs: lancs,
+          cardBuilder: _buildCard,
         ),
       ],
     );
