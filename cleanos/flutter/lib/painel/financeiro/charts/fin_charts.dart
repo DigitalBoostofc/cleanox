@@ -51,6 +51,8 @@ class FinDonutChart extends StatefulWidget {
     this.showLegend = true,
     this.interactive = true,
     this.onSectionTap,
+    /// Posição do bloco gráfico+legenda no card (L/C/R do dashboard).
+    this.contentAlign = Alignment.centerLeft,
   });
 
   final List<FinSlice> slices;
@@ -67,6 +69,9 @@ class FinDonutChart extends StatefulWidget {
 
   /// Clique na fatia (índice em [slices] com value > 0, mesma ordem).
   final ValueChanged<FinSlice>? onSectionTap;
+
+  /// Onde o conjunto donut+legenda se apoia no espaço do card.
+  final Alignment contentAlign;
 
   @override
   State<FinDonutChart> createState() => _FinDonutChartState();
@@ -243,17 +248,49 @@ class _FinDonutChartState extends State<FinDonutChart> {
     // (IntrinsicHeight não mede LayoutBuilder).
     return LayoutBuilder(
       builder: (context, c) {
+        final pinCenter = widget.contentAlign.x == 0;
+        final pinEnd = widget.contentAlign.x > 0;
         // Empilha em telas estreitas; lado a lado no desktop.
         if (c.maxWidth < 360) {
           // QA-F7: stretch + Center evita donut colado à esquerda do card.
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          final col = Column(
+            crossAxisAlignment: pinCenter
+                ? CrossAxisAlignment.center
+                : (pinEnd
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.stretch),
             mainAxisSize: MainAxisSize.min,
             children: [
-              Center(child: chart),
+              chart,
               const SizedBox(height: ClxSpace.x4),
               legend,
             ],
+          );
+          return Align(
+            alignment: widget.contentAlign,
+            child: col,
+          );
+        }
+        // Centro/direita: bloco compacto (sem Expanded) para poder deslocar.
+        // Esquerda: Row full width com legenda expandida (layout clássico).
+        if (pinCenter || pinEnd) {
+          return Align(
+            alignment: widget.contentAlign,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                chart,
+                const SizedBox(width: ClxSpace.x5),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (c.maxWidth - widget.size - ClxSpace.x5)
+                        .clamp(80.0, 280.0),
+                  ),
+                  child: legend,
+                ),
+              ],
+            ),
           );
         }
         return Row(

@@ -811,26 +811,64 @@ class _DesktopBodyState extends State<_DesktopBody> {
     );
   }
 
-  Widget _scrollCard(Widget child) {
+  CrossAxisAlignment _cross(FinDashAlign a) => switch (a) {
+        FinDashAlign.left => CrossAxisAlignment.stretch,
+        FinDashAlign.center => CrossAxisAlignment.center,
+        FinDashAlign.right => CrossAxisAlignment.end,
+      };
+
+  WrapAlignment _wrapAlign(FinDashAlign a) => switch (a) {
+        FinDashAlign.left => WrapAlignment.start,
+        FinDashAlign.center => WrapAlignment.center,
+        FinDashAlign.right => WrapAlignment.end,
+      };
+
+  Alignment _flutterAlign(FinDashAlign a) => switch (a) {
+        FinDashAlign.left => Alignment.topLeft,
+        FinDashAlign.center => Alignment.topCenter,
+        FinDashAlign.right => Alignment.topRight,
+      };
+
+  TextAlign _textAlign(FinDashAlign a) => switch (a) {
+        FinDashAlign.left => TextAlign.left,
+        FinDashAlign.center => TextAlign.center,
+        FinDashAlign.right => TextAlign.right,
+      };
+
+  Alignment _donutAlign(FinDashAlign a) => switch (a) {
+        FinDashAlign.left => Alignment.centerLeft,
+        FinDashAlign.center => Alignment.center,
+        FinDashAlign.right => Alignment.centerRight,
+      };
+
+  Widget _scrollCard(FinDashAlign align, Widget child) {
     return LayoutBuilder(
       builder: (context, c) {
         return SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
           child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: c.maxHeight),
-            child: child,
+            constraints: BoxConstraints(
+              minHeight: c.maxHeight,
+              maxWidth: c.maxWidth,
+            ),
+            child: Align(
+              alignment: _flutterAlign(align),
+              child: child,
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildCard(BuildContext context, String id) {
+  Widget _buildCard(BuildContext context, String id, FinDashAlign align) {
     final clx = context.clx;
     final w = widget;
+    final xa = _cross(align);
     switch (id) {
       case FinDashCardId.kpis:
         return _scrollCard(
+          align,
           LayoutBuilder(
             builder: (context, c) {
               final cols = c.maxWidth > 900
@@ -840,6 +878,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
               return Wrap(
                 spacing: 12,
                 runSpacing: 12,
+                alignment: _wrapAlign(align),
                 children: [
                   SizedBox(
                     width: tileW,
@@ -895,28 +934,35 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.receitasCat:
         return _scrollCard(
+          align,
           _DonutBlock(
             title: 'Receitas por categoria',
             map: w.receitaCat,
             catMap: w.catMap,
             totalLabel: formatCurrency(w.resumo.entradas),
             emptyLabel: 'Sem receitas pagas neste mês.',
+            contentAlign: _donutAlign(align),
+            sectionCross: xa,
           ),
         );
       case FinDashCardId.despesasCat:
         return _scrollCard(
+          align,
           _DonutBlock(
             title: 'Despesas por categoria',
             map: w.gasto,
             catMap: w.catMap,
             totalLabel: formatCurrency(w.resumo.saidas),
             emptyLabel: 'Sem despesas pagas neste mês.',
+            contentAlign: _donutAlign(align),
+            sectionCross: xa,
           ),
         );
       case FinDashCardId.freq:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Frequência de gastos'),
               _FreqChart(points: w.freq),
@@ -925,8 +971,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.objetivos:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
                 title: 'Objetivos',
@@ -944,15 +991,22 @@ class _DesktopBodyState extends State<_DesktopBody> {
               else
                 FinCard(
                   child: Column(
+                    crossAxisAlignment: xa == CrossAxisAlignment.stretch
+                        ? CrossAxisAlignment.start
+                        : xa,
                     children: [
                       for (var i = 0; i < w.objetivos.length; i++) ...[
                         if (i > 0) Divider(color: clx.line),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           onTap: _editing ? null : w.onGoObjetivos,
-                          title: Text(w.objetivos[i].nome),
+                          title: Text(
+                            w.objetivos[i].nome,
+                            textAlign: _textAlign(align),
+                          ),
                           subtitle: Text(
                             '${formatCurrency(w.objetivos[i].valorAtual)} de ${formatCurrency(w.objetivos[i].metaValor)}',
+                            textAlign: _textAlign(align),
                           ),
                           trailing: Text(
                             '${(w.objetivos[i].progresso * 100).toStringAsFixed(0)}%',
@@ -971,8 +1025,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.balanco:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Balanço mensal'),
               _BalancoMensalCard(resumo: w.resumo),
@@ -981,8 +1036,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.economia:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Economia mensal'),
               _EconomiaCard(pct: w.economiaPct, resumo: w.resumo),
@@ -991,8 +1047,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.pendencias:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
                 title: 'Pendências e alertas',
@@ -1001,6 +1058,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
               ),
               FinCard(
                 child: Column(
+                  crossAxisAlignment: xa == CrossAxisAlignment.stretch
+                      ? CrossAxisAlignment.start
+                      : xa,
                   children: [
                     _PendRow(
                       label: 'Despesas pendentes do mês',
@@ -1019,8 +1079,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.contas:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
                 title: 'Minhas contas',
@@ -1029,6 +1090,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
               ),
               FinCard(
                 child: Column(
+                  crossAxisAlignment: xa == CrossAxisAlignment.stretch
+                      ? CrossAxisAlignment.start
+                      : xa,
                   children: [
                     for (var i = 0; i < w.contas.length; i++) ...[
                       if (i > 0) Divider(color: clx.line),
@@ -1038,9 +1102,13 @@ class _DesktopBodyState extends State<_DesktopBody> {
                           Icons.account_balance_wallet_outlined,
                           color: clx.primary,
                         ),
-                        title: Text(w.contas[i].nome),
+                        title: Text(
+                          w.contas[i].nome,
+                          textAlign: _textAlign(align),
+                        ),
                         subtitle: Text(
                           'Saldo atual',
+                          textAlign: _textAlign(align),
                           style: TextStyle(color: clx.ink3, fontSize: 12),
                         ),
                         trailing: FinMoneyText(w.contas[i].saldoAtual),
@@ -1050,6 +1118,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                     if (w.contas.isEmpty)
                       Text(
                         'Nenhuma conta.',
+                        textAlign: _textAlign(align),
                         style: TextStyle(color: clx.ink3),
                       ),
                   ],
@@ -1060,8 +1129,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.favoritas:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
                 title: 'Transações favoritas',
@@ -1078,8 +1148,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.planejamento:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
                 title: 'Planejamento mensal',
@@ -1097,8 +1168,9 @@ class _DesktopBodyState extends State<_DesktopBody> {
         );
       case FinDashCardId.calendario:
         return _scrollCard(
+          align,
           Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Calendário do mês'),
               _MiniCalendar(
@@ -1422,6 +1494,8 @@ class _DonutBlock extends StatelessWidget {
     required this.catMap,
     required this.totalLabel,
     required this.emptyLabel,
+    this.contentAlign = Alignment.centerLeft,
+    this.sectionCross = CrossAxisAlignment.stretch,
   });
 
   final String? title;
@@ -1429,6 +1503,8 @@ class _DonutBlock extends StatelessWidget {
   final Map<String, FinCategoria> catMap;
   final String totalLabel;
   final String emptyLabel;
+  final Alignment contentAlign;
+  final CrossAxisAlignment sectionCross;
 
   @override
   Widget build(BuildContext context) {
@@ -1459,7 +1535,7 @@ class _DonutBlock extends StatelessWidget {
     ];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: sectionCross,
       children: [
         if (title != null) FinDashSectionHeader(title: title!),
         FinCard(
@@ -1477,6 +1553,7 @@ class _DonutBlock extends StatelessWidget {
                   centerLabel: totalLabel,
                   size: 160,
                   showLegend: true,
+                  contentAlign: contentAlign,
                 ),
         ),
       ],
