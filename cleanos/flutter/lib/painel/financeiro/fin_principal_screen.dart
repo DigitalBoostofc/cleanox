@@ -731,7 +731,8 @@ class _DesktopBody extends StatefulWidget {
 class _DesktopBodyState extends State<_DesktopBody> {
   FinDashLayout _layout = FinDashLayout.defaultLayout();
   bool _editing = false;
-  bool _loaded = false;
+  /// `false` até o 1º paint (cache local ou default).
+  bool _ready = false;
   String _loadedUserId = '';
 
   @override
@@ -744,17 +745,35 @@ class _DesktopBodyState extends State<_DesktopBody> {
   void didUpdateWidget(covariant _DesktopBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.userId != widget.userId) {
+      setState(() => _ready = false);
       _loadLayout();
     }
   }
 
   Future<void> _loadLayout() async {
     final uid = widget.userId;
-    final layout = await loadFinDashLayout(uid);
+    // 1) Cache local → UI imediata (sem flash de default errado).
+    final local = await loadFinDashLayoutLocal(uid);
     if (!mounted) return;
+    if (local != null) {
+      setState(() {
+        _layout = local;
+        _ready = true;
+        _loadedUserId = uid;
+      });
+    } else {
+      setState(() {
+        _layout = FinDashLayout.defaultLayout();
+        _ready = true;
+        _loadedUserId = uid;
+      });
+    }
+    // 2) PB (fonte de verdade multi-dispositivo).
+    final layout = await loadFinDashLayout(uid);
+    if (!mounted || widget.userId != uid) return;
     setState(() {
       _layout = layout;
-      _loaded = true;
+      _ready = true;
       _loadedUserId = uid;
     });
   }
@@ -772,10 +791,11 @@ class _DesktopBodyState extends State<_DesktopBody> {
       _editing = false;
     });
     await saveFinDashLayout(widget.userId, def);
+    await flushFinDashLayoutSave();
     if (mounted) {
       showClxToast(
         context,
-        'Layout restaurado ao padrão.',
+        'Layout restaurado ao padrão (conta).',
         type: ToastType.success,
       );
     }
@@ -1184,9 +1204,18 @@ class _DesktopBodyState extends State<_DesktopBody> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final layout =
-        _loaded && _loadedUserId == widget.userId
+        _ready && _loadedUserId == widget.userId
             ? _layout
             : FinDashLayout.defaultLayout();
+
+    if (!_ready) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -1216,6 +1245,12 @@ class _DesktopBodyState extends State<_DesktopBody> {
                   // Flush local + PB ao sair do editor.
                   await saveFinDashLayout(widget.userId, _layout);
                   await flushFinDashLayoutSave();
+                  if (!mounted) return;
+                  showClxToast(
+                    this.context,
+                    'Layout salvo na sua conta.',
+                    type: ToastType.success,
+                  );
                 }
               },
               icon: Icon(
