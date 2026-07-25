@@ -943,6 +943,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
             emptyLabel: 'Sem receitas pagas neste mês.',
             contentAlign: _donutAlign(align),
             sectionCross: xa,
+            bordered: false,
           ),
         );
       case FinDashCardId.despesasCat:
@@ -956,6 +957,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
             emptyLabel: 'Sem despesas pagas neste mês.',
             contentAlign: _donutAlign(align),
             sectionCross: xa,
+            bordered: false,
           ),
         );
       case FinDashCardId.freq:
@@ -965,7 +967,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Frequência de gastos'),
-              _FreqChart(points: w.freq),
+              _FreqChart(points: w.freq, bordered: false),
             ],
           ),
         );
@@ -982,6 +984,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
               ),
               if (w.objetivos.isEmpty)
                 FinEmptyCta(
+                  bordered: false,
                   icon: Icons.track_changes_outlined,
                   message:
                       'Opa! Você ainda não possui objetivos definidos.',
@@ -990,6 +993,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 )
               else
                 FinCard(
+                  bordered: false,
                   child: Column(
                     crossAxisAlignment: xa == CrossAxisAlignment.stretch
                         ? CrossAxisAlignment.start
@@ -1030,7 +1034,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Balanço mensal'),
-              _BalancoMensalCard(resumo: w.resumo),
+              _BalancoMensalCard(resumo: w.resumo, bordered: false),
             ],
           ),
         );
@@ -1041,7 +1045,11 @@ class _DesktopBodyState extends State<_DesktopBody> {
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Economia mensal'),
-              _EconomiaCard(pct: w.economiaPct, resumo: w.resumo),
+              _EconomiaCard(
+                pct: w.economiaPct,
+                resumo: w.resumo,
+                bordered: false,
+              ),
             ],
           ),
         );
@@ -1057,6 +1065,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 onTrailing: _editing ? null : w.onGoTransacoes,
               ),
               FinCard(
+                bordered: false,
                 child: Column(
                   crossAxisAlignment: xa == CrossAxisAlignment.stretch
                       ? CrossAxisAlignment.start
@@ -1089,6 +1098,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 onTrailing: _editing ? null : w.onGoContas,
               ),
               FinCard(
+                bordered: false,
                 child: Column(
                   crossAxisAlignment: xa == CrossAxisAlignment.stretch
                       ? CrossAxisAlignment.start
@@ -1139,6 +1149,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 onTrailing: _editing ? null : w.onGoTransacoes,
               ),
               FinEmptyCta(
+                bordered: false,
                 message: 'Você não possui transações favoritas.',
                 hint:
                     'Que tal começar adicionando despesas e receitas pelo botão +?',
@@ -1162,6 +1173,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 lancs: w.lancs,
                 catMap: w.catMap,
                 onVer: w.onGoPlanejamento,
+                bordered: false,
               ),
             ],
           ),
@@ -1177,6 +1189,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                 year: w.periodYear,
                 month: w.periodMonth,
                 lancs: w.lancs,
+                bordered: false,
               ),
             ],
           ),
@@ -1496,6 +1509,7 @@ class _DonutBlock extends StatelessWidget {
     required this.emptyLabel,
     this.contentAlign = Alignment.centerLeft,
     this.sectionCross = CrossAxisAlignment.stretch,
+    this.bordered = true,
   });
 
   final String? title;
@@ -1505,6 +1519,7 @@ class _DonutBlock extends StatelessWidget {
   final String emptyLabel;
   final Alignment contentAlign;
   final CrossAxisAlignment sectionCross;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -1539,6 +1554,10 @@ class _DonutBlock extends StatelessWidget {
       children: [
         if (title != null) FinDashSectionHeader(title: title!),
         FinCard(
+          bordered: bordered,
+          padding: bordered
+              ? const EdgeInsets.all(ClxSpace.x4)
+              : const EdgeInsets.fromLTRB(0, 0, 0, 4),
           child: slices.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(24),
@@ -1562,9 +1581,14 @@ class _DonutBlock extends StatelessWidget {
 }
 
 class _BalancoMensalCard extends StatelessWidget {
-  const _BalancoMensalCard({required this.resumo, this.elevated = false});
+  const _BalancoMensalCard({
+    required this.resumo,
+    this.elevated = false,
+    this.bordered = true,
+  });
   final ResumoPeriodo resumo;
   final bool elevated;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -1577,6 +1601,10 @@ class _BalancoMensalCard extends StatelessWidget {
     ].reduce((a, b) => a > b ? a : b);
     return FinCard(
       elevated: elevated,
+      bordered: bordered,
+      padding: bordered
+          ? const EdgeInsets.all(ClxSpace.x4)
+          : EdgeInsets.zero,
       child: Row(
         children: [
           SizedBox(
@@ -1672,15 +1700,24 @@ class _PendRow extends StatelessWidget {
 }
 
 class _EconomiaCard extends StatelessWidget {
-  const _EconomiaCard({required this.pct, required this.resumo});
+  const _EconomiaCard({
+    required this.pct,
+    required this.resumo,
+    this.bordered = true,
+  });
   final double pct;
   final ResumoPeriodo resumo;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final ok = resumo.saldoMes > 0 && resumo.entradas > 0;
     return FinCard(
+      bordered: bordered,
+      padding: bordered
+          ? const EdgeInsets.all(ClxSpace.x4)
+          : EdgeInsets.zero,
       child: Row(
         children: [
           SizedBox(
@@ -1730,18 +1767,21 @@ class _PlanejamentoResumoCard extends StatelessWidget {
     required this.lancs,
     required this.catMap,
     required this.onVer,
+    this.bordered = true,
   });
 
   final List<FinLimite> limites;
   final List<FinLancamento> lancs;
   final Map<String, FinCategoria> catMap;
   final VoidCallback onVer;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     if (limites.isEmpty) {
       return FinEmptyCta(
+        bordered: bordered,
         icon: Icons.receipt_long_outlined,
         message:
             'Opa! Você ainda não possui um planejamento definido para este mês.',
@@ -1786,6 +1826,10 @@ class _PlanejamentoResumoCard extends StatelessWidget {
         limiteTotal > 0 ? (gastoTotal / limiteTotal).clamp(0.0, 1.5) : 0.0;
 
     return FinCard(
+      bordered: bordered,
+      padding: bordered
+          ? const EdgeInsets.all(ClxSpace.x4)
+          : EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1897,14 +1941,19 @@ List<_FreqPoint> _frequenciaGastos(List<FinLancamento> lancs, {int days = 7}) {
 }
 
 class _FreqChart extends StatelessWidget {
-  const _FreqChart({required this.points});
+  const _FreqChart({required this.points, this.bordered = true});
   final List<_FreqPoint> points;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     if (points.every((p) => p.value == 0)) {
       return FinCard(
+        bordered: bordered,
+        padding: bordered
+            ? const EdgeInsets.all(ClxSpace.x4)
+            : EdgeInsets.zero,
         child: SizedBox(
           height: 140,
           child: Center(
@@ -1918,6 +1967,10 @@ class _FreqChart extends StatelessWidget {
     }
     final maxY = points.map((p) => p.value).reduce((a, b) => a > b ? a : b);
     return FinCard(
+      bordered: bordered,
+      padding: bordered
+          ? const EdgeInsets.all(ClxSpace.x4)
+          : EdgeInsets.zero,
       child: SizedBox(
         height: 180,
         child: LineChart(
@@ -1994,10 +2047,12 @@ class _MiniCalendar extends StatelessWidget {
     required this.year,
     required this.month,
     required this.lancs,
+    this.bordered = true,
   });
   final int year;
   final int month;
   final List<FinLancamento> lancs;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -2022,6 +2077,10 @@ class _MiniCalendar extends StatelessWidget {
     final daysInMonth = DateTime(y, m + 1, 0).day;
 
     return FinCard(
+      bordered: bordered,
+      padding: bordered
+          ? const EdgeInsets.all(ClxSpace.x4)
+          : EdgeInsets.zero,
       child: Column(
         children: [
           Row(
