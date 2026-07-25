@@ -823,10 +823,11 @@ class _DesktopBodyState extends State<_DesktopBody> {
         FinDashAlign.right => WrapAlignment.end,
       };
 
+  /// Sempre no meio da **altura**; L/C/R só na horizontal.
   Alignment _flutterAlign(FinDashAlign a) => switch (a) {
-        FinDashAlign.left => Alignment.topLeft,
-        FinDashAlign.center => Alignment.topCenter,
-        FinDashAlign.right => Alignment.topRight,
+        FinDashAlign.left => Alignment.centerLeft,
+        FinDashAlign.center => Alignment.center,
+        FinDashAlign.right => Alignment.centerRight,
       };
 
   TextAlign _textAlign(FinDashAlign a) => switch (a) {
@@ -841,6 +842,11 @@ class _DesktopBodyState extends State<_DesktopBody> {
         FinDashAlign.right => Alignment.centerRight,
       };
 
+  /// Slot com altura cheia: miolo **centralizado na vertical**.
+  /// L/C/R desloca na horizontal. Conteúdo alto → scroll.
+  ///
+  /// [child] deve preferir altura intrínseca (`Column` com
+  /// `mainAxisSize: min`); se expandir, não há o que centralizar.
   Widget _scrollCard(FinDashAlign align, Widget child) {
     return LayoutBuilder(
       builder: (context, c) {
@@ -853,7 +859,10 @@ class _DesktopBodyState extends State<_DesktopBody> {
             ),
             child: Align(
               alignment: _flutterAlign(align),
-              child: child,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: c.maxWidth),
+                child: child,
+              ),
             ),
           ),
         );
@@ -964,6 +973,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Frequência de gastos'),
@@ -975,6 +985,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
@@ -1031,6 +1042,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Balanço mensal'),
@@ -1042,6 +1054,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Economia mensal'),
@@ -1057,6 +1070,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
@@ -1067,6 +1081,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
               FinCard(
                 bordered: false,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: xa == CrossAxisAlignment.stretch
                       ? CrossAxisAlignment.start
                       : xa,
@@ -1090,6 +1105,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
@@ -1100,6 +1116,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
               FinCard(
                 bordered: false,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: xa == CrossAxisAlignment.stretch
                       ? CrossAxisAlignment.start
                       : xa,
@@ -1141,6 +1158,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
@@ -1161,6 +1179,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(
@@ -1182,6 +1201,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
         return _scrollCard(
           align,
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: xa,
             children: [
               FinDashSectionHeader(title: 'Calendário do mês'),
@@ -1550,6 +1570,7 @@ class _DonutBlock extends StatelessWidget {
     ];
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: sectionCross,
       children: [
         if (title != null) FinDashSectionHeader(title: title!),
