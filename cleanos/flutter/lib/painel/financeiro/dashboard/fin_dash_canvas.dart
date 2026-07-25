@@ -1,7 +1,7 @@
 /// fin_dash_canvas.dart — Canvas freeform do Dashboard (desktop).
 ///
-/// Renderiza cards em grade 12 colunas. Em [editing]: arraste para mover,
-/// handle no canto SE para redimensionar, botão ocultar. Snap na grade.
+/// Grade densa ([kFinDashCols]×[kFinDashRowPx]). Em [editing]: arraste,
+/// redimensionar (E / S / SE), ocultar. Snap fino + reflow dos vizinhos.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,6 +10,9 @@ import '../../../core/design/design.dart';
 import 'fin_dash_layout.dart';
 
 typedef FinDashCardBuilder = Widget Function(BuildContext context, String id);
+
+/// Qual borda/canto está sendo redimensionado.
+enum _ResizeEdge { se, e, s }
 
 class FinDashCanvas extends StatefulWidget {
   const FinDashCanvas({
@@ -34,6 +37,7 @@ class FinDashCanvas extends StatefulWidget {
 class _FinDashCanvasState extends State<FinDashCanvas> {
   String? _dragId;
   String? _resizeId;
+  _ResizeEdge _resizeEdge = _ResizeEdge.se;
   Offset _dragOrigin = Offset.zero;
   FinDashPlacement? _originPlacement;
 
@@ -50,11 +54,12 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
     });
   }
 
-  void _beginResize(String id, Offset global) {
+  void _beginResize(String id, Offset global, _ResizeEdge edge) {
     final p = widget.layout.byId(id);
     if (p == null || !p.visible) return;
     setState(() {
       _resizeId = id;
+      _resizeEdge = edge;
       _dragId = null;
       _dragOrigin = global;
       _originPlacement = p;
@@ -69,24 +74,31 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
     final dCol = (dx / cellW).round();
     final dRow = (dy / widget.rowPx).round();
 
-    // Posição/tamanho do card ativo a partir do gesto; os demais reflow.
-    // Usa o layout **atual** (já com pushes) mas ancora o ativo no origin do
-    // gesto para o cursor não “pular”.
     if (_dragId != null) {
       final active = FinDashLayout.clampPlacement(
         origin.copyWith(x: origin.x + dCol, y: origin.y + dRow),
       );
       _emit(widget.layout.placeWithReflow(active));
-    } else if (_resizeId != null) {
-      final min = FinDashCardId.minSize(origin.id);
-      final active = FinDashLayout.clampPlacement(
-        origin.copyWith(
-          w: (origin.w + dCol).clamp(min.$1, kFinDashCols - origin.x),
-          h: (origin.h + dRow).clamp(min.$2, 40),
-        ),
-      );
-      _emit(widget.layout.placeWithReflow(active));
+      return;
     }
+
+    if (_resizeId == null) return;
+    final min = FinDashCardId.minSize(origin.id);
+    var w = origin.w;
+    var h = origin.h;
+    switch (_resizeEdge) {
+      case _ResizeEdge.se:
+        w = (origin.w + dCol).clamp(min.$1, kFinDashCols - origin.x);
+        h = (origin.h + dRow).clamp(min.$2, kFinDashMaxH);
+      case _ResizeEdge.e:
+        w = (origin.w + dCol).clamp(min.$1, kFinDashCols - origin.x);
+      case _ResizeEdge.s:
+        h = (origin.h + dRow).clamp(min.$2, kFinDashMaxH);
+    }
+    final active = FinDashLayout.clampPlacement(
+      origin.copyWith(w: w, h: h),
+    );
+    _emit(widget.layout.placeWithReflow(active));
   }
 
   void _endGesture() {
@@ -113,7 +125,6 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
         final height = widget.layout.contentHeightPx(rowPx: widget.rowPx);
         final visible = widget.layout.items.where((p) => p.visible).toList()
           ..sort((a, b) {
-            // Card em drag/resize fica no topo (z-order).
             final aTop = a.id == _dragId || a.id == _resizeId;
             final bTop = b.id == _dragId || b.id == _resizeId;
             if (aTop && !bTop) return 1;
@@ -133,7 +144,8 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
                     painter: _GridPainter(
                       cols: kFinDashCols,
                       rowPx: widget.rowPx,
-                      color: clx.line.withValues(alpha: 0.45),
+                      minor: clx.line.withValues(alpha: 0.35),
+                      major: clx.primary.withValues(alpha: 0.12),
                     ),
                   ),
                 ),
@@ -146,10 +158,12 @@ class _FinDashCanvasState extends State<FinDashCanvas> {
                   child: _DashTileChrome(
                     editing: widget.editing,
                     title: FinDashCardId.label(p.id),
+                    sizeLabel: '${p.w}×${p.h}',
                     active: p.id == _dragId || p.id == _resizeId,
                     onHide: () => _hide(p.id),
                     onDragStart: (g) => _beginDrag(p.id, g),
-                    onResizeStart: (g) => _beginResize(p.id, g),
+                    onResizeStart: (g, edge) =>
+                        _beginResize(p.id, g, edge),
                     onPointerMove: (g) => _onPointerMove(g, cellW),
                     onPointerEnd: _endGesture,
                     child: widget.cardBuilder(context, p.id),
@@ -167,6 +181,7 @@ class _DashTileChrome extends StatelessWidget {
   const _DashTileChrome({
     required this.editing,
     required this.title,
+    required this.sizeLabel,
     required this.active,
     required this.child,
     required this.onHide,
@@ -178,11 +193,12 @@ class _DashTileChrome extends StatelessWidget {
 
   final bool editing;
   final String title;
+  final String sizeLabel;
   final bool active;
   final Widget child;
   final VoidCallback onHide;
   final ValueChanged<Offset> onDragStart;
-  final ValueChanged<Offset> onResizeStart;
+  final void Function(Offset global, _ResizeEdge edge) onResizeStart;
   final ValueChanged<Offset> onPointerMove;
   final VoidCallback onPointerEnd;
 
@@ -254,6 +270,16 @@ class _DashTileChrome extends StatelessWidget {
                           ),
                         ),
                       ),
+                      Text(
+                        sizeLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: clx.ink3,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       IconButton(
                         tooltip: 'Ocultar card',
                         visualDensity: VisualDensity.compact,
@@ -278,28 +304,87 @@ class _DashTileChrome extends StatelessWidget {
                   children: [
                     Positioned.fill(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
+                        padding: const EdgeInsets.fromLTRB(8, 4, 14, 14),
                         child: body,
                       ),
                     ),
+                    // Borda direita (só largura)
+                    Positioned(
+                      right: 0,
+                      top: 8,
+                      bottom: 28,
+                      width: 14,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.resizeLeftRight,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onPanStart: (d) =>
+                              onResizeStart(d.globalPosition, _ResizeEdge.e),
+                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
+                          onPanEnd: (_) => onPointerEnd(),
+                          child: Center(
+                            child: Container(
+                              width: 3,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: clx.primary.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Borda inferior (só altura)
+                    Positioned(
+                      left: 8,
+                      right: 28,
+                      bottom: 0,
+                      height: 14,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.resizeUpDown,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onPanStart: (d) =>
+                              onResizeStart(d.globalPosition, _ResizeEdge.s),
+                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
+                          onPanEnd: (_) => onPointerEnd(),
+                          child: Center(
+                            child: Container(
+                              height: 3,
+                              width: 28,
+                              decoration: BoxDecoration(
+                                color: clx.primary.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Canto SE (largura + altura)
                     Positioned(
                       right: 0,
                       bottom: 0,
                       width: 28,
                       height: 28,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onPanStart: (d) => onResizeStart(d.globalPosition),
-                        onPanUpdate: (d) => onPointerMove(d.globalPosition),
-                        onPanEnd: (_) => onPointerEnd(),
-                        child: Align(
-                          alignment: Alignment.bottomRight,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.south_east_rounded,
-                              size: 16,
-                              color: clx.primary,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.resizeDownRight,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onPanStart: (d) =>
+                              onResizeStart(d.globalPosition, _ResizeEdge.se),
+                          onPanUpdate: (d) => onPointerMove(d.globalPosition),
+                          onPanEnd: (_) => onPointerEnd(),
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.south_east_rounded,
+                                size: 16,
+                                color: clx.primary,
+                              ),
                             ),
                           ),
                         ),
@@ -320,33 +405,48 @@ class _GridPainter extends CustomPainter {
   _GridPainter({
     required this.cols,
     required this.rowPx,
-    required this.color,
+    required this.minor,
+    required this.major,
   });
 
   final int cols;
   final double rowPx;
-  final Color color;
+  final Color minor;
+  final Color major;
+
+  /// Linha forte a cada N células (visão “tabela” legível).
+  static const int majorEvery = 2;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
     final cellW = size.width / cols;
+    final rows = (size.height / rowPx).ceil();
+
+    final minorPaint = Paint()
+      ..color = minor
+      ..strokeWidth = 1;
+    final majorPaint = Paint()
+      ..color = major
+      ..strokeWidth = 1.25;
+
     for (var i = 0; i <= cols; i++) {
       final x = i * cellW;
+      final paint = i % majorEvery == 0 ? majorPaint : minorPaint;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-    final rows = (size.height / rowPx).ceil();
     for (var j = 0; j <= rows; j++) {
       final y = j * rowPx;
+      final paint = j % majorEvery == 0 ? majorPaint : minorPaint;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _GridPainter old) =>
-      old.cols != cols || old.rowPx != rowPx || old.color != color;
+      old.cols != cols ||
+      old.rowPx != rowPx ||
+      old.minor != minor ||
+      old.major != major;
 }
 
 /// Chip / menu para reexibir cards ocultos.

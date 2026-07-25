@@ -1,4 +1,4 @@
-/// fin_dash_layout_test.dart — modelo freeform do Dashboard (grade 12).
+/// fin_dash_layout_test.dart — modelo freeform do Dashboard (grade 24 v2).
 library;
 
 import 'package:cleanos/painel/financeiro/dashboard/fin_dash_layout.dart';
@@ -6,13 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FinDashLayout.defaultLayout', () {
-    test('tem todos os cards canônicos', () {
+    test('tem todos os cards canônicos na grade 24', () {
       final d = FinDashLayout.defaultLayout();
       expect(
         d.items.map((e) => e.id).toSet(),
         FinDashCardId.all.toSet(),
       );
       expect(d.items.every((e) => e.visible), isTrue);
+      expect(kFinDashCols, 24);
     });
 
     test('KPIs ocupam linha inteira no topo', () {
@@ -23,28 +24,48 @@ void main() {
     });
   });
 
-  group('fromJson / clamp', () {
+  group('fromJson / clamp / migração v1→v2', () {
     test('rejeita id desconhecido e completa cards novos', () {
       final layout = FinDashLayout.fromJson({
-        'v': 1,
+        'v': 2,
         'items': [
-          {'id': 'kpis', 'x': 0, 'y': 0, 'w': 12, 'h': 2, 'visible': true},
+          {'id': 'kpis', 'x': 0, 'y': 0, 'w': 24, 'h': 4, 'visible': true},
           {'id': 'hacker', 'x': 0, 'y': 0, 'w': 4, 'h': 4, 'visible': true},
         ],
       });
       expect(layout.byId('hacker'), isNull);
       expect(layout.byId(FinDashCardId.kpis)!.visible, isTrue);
-      // Cards ausentes entram ocultos.
       expect(layout.byId(FinDashCardId.calendario)!.visible, isFalse);
     });
 
-    test('clamp impede w > 12 e x+w overflow', () {
+    test('v1 (12 cols) escala ×2 para v2', () {
+      final layout = FinDashLayout.fromJson({
+        'v': 1,
+        'items': [
+          {
+            'id': 'receitas_cat',
+            'x': 0,
+            'y': 2,
+            'w': 6,
+            'h': 5,
+            'visible': true,
+          },
+        ],
+      });
+      final r = layout.byId(FinDashCardId.receitasCat)!;
+      expect(r.x, 0);
+      expect(r.y, 4);
+      expect(r.w, 12);
+      expect(r.h, 10);
+    });
+
+    test('clamp impede w > 24 e x+w overflow', () {
       final p = FinDashLayout.clampPlacement(
         const FinDashPlacement(
           id: FinDashCardId.freq,
-          x: 10,
+          x: 20,
           y: 0,
-          w: 8,
+          w: 16,
           h: 1,
         ),
       );
@@ -52,100 +73,90 @@ void main() {
       expect(p.h, greaterThanOrEqualTo(FinDashCardId.minSize(p.id).$2));
     });
 
-    test('round-trip JSON', () {
+    test('round-trip JSON grava v2', () {
       final a = FinDashLayout.defaultLayout().upsert(
         const FinDashPlacement(
           id: FinDashCardId.objetivos,
-          x: 2,
-          y: 4,
-          w: 4,
-          h: 5,
+          x: 4,
+          y: 8,
+          w: 8,
+          h: 10,
           visible: false,
         ),
       );
-      final b = FinDashLayout.fromJson(a.toJson());
+      final json = a.toJson();
+      expect(json['v'], kFinDashLayoutVersion);
+      final b = FinDashLayout.fromJson(json);
       final o = b.byId(FinDashCardId.objetivos)!;
-      expect(o.x, 2);
-      expect(o.y, 4);
-      expect(o.w, 4);
-      expect(o.h, 5);
+      expect(o.x, 4);
+      expect(o.y, 8);
+      expect(o.w, 8);
+      expect(o.h, 10);
       expect(o.visible, isFalse);
     });
   });
 
   group('placeWithReflow', () {
     test('aumentar altura empurra o card de baixo', () {
-      // A em (0,0) 6x3; B em (0,3) 6x3 — colados.
       final layout = const FinDashLayout([
-        FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 6, h: 3),
-        FinDashPlacement(id: FinDashCardId.balanco, x: 0, y: 3, w: 6, h: 3),
+        FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 12, h: 6),
+        FinDashPlacement(id: FinDashCardId.balanco, x: 0, y: 6, w: 12, h: 6),
       ]);
       final next = layout.placeWithReflow(
-        const FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 6, h: 5),
+        const FinDashPlacement(id: FinDashCardId.freq, x: 0, y: 0, w: 12, h: 10),
       );
       final a = next.byId(FinDashCardId.freq)!;
       final b = next.byId(FinDashCardId.balanco)!;
-      expect(a.h, 5);
+      expect(a.h, 10);
       expect(b.y, greaterThanOrEqualTo(a.y + a.h));
       expect(FinDashLayout.overlaps(a, b), isFalse);
     });
 
     test('aumentar largura empurra vizinho que colide', () {
-      // A esquerda 0..6; B direita 6..12 mesma linha.
       final layout = const FinDashLayout([
         FinDashPlacement(
           id: FinDashCardId.receitasCat,
           x: 0,
           y: 0,
-          w: 6,
-          h: 4,
+          w: 12,
+          h: 8,
         ),
         FinDashPlacement(
           id: FinDashCardId.despesasCat,
-          x: 6,
+          x: 12,
           y: 0,
-          w: 6,
-          h: 4,
+          w: 12,
+          h: 8,
         ),
       ]);
-      // A cresce para w=8 → invade B.
       final next = layout.placeWithReflow(
         const FinDashPlacement(
           id: FinDashCardId.receitasCat,
           x: 0,
           y: 0,
-          w: 8,
-          h: 4,
+          w: 16,
+          h: 8,
         ),
       );
       final a = next.byId(FinDashCardId.receitasCat)!;
       final b = next.byId(FinDashCardId.despesasCat)!;
-      expect(a.w, 8);
+      expect(a.w, 16);
       expect(FinDashLayout.overlaps(a, b), isFalse);
-      // B desceu (não cabe ao lado).
       expect(b.y, greaterThanOrEqualTo(a.y + a.h));
     });
 
-    test('ativo permanece na posição pedida', () {
-      final layout = FinDashLayout.defaultLayout();
-      final active = const FinDashPlacement(
-        id: FinDashCardId.calendario,
-        x: 0,
-        y: 5,
-        w: 12,
-        h: 6,
+    test('mínimos livres permitem card 2×2', () {
+      final p = FinDashLayout.clampPlacement(
+        const FinDashPlacement(
+          id: FinDashCardId.economia,
+          x: 0,
+          y: 0,
+          w: 2,
+          h: 2,
+        ),
       );
-      final next = layout.placeWithReflow(active);
-      final c = next.byId(FinDashCardId.calendario)!;
-      expect(c.x, 0);
-      expect(c.y, 5);
-      expect(c.w, 12);
-      expect(c.h, 6);
-      // Nenhum visível sobrepõe o ativo.
-      for (final p in next.items.where((e) => e.visible)) {
-        if (p.id == c.id) continue;
-        expect(FinDashLayout.overlaps(c, p), isFalse, reason: p.id);
-      }
+      expect(p.w, 2);
+      expect(p.h, 2);
     });
   });
 }
