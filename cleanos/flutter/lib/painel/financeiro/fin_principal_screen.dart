@@ -899,8 +899,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                       valueColor:
                           w.saldo < 0 ? clx.finExpense : clx.ink,
                       onTap: _editing ? null : w.onGoContas,
-                      // Borda própria do tile; o slot freeform não envolve.
-                      bordered: true,
+                      bordered: false,
                     ),
                   ),
                   SizedBox(
@@ -912,7 +911,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                       iconBg: clx.finIncome,
                       valueColor: clx.finIncome,
                       onTap: _editing ? null : w.onGoTransacoes,
-                      bordered: true,
+                      bordered: false,
                     ),
                   ),
                   SizedBox(
@@ -924,7 +923,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                       iconBg: clx.finExpense,
                       valueColor: clx.finExpense,
                       onTap: _editing ? null : w.onGoTransacoes,
-                      bordered: true,
+                      bordered: false,
                     ),
                   ),
                   SizedBox(
@@ -938,7 +937,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                           ? clx.finExpense
                           : clx.finIncome,
                       onTap: _editing ? null : w.onGoTransacoes,
-                      bordered: true,
+                      bordered: false,
                     ),
                   ),
                 ],
