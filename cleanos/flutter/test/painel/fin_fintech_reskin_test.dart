@@ -5,6 +5,7 @@
 library;
 
 import 'package:cleanos/core/design/app_surface_provider.dart';
+import 'package:cleanos/core/design/clx_responsive.dart';
 import 'package:cleanos/core/design/theme.dart';
 import 'package:cleanos/core/design/theme_fintech.dart';
 import 'package:cleanos/painel/financeiro/fin_providers.dart';
@@ -110,11 +111,15 @@ void main() {
       },
     );
 
-    testWidgets('valor do hero usa o token display (34/800)', (tester) async {
+    testWidgets('valor do hero usa o token display (34/800) escalado via sp()', (
+      tester,
+    ) async {
+      const size = Size(360, 800);
       await pumpVisaoGeral(
         tester,
         theme: buildFintechLightTheme(),
         fintech: true,
+        size: size,
       );
 
       final hero = tester.widget<FintechBalanceHero>(
@@ -126,7 +131,9 @@ void main() {
           matching: find.text(hero.value),
         ),
       );
-      expect(valueText.style?.fontSize, 34);
+      // Hero aplica r.sp(34) (layout scale × 34), não o literal 34 do TextTheme.
+      final expected = 34 * ClxResponsive.computeLayoutScale(size);
+      expect(valueText.style?.fontSize, closeTo(expected, 0.01));
       expect(valueText.style?.fontWeight, FontWeight.w800);
     });
 

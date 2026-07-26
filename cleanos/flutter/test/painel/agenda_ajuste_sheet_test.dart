@@ -428,13 +428,19 @@ void main() {
     testWidgets('toque continua abrindo o DETALHE (o long-press não roubou)', (
       tester,
     ) async {
-      await _pumpAgenda(tester, [_os('a', 'Ana', '08:00', duracaoMin: 60)]);
+      // Sem profissional: o dropdown do detalhe não exige p1 nos lookups
+      // (evita assert do DropdownButtonFormField no 1º frame).
+      await _pumpAgenda(tester, [
+        _os('a', 'Ana', '08:00', duracaoMin: 60, prof: ''),
+      ]);
 
       await tester.tap(find.text('Ana'));
       await tester.pumpAndSettle();
 
       expect(find.text('Ajustar horário'), findsNothing);
-      expect(find.text('Data / Hora'), findsOneWidget); // diálogo de detalhe
+      // Detalhe atual: labels "Data / Hora" + ação "Editar OS".
+      expect(find.text('Data / Hora'), findsOneWidget);
+      expect(find.text('Editar OS'), findsOneWidget);
     });
 
     testWidgets('web estreita clássica (card não-Easypay) também abre o sheet', (

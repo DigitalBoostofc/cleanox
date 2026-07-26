@@ -138,7 +138,8 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('nav-carteira')));
         await _settleNav(tester);
 
-        expect(currentLocation(router), '/painel/financeiro/visao-geral');
+        // Shell financeiro v2: aba default é /principal (visao-geral redireciona).
+        expect(currentLocation(router), '/painel/financeiro/principal');
         handle.dispose();
       },
     );
@@ -291,7 +292,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-carteira')));
       await _settleNav(tester);
 
-      expect(currentLocation(router), '/painel/financeiro/visao-geral');
+      // Shell financeiro v2: aba default é /principal (visao-geral redireciona).
+      expect(currentLocation(router), '/painel/financeiro/principal');
     });
   });
 }

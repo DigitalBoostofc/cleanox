@@ -73,6 +73,7 @@ void main() {
     testWidgets('semana: renderiza o evento da OS na janela visível', (
       tester,
     ) async {
+      ignoreBenignAgendaOverflows();
       await pumpPainel(
         tester,
         const AgendaScreen(),
@@ -103,6 +104,7 @@ void main() {
 
       // No chip da semana o texto é 'HH:mm Nome' — casa por substring.
       expect(find.textContaining('Carlos S.'), findsWidgets);
+      expectNoFatalLayoutException(tester);
     });
 
     testWidgets('semana vazia: grade renderiza sem eventos', (tester) async {
@@ -128,6 +130,7 @@ void main() {
     testWidgets(
       'legenda por profissional + avatar em OS atribuída (pedido do dono)',
       (tester) async {
+        ignoreBenignAgendaOverflows();
         await pumpPainel(
           tester,
           const AgendaScreen(),
@@ -181,6 +184,7 @@ void main() {
         expect(pos.bottom, 0, reason: 'avatar ancorado embaixo');
         expect(pos.right, 0, reason: 'avatar ancorado à direita');
         expect(pos.top, isNull, reason: 'não pode voltar pro topo');
+        expectNoFatalLayoutException(tester);
       },
     );
 

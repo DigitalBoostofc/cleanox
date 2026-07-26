@@ -323,12 +323,12 @@ void main() {
 
       final icone = fake.lastCreateCategoria?['icone'] as String?;
       final cor = fake.lastCreateCategoria?['cor'] as String?;
+      // Alocação automática no pool (UI não mostra mais "Gerado automaticamente").
       expect(icone, isNotNull);
       expect(icone, isNotEmpty);
       expect(kFinCategoriaIcons.containsKey(icone), isTrue);
       expect(cor, isNotNull);
       expect(cor!.startsWith('#'), isTrue);
-      expect(find.textContaining('Gerado automaticamente'), findsOneWidget);
     });
 
     testWidgets('criar sub herda ícone e cor da mãe', (tester) async {
