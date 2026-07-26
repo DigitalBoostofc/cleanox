@@ -97,8 +97,8 @@ void main() {
     );
     expect(ordens.registro.profissional, 'p1');
 
-    // 3) SEM F5: clica em "Editar" no detalhe já aberto.
-    await tester.tap(find.text('Editar'));
+    // 3) SEM F5: clica em "Editar OS" no detalhe já aberto (label atual do ClxButton).
+    await tester.tap(find.text('Editar OS'));
     await tester.pumpAndSettle();
     expect(find.byType(OSForm), findsOneWidget);
 

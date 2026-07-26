@@ -40,7 +40,9 @@ void main() {
     final clx = t.extension<CleanoxColors>();
     expect(clx, isNotNull);
     expect(clx!.primary, CleanoxColors.fintechLight.primary);
-    expect(clx.onPrimary, const Color(0xFF04231C));
+    // Identidade Cleanox: CTA teal + onPrimary branco (não mais petrol escuro).
+    expect(clx.onPrimary, CleanoxColors.fintechLight.onPrimary);
+    expect(clx.onPrimary, const Color(0xFFFFFFFF));
   });
 
   test('tema escuro fintech carrega CleanoxColors.fintechDark', () {
@@ -48,18 +50,26 @@ void main() {
     expect(t.brightness, Brightness.dark);
     final clx = t.extension<CleanoxColors>()!;
     expect(clx.primary, CleanoxColors.fintechDark.primary);
-    expect(clx.bg, const Color(0xFF17191B));
+    // Dark carvão/navy da identidade atual (não mais #17191B genérico).
+    expect(clx.bg, CleanoxColors.fintechDark.bg);
+    expect(clx.bg, const Color(0xFF0B1D34));
   });
 
   test('cores fintech são distintas do tema clássico (não vaza pra Web)', () {
-    expect(
-      buildFintechLightTheme().extension<CleanoxColors>()!.primary,
-      isNot(buildLightTheme().extension<CleanoxColors>()!.primary),
-    );
-    expect(
-      buildFintechDarkTheme().extension<CleanoxColors>()!.primary,
-      isNot(buildDarkTheme().extension<CleanoxColors>()!.primary),
-    );
+    final finL = buildFintechLightTheme();
+    final webL = buildLightTheme();
+    final finD = buildFintechDarkTheme().extension<CleanoxColors>()!;
+    final webD = buildDarkTheme().extension<CleanoxColors>()!;
+
+    // Light unificou a paleta Cleanox (primary/onPrimary iguais ao web).
+    // A bifurcação por arquivo permanece na tipografia Opção B e no dark.
+    expect(finL.textTheme.displayLarge?.fontSize, 34);
+    expect(finL.textTheme.displayLarge?.fontWeight, FontWeight.w800);
+    expect(webL.textTheme.displayLarge?.fontSize, 36);
+    expect(webL.textTheme.displayLarge?.fontWeight, FontWeight.w700);
+
+    expect(finD.primary, isNot(webD.primary));
+    expect(finD.bg, isNot(webD.bg));
   });
 
   test('escala tipográfica da Opção B: display 34/800, title1 24/800', () {
