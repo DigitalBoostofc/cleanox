@@ -16,3 +16,6 @@ skills-lock.json
 
 # APK/AAB build artifacts (CI deposita aqui)
 dist/
+
+# Grok CLI local config
+.grok/
