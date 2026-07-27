@@ -218,6 +218,52 @@ class _BodyState extends ConsumerState<_Body> {
     }
   }
 
+  /// Remove serviço extra (cliente desistiu / cadastrado por engano).
+  Future<void> _removerAdicional(ServicoAdicionalOS a) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remover serviço extra?'),
+        content: Text(
+          'Remover "${a.nome.isEmpty ? 'extra' : a.nome}" desta OS?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final rest = [
+      for (final x in _os.adicionais)
+        if (x.id != a.id) x,
+    ];
+    // Remove itens de checklist ligados ao extra.
+    final checklist = [
+      for (final it in _os.checklistExec)
+        if ((it.adicionalId ?? '') != a.id) it,
+    ];
+    try {
+      final novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
+        'adicionais': rest.map((e) => e.toJson()).toList(),
+        'checklist_exec': checklist.map((e) => e.toJson()).toList(),
+      }, expand: kAdminExecExpand);
+      if (!mounted) return;
+      setState(() => _os = novo);
+      showClxToast(context, 'Serviço extra removido.', type: ToastType.success);
+    } catch (err) {
+      if (mounted) {
+        showClxToast(context, _whatsError(err), type: ToastType.error);
+      }
+    }
+  }
+
   /// Persiste o desconto (R$) — campo liberado ao Painel; abatido no total.
   Future<void> _salvarDescontos(double valor) async {
     if (_salvandoDesc || valor == _os.descontos) return;
@@ -492,6 +538,16 @@ class _BodyState extends ConsumerState<_Body> {
                         color: clx.ink,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remover extra',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
+                        color: clx.error,
+                        size: 20,
+                      ),
+                      onPressed: () => _removerAdicional(a),
                     ),
                   ],
                 ),

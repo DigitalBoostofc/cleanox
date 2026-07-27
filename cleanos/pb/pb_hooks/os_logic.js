@@ -519,7 +519,8 @@ function guardOrdemUpdateRequest(e) {
     );
   }
 
-  // 3) trava de campos: profissional só toca status, valor_pago, forma_pagamento.
+  // 3) trava de campos: profissional toca status, pagamento, valor_servico,
+  //    checklist/adicionais/obs (denylist abaixo).
   // F-08: campos relation (cliente, servico, profissional) comparados via relId()
   //       para evitar falsos positivos com String() em valores null/undefined.
   const relLocked = ["cliente", "servico", "profissional"];
@@ -538,7 +539,8 @@ function guardOrdemUpdateRequest(e) {
     // O profissional NÃO estica o próprio serviço via PATCH. Fora do OSExecPatch
     // do Flutter (core/repositories/repo_types.dart) — os dois lados casam.
     "duracao_min",
-    "valor_servico",
+    // valor_servico: liberado ao profissional para registrar valor negociado
+    // por linha no pagamento (comissão = valor_pago; linhas alimentam laudo/caixa).
     "endereco_liberado",        // só o hook de modelo escreve
     "aviso_a_caminho_em",       // só a rota /a-caminho escreve (server-side)
     "avaliacao_nota",           // só o n8n via endpoint de serviço

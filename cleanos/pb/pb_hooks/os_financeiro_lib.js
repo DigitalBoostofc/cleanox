@@ -317,23 +317,20 @@ function _calcValorTotalOs(record) {
 }
 
 /**
- * Alvo da receita paga: total da OS (com extras). Se valor_pago for MAIOR
- * (gorjeta/arredondamento), usa o pago. Assim serviço extra nunca fica de
- * fora quando valor_pago ficou desatualizado após o extra (bug Evandro).
- * Espelha `valorBaseComissaoOs`.
+ * Alvo da receita paga: o caixa real (`valor_pago`).
+ * Espelha `valorBaseComissaoOs` — comissão e receita usam a mesma base.
+ * Sem valor_pago, cai no total orçado (principal + extras − descontos).
  */
 function _valorAlvoReceitaOs(record) {
-  const total = _calcValorTotalOs(record);
   const pago = Number(record.get("valor_pago") || 0);
-  if (pago > total) return Math.round(pago * 100) / 100;
-  if (total > 0) return total;
-  return pago > 0 ? Math.round(pago * 100) / 100 : 0;
+  if (pago > 0) return Math.round(pago * 100) / 100;
+  return _calcValorTotalOs(record);
 }
 
 /**
  * Monta linhas de receita da OS.
- * @param {boolean} pago — se true, alinha a soma ao total da OS (com extras),
- *   não só ao valor_pago (que pode ficar defasado após serviço extra).
+ * @param {boolean} pago — se true, alinha a soma ao valor_pago (caixa),
+ *   escalando as linhas de orçamento para bater no valor cobrado.
  * @returns {{key:string, valor:number, servicoNome:string, catNome:string}[]}
  */
 function _linhasReceitaOs(record, pago) {

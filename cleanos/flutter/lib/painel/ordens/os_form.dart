@@ -22,6 +22,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,7 +35,9 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/os_execucao.dart';
 import '../../core/models/servico.dart';
+import '../../profissional/os_execucao/add_servico_extra_sheet.dart';
 import '../agenda/agenda_controller.dart' show weekdayIndexOf;
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
@@ -157,6 +160,11 @@ class _OSFormState extends ConsumerState<OSForm> {
   String? _saveError;
   final Map<String, String> _errs = {};
 
+  /// Serviços extras (2º carro, sofá, etc.) — orçamento; comissão usa valor_pago.
+  List<ServicoAdicionalOS> _extras = const [];
+  bool _incluirExtras = false;
+  final _rand = Random();
+
   // Disponibilidade real do profissional selecionado (prefila a Duração).
   Disponibilidade? _disp;
 
@@ -193,6 +201,8 @@ class _OSFormState extends ConsumerState<OSForm> {
       _valor.text = os.valorServico == null ? '' : _numText(os.valorServico!);
       _profissionalId = os.profissional ?? '';
       _observacoes.text = os.observacoes ?? '';
+      _extras = List<ServicoAdicionalOS>.from(os.adicionais);
+      _incluirExtras = _extras.isNotEmpty;
       // OS já tem duração própria → é ela que manda (e não é sobrescrita).
       if (os.duracaoMin != null) {
         _duracaoMin = os.duracaoMin;
@@ -509,6 +519,10 @@ class _OSFormState extends ConsumerState<OSForm> {
       'valor_servico': valor,
       'profissional': hasProf ? _profissionalId : null,
       'observacoes': _observacoes.text.trim(),
+      // Sempre envia a lista (mesmo vazia no edit) para poder limpar extras.
+      'adicionais': _incluirExtras
+          ? _extras.map((e) => e.toJson()).toList()
+          : <Map<String, dynamic>>[],
     };
     // Concluída/cancelada: NÃO manda data/duração (congeladas no servidor).
     if (!_horarioCongelado) {
@@ -706,8 +720,7 @@ class _OSFormState extends ConsumerState<OSForm> {
               child: Text(
                 'OS ${widget.editing!.status.label.toLowerCase()}: data, hora e '
                 'duração estão congeladas (histórico financeiro). Você ainda '
-                'pode corrigir serviço, valor, profissional e observações. '
-                'Para itens da execução (adicionais/checklist), use Execução.',
+                'pode corrigir serviço, valor, profissional, extras e observações.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: clx.ink2,
                 ),
@@ -865,13 +878,16 @@ class _OSFormState extends ConsumerState<OSForm> {
 
           // Valor.
           _textField(
-            label: 'Valor do serviço (R\$)',
+            label: 'Valor do serviço principal (R\$)',
             required: true,
             controller: _valor,
             errorKey: 'valor',
             hint: '0,00',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
+
+          // Serviços extras (orçamento; o prof registra o valor cobrado no app).
+          _extrasSection(clx),
 
           // Observações.
           _textField(
@@ -880,6 +896,159 @@ class _OSFormState extends ConsumerState<OSForm> {
             hint: 'Detalhes adicionais para o serviço…',
             maxLines: 3,
           ),
+        ],
+      ),
+    );
+  }
+
+  double get _valorPrincipal {
+    return double.tryParse(_valor.text.trim().replaceAll(',', '.')) ?? 0;
+  }
+
+  double get _totalOrcado {
+    final extras = _extras.fold<double>(
+      0,
+      (s, a) => s + a.valor * a.quantidade,
+    );
+    final t = _valorPrincipal + extras;
+    return t < 0 ? 0 : t;
+  }
+
+  String _novoAddId() {
+    final stamp = DateTime.now().toUtc().millisecondsSinceEpoch.toRadixString(
+      36,
+    );
+    final rnd = _rand.nextInt(1 << 28).toRadixString(36);
+    return 'add_${stamp}_$rnd';
+  }
+
+  Future<void> _addExtra() async {
+    final servico = await showAddServicoExtraSheet(context);
+    if (servico == null || !mounted) return;
+    setState(() {
+      _incluirExtras = true;
+      _extras = [
+        ..._extras,
+        ServicoAdicionalOS(
+          id: _novoAddId(),
+          serviceId: servico.id,
+          nome: servico.nome,
+          categoria: servico.categoria,
+          grupo: servico.grupo,
+          valor: servico.valorBase,
+          tipoValor: servico.tipoValor,
+          quantidade: 1,
+          aprovacao: AprovacaoStatus.naoRequer,
+        ),
+      ];
+    });
+  }
+
+  Widget _extrasSection(CleanoxColors clx) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Incluir serviços extras',
+              style: tt.bodyMedium?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Ex.: 2º carro, sofá — orçamento. O profissional registra o '
+              'valor cobrado na conclusão (comissão sobre o pago).',
+              style: tt.bodySmall?.copyWith(color: clx.ink3),
+            ),
+            value: _incluirExtras,
+            onChanged: _saving
+                ? null
+                : (v) => setState(() {
+                      _incluirExtras = v;
+                      if (!v) _extras = const [];
+                    }),
+          ),
+          if (_incluirExtras) ...[
+            const SizedBox(height: ClxSpace.x2),
+            if (_extras.isEmpty)
+              Text(
+                'Nenhum extra ainda. Adicione do catálogo.',
+                style: tt.bodySmall?.copyWith(color: clx.ink3),
+              )
+            else
+              for (final a in _extras)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+                  child: Container(
+                    padding: const EdgeInsets.all(ClxSpace.x3),
+                    decoration: BoxDecoration(
+                      color: clx.bg2,
+                      borderRadius: ClxRadii.rMd,
+                      border: Border.all(color: clx.line),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                a.nome.isEmpty ? 'Serviço extra' : a.nome,
+                                style: tt.bodyMedium?.copyWith(
+                                  color: clx.ink,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                formatCurrency(a.valor * a.quantidade),
+                                style: tt.bodySmall?.copyWith(color: clx.ink2),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remover extra',
+                          onPressed: _saving
+                              ? null
+                              : () => setState(() {
+                                    _extras = [
+                                      for (final x in _extras)
+                                        if (x.id != a.id) x,
+                                    ];
+                                  }),
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: clx.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ClxButton(
+              label: 'Adicionar serviço extra',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.add_circle_outline_rounded,
+              expand: true,
+              onPressed: _saving ? null : _addExtra,
+            ),
+            if (_extras.isNotEmpty) ...[
+              const SizedBox(height: ClxSpace.x2),
+              Text(
+                'Total orçado (principal + extras): '
+                '${formatCurrency(_totalOrcado)}',
+                style: tt.labelMedium?.copyWith(
+                  color: clx.ink,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );

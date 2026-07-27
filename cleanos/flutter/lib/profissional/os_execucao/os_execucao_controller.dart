@@ -569,12 +569,16 @@ class OSExecucaoController
   // ── pagamento ───────────────────────────────────────────────────────────
 
   /// Registra o pagamento a partir da PRÓPRIA tela de execução (pedido do
-  /// dono, 16/07: encerrar por aqui sem voltar à lista). `outro` preenche o
-  /// detalhe da forma "Outros" e limpa ('') nas demais.
+  /// dono, 16/07: encerrar por aqui sem voltar à lista).
+  ///
+  /// [valorServico] e [adicionais] gravam o valor negociado por linha;
+  /// [valor] (`valor_pago`) é a base da comissão e do caixa.
   Future<void> registrarPagamento({
     required double valor,
     required FormaPagamento forma,
     String outro = '',
+    double? valorServico,
+    List<ServicoAdicionalOS>? adicionais,
   }) async {
     final updated = await _repo.patchExec(
       _osId,
@@ -582,9 +586,77 @@ class OSExecucaoController
         valorPago: valor,
         formaPagamento: forma,
         formaPagamentoOutro: outro,
+        valorServico: valorServico,
+        adicionais: adicionais?.map((e) => e.toJson()).toList(),
       ),
     );
     state = state.copyWith(os: updated);
+  }
+
+  /// Remove um serviço extra (cliente desistiu / não será feito): tira de
+  /// `adicionais` e os itens de checklist com aquele `adicionalId`.
+  /// Não altera `valor_pago` — o prof reabre o pagamento se já tiver registrado.
+  Future<void> removerServicoExtra(String adicionalId) async {
+    final os = state.os;
+    if (os == null || adicionalId.isEmpty) return;
+
+    final newAdicionais = [
+      for (final a in os.adicionais)
+        if (a.id != adicionalId) a,
+    ];
+    final newChecklist = [
+      for (final it in state.checklist)
+        if ((it.adicionalId ?? '') != adicionalId) it,
+    ];
+
+    _saveTimer?.cancel();
+    state = state.copyWith(
+      checklist: newChecklist,
+      os: os.copyWith(adicionais: newAdicionais),
+      saveState: SaveState.saving,
+      saveError: null,
+    );
+
+    final serialized = _serialize(newChecklist);
+    try {
+      final updated = await _repo.patchExec(
+        _osId,
+        OSExecPatch(
+          checklistExec: newChecklist.map((e) => e.toJson()).toList(),
+          adicionais: newAdicionais.map((e) => e.toJson()).toList(),
+        ),
+      );
+      _lastSavedChecklist = serialized;
+      // ignore: discarded_futures
+      _clearChecklistBuffer();
+      state = state.copyWith(
+        os: updated.copyWith(
+          adicionais: updated.adicionais.isNotEmpty
+              ? updated.adicionais
+              : newAdicionais,
+        ),
+        checklist: updated.checklistExec.isNotEmpty
+            ? updated.checklistExec
+            : newChecklist,
+        saveState: SaveState.saved,
+        saveError: null,
+      );
+      _savedReset?.cancel();
+      _savedReset = Timer(const Duration(seconds: 2), () {
+        if (state.saveState == SaveState.saved) {
+          state = state.copyWith(saveState: SaveState.idle);
+        }
+      });
+    } catch (err) {
+      final info = describeOSError(err);
+      state = state.copyWith(
+        saveState: SaveState.error,
+        saveError: info.isPermission
+            ? 'Sem permissão para remover serviço nesta OS.'
+            : info.message,
+      );
+      rethrow;
+    }
   }
 
   // ── observações do profissional ─────────────────────────────────────────
@@ -654,23 +726,15 @@ class OSExecucaoController
 
     final newChecklist = [...state.checklist, ...novosItens];
     final newAdicionais = [...os.adicionais, adicional];
-    // Se o pagamento já foi registrado, realinha valor_pago ao total com o
-    // extra — senão a comissão percentual (e o caixa) ficam só no principal.
+    // Não mexe em valor_pago: a comissão usa o valor cobrado no pagamento.
+    // Orçamento sobe; o prof registra o valor negociado ao concluir.
     final osComExtra = os.copyWith(adicionais: newAdicionais);
-    final totalComExtra = osComExtra.valorTotal;
-    final pagoAtual = os.valorPago ?? 0;
-    final precisaSyncPago =
-        pagoAtual > 0 &&
-        totalComExtra > 0 &&
-        (totalComExtra - pagoAtual).abs() > 0.009;
 
     // Cancela debounce pendente — este save é imediato e inclui adicionais.
     _saveTimer?.cancel();
     state = state.copyWith(
       checklist: newChecklist,
-      os: osComExtra.copyWith(
-        valorPago: precisaSyncPago ? totalComExtra : os.valorPago,
-      ),
+      os: osComExtra,
       saveState: SaveState.saving,
       saveError: null,
     );
@@ -682,7 +746,6 @@ class OSExecucaoController
         OSExecPatch(
           checklistExec: newChecklist.map((e) => e.toJson()).toList(),
           adicionais: newAdicionais.map((e) => e.toJson()).toList(),
-          valorPago: precisaSyncPago ? totalComExtra : null,
         ),
       );
       _lastSavedChecklist = serialized;
@@ -726,24 +789,10 @@ class OSExecucaoController
   /// sem repetir o `getExec`: o checklist já está ao vivo em [state]). A UI
   /// só habilita o botão sem obrigatórios pendentes e com pagamento
   /// registrado; o servidor (`os_logic.js`) segue sendo a trava definitiva.
+  ///
+  /// Não sobrescreve `valor_pago`: o valor registrado no pagamento (com
+  /// margem de negociação) é a base da comissão e da receita.
   Future<void> concluir() async {
-    // Garante que valor_pago espelha o total (principal + extras) antes de
-    // fechar — a comissão percentual e a receita via_os usam esse valor.
-    final os = state.os;
-    if (os != null) {
-      final total = os.valorTotal;
-      final pago = os.valorPago ?? 0;
-      if (total > 0 &&
-          pago > 0 &&
-          (total - pago).abs() > 0.009 &&
-          os.formaPagamento != null) {
-        await registrarPagamento(
-          valor: total,
-          forma: os.formaPagamento!,
-          outro: os.formaPagamentoOutro ?? '',
-        );
-      }
-    }
     final updated = await _repo.updateStatus(_osId, OSStatus.concluida);
     state = state.copyWith(os: updated);
   }

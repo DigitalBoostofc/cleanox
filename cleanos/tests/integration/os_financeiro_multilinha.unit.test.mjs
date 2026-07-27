@@ -101,9 +101,9 @@ describe('_linhasReceitaOs — split principal + extras', () => {
     assert.equal(lines.length, 2)
   })
 
-  it('pago: valor_pago defasado (só principal) NÃO esmaga o extra — usa total OS', () => {
-    // Caso Evandro: principal 200 + extra 200, valor_pago ficou 200.
-    // Movimentação deve somar R$ 400 (como a comissão já faz).
+  it('pago: valor_pago abaixo da tabela = caixa real (não infla receita)', () => {
+    // Principal 200 + extra 200 na tabela; cobrou só R$ 200.
+    // Receita e comissão usam valor_pago (caixa).
     const lines = osFin._linhasReceitaOs(
       osRec({
         valor_servico: 200,
@@ -124,8 +124,8 @@ describe('_linhasReceitaOs — split principal + extras', () => {
       true,
     )
     const sum = lines.reduce((a, l) => a + l.valor, 0)
-    assert.equal(lines.length, 2)
-    assert.ok(Math.abs(sum - 400) < 0.01, `soma=${sum} (esperado 400)`)
+    assert.ok(lines.length >= 1)
+    assert.ok(Math.abs(sum - 200) < 0.01, `soma=${sum} (esperado 200)`)
     assert.equal(osFin._valorAlvoReceitaOs(
       osRec({
         valor_servico: 200,
@@ -139,7 +139,7 @@ describe('_linhasReceitaOs — split principal + extras', () => {
           },
         ],
       }),
-    ), 400)
+    ), 200)
   })
 
   it('adicional recusado não entra', () => {

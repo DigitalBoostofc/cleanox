@@ -66,7 +66,27 @@ void main() {
       expect(estimarComissaoOs(mePct, os), 30);
     });
 
-    test('percentual prefere valor_pago quando maior que o total', () {
+    test('percentual usa valor_pago quando registrado (mesmo se menor que tabela)', () {
+      final os = OrdemServico(
+        id: '1',
+        status: OSStatus.concluida,
+        valorServico: 200,
+        valorPago: 130,
+        adicionais: const [
+          ServicoAdicionalOS(
+            id: 'add1',
+            nome: 'Sofá',
+            valor: 150,
+            quantidade: 1,
+            aprovacao: AprovacaoStatus.naoRequer,
+          ),
+        ],
+      );
+      // 10% de 130 (pago), não de 350 (tabela)
+      expect(estimarComissaoOs(mePct, os), 13);
+    });
+
+    test('percentual usa valor_pago quando maior que o total (gorjeta)', () {
       final os = OrdemServico(
         id: '1',
         status: OSStatus.concluida,
