@@ -916,7 +916,7 @@ function sincronizarRepasseCicloPendente(app, profId) {
       periodo +
       " (" +
       g.n +
-      " OS) · em aberto";
+      " OS)";
 
     var existente = null;
     for (var j = 0; j < cands.length; j++) {
