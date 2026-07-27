@@ -708,14 +708,26 @@ class _Dashboard extends StatelessWidget {
       final u = findUser(id);
       final agg = byProf[id];
       final nome = u?.displayName ?? agg?.nome ?? nomeProf(id);
-      final aberto = agg?.aberto ?? 0.0;
       final pago = agg?.pago ?? 0.0;
-      final nAbertas = items
-          .where(
-            (c) =>
-                c.profissional == id && c.status == ComissaoStatus.pendente,
-          )
-          .length;
+      // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
+      final cicloPend = u != null
+          ? comissoesPendentesDoCiclo(u, items)
+          : [
+              for (final c in items)
+                if (c.profissional == id &&
+                    c.status == ComissaoStatus.pendente)
+                  c,
+            ];
+      final cicloDoProf = [
+        for (final c in cicloPend)
+          if (c.profissional == id) c,
+      ];
+      final aberto = cicloDoProf.fold<int>(
+            0,
+            (s, c) => s + (c.valorComissao * 100).round(),
+          ) /
+          100.0;
+      final nAbertas = cicloDoProf.length;
       final nPagas = items
           .where(
             (c) => c.profissional == id && c.status == ComissaoStatus.paga,
@@ -724,6 +736,7 @@ class _Dashboard extends StatelessWidget {
 
       // Previsto: OS abertas com data ≤ próximo pagamento do prof.
       final nextPay = u != null ? proximaDataPagamento(u) : null;
+      final win = u != null ? cicloCorrente(u) : null;
       final prev = u != null
           ? comissaoPrevistaAtribuidas(
               prof: u,
@@ -745,6 +758,7 @@ class _Dashboard extends StatelessWidget {
         previsto: prev.valor,
         nPrevistas: prev.qtdOs,
         proximoPagamentoLabel: fmtPayDay(nextPay),
+        periodoCicloLabel: win?.labelBr ?? '',
         total: aberto + pago + prev.valor,
       );
     }).toList()
@@ -768,6 +782,7 @@ class _Dashboard extends StatelessWidget {
           previsto: r.previsto,
           nPrevistas: r.nPrevistas,
           proximoPagamentoLabel: r.proximoPagamentoLabel,
+          periodoCicloLabel: r.periodoCicloLabel,
           onTap: () => onOpenSheet(_FiltroSheet.todas, profId: r.id),
         ),
         const SizedBox(height: ClxSpace.x2),
@@ -937,6 +952,7 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.previsto,
     required this.nPrevistas,
     required this.proximoPagamentoLabel,
+    this.periodoCicloLabel = '',
     required this.onTap,
   });
 
@@ -951,13 +967,18 @@ class _ProfExtratoCard extends StatelessWidget {
   final double previsto;
   final int nPrevistas;
   final String proximoPagamentoLabel;
+  final String periodoCicloLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final inicial = nome.trim().isNotEmpty ? nome.trim()[0].toUpperCase() : '?';
-    final hintPrevisto = proximoPagamentoLabel.isEmpty
+    final hintPrevisto = periodoCicloLabel.isNotEmpty
+        ? (nPrevistas > 0
+            ? '$nPrevistas OS · ciclo $periodoCicloLabel'
+            : 'Ciclo $periodoCicloLabel')
+        : proximoPagamentoLabel.isEmpty
         ? (nPrevistas > 0
             ? '$nPrevistas OS'
             : 'Sem OS no ciclo')
@@ -1040,8 +1061,12 @@ class _ProfExtratoCard extends StatelessWidget {
                       label: 'Em aberto',
                       valor: aberto,
                       hint: nAbertas > 0
-                          ? '$nAbertas comissão${nAbertas == 1 ? '' : 'ões'}'
-                          : null,
+                          ? (periodoCicloLabel.isNotEmpty
+                                ? '$nAbertas · $periodoCicloLabel'
+                                : '$nAbertas comissão${nAbertas == 1 ? '' : 'ões'}')
+                          : (periodoCicloLabel.isNotEmpty
+                                ? periodoCicloLabel
+                                : null),
                       color: clx.warning,
                     ),
                   ),
@@ -1231,8 +1256,11 @@ class _ComissaoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final paga = item.status == ComissaoStatus.paga;
+    // data da comissão é dia de PAREDE (YYYY-MM-DD / meia-noite UTC),
+    // NÃO instante — formatDate aplicaria −3h e cairia no dia anterior
+    // (ex.: OS domingo 26 → comissão mostrava 25/07).
     final dataLabel = item.data != null && item.data!.isNotEmpty
-        ? formatDate(item.data!)
+        ? formatDateOnlyBr(item.data!)
         : '—';
     final titulo = item.descricao.isNotEmpty ? item.descricao : 'Comissão OS';
 

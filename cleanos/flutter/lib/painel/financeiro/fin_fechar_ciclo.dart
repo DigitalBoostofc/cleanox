@@ -24,6 +24,7 @@ class FecharCicloLinha {
     required this.total,
     this.proximoPagamento,
     this.cicloLabel = '',
+    this.periodoLabel = '',
   });
 
   final User prof;
@@ -32,11 +33,17 @@ class FecharCicloLinha {
   final DateTime? proximoPagamento;
   final String cicloLabel;
 
+  /// Ex.: "20/07 a 26/07/2026" (janela de OS do ciclo).
+  final String periodoLabel;
+
   int get qtd => pendentes.length;
   List<String> get ids => [for (final c in pendentes) c.id];
 }
 
-/// Agrupa comissões pendentes por profissional (só quem tem saldo).
+/// Agrupa comissões **pendentes do ciclo corrente** por profissional.
+///
+/// Semanal (ex. sábado): só OS com data de domingo→sábado atuais.
+/// Assim o "fechar ciclo" e o total batem com o acumulado da semana.
 List<FecharCicloLinha> buildFecharCicloLinhas({
   required List<User> profs,
   required List<ProfComissao> comissoes,
@@ -44,10 +51,22 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
 }) {
   final byId = {for (final u in profs) u.id: u};
   final map = <String, List<ProfComissao>>{};
+
+  // Indexa por prof primeiro (todas pendentes) e depois filtra ciclo.
+  final allPend = <String, List<ProfComissao>>{};
   for (final c in comissoes) {
     if (c.status != ComissaoStatus.pendente) continue;
     if (c.valorComissao <= 0) continue;
-    map.putIfAbsent(c.profissional, () => []).add(c);
+    allPend.putIfAbsent(c.profissional, () => []).add(c);
+  }
+
+  for (final e in allPend.entries) {
+    final u = byId[e.key];
+    final filtradas = u == null
+        ? e.value
+        : comissoesPendentesDoCiclo(u, e.value, now: now);
+    if (filtradas.isEmpty) continue;
+    map[e.key] = filtradas;
   }
 
   final out = <FecharCicloLinha>[];
@@ -63,6 +82,7 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
           (s, c) => s + (c.valorComissao * 100).round(),
         ) /
         100.0;
+    final win = cicloCorrente(u, now: now);
     out.add(
       FecharCicloLinha(
         prof: u,
@@ -70,6 +90,7 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
         total: total,
         proximoPagamento: proximaDataPagamento(u, now: now),
         cicloLabel: cicloPagamentoLabel(u),
+        periodoLabel: win?.labelBr ?? '',
       ),
     );
   }
@@ -419,7 +440,9 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
                                           ),
                                         ),
                                         Text(
-                                          '${l.cicloLabel} · próximo $data',
+                                          l.periodoLabel.isNotEmpty
+                                              ? '${l.cicloLabel} · ${l.periodoLabel}'
+                                              : '${l.cicloLabel} · próximo $data',
                                           style: tt.bodySmall?.copyWith(
                                             color: clx.ink3,
                                           ),

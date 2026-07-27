@@ -190,7 +190,7 @@ function listarLancamentosRepasse(app, profId, ymd) {
         d +
         ' 00:00:00.000Z" && data < "' +
         next +
-        ' 00:00:00.000Z" && descricao ~ "Repasse comissões" && (comissao_id = "" || comissao_id = null)',
+        ' 00:00:00.000Z" && descricao ~ "Repasse" && (comissao_id = "" || comissao_id = null)',
       "created",
       50,
       0,
@@ -276,6 +276,8 @@ function recalcularDespesaRepasse(app, profId, ymd) {
   var cents = 0;
   var profNome = "";
   var n = 0;
+  var minYmd = "";
+  var maxYmd = "";
   for (var i = 0; i < (list || []).length; i++) {
     var c = list[i];
     var v = Number(c.get("valor_comissao") || 0);
@@ -284,6 +286,13 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     n++;
     if (!profNome) {
       profNome = String(c.get("profissional_nome") || "").trim();
+    }
+    var cd = String(c.get("data") || "")
+      .trim()
+      .slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cd)) {
+      if (!minYmd || cd < minYmd) minYmd = cd;
+      if (!maxYmd || cd > maxYmd) maxYmd = cd;
     }
   }
   var total = cents / 100.0;
@@ -322,11 +331,15 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     return null;
   }
 
+  // Período das OS pagas (parede) — ex.: "20/07 a 26/07/2026"
+  var periodo = "";
+  if (minYmd && maxYmd) {
+    periodo = _labelPeriodoBr(minYmd, maxYmd);
+  }
   var descricao =
-    "Repasse comissões · " +
+    "Repasse · " +
     (profNome || p.slice(0, 8)) +
-    " · " +
-    d +
+    (periodo ? " · " + periodo : " · " + _ymdBr(d)) +
     " (" +
     n +
     " OS)";
@@ -613,6 +626,9 @@ function sincronizarLancamento(app, comissao, origStatus) {
     // Só recalcula na transição pendente→paga OU se o valor mudou em paga.
     // Reentrada só por pago_em (velho já paga) ainda precisa upsert 1× (ok).
     recalcularDespesaRepasse(app, profId, pe);
+    try {
+      sincronizarRepasseCicloPendente(app, profId);
+    } catch (_) {}
     return;
   }
 
@@ -636,17 +652,321 @@ function sincronizarLancamento(app, comissao, origStatus) {
       recalcularDespesaRepasse(app, profId, dCom);
     }
   }
+  try {
+    sincronizarRepasseCicloPendente(app, profId);
+  } catch (_) {}
 }
 
 /**
- * Ao criar comissão (OS concluída): **não** gera despesa.
- * A despesa só nasce no repasse (marcar paga / fechar ciclo).
+ * Formata YYYY-MM-DD → dd/MM/yyyy (parede, sem fuso).
+ */
+function _ymdBr(ymd) {
+  var d = String(ymd || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4);
+}
+
+/**
+ * "20/07 a 26/07/2026" (mesmo ano omite ano no início).
+ */
+function _labelPeriodoBr(inicioYmd, fimYmd) {
+  var a = String(inicioYmd || "").slice(0, 10);
+  var b = String(fimYmd || "").slice(0, 10);
+  if (a === b) return _ymdBr(a);
+  if (a.slice(0, 4) === b.slice(0, 4)) {
+    return (
+      a.slice(8, 10) +
+      "/" +
+      a.slice(5, 7) +
+      " a " +
+      _ymdBr(b)
+    );
+  }
+  return _ymdBr(a) + " a " + _ymdBr(b);
+}
+
+/**
+ * Soma N dias a YYYY-MM-DD (calendário UTC, data de parede).
+ */
+function _addDaysYmd(ymd, n) {
+  var p = String(ymd || "")
+    .slice(0, 10)
+    .split("-");
+  if (p.length !== 3) return "";
+  var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  d.setUTCDate(d.getUTCDate() + n);
+  var pad = function (x) {
+    return String(x).padStart(2, "0");
+  };
+  return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+}
+
+/**
+ * Weekday nosso (1=seg … 7=dom) da data parede YYYY-MM-DD.
+ */
+function _ourWeekdayYmd(ymd) {
+  var p = String(ymd || "")
+    .slice(0, 10)
+    .split("-");
+  if (p.length !== 3) return 0;
+  var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  // getUTCDay: 0=dom … 6=sáb → nosso: 7,1,2,3,4,5,6
+  var js = d.getUTCDay();
+  return js === 0 ? 7 : js;
+}
+
+/**
+ * Janela do ciclo corrente do profissional (espelha Flutter cicloCorrente).
+ * Semanal sáb: domingo→sábado. Retorna {inicio, fim} YYYY-MM-DD ou null.
+ */
+function cicloCorrenteDoProf(app, profId) {
+  var u;
+  try {
+    u = app.findRecordById("users", profId);
+  } catch (_) {
+    return null;
+  }
+  var freq = String(u.get("pagamento_frequencia") || "").toLowerCase();
+  if (!freq) return null;
+  var hoje = dataBrtHojeYmd();
+  var dia = Number(u.get("pagamento_dia") || 0);
+
+  if (freq === "diario") {
+    return { inicio: hoje, fim: hoje };
+  }
+  if (freq === "semanal") {
+    var target = dia >= 1 && dia <= 7 ? dia : 5;
+    var w = _ourWeekdayYmd(hoje);
+    var delta = (target - w + 7) % 7;
+    var fim = _addDaysYmd(hoje, delta);
+    var inicio = _addDaysYmd(fim, -6);
+    return { inicio: inicio, fim: fim };
+  }
+  // quinzenal/mensal: fallback 7 dias até o dia de pagamento no mês (simplificado)
+  if (freq === "mensal" || freq === "quinzenal") {
+    var t = dia >= 1 && dia <= 31 ? dia : 15;
+    var parts = hoje.split("-");
+    var y = Number(parts[0]);
+    var m = Number(parts[1]);
+    var day = Number(parts[2]);
+    var last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var payDay = Math.min(t, last);
+    var fimM;
+    var iniM;
+    if (day <= payDay) {
+      fimM =
+        y +
+        "-" +
+        String(m).padStart(2, "0") +
+        "-" +
+        String(payDay).padStart(2, "0");
+      // início = dia após corte do mês anterior
+      var pm = m === 1 ? 12 : m - 1;
+      var py = m === 1 ? y - 1 : y;
+      var plast = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+      var pp = Math.min(t, plast);
+      iniM = _addDaysYmd(
+        py +
+          "-" +
+          String(pm).padStart(2, "0") +
+          "-" +
+          String(pp).padStart(2, "0"),
+        1,
+      );
+    } else {
+      var nm = m === 12 ? 1 : m + 1;
+      var ny = m === 12 ? y + 1 : y;
+      var nlast = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+      var np = Math.min(t, nlast);
+      fimM =
+        ny +
+        "-" +
+        String(nm).padStart(2, "0") +
+        "-" +
+        String(np).padStart(2, "0");
+      iniM = _addDaysYmd(
+        y +
+          "-" +
+          String(m).padStart(2, "0") +
+          "-" +
+          String(payDay).padStart(2, "0"),
+        1,
+      );
+    }
+    return { inicio: iniM, fim: fimM };
+  }
+  return null;
+}
+
+/**
+ * Upsert despesa PENDENTE do ciclo (não mexe no saldo até ficar paga).
+ * Observação chave: repasse_ciclo:YYYY-MM-DD:YYYY-MM-DD
+ * Descrição: "Comissão · Nome · 20/07 a 26/07/2026 (N OS) · em aberto"
+ */
+function sincronizarRepasseCicloPendente(app, profId) {
+  var p = String(profId || "").trim();
+  if (!p) return null;
+  var win = cicloCorrenteDoProf(app, p);
+  if (!win || !win.inicio || !win.fim) return null;
+
+  var list = [];
+  try {
+    list = app.findRecordsByFilter(
+      "prof_comissoes",
+      "profissional = {:pid} && status = 'pendente'",
+      "",
+      500,
+      0,
+      { pid: p },
+    );
+  } catch (_) {
+    list = [];
+  }
+
+  var cents = 0;
+  var n = 0;
+  var profNome = "";
+  for (var i = 0; i < (list || []).length; i++) {
+    var c = list[i];
+    var cd = String(c.get("data") || "")
+      .trim()
+      .slice(0, 10);
+    if (cd < win.inicio || cd > win.fim) continue;
+    var v = Number(c.get("valor_comissao") || 0);
+    if (!(v > 0)) continue;
+    cents += Math.round(v * 100);
+    n++;
+    if (!profNome) {
+      profNome = String(c.get("profissional_nome") || "").trim();
+    }
+  }
+  var total = cents / 100.0;
+  var obsKey = "repasse_ciclo:" + win.inicio + ":" + win.fim;
+
+  // Localiza lançamento pendente do ciclo
+  var existente = null;
+  try {
+    var cands = app.findRecordsByFilter(
+      "fin_lancamentos",
+      'origem = "via_comissao" && status = "pendente" && profissional_id = "' +
+        p.replace(/"/g, '\\"') +
+        '" && observacao ~ "repasse_ciclo:"',
+      "-updated",
+      20,
+      0,
+    );
+    for (var j = 0; j < (cands || []).length; j++) {
+      var o = String(cands[j].get("observacao") || "");
+      if (o.indexOf(obsKey) === 0 || o === obsKey) {
+        existente = cands[j];
+        break;
+      }
+    }
+    // Ciclo antigo pendente (outro período): apaga se total zero no novo
+    if (!existente) {
+      for (var k = 0; k < (cands || []).length; k++) {
+        // limpa órfãos de ciclos passados sem comissão pendente
+        var ok = String(cands[k].get("observacao") || "");
+        if (ok.indexOf("repasse_ciclo:") === 0 && ok !== obsKey) {
+          try {
+            app.delete(cands[k]);
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (!(total > 0) || n === 0) {
+    if (existente) {
+      try {
+        app.delete(existente);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  if (!profNome) {
+    try {
+      var u = app.findRecordById("users", p);
+      profNome = String(u.get("name") || u.get("nome") || "");
+    } catch (_) {}
+  }
+
+  var cats = acharCategoriaComissao(app);
+  if (!cats || !cats.categoriaId) return null;
+  var contaId = acharConta(app);
+  if (!contaId) return null;
+
+  var periodo = _labelPeriodoBr(win.inicio, win.fim);
+  var descricao =
+    "Comissão · " +
+    (profNome || p.slice(0, 8)) +
+    " · " +
+    periodo +
+    " (" +
+    n +
+    " OS) · em aberto";
+
+  if (existente) {
+    var mudou = false;
+    if (Number(existente.get("valor") || 0) !== total) {
+      existente.set("valor", total);
+      mudou = true;
+    }
+    if (String(existente.get("descricao") || "") !== descricao) {
+      existente.set("descricao", descricao);
+      mudou = true;
+    }
+    if (String(existente.get("data") || "").slice(0, 10) !== win.fim) {
+      existente.set("data", win.fim);
+      mudou = true;
+    }
+    if (mudou) app.save(existente);
+    return existente;
+  }
+
+  var col = app.findCollectionByNameOrId("fin_lancamentos");
+  var lanc = new Record(col);
+  lanc.set("tipo", "despesa");
+  lanc.set("descricao", descricao);
+  lanc.set("categoria_id", cats.categoriaId);
+  lanc.set("subcategoria_id", cats.subcategoriaId || "");
+  lanc.set("valor", total);
+  lanc.set("conta_id", contaId);
+  lanc.set("data", win.fim); // data do pagamento previsto (fim do ciclo)
+  lanc.set("status", "pendente");
+  lanc.set("recorrencia", "unica");
+  lanc.set("origem", "via_comissao");
+  lanc.set("comissao_id", "");
+  lanc.set("os_id", "");
+  lanc.set("observacao", obsKey);
+  try {
+    lanc.set("profissional_id", p);
+  } catch (_) {}
+  app.save(lanc);
+  console.log(
+    "[comissao-pago] ciclo pendente " +
+      lanc.id +
+      " · " +
+      (profNome || p) +
+      " · R$ " +
+      total +
+      " · " +
+      periodo,
+  );
+  return lanc;
+}
+
+/**
+ * Ao criar comissão (OS concluída): atualiza acumulado pendente do ciclo
+ * em Movimentações (status pendente — sem debitar saldo).
+ * Se já nascer "paga", gera repasse pago do dia.
  */
 function onComissaoCriada(app, comissao) {
   const st = String(comissao.get("status") || "");
+  const profId = String(comissao.get("profissional") || "").trim();
   // Só se já nascer "paga" (raro): gera/atualiza repasse do dia.
   if (st === "paga") {
-    const profId = String(comissao.get("profissional") || "").trim();
     var pe = String(comissao.get("pago_em") || "")
       .trim()
       .slice(0, 10);
@@ -658,8 +978,13 @@ function onComissaoCriada(app, comissao) {
       } catch (_) {}
     }
     if (profId) recalcularDespesaRepasse(app, profId, pe);
+  } else if (profId) {
+    try {
+      sincronizarRepasseCicloPendente(app, profId);
+    } catch (err) {
+      console.error("[comissao-pago] ciclo pendente (create): " + err);
+    }
   }
-  // pendente: sem despesa — acumula só em Equipe / prof_comissoes
 }
 
 /**
@@ -884,4 +1209,6 @@ module.exports = {
   realinharDatasComissaoComOs,
   realinharCategoriasComissao,
   acharCategoriaComissao,
+  sincronizarRepasseCicloPendente,
+  cicloCorrenteDoProf,
 };
