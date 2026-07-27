@@ -716,10 +716,10 @@ function _ourWeekdayYmd(ymd) {
 }
 
 /**
- * Janela do ciclo corrente do profissional (espelha Flutter cicloCorrente).
- * Semanal sáb: domingo→sábado. Retorna {inicio, fim} YYYY-MM-DD ou null.
+ * Janela do ciclo do profissional em torno de [refYmd] (YYYY-MM-DD).
+ * Semanal sáb: domingo→sábado. Retorna {inicio, fim} ou null.
  */
-function cicloCorrenteDoProf(app, profId) {
+function cicloDoProfEm(app, profId, refYmd) {
   var u;
   try {
     u = app.findRecordById("users", profId);
@@ -728,24 +728,25 @@ function cicloCorrenteDoProf(app, profId) {
   }
   var freq = String(u.get("pagamento_frequencia") || "").toLowerCase();
   if (!freq) return null;
-  var hoje = dataBrtHojeYmd();
+  var ref = String(refYmd || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ref)) ref = dataBrtHojeYmd();
   var dia = Number(u.get("pagamento_dia") || 0);
 
   if (freq === "diario") {
-    return { inicio: hoje, fim: hoje };
+    return { inicio: ref, fim: ref };
   }
   if (freq === "semanal") {
     var target = dia >= 1 && dia <= 7 ? dia : 5;
-    var w = _ourWeekdayYmd(hoje);
+    var w = _ourWeekdayYmd(ref);
     var delta = (target - w + 7) % 7;
-    var fim = _addDaysYmd(hoje, delta);
+    var fim = _addDaysYmd(ref, delta);
     var inicio = _addDaysYmd(fim, -6);
     return { inicio: inicio, fim: fim };
   }
-  // quinzenal/mensal: fallback 7 dias até o dia de pagamento no mês (simplificado)
+  // quinzenal/mensal: corte no dia configurado
   if (freq === "mensal" || freq === "quinzenal") {
     var t = dia >= 1 && dia <= 31 ? dia : 15;
-    var parts = hoje.split("-");
+    var parts = ref.split("-");
     var y = Number(parts[0]);
     var m = Number(parts[1]);
     var day = Number(parts[2]);
@@ -760,7 +761,6 @@ function cicloCorrenteDoProf(app, profId) {
         String(m).padStart(2, "0") +
         "-" +
         String(payDay).padStart(2, "0");
-      // início = dia após corte do mês anterior
       var pm = m === 1 ? 12 : m - 1;
       var py = m === 1 ? y - 1 : y;
       var plast = new Date(Date.UTC(py, pm, 0)).getUTCDate();
@@ -798,16 +798,19 @@ function cicloCorrenteDoProf(app, profId) {
   return null;
 }
 
+function cicloCorrenteDoProf(app, profId) {
+  return cicloDoProfEm(app, profId, dataBrtHojeYmd());
+}
+
 /**
- * Upsert despesa PENDENTE do ciclo (não mexe no saldo até ficar paga).
- * Observação chave: repasse_ciclo:YYYY-MM-DD:YYYY-MM-DD
- * Descrição: "Comissão · Nome · 20/07 a 26/07/2026 (N OS) · em aberto"
+ * Upsert despesa PENDENTE em Movimentações para CADA semana/ciclo com
+ * comissão não paga. Data do lançamento = dia do pagamento (fim do ciclo).
+ * Status pendente (mão 👎) até baixar em Equipe → vira repasse pago.
+ * Observação: repasse_ciclo:YYYY-MM-DD:YYYY-MM-DD
  */
 function sincronizarRepasseCicloPendente(app, profId) {
   var p = String(profId || "").trim();
   if (!p) return null;
-  var win = cicloCorrenteDoProf(app, p);
-  if (!win || !win.inicio || !win.fim) return null;
 
   var list = [];
   try {
@@ -823,138 +826,160 @@ function sincronizarRepasseCicloPendente(app, profId) {
     list = [];
   }
 
-  var cents = 0;
-  var n = 0;
-  var profNome = "";
+  // Agrupa pendentes por janela de ciclo (todas as semanas, não só a atual).
+  var grupos = {}; // key inicio_fim → { win, cents, n, profNome }
   for (var i = 0; i < (list || []).length; i++) {
     var c = list[i];
+    var v = Number(c.get("valor_comissao") || 0);
+    if (!(v > 0)) continue;
     var cd = String(c.get("data") || "")
       .trim()
       .slice(0, 10);
-    if (cd < win.inicio || cd > win.fim) continue;
-    var v = Number(c.get("valor_comissao") || 0);
-    if (!(v > 0)) continue;
-    cents += Math.round(v * 100);
-    n++;
-    if (!profNome) {
-      profNome = String(c.get("profissional_nome") || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cd)) cd = dataBrtHojeYmd();
+    var win = cicloDoProfEm(app, p, cd);
+    if (!win || !win.inicio || !win.fim) continue;
+    var gkey = win.inicio + "_" + win.fim;
+    if (!grupos[gkey]) {
+      grupos[gkey] = {
+        win: win,
+        cents: 0,
+        n: 0,
+        profNome: String(c.get("profissional_nome") || "").trim(),
+      };
+    }
+    grupos[gkey].cents += Math.round(v * 100);
+    grupos[gkey].n++;
+    if (!grupos[gkey].profNome) {
+      grupos[gkey].profNome = String(c.get("profissional_nome") || "").trim();
     }
   }
-  var total = cents / 100.0;
-  var obsKey = "repasse_ciclo:" + win.inicio + ":" + win.fim;
 
-  // Localiza lançamento pendente do ciclo
-  var existente = null;
+  var keysAtivos = {};
+  var gKeys = Object.keys(grupos);
+  for (var gi = 0; gi < gKeys.length; gi++) {
+    keysAtivos["repasse_ciclo:" + grupos[gKeys[gi]].win.inicio + ":" + grupos[gKeys[gi]].win.fim] = true;
+  }
+
+  // Lista lançamentos pendentes de ciclo deste prof
+  var cands = [];
   try {
-    var cands = app.findRecordsByFilter(
+    cands = app.findRecordsByFilter(
       "fin_lancamentos",
       'origem = "via_comissao" && status = "pendente" && profissional_id = "' +
         p.replace(/"/g, '\\"') +
         '" && observacao ~ "repasse_ciclo:"',
       "-updated",
-      20,
+      100,
       0,
-    );
-    for (var j = 0; j < (cands || []).length; j++) {
-      var o = String(cands[j].get("observacao") || "");
-      if (o.indexOf(obsKey) === 0 || o === obsKey) {
-        existente = cands[j];
-        break;
-      }
-    }
-    // Ciclo antigo pendente (outro período): apaga se total zero no novo
-    if (!existente) {
-      for (var k = 0; k < (cands || []).length; k++) {
-        // limpa órfãos de ciclos passados sem comissão pendente
-        var ok = String(cands[k].get("observacao") || "");
-        if (ok.indexOf("repasse_ciclo:") === 0 && ok !== obsKey) {
-          try {
-            app.delete(cands[k]);
-          } catch (_) {}
-        }
-      }
-    }
-  } catch (_) {}
+    ) || [];
+  } catch (_) {
+    cands = [];
+  }
 
-  if (!(total > 0) || n === 0) {
-    if (existente) {
+  // Remove órfãos (semana sem pendente)
+  for (var k = 0; k < cands.length; k++) {
+    var ok = String(cands[k].get("observacao") || "");
+    if (ok.indexOf("repasse_ciclo:") !== 0) continue;
+    if (!keysAtivos[ok]) {
       try {
-        app.delete(existente);
+        app.delete(cands[k]);
+        console.log("[comissao-pago] ciclo órfão removido " + cands[k].id);
       } catch (_) {}
     }
-    return null;
   }
 
-  if (!profNome) {
-    try {
-      var u = app.findRecordById("users", p);
-      profNome = String(u.get("name") || u.get("nome") || "");
-    } catch (_) {}
-  }
+  if (gKeys.length === 0) return null;
+
+  var profNome = "";
+  try {
+    var u = app.findRecordById("users", p);
+    profNome = String(u.get("name") || u.get("nome") || "");
+  } catch (_) {}
 
   var cats = acharCategoriaComissao(app);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
 
-  var periodo = _labelPeriodoBr(win.inicio, win.fim);
-  var descricao =
-    "Comissão · " +
-    (profNome || p.slice(0, 8)) +
-    " · " +
-    periodo +
-    " (" +
-    n +
-    " OS) · em aberto";
+  var lastSaved = null;
+  for (var gii = 0; gii < gKeys.length; gii++) {
+    var g = grupos[gKeys[gii]];
+    var total = g.cents / 100.0;
+    if (!(total > 0) || g.n === 0) continue;
+    var obsKey = "repasse_ciclo:" + g.win.inicio + ":" + g.win.fim;
+    var periodo = _labelPeriodoBr(g.win.inicio, g.win.fim);
+    var nome = g.profNome || profNome || p.slice(0, 8);
+    var descricao =
+      "Comissão · " +
+      nome +
+      " · " +
+      periodo +
+      " (" +
+      g.n +
+      " OS) · em aberto";
 
-  if (existente) {
-    var mudou = false;
-    if (Number(existente.get("valor") || 0) !== total) {
-      existente.set("valor", total);
-      mudou = true;
+    var existente = null;
+    for (var j = 0; j < cands.length; j++) {
+      if (String(cands[j].get("observacao") || "") === obsKey) {
+        existente = cands[j];
+        break;
+      }
     }
-    if (String(existente.get("descricao") || "") !== descricao) {
-      existente.set("descricao", descricao);
-      mudou = true;
+
+    if (existente) {
+      var mudou = false;
+      if (Number(existente.get("valor") || 0) !== total) {
+        existente.set("valor", total);
+        mudou = true;
+      }
+      if (String(existente.get("descricao") || "") !== descricao) {
+        existente.set("descricao", descricao);
+        mudou = true;
+      }
+      // Data = dia do vencimento/pagamento (fim do ciclo) — aparece no dia 25 etc.
+      if (String(existente.get("data") || "").slice(0, 10) !== g.win.fim) {
+        existente.set("data", g.win.fim);
+        mudou = true;
+      }
+      if (mudou) app.save(existente);
+      lastSaved = existente;
+      continue;
     }
-    if (String(existente.get("data") || "").slice(0, 10) !== win.fim) {
-      existente.set("data", win.fim);
-      mudou = true;
-    }
-    if (mudou) app.save(existente);
-    return existente;
+
+    var col = app.findCollectionByNameOrId("fin_lancamentos");
+    var lanc = new Record(col);
+    lanc.set("tipo", "despesa");
+    lanc.set("descricao", descricao);
+    lanc.set("categoria_id", cats.categoriaId);
+    lanc.set("subcategoria_id", cats.subcategoriaId || "");
+    lanc.set("valor", total);
+    lanc.set("conta_id", contaId);
+    lanc.set("data", g.win.fim);
+    lanc.set("status", "pendente");
+    lanc.set("recorrencia", "unica");
+    lanc.set("origem", "via_comissao");
+    lanc.set("comissao_id", "");
+    lanc.set("os_id", "");
+    lanc.set("observacao", obsKey);
+    try {
+      lanc.set("profissional_id", p);
+    } catch (_) {}
+    app.save(lanc);
+    console.log(
+      "[comissao-pago] ciclo pendente " +
+        lanc.id +
+        " · " +
+        nome +
+        " · R$ " +
+        total +
+        " · " +
+        periodo +
+        " · vence " +
+        g.win.fim,
+    );
+    lastSaved = lanc;
   }
-
-  var col = app.findCollectionByNameOrId("fin_lancamentos");
-  var lanc = new Record(col);
-  lanc.set("tipo", "despesa");
-  lanc.set("descricao", descricao);
-  lanc.set("categoria_id", cats.categoriaId);
-  lanc.set("subcategoria_id", cats.subcategoriaId || "");
-  lanc.set("valor", total);
-  lanc.set("conta_id", contaId);
-  lanc.set("data", win.fim); // data do pagamento previsto (fim do ciclo)
-  lanc.set("status", "pendente");
-  lanc.set("recorrencia", "unica");
-  lanc.set("origem", "via_comissao");
-  lanc.set("comissao_id", "");
-  lanc.set("os_id", "");
-  lanc.set("observacao", obsKey);
-  try {
-    lanc.set("profissional_id", p);
-  } catch (_) {}
-  app.save(lanc);
-  console.log(
-    "[comissao-pago] ciclo pendente " +
-      lanc.id +
-      " · " +
-      (profNome || p) +
-      " · R$ " +
-      total +
-      " · " +
-      periodo,
-  );
-  return lanc;
+  return lastSaved;
 }
 
 /**
@@ -1211,4 +1236,5 @@ module.exports = {
   acharCategoriaComissao,
   sincronizarRepasseCicloPendente,
   cicloCorrenteDoProf,
+  cicloDoProfEm,
 };
