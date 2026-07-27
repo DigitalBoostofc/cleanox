@@ -355,6 +355,123 @@ List<ProfComissao> comissoesPendentesDoCiclo(
   ];
 }
 
+/// Ciclo de pagamento que contém a data de parede [ymd] (YYYY-MM-DD).
+CicloPagamentoWindow? cicloQueContemYmd(User me, String ymd) {
+  final d = ymd.length >= 10 ? ymd.substring(0, 10) : ymd;
+  if (d.length < 10) return cicloCorrente(me);
+  final y = int.tryParse(d.substring(0, 4));
+  final m = int.tryParse(d.substring(5, 7));
+  final day = int.tryParse(d.substring(8, 10));
+  if (y == null || m == null || day == null) return cicloCorrente(me);
+  // 15:00 UTC ≈ meio-dia BRT — evita virar o dia civil no brtWallDate.
+  return cicloCorrente(me, now: DateTime.utc(y, m, day, 15));
+}
+
+/// Uma semana/ciclo de comissões (para extrato por profissional).
+class SemanaComissaoGrupo {
+  const SemanaComissaoGrupo({
+    required this.janela,
+    required this.itens,
+  });
+
+  final CicloPagamentoWindow janela;
+  final List<ProfComissao> itens;
+
+  String get label => janela.labelBr;
+  String get key => '${janela.inicioYmd}_${janela.fimYmd}';
+
+  double get total =>
+      itens.fold<int>(0, (s, c) => s + (c.valorComissao * 100).round()) /
+      100.0;
+
+  double get totalAberto =>
+      itens
+          .where((c) => c.status == ComissaoStatus.pendente)
+          .fold<int>(0, (s, c) => s + (c.valorComissao * 100).round()) /
+      100.0;
+
+  double get totalPago =>
+      itens
+          .where((c) => c.status == ComissaoStatus.paga)
+          .fold<int>(0, (s, c) => s + (c.valorComissao * 100).round()) /
+      100.0;
+
+  int get qtd => itens.length;
+}
+
+/// Agrupa comissões do profissional por **semana/ciclo de pagamento**.
+///
+/// Semanal (sábado): cada grupo = domingo→sábado. Mais recente primeiro.
+/// Sem ciclo configurado: agrupa por semana civil seg→dom da data da OS.
+List<SemanaComissaoGrupo> agruparComissoesPorCiclo(
+  User me,
+  List<ProfComissao> comissoes, {
+  DateTime? now,
+  bool jaFiltradoPorProf = false,
+}) {
+  final source = jaFiltradoPorProf
+      ? comissoes
+      : [
+          for (final c in comissoes)
+            if (c.profissional == me.id) c,
+        ];
+
+  final byKey = <String, List<ProfComissao>>{};
+  final winByKey = <String, CicloPagamentoWindow>{};
+
+  for (final c in source) {
+    final ymd = comissaoYmd(c);
+    CicloPagamentoWindow? w;
+    if (me.pagamentoFrequencia != null) {
+      w = ymd.isEmpty
+          ? cicloCorrente(me, now: now)
+          : cicloQueContemYmd(me, ymd);
+    }
+    w ??= _semanaCivilFallback(ymd, now: now);
+    final k = '${w.inicioYmd}_${w.fimYmd}';
+    byKey.putIfAbsent(k, () => []).add(c);
+    winByKey[k] = w;
+  }
+
+  final keys = byKey.keys.toList()
+    ..sort((a, b) => b.compareTo(a)); // fim mais recente primeiro
+
+  return [
+    for (final k in keys)
+      SemanaComissaoGrupo(
+        janela: winByKey[k]!,
+        itens: () {
+          final itens = List<ProfComissao>.from(byKey[k]!);
+          itens.sort((a, b) {
+            final da = comissaoYmd(a);
+            final db = comissaoYmd(b);
+            final cmp = db.compareTo(da);
+            if (cmp != 0) return cmp;
+            return b.valorComissao.compareTo(a.valorComissao);
+          });
+          return itens;
+        }(),
+      ),
+  ];
+}
+
+/// Semana civil seg→dom quando o prof não tem ciclo configurado.
+CicloPagamentoWindow _semanaCivilFallback(String ymd, {DateTime? now}) {
+  DateTime base;
+  if (ymd.length >= 10) {
+    final y = int.tryParse(ymd.substring(0, 4)) ?? 1970;
+    final m = int.tryParse(ymd.substring(5, 7)) ?? 1;
+    final d = int.tryParse(ymd.substring(8, 10)) ?? 1;
+    base = DateTime.utc(y, m, d);
+  } else {
+    base = brtWallDate(now ?? DateTime.now());
+  }
+  // DateTime.weekday: 1=seg … 7=dom
+  final inicio = base.subtract(Duration(days: base.weekday - 1));
+  final fim = inicio.add(const Duration(days: 6));
+  return CicloPagamentoWindow(inicio: inicio, fim: fim);
+}
+
 /// String UTC PB meia-noite BRT do dia [d] (d é BRT naive utc).
 String _pbStartOfDay(DateTime d) {
   // meia-noite BRT = 03:00 UTC
