@@ -191,6 +191,170 @@ String formatProximoPagamento(DateTime d) {
   return '${p(d.day)}/${p(d.month)}/${d.year}';
 }
 
+String _ymd(DateTime d) {
+  String p(int n) => n.toString().padLeft(2, '0');
+  return '${d.year.toString().padLeft(4, '0')}-${p(d.month)}-${p(d.day)}';
+}
+
+String _ymdBr(DateTime d) {
+  String p(int n) => n.toString().padLeft(2, '0');
+  return '${p(d.day)}/${p(d.month)}/${d.year}';
+}
+
+/// Janela do ciclo de pagamento **corrente** (datas de parede BRT).
+///
+/// Semanal com pagamento no sábado: **domingo → sábado** (7 dias).
+/// No dia seguinte ao pagamento o contador recomeça do zero.
+class CicloPagamentoWindow {
+  const CicloPagamentoWindow({required this.inicio, required this.fim});
+
+  /// Inclusivo (UTC naive = dia civil BRT).
+  final DateTime inicio;
+  final DateTime fim;
+
+  String get inicioYmd => _ymd(inicio);
+  String get fimYmd => _ymd(fim);
+
+  /// Ex.: "20/07 a 26/07/2026"
+  String get labelBr {
+    if (inicioYmd == fimYmd) return _ymdBr(inicio);
+    final sameYear = inicio.year == fim.year;
+    final a = sameYear
+        ? '${inicio.day.toString().padLeft(2, '0')}/${inicio.month.toString().padLeft(2, '0')}'
+        : _ymdBr(inicio);
+    return '$a a ${_ymdBr(fim)}';
+  }
+
+  bool contemYmd(String ymd) {
+    final d = ymd.length >= 10 ? ymd.substring(0, 10) : ymd;
+    if (d.length < 10) return false;
+    return d.compareTo(inicioYmd) >= 0 && d.compareTo(fimYmd) <= 0;
+  }
+}
+
+/// Ciclo corrente que contém [now] (ou o que fecha no próximo payday).
+///
+/// - **diário**: só o dia de hoje
+/// - **semanal**: 7 dias terminando no weekday de pagamento (ex. sáb → dom…sáb)
+/// - **quinzenal / mensal**: do dia seguinte ao corte anterior até o corte
+CicloPagamentoWindow? cicloCorrente(User me, {DateTime? now}) {
+  final freq = me.pagamentoFrequencia;
+  if (freq == null) return null;
+  final hoje = brtWallDate(now ?? DateTime.now());
+
+  switch (freq) {
+    case PagamentoFrequencia.diario:
+      return CicloPagamentoWindow(inicio: hoje, fim: hoje);
+    case PagamentoFrequencia.semanal:
+      final target = pagamentoDiaEfetivo(me).clamp(1, 7);
+      // Fim = próximo target **incluindo hoje** se já for o dia de pagamento.
+      final delta = (target - hoje.weekday + 7) % 7;
+      final fim = hoje.add(Duration(days: delta));
+      final inicio = fim.subtract(const Duration(days: 6));
+      return CicloPagamentoWindow(inicio: inicio, fim: fim);
+    case PagamentoFrequencia.mensal:
+      final target = pagamentoDiaEfetivo(me).clamp(1, 31);
+      final thisLast = lastDayOfMonth(hoje.year, hoje.month).day;
+      final thisPayDay = target.clamp(1, thisLast);
+      final thisPay = DateTime.utc(hoje.year, hoje.month, thisPayDay);
+      if (!hoje.isAfter(thisPay)) {
+        // Ainda no ciclo que fecha este mês: início = dia após o corte do mês passado.
+        final prevLast = lastDayOfMonth(hoje.year, hoje.month - 1).day;
+        final prevPayDay = target.clamp(1, prevLast);
+        final prevPay = DateTime.utc(hoje.year, hoje.month - 1, prevPayDay);
+        return CicloPagamentoWindow(
+          inicio: prevPay.add(const Duration(days: 1)),
+          fim: thisPay,
+        );
+      }
+      // Já passou o corte deste mês → ciclo até o próximo mês.
+      final nextLast = lastDayOfMonth(hoje.year, hoje.month + 1).day;
+      final nextPay = DateTime.utc(
+        hoje.year,
+        hoje.month + 1,
+        target.clamp(1, nextLast),
+      );
+      return CicloPagamentoWindow(
+        inicio: thisPay.add(const Duration(days: 1)),
+        fim: nextPay,
+      );
+    case PagamentoFrequencia.quinzenal:
+      final d1 = pagamentoDiaEfetivo(me).clamp(1, 31);
+      final d2raw = pagamentoDia2Efetivo(me);
+      final lm = lastDayOfMonth(hoje.year, hoje.month).day;
+      final d2 = d2raw == 0 ? lm : d2raw.clamp(1, lm);
+      final cuts = <DateTime>[
+        DateTime.utc(hoje.year, hoje.month, d1.clamp(1, lm)),
+        DateTime.utc(hoje.year, hoje.month, d2),
+      ]..sort((a, b) => a.compareTo(b));
+      // Próximo corte ≥ hoje (inclui hoje).
+      DateTime? fim;
+      for (final c in cuts) {
+        if (!c.isBefore(hoje)) {
+          fim = c;
+          break;
+        }
+      }
+      fim ??= () {
+        final nlm = lastDayOfMonth(hoje.year, hoje.month + 1).day;
+        final nd2 = d2raw == 0 ? nlm : d2raw.clamp(1, nlm);
+        final nextCuts = <DateTime>[
+          DateTime.utc(hoje.year, hoje.month + 1, d1.clamp(1, nlm)),
+          DateTime.utc(hoje.year, hoje.month + 1, nd2),
+        ]..sort((a, b) => a.compareTo(b));
+        return nextCuts.first;
+      }();
+      // Início = dia após o corte anterior.
+      final allPrev = <DateTime>[
+        DateTime.utc(hoje.year, hoje.month - 1, d1.clamp(1, lastDayOfMonth(hoje.year, hoje.month - 1).day)),
+        DateTime.utc(
+          hoje.year,
+          hoje.month - 1,
+          d2raw == 0
+              ? lastDayOfMonth(hoje.year, hoje.month - 1).day
+              : d2raw.clamp(1, lastDayOfMonth(hoje.year, hoje.month - 1).day),
+        ),
+        ...cuts,
+      ]..sort((a, b) => a.compareTo(b));
+      DateTime inicio = fim.subtract(const Duration(days: 14));
+      for (final c in allPrev.reversed) {
+        if (c.isBefore(fim)) {
+          inicio = c.add(const Duration(days: 1));
+          break;
+        }
+      }
+      return CicloPagamentoWindow(inicio: inicio, fim: fim);
+  }
+}
+
+/// Parte-data YYYY-MM-DD da comissão (parede — sem fuso).
+String comissaoYmd(ProfComissao c) {
+  final raw = (c.data ?? c.created ?? '').trim();
+  return raw.length >= 10 ? raw.substring(0, 10) : '';
+}
+
+/// Pendentes cuja data de OS cai no ciclo corrente.
+List<ProfComissao> comissoesPendentesDoCiclo(
+  User me,
+  List<ProfComissao> comissoes, {
+  DateTime? now,
+}) {
+  final w = cicloCorrente(me, now: now);
+  if (w == null) {
+    return [
+      for (final c in comissoes)
+        if (c.status == ComissaoStatus.pendente && c.valorComissao > 0) c,
+    ];
+  }
+  return [
+    for (final c in comissoes)
+      if (c.status == ComissaoStatus.pendente && c.valorComissao > 0)
+        // Sem data gravada (legado): entra no ciclo atual para não sumir
+        // do "Fechar ciclo" / Equipe.
+        if (comissaoYmd(c).isEmpty || w.contemYmd(comissaoYmd(c))) c,
+  ];
+}
+
 /// String UTC PB meia-noite BRT do dia [d] (d é BRT naive utc).
 String _pbStartOfDay(DateTime d) {
   // meia-noite BRT = 03:00 UTC

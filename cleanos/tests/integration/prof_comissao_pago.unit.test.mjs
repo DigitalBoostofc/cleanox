@@ -259,7 +259,7 @@ describe('(a) marcar paga gera 1 despesa de repasse', () => {
     assert.equal(l.get('valor'), 60)
     assert.equal(l.get('profissional_id'), 'prof1')
     assert.equal(l.get('comissao_id') || '', '')
-    assert.match(String(l.get('descricao')), /Repasse comissões/)
+    assert.match(String(l.get('descricao')), /Repasse ·/)
     assert.match(String(l.get('descricao')), /João Pedro/)
   })
 
