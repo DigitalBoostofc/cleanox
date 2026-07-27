@@ -399,6 +399,45 @@ class SemanaComissaoGrupo {
   int get qtd => itens.length;
 }
 
+/// Janelas (semanas/ciclos) que têm comissão **pendente** — para o seletor
+/// de "Fechar ciclo de pagamento". Mais recente primeiro.
+List<CicloPagamentoWindow> listarSemanasComPendentes(
+  List<User> profs,
+  List<ProfComissao> comissoes, {
+  DateTime? now,
+}) {
+  final byId = {for (final u in profs) u.id: u};
+  final map = <String, CicloPagamentoWindow>{};
+  for (final c in comissoes) {
+    if (c.status != ComissaoStatus.pendente || c.valorComissao <= 0) continue;
+    final u = byId[c.profissional];
+    if (u == null) continue;
+    final ymd = comissaoYmd(c);
+    final w = ymd.isEmpty
+        ? cicloCorrente(u, now: now)
+        : (u.pagamentoFrequencia != null
+              ? cicloQueContemYmd(u, ymd)
+              : _semanaCivilFallback(ymd, now: now));
+    if (w == null) continue;
+    map['${w.inicioYmd}_${w.fimYmd}'] = w;
+  }
+  final list = map.values.toList()
+    ..sort((a, b) => b.fimYmd.compareTo(a.fimYmd));
+  return list;
+}
+
+/// Pendentes cuja data de OS cai em [janela] (lista já pode vir filtrada).
+List<ProfComissao> comissoesPendentesNaJanela(
+  List<ProfComissao> comissoes,
+  CicloPagamentoWindow janela,
+) {
+  return [
+    for (final c in comissoes)
+      if (c.status == ComissaoStatus.pendente && c.valorComissao > 0)
+        if (comissaoYmd(c).isEmpty || janela.contemYmd(comissaoYmd(c))) c,
+  ];
+}
+
 /// Agrupa comissões do profissional por **semana/ciclo de pagamento**.
 ///
 /// Semanal (sábado): cada grupo = domingo→sábado. Mais recente primeiro.

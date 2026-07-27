@@ -40,19 +40,20 @@ class FecharCicloLinha {
   List<String> get ids => [for (final c in pendentes) c.id];
 }
 
-/// Agrupa comissões **pendentes do ciclo corrente** por profissional.
+/// Agrupa comissões **pendentes** por profissional.
 ///
-/// Semanal (ex. sábado): só OS com data de domingo→sábado atuais.
-/// Assim o "fechar ciclo" e o total batem com o acumulado da semana.
+/// [janela]: se informada, só OS com data nessa semana/ciclo (escolha do admin).
+/// Se null, usa o ciclo **corrente** de cada profissional.
 List<FecharCicloLinha> buildFecharCicloLinhas({
   required List<User> profs,
   required List<ProfComissao> comissoes,
+  CicloPagamentoWindow? janela,
   DateTime? now,
 }) {
   final byId = {for (final u in profs) u.id: u};
   final map = <String, List<ProfComissao>>{};
 
-  // Indexa por prof primeiro (todas pendentes) e depois filtra ciclo.
+  // Indexa por prof primeiro (todas pendentes) e depois filtra ciclo/semana.
   final allPend = <String, List<ProfComissao>>{};
   for (final c in comissoes) {
     if (c.status != ComissaoStatus.pendente) continue;
@@ -62,9 +63,20 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
 
   for (final e in allPend.entries) {
     final u = byId[e.key];
-    final filtradas = u == null
-        ? e.value
-        : comissoesPendentesDoCiclo(u, e.value, now: now);
+    List<ProfComissao> filtradas;
+    if (u == null) {
+      filtradas = janela == null
+          ? e.value
+          : [
+              for (final c in e.value)
+                if (comissaoYmd(c).isEmpty || janela.contemYmd(comissaoYmd(c)))
+                  c,
+            ];
+    } else if (janela != null) {
+      filtradas = comissoesPendentesNaJanela(e.value, janela);
+    } else {
+      filtradas = comissoesPendentesDoCiclo(u, e.value, now: now);
+    }
     if (filtradas.isEmpty) continue;
     map[e.key] = filtradas;
   }
@@ -82,7 +94,7 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
           (s, c) => s + (c.valorComissao * 100).round(),
         ) /
         100.0;
-    final win = cicloCorrente(u, now: now);
+    final win = janela ?? cicloCorrente(u, now: now);
     out.add(
       FecharCicloLinha(
         prof: u,
@@ -136,6 +148,8 @@ class _FecharCicloSheet extends ConsumerStatefulWidget {
 }
 
 class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
+  late List<CicloPagamentoWindow> _semanas;
+  CicloPagamentoWindow? _semanaSel;
   late List<FecharCicloLinha> _linhas;
   final Set<String> _selectedProf = {};
   bool _paying = false;
@@ -144,12 +158,52 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
   @override
   void initState() {
     super.initState();
+    _semanas = listarSemanasComPendentes(widget.profs, widget.comissoes);
+    // Default: semana atual (primeira da lista = mais recente com pendente).
+    _semanaSel = _semanas.isNotEmpty ? _semanas.first : null;
+    _rebuildLinhas(keepSelection: false);
+  }
+
+  void _rebuildLinhas({bool keepSelection = true}) {
     _linhas = buildFecharCicloLinhas(
       profs: widget.profs,
       comissoes: widget.comissoes,
+      janela: _semanaSel,
     );
-    // Pré-seleciona todos com saldo.
-    _selectedProf.addAll(_linhas.map((l) => l.prof.id));
+    if (!keepSelection) {
+      _selectedProf
+        ..clear()
+        ..addAll(_linhas.map((l) => l.prof.id));
+    } else {
+      // Remove profs que sumiram na nova semana.
+      _selectedProf.removeWhere(
+        (id) => !_linhas.any((l) => l.prof.id == id),
+      );
+      // Se ficou vazio e há linhas, seleciona todas de novo.
+      if (_selectedProf.isEmpty && _linhas.isNotEmpty) {
+        _selectedProf.addAll(_linhas.map((l) => l.prof.id));
+      }
+    }
+  }
+
+  void _onSemanaChanged(CicloPagamentoWindow? w) {
+    if (w == null) return;
+    setState(() {
+      _semanaSel = w;
+      _rebuildLinhas(keepSelection: false);
+    });
+  }
+
+  String _semanaKey(CicloPagamentoWindow w) =>
+      '${w.inicioYmd}_${w.fimYmd}';
+
+  double _totalSemana(CicloPagamentoWindow w) {
+    final linhas = buildFecharCicloLinhas(
+      profs: widget.profs,
+      comissoes: widget.comissoes,
+      janela: w,
+    );
+    return linhas.fold<int>(0, (s, l) => s + (l.total * 100).round()) / 100.0;
   }
 
   double get _totalSelected {
@@ -175,6 +229,7 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
     final ok = await _confirm(
       title: 'Pagar ${l.prof.displayName}?',
       body:
+          '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
           'Marcar ${l.qtd} comissão${l.qtd == 1 ? '' : 'ões'} '
           '(${formatCurrency(l.total)}) como paga?\n'
           'Isso gera despesa no financeiro.',
@@ -222,9 +277,10 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
     final ok = await _confirm(
       title: 'Pagar selecionados?',
       body:
+          '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
           'Marcar $_qtdSelected comissão${_qtdSelected == 1 ? '' : 'ões'} '
           '(${formatCurrency(_totalSelected)}) como paga?\n'
-          'Isso gera despesa no financeiro para cada uma.',
+          'Isso gera despesa no financeiro.',
     );
     if (ok != true || !mounted) return;
     setState(() => _paying = true);
@@ -308,7 +364,7 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
                         ),
                       ),
                       Text(
-                        'Marca comissões pendentes como pagas e gera despesa.',
+                        'Escolha a semana e marque como paga (gera despesa).',
                         style: tt.bodySmall?.copyWith(color: clx.ink2),
                       ),
                     ],
@@ -323,13 +379,60 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
               ],
             ),
             const SizedBox(height: 8),
+            // Seletor de semana (dom→sáb / ciclo do prof)
+            if (_semanas.isNotEmpty) ...[
+              Text(
+                'Semana a pagar',
+                style: tt.labelMedium?.copyWith(
+                  color: clx.ink2,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _semanaSel == null ? null : _semanaKey(_semanaSel!),
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.date_range_rounded),
+                ),
+                hint: const Text('Selecione a semana'),
+                items: [
+                  for (final w in _semanas)
+                    DropdownMenuItem(
+                      value: _semanaKey(w),
+                      child: Text(
+                        '${w.labelBr} · ${formatCurrency(_totalSemana(w))}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: _paying
+                    ? null
+                    : (key) {
+                        if (key == null) return;
+                        for (final w in _semanas) {
+                          if (_semanaKey(w) == key) {
+                            _onSemanaChanged(w);
+                            break;
+                          }
+                        }
+                      },
+              ),
+              const SizedBox(height: 10),
+            ],
             if (_linhas.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: EmptyState(
                   icon: Icons.check_circle_outline,
-                  title: 'Nada a pagar',
-                  message: 'Não há comissões pendentes no momento.',
+                  title: _semanas.isEmpty
+                      ? 'Nada a pagar'
+                      : 'Nada nesta semana',
+                  message: _semanas.isEmpty
+                      ? 'Não há comissões pendentes no momento.'
+                      : 'Escolha outra semana no seletor acima.',
                 ),
               )
             else ...[
@@ -344,6 +447,7 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
                   children: [
                     Expanded(
                       child: Text(
+                        '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
                         '${_selectedProf.length} profissional${_selectedProf.length == 1 ? '' : 'is'} · '
                         '$_qtdSelected comissão${_qtdSelected == 1 ? '' : 'ões'}',
                         style: tt.bodySmall?.copyWith(color: clx.ink2),
