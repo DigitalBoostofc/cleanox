@@ -95,6 +95,35 @@ void main() {
     });
   });
 
+  group('listarSemanasComPendentes', () {
+    test('lista semanas distintas com pendente', () {
+      final semanas = listarSemanasComPendentes(
+        [hendrio],
+        const [
+          ProfComissao(
+            id: 'c1',
+            profissional: 'h1',
+            os: 'a',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-26 00:00:00.000Z',
+          ),
+          ProfComissao(
+            id: 'c2',
+            profissional: 'h1',
+            os: 'b',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-25 00:00:00.000Z',
+          ),
+        ],
+        now: dom26,
+      );
+      expect(semanas.length, greaterThanOrEqualTo(2));
+      expect(semanas.first.fimYmd.compareTo(semanas.last.fimYmd), greaterThan(0));
+    });
+  });
+
   group('agruparComissoesPorCiclo', () {
     test('separa duas semanas e totaliza', () {
       final grupos = agruparComissoesPorCiclo(
