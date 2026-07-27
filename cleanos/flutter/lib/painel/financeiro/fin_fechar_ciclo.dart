@@ -14,6 +14,7 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../profissional/financeiro/prof_pagamento.dart';
 import '../data/painel_providers.dart';
+import 'fin_providers.dart';
 
 /// Linha de um profissional no fechamento do ciclo.
 class FecharCicloLinha {
@@ -274,7 +275,12 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
     if (ok != true || !mounted) return;
     setState(() => _paying = true);
     try {
-      await ref.read(comissaoRepositoryProvider).marcarLotePagas(ids);
+      // Preferência: 1 PATCH na despesa do ciclo (espelha todas as OS no hook).
+      // Evita N updates sequenciais que reentravam e travavam a UI.
+      final pagoViaCiclo = await _pagarViaLancamentoCiclo(u.id, w);
+      if (!pagoViaCiclo) {
+        await ref.read(comissaoRepositoryProvider).marcarLotePagas(ids);
+      }
       if (!mounted) return;
       showClxToast(
         context,
@@ -282,7 +288,6 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
         type: ToastType.success,
       );
       widget.onPaid();
-      // Parent invalidates; fecha sheet para recarregar dados frescos.
       Navigator.of(context).maybePop();
     } catch (_) {
       if (mounted) {
@@ -295,6 +300,33 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
     } finally {
       if (mounted) setState(() => _paying = false);
     }
+  }
+
+  /// Marca a linha `repasse_ciclo:inicio:fim` como paga (1 request).
+  /// Retorna false se não achar o lançamento (fallback para lote de OS).
+  Future<bool> _pagarViaLancamentoCiclo(
+    String profId,
+    CicloPagamentoWindow w,
+  ) async {
+    final obs = 'repasse_ciclo:${w.inicioYmd}:${w.fimYmd}';
+    // Escapa aspas no filter PB.
+    final pid = profId.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+    final obsEsc = obs.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+    final filter =
+        'origem = "via_comissao" && status = "pendente" && '
+        'profissional_id = "$pid" && observacao = "$obsEsc"';
+    final page = await ref.read(financeiroRepositoryProvider).listLancamentos(
+          page: 1,
+          perPage: 5,
+          filter: filter,
+          sort: '-updated',
+        );
+    if (page.items.isEmpty) return false;
+    final id = page.items.first.id;
+    await ref.read(financeiroRepositoryProvider).updateLancamento(id, {
+      'status': 'pago',
+    });
+    return true;
   }
 
   Future<bool?> _confirm({required String title, required String body}) {
