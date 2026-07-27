@@ -164,15 +164,13 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   }
 
   /// Mãozinha Organizze: pago ↔ pendente (atualiza saldo no server via hook).
-  /// OS e comissão: status vem da OS / Equipe — não alterna aqui.
+  /// Via OS: só leitura. Comissão: toggle espelha Equipe.
   Future<void> _togglePago(FinLancamento l) async {
-    if (isLancamentoDependenteExterno(l)) {
+    if (!finPodeTogglePagoNaMovimentacao(l)) {
       if (!mounted) return;
       showClxToast(
         context,
-        isLancamentoComissao(l)
-            ? 'Comissão segue o status em Equipe / comissões.'
-            : 'Receita de OS segue o status da própria OS.',
+        'Receita de OS segue o status da própria OS.',
         type: ToastType.info,
       );
       return;
@@ -191,12 +189,20 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       ref.invalidate(finPeriodLancamentosProvider);
       ref.invalidate(finPrevPeriodResumoProvider);
       ref.invalidate(finPendentesProvider);
+      if (isLancamentoComissao(l)) {
+        ref.invalidate(finComissoesProvider);
+        ref.invalidate(finComissoesPendentesTotalProvider);
+      }
       if (mounted) {
         showClxToast(
           context,
-          novo == LancamentoStatus.pago
-              ? 'Marcado como pago.'
-              : 'Marcado como pendente.',
+          isLancamentoComissao(l)
+              ? (novo == LancamentoStatus.pago
+                    ? 'Comissão marcada como paga (Equipe atualizada).'
+                    : 'Comissão reaberta (Equipe atualizada).')
+              : (novo == LancamentoStatus.pago
+                    ? 'Marcado como pago.'
+                    : 'Marcado como pendente.'),
           type: ToastType.success,
         );
       }
@@ -532,9 +538,10 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
             onDelete: isLancamentoDependenteExterno(row.item!)
                 ? () {}
                 : () => _delete(row.item!),
-            onTogglePago: isLancamentoDependenteExterno(row.item!)
-                ? null
-                : () => _togglePago(row.item!),
+            onTogglePago: finPodeTogglePagoNaMovimentacao(row.item!)
+                ? () => _togglePago(row.item!)
+                : null,
+            // dependente = form read-only (OS + comissão); mão usa onTogglePago.
             dependente: isLancamentoDependenteExterno(row.item!),
           );
   }
@@ -1107,8 +1114,8 @@ class _LancamentoRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Mãozinha: 👍/👎 — OS/comissão só leitura; manual toca.
-                  if (dependente)
+                  // Mãozinha: 👍/👎 — via OS só leitura; manual + comissão tocam.
+                  if (finMostraMaoSomenteLeitura(l) || onTogglePago == null)
                     Tooltip(
                       message: finPagoHandTooltipDependente(l),
                       child: Padding(
@@ -1124,11 +1131,13 @@ class _LancamentoRow extends StatelessWidget {
                     )
                   else
                     Tooltip(
-                      message: pago
-                          ? 'Pago — toque para marcar pendente'
-                          : atrasado
-                              ? 'Em atraso — toque para marcar pago'
-                              : 'Pendente — toque para marcar pago',
+                      message: isLancamentoComissao(l)
+                          ? finPagoHandTooltipDependente(l)
+                          : pago
+                              ? 'Pago — toque para marcar pendente'
+                              : atrasado
+                                  ? 'Em atraso — toque para marcar pago'
+                                  : 'Pendente — toque para marcar pago',
                       child: IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,

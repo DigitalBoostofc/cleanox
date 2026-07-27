@@ -558,24 +558,28 @@ bool isLancamentoViaOs(FinLancamento l) {
   return false;
 }
 
-/// Não editar / não alternar pago↔pendente na movimentação.
+/// Não editar/apagar na movimentação (form detalhe): OS e comissão.
 bool isLancamentoDependenteExterno(FinLancamento l) =>
     isLancamentoComissao(l) || isLancamentoViaOs(l);
 
-/// Via OS ou comissão: mãozinha (👍/👎) só como **indicador** — não é
-/// clicável na movimentação.
-///   • OS → status segue a ordem (concluída = pago)
-///   • Comissão → status segue Equipe (paga = pago)
-bool finMostraMaoSomenteLeitura(FinLancamento l) =>
-    isLancamentoDependenteExterno(l);
+/// Pode clicar na mão 👍/👎 na Movimentação?
+/// - Comissão: **sim** — espelha Equipe (e vice-versa).
+/// - Via OS: **não** — status vem da ordem.
+bool finPodeTogglePagoNaMovimentacao(FinLancamento l) {
+  if (isLancamentoViaOs(l)) return false;
+  return true; // manual + comissão
+}
 
-/// Tooltip da mão quando o status não é editável na movimentação.
+/// Mão só-leitura: apenas receita via OS.
+bool finMostraMaoSomenteLeitura(FinLancamento l) => isLancamentoViaOs(l);
+
+/// Tooltip da mão (OS = só leitura; comissão = toggle com sync Equipe).
 String finPagoHandTooltipDependente(FinLancamento l) {
   final pago = l.status == LancamentoStatus.pago;
   if (isLancamentoComissao(l)) {
     return pago
-        ? 'Pago (marcado em Equipe) — não alterável na movimentação'
-        : 'Não pago (pendente em Equipe) — atualiza ao pagar em Equipe';
+        ? 'Pago — toque para reabrir (atualiza Equipe)'
+        : 'Não pago — toque para marcar paga (atualiza Equipe)';
   }
   if (isLancamentoViaOs(l)) {
     return pago

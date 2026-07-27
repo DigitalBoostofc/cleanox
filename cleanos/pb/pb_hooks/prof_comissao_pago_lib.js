@@ -1013,47 +1013,137 @@ function onComissaoCriada(app, comissao) {
 }
 
 /**
- * Bidirecional: status da despesa via_comissao → status da comissão.
+ * Bidirecional: status da despesa via_comissao → status da(s) comissão(ões).
  * pago → paga; qualquer outro → pendente.
  * Idempotente (só grava se diferir) para não loopar com sincronizarLancamento.
+ *
+ * - 1:1 (comissao_id preenchido): espelha aquela OS.
+ * - Ciclo (repasse_ciclo:inicio:fim + profissional_id): espelha TODAS as OS
+ *   daquela janela do profissional (mão na Movimentação ↔ Equipe).
  */
 function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
   const origem = String(lancamento.get("origem") || "");
   if (origem !== "via_comissao") return;
 
-  const comissaoId = String(lancamento.get("comissao_id") || "").trim();
-  if (!comissaoId) return;
-
   const novoLanc = String(lancamento.get("status") || "");
   const velhoLanc = String(origStatusLanc || "");
   if (novoLanc === velhoLanc) return;
 
-  let comissao;
-  try {
-    comissao = app.findRecordById("prof_comissoes", comissaoId);
-  } catch (_) {
+  const want = novoLanc === "pago" ? "paga" : "pendente";
+  const comissaoId = String(lancamento.get("comissao_id") || "").trim();
+
+  // ── 1:1 por OS ──────────────────────────────────────────────────────────
+  if (comissaoId) {
+    let comissao;
+    try {
+      comissao = app.findRecordById("prof_comissoes", comissaoId);
+    } catch (_) {
+      console.log(
+        "[comissao-pago] comissão " + comissaoId + " não encontrada; skip sync.",
+      );
+      return;
+    }
+    const atual = String(comissao.get("status") || "");
+    if (atual === want) return;
+    comissao.set("status", want);
+    if (want === "paga") {
+      var pe1 = String(lancamento.get("data") || "")
+        .trim()
+        .slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(pe1)) pe1 = dataBrtHojeYmd();
+      comissao.set("pago_em", pe1);
+    } else {
+      try {
+        comissao.set("pago_em", "");
+      } catch (_) {}
+    }
+    app.save(comissao);
     console.log(
-      "[comissao-pago] comissão " + comissaoId + " não encontrada; skip sync.",
+      "[comissao-pago] comissão " +
+        comissaoId +
+        " " +
+        atual +
+        " → " +
+        want +
+        " (via lançamento " +
+        lancamento.id +
+        ")",
     );
     return;
   }
 
-  const want = novoLanc === "pago" ? "paga" : "pendente";
-  const atual = String(comissao.get("status") || "");
-  if (atual === want) return;
+  // ── Ciclo/semana (repasse agregado) ─────────────────────────────────────
+  const obs = String(lancamento.get("observacao") || "").trim();
+  const m = obs.match(/^repasse_ciclo:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})/);
+  const profId = String(lancamento.get("profissional_id") || "").trim();
+  if (!m || !profId) {
+    // Legado: repasse pago sem chave de ciclo — não espelha em lote.
+    return;
+  }
+  const ini = m[1];
+  const fim = m[2];
 
-  comissao.set("status", want);
-  app.save(comissao);
+  let list = [];
+  try {
+    list = app.findRecordsByFilter(
+      "prof_comissoes",
+      "profissional = {:pid}",
+      "",
+      500,
+      0,
+      { pid: profId },
+    );
+  } catch (_) {
+    list = [];
+  }
+
+  var n = 0;
+  for (var i = 0; i < (list || []).length; i++) {
+    var c = list[i];
+    var cd = String(c.get("data") || "")
+      .trim()
+      .slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cd)) continue;
+    if (cd < ini || cd > fim) continue;
+    var atual = String(c.get("status") || "");
+    // Só mexe se o status alvo for o contrário ou se está no status "do ciclo".
+    // Ao pagar: pendente → paga. Ao reabrir: paga → pendente (só as do ciclo).
+    if (want === "paga" && atual === "paga") continue;
+    if (want === "pendente" && atual === "pendente") continue;
+    if (want === "paga" && atual !== "pendente") continue;
+    if (want === "pendente" && atual !== "paga") continue;
+
+    c.set("status", want);
+    if (want === "paga") {
+      // pago_em = data do vencimento do ciclo (aparece no dia certo)
+      c.set("pago_em", fim);
+    } else {
+      try {
+        c.set("pago_em", "");
+      } catch (_) {}
+    }
+    try {
+      app.save(c);
+      n++;
+    } catch (err) {
+      console.error(
+        "[comissao-pago] falha ao espelhar comissão " + c.id + ": " + err,
+      );
+    }
+  }
   console.log(
-    "[comissao-pago] comissão " +
-      comissaoId +
-      " " +
-      atual +
+    "[comissao-pago] ciclo " +
+      ini +
+      "…" +
+      fim +
+      " prof " +
+      profId +
       " → " +
       want +
-      " (via lançamento " +
-      lancamento.id +
-      ")",
+      " (" +
+      n +
+      " OS) via lanç. " +
+      lancamento.id,
   );
 }
 
