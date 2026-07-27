@@ -94,4 +94,47 @@ void main() {
       )), '2026-07-26');
     });
   });
+
+  group('agruparComissoesPorCiclo', () {
+    test('separa duas semanas e totaliza', () {
+      final grupos = agruparComissoesPorCiclo(
+        hendrio,
+        const [
+          ProfComissao(
+            id: 'c1',
+            profissional: 'h1',
+            os: 'a',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-26 00:00:00.000Z', // dom — ciclo 26/07–01/08
+          ),
+          ProfComissao(
+            id: 'c2',
+            profissional: 'h1',
+            os: 'b',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-07-27 00:00:00.000Z', // seg — mesmo ciclo
+          ),
+          ProfComissao(
+            id: 'c3',
+            profissional: 'h1',
+            os: 'c',
+            valorComissao: 90,
+            status: ComissaoStatus.paga,
+            data: '2026-07-25 00:00:00.000Z', // sáb anterior — ciclo 19–25
+          ),
+        ],
+        now: dom26,
+      );
+      expect(grupos, hasLength(2));
+      // Mais recente primeiro
+      expect(grupos[0].janela.inicioYmd, '2026-07-26');
+      expect(grupos[0].total, 120);
+      expect(grupos[0].qtd, 2);
+      expect(grupos[1].janela.fimYmd, '2026-07-25');
+      expect(grupos[1].total, 90);
+      expect(grupos[1].totalPago, 90);
+    });
+  });
 }

@@ -627,8 +627,8 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: ClxSpace.x1),
         Text(
-          'Em aberto, previsto (OS do mês até o próximo pagamento) e pagas. '
-          'Toque para o detalhe.',
+          'Toque no profissional para ver cada semana (OS + total). '
+          'Em aberto = ciclo atual de pagamento.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: clx.ink3),
@@ -1389,12 +1389,21 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
     return id;
   }
 
+  User? _user(List<User> profs, String? id) {
+    if (id == null) return null;
+    for (final u in profs) {
+      if (u.id == id) return u;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
     final items = ref.watch(_comissoesExtratoProvider).valueOrNull ?? const [];
     final profs =
         ref.watch(_comissoesProfissionaisProvider).valueOrNull ?? const [];
+    final prof = _user(profs, widget.profId);
 
     var list = items;
     if (widget.profId != null) {
@@ -1408,6 +1417,15 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
       _FiltroSheet.todas => list,
     };
 
+    // Extrato por prof: agrupa por semana/ciclo (dom→sáb se semanal).
+    final semanas = prof != null
+        ? agruparComissoesPorCiclo(
+            prof,
+            list,
+            jaFiltradoPorProf: true,
+          )
+        : const <SemanaComissaoGrupo>[];
+
     final titulo = widget.profId != null
         ? _nome(profs, widget.profId!)
         : switch (_filtro) {
@@ -1415,6 +1433,12 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
             _FiltroSheet.pagas => 'Comissões pagas',
             _FiltroSheet.todas => 'Todas as comissões',
           };
+
+    final subtitulo = prof != null
+        ? (prof.pagamentoFrequencia != null
+              ? '${cicloPagamentoLabel(prof)} · toque na semana para ver as OS'
+              : 'Agrupado por semana · toque para ver as OS')
+        : null;
 
     return Container(
       decoration: BoxDecoration(
@@ -1443,12 +1467,24 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    titulo,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: clx.ink,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: clx.ink,
+                            ),
+                      ),
+                      if (subtitulo != null)
+                        Text(
+                          subtitulo,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: clx.ink3),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -1493,6 +1529,30 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                       ).textTheme.bodyMedium?.copyWith(color: clx.ink2),
                     ),
                   )
+                : prof != null
+                ? ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(
+                      ClxSpace.x5,
+                      0,
+                      ClxSpace.x5,
+                      ClxSpace.x5,
+                    ),
+                    itemCount: semanas.length,
+                    itemBuilder: (_, i) {
+                      final g = semanas[i];
+                      final atual = cicloCorrente(prof);
+                      final isAtual = atual != null &&
+                          atual.inicioYmd == g.janela.inicioYmd &&
+                          atual.fimYmd == g.janela.fimYmd;
+                      return _SemanaComissaoSection(
+                        grupo: g,
+                        profNome: prof.displayName,
+                        isAtual: isAtual,
+                        onToggle: widget.onToggle,
+                      );
+                    },
+                  )
                 : ListView.separated(
                     shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(
@@ -1515,6 +1575,122 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Seção expansível: uma semana/ciclo com total + lista de OS.
+class _SemanaComissaoSection extends StatefulWidget {
+  const _SemanaComissaoSection({
+    required this.grupo,
+    required this.profNome,
+    required this.onToggle,
+    this.isAtual = false,
+  });
+
+  final SemanaComissaoGrupo grupo;
+  final String profNome;
+  final Future<void> Function(ProfComissao) onToggle;
+  final bool isAtual;
+
+  @override
+  State<_SemanaComissaoSection> createState() => _SemanaComissaoSectionState();
+}
+
+class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
+  late bool _open;
+
+  @override
+  void initState() {
+    super.initState();
+    // Semana atual aberta; anteriores fechadas (rola e expande).
+    _open = widget.isAtual;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final g = widget.grupo;
+    final tt = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x3),
+      child: ClxCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _open = !_open),
+              borderRadius: ClxRadii.rMd,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      _open
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: clx.ink2,
+                    ),
+                    const SizedBox(width: ClxSpace.x2),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  g.label,
+                                  style: tt.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: clx.ink,
+                                  ),
+                                ),
+                              ),
+                              if (widget.isAtual) ...[
+                                const SizedBox(width: ClxSpace.x2),
+                                ClxChip(
+                                  label: 'Semana atual',
+                                  color: clx.primary,
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            '${g.qtd} OS · '
+                            'aberto ${formatCurrency(g.totalAberto)} · '
+                            'pago ${formatCurrency(g.totalPago)}',
+                            style: tt.bodySmall?.copyWith(color: clx.ink3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      formatCurrency(g.total),
+                      style: tt.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: g.totalAberto > 0 ? clx.warning : clx.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_open) ...[
+              const SizedBox(height: ClxSpace.x2),
+              for (var i = 0; i < g.itens.length; i++) ...[
+                if (i > 0) const SizedBox(height: ClxSpace.x2),
+                _ComissaoRow(
+                  item: g.itens[i],
+                  profNome: widget.profNome,
+                  onToggle: () => widget.onToggle(g.itens[i]),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }
