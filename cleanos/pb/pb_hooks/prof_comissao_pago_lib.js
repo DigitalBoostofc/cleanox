@@ -22,6 +22,22 @@
  */
 
 /**
+ * Trava de reentrada: comissão → lançamento → comissão gerava loop eterno
+ * (Fechar ciclo / mão em lote). Enquanto > 0, espelhos e efeitos colaterais
+ * de re-save não disparam o outro lado de novo.
+ */
+var _syncGuard = 0;
+function _beginSync() {
+  _syncGuard++;
+}
+function _endSync() {
+  if (_syncGuard > 0) _syncGuard--;
+}
+function _inSync() {
+  return _syncGuard > 0;
+}
+
+/**
  * Resolve categoria de despesa da comissão/repasse.
  * Retorna { categoriaId, subcategoriaId } — sub sempre vazia ("").
  *
@@ -134,12 +150,12 @@ function _nextDayYmd(ymd) {
 }
 
 /**
- * Lista despesas de **repasse** do prof no dia (via_comissao, sem comissao_id).
+ * Lista despesas de **repasse PAGO** do prof no dia (via_comissao, sem
+ * comissao_id). NÃO inclui linhas de ciclo pendente (`repasse_ciclo:…`) —
+ * misturar as duas gerava "duplicata", apagava o ciclo e reabria OS (loop).
  *
  * IMPORTANTE: `data` no PB grava como `YYYY-MM-DD 00:00:00.000Z`. Filtro
- * `data = 'YYYY-MM-DD'` **não casa** e fazia o upsert sempre CRIAR de novo
- * (explosão de despesas ao marcar lote paga — bug 2026-07-21).
- * Usar janela half-open [dia, dia+1).
+ * `data = 'YYYY-MM-DD'` **não casa** — usar janela half-open [dia, dia+1).
  */
 function listarLancamentosRepasse(app, profId, ymd) {
   const p = String(profId || "").replace(/"/g, '\\"');
@@ -148,11 +164,22 @@ function listarLancamentosRepasse(app, profId, ymd) {
   const next = _nextDayYmd(d);
   if (!next) return [];
 
-  // Preferência: profissional_id + janela de data
+  function _filtrarSemCicloPendente(list) {
+    var out = [];
+    for (var i = 0; i < (list || []).length; i++) {
+      var obs = String(list[i].get("observacao") || "");
+      // Ciclo pendente é outro silo — não consolidar/apagar aqui.
+      if (obs.indexOf("repasse_ciclo:") === 0) continue;
+      out.push(list[i]);
+    }
+    return out;
+  }
+
+  // Preferência: profissional_id + janela + status pago (repasse quitado)
   try {
     const list = app.findRecordsByFilter(
       "fin_lancamentos",
-      'origem = "via_comissao" && profissional_id = "' +
+      'origem = "via_comissao" && status = "pago" && profissional_id = "' +
         p +
         '" && data >= "' +
         d +
@@ -163,14 +190,15 @@ function listarLancamentosRepasse(app, profId, ymd) {
       50,
       0,
     );
-    if (list && list.length) return list;
+    var f = _filtrarSemCicloPendente(list);
+    if (f.length) return f;
   } catch (_) {}
 
-  // Fallback: data literal YYYY-MM-DD (mocks / legado)
+  // Fallback: data literal YYYY-MM-DD
   try {
     const list = app.findRecordsByFilter(
       "fin_lancamentos",
-      'origem = "via_comissao" && profissional_id = "' +
+      'origem = "via_comissao" && status = "pago" && profissional_id = "' +
         p +
         '" && data = "' +
         d +
@@ -179,14 +207,15 @@ function listarLancamentosRepasse(app, profId, ymd) {
       50,
       0,
     );
-    if (list && list.length) return list;
+    var f2 = _filtrarSemCicloPendente(list);
+    if (f2.length) return f2;
   } catch (_) {}
 
   // Fallback sem profissional_id: descrição de repasse
   try {
     const list = app.findRecordsByFilter(
       "fin_lancamentos",
-      'origem = "via_comissao" && data >= "' +
+      'origem = "via_comissao" && status = "pago" && data >= "' +
         d +
         ' 00:00:00.000Z" && data < "' +
         next +
@@ -195,25 +224,25 @@ function listarLancamentosRepasse(app, profId, ymd) {
       50,
       0,
     );
-    return list || [];
+    return _filtrarSemCicloPendente(list);
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Uma despesa de repasse (a mais antiga). Consolida/apaga duplicatas se houver.
+ * Uma despesa de repasse pago (a mais antiga). Consolida só duplicatas PAGAS
+ * sem chave de ciclo — nunca apaga `repasse_ciclo:…`.
  */
 function acharLancamentoRepasse(app, profId, ymd) {
   const list = listarLancamentosRepasse(app, profId, ymd);
   if (!list || list.length === 0) return null;
-  // Mantém o primeiro (created asc se o sort funcionou); apaga o resto.
   const keep = list[0];
   for (var i = 1; i < list.length; i++) {
     try {
       app.delete(list[i]);
       console.log(
-        "[comissao-pago] repasse duplicado " +
+        "[comissao-pago] repasse pago duplicado " +
           list[i].id +
           " removido (upsert único).",
       );
@@ -594,67 +623,67 @@ function garantirLancamentoStatus(app, comissao, statusLanc) {
  * NÃO cria despesa por OS.
  */
 function sincronizarLancamento(app, comissao, origStatus) {
-  const novo = String(comissao.get("status") || "");
-  const velho = String(origStatus || "");
-  const profId = String(comissao.get("profissional") || "").trim();
-
-  // Remove despesa legada 1:1 (uma por OS), se ainda existir.
+  // Evita loop comissão → fin_lancamentos → comissão.
+  if (_inSync()) return;
+  _beginSync();
   try {
-    apagarLancamentoDaComissao(app, comissao.id);
-  } catch (_) {}
+    const novo = String(comissao.get("status") || "");
+    const velho = String(origStatus || "");
+    const profId = String(comissao.get("profissional") || "").trim();
 
-  if (!profId) {
-    // Sem profissional: se paga, cria despesa 1:1 só como fallback de histórico.
-    if (novo === "paga" && velho !== "paga") {
-      garantirLancamentoStatus(app, comissao, "pago");
+    // Remove despesa legada 1:1 (uma por OS), se ainda existir.
+    try {
+      apagarLancamentoDaComissao(app, comissao.id);
+    } catch (_) {}
+
+    if (!profId) {
+      if (novo === "paga" && velho !== "paga") {
+        garantirLancamentoStatus(app, comissao, "pago");
+      }
+      return;
     }
-    return;
-  }
 
-  if (novo === "paga") {
-    var pe = String(comissao.get("pago_em") || "")
+    if (novo === "paga") {
+      var pe = String(comissao.get("pago_em") || "")
+        .trim()
+        .slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(pe)) {
+        pe = dataBrtHojeYmd();
+        // NÃO app.save aqui: reentrada no onRecordUpdate.
+        try {
+          comissao.set("pago_em", pe);
+        } catch (_) {}
+      }
+      recalcularDespesaRepasse(app, profId, pe);
+      try {
+        sincronizarRepasseCicloPendente(app, profId);
+      } catch (_) {}
+      return;
+    }
+
+    // → pendente (ou outro)
+    var peOld = String(comissao.get("pago_em") || "")
       .trim()
       .slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(pe)) {
-      pe = dataBrtHojeYmd();
-      // NÃO app.save aqui: reentrada no onRecordUpdate duplicava o repasse.
-      // pago_em deve vir no body do update (Flutter) ou no handler pré-e.next().
-      try {
-        comissao.set("pago_em", pe);
-      } catch (_) {}
+    // NÃO app.save de novo só para limpar pago_em — isso reentrava o hook e
+    // travava o Fechar ciclo. O Flutter/próximo update limpa; o repasse usa peOld.
+    if (peOld) {
+      recalcularDespesaRepasse(app, profId, peOld);
+    } else if (velho === "paga") {
+      recalcularDespesaRepasse(app, profId, dataBrtHojeYmd());
+      var dCom = String(comissao.get("data") || "")
+        .trim()
+        .slice(0, 10);
+      if (dCom && dCom !== dataBrtHojeYmd()) {
+        recalcularDespesaRepasse(app, profId, dCom);
+      }
     }
-    // Só recalcula na transição pendente→paga OU se o valor mudou em paga.
-    // Reentrada só por pago_em (velho já paga) ainda precisa upsert 1× (ok).
-    recalcularDespesaRepasse(app, profId, pe);
     try {
       sincronizarRepasseCicloPendente(app, profId);
     } catch (_) {}
-    return;
+  } finally {
+    _endSync();
   }
-
-  // → pendente (ou outro)
-  var peOld = String(comissao.get("pago_em") || "")
-    .trim()
-    .slice(0, 10);
-  if (peOld) {
-    try {
-      comissao.set("pago_em", "");
-      app.save(comissao);
-    } catch (_) {}
-    recalcularDespesaRepasse(app, profId, peOld);
-  } else if (velho === "paga") {
-    // Sem pago_em (legado): recalcula o dia de hoje e a data da comissão
-    recalcularDespesaRepasse(app, profId, dataBrtHojeYmd());
-    var dCom = String(comissao.get("data") || "")
-      .trim()
-      .slice(0, 10);
-    if (dCom && dCom !== dataBrtHojeYmd()) {
-      recalcularDespesaRepasse(app, profId, dCom);
-    }
-  }
-  try {
-    sincronizarRepasseCicloPendente(app, profId);
-  } catch (_) {}
 }
 
 /**
@@ -1022,6 +1051,9 @@ function onComissaoCriada(app, comissao) {
  *   daquela janela do profissional (mão na Movimentação ↔ Equipe).
  */
 function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
+  // Evita loop fin_lancamentos → comissão → fin_lancamentos.
+  if (_inSync()) return;
+
   const origem = String(lancamento.get("origem") || "");
   if (origem !== "via_comissao") return;
 
@@ -1032,119 +1064,139 @@ function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
   const want = novoLanc === "pago" ? "paga" : "pendente";
   const comissaoId = String(lancamento.get("comissao_id") || "").trim();
 
-  // ── 1:1 por OS ──────────────────────────────────────────────────────────
-  if (comissaoId) {
-    let comissao;
-    try {
-      comissao = app.findRecordById("prof_comissoes", comissaoId);
-    } catch (_) {
+  _beginSync();
+  try {
+    // ── 1:1 por OS ────────────────────────────────────────────────────────
+    if (comissaoId) {
+      let comissao;
+      try {
+        comissao = app.findRecordById("prof_comissoes", comissaoId);
+      } catch (_) {
+        console.log(
+          "[comissao-pago] comissão " +
+            comissaoId +
+            " não encontrada; skip sync.",
+        );
+        return;
+      }
+      const atual = String(comissao.get("status") || "");
+      if (atual === want) return;
+      comissao.set("status", want);
+      if (want === "paga") {
+        var pe1 = String(lancamento.get("data") || "")
+          .trim()
+          .slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(pe1)) pe1 = dataBrtHojeYmd();
+        comissao.set("pago_em", pe1);
+      } else {
+        try {
+          comissao.set("pago_em", "");
+        } catch (_) {}
+      }
+      app.save(comissao);
       console.log(
-        "[comissao-pago] comissão " + comissaoId + " não encontrada; skip sync.",
+        "[comissao-pago] comissão " +
+          comissaoId +
+          " " +
+          atual +
+          " → " +
+          want +
+          " (via lançamento " +
+          lancamento.id +
+          ")",
       );
       return;
     }
-    const atual = String(comissao.get("status") || "");
-    if (atual === want) return;
-    comissao.set("status", want);
-    if (want === "paga") {
-      var pe1 = String(lancamento.get("data") || "")
+
+    // ── Ciclo/semana (repasse agregado) ─────────────────────────────────
+    const obs = String(lancamento.get("observacao") || "").trim();
+    const m = obs.match(
+      /^repasse_ciclo:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})/,
+    );
+    const profId = String(lancamento.get("profissional_id") || "").trim();
+    if (!m || !profId) {
+      // Repasse pago sem chave de ciclo — não espelha em lote.
+      return;
+    }
+    const ini = m[1];
+    const fim = m[2];
+
+    let list = [];
+    try {
+      list = app.findRecordsByFilter(
+        "prof_comissoes",
+        "profissional = {:pid}",
+        "",
+        500,
+        0,
+        { pid: profId },
+      );
+    } catch (_) {
+      list = [];
+    }
+
+    var n = 0;
+    for (var i = 0; i < (list || []).length; i++) {
+      var c = list[i];
+      var cd = String(c.get("data") || "")
         .trim()
         .slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(pe1)) pe1 = dataBrtHojeYmd();
-      comissao.set("pago_em", pe1);
-    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cd)) continue;
+      if (cd < ini || cd > fim) continue;
+      var atualC = String(c.get("status") || "");
+      if (want === "paga" && atualC === "paga") continue;
+      if (want === "pendente" && atualC === "pendente") continue;
+      if (want === "paga" && atualC !== "pendente") continue;
+      if (want === "pendente" && atualC !== "paga") continue;
+
+      c.set("status", want);
+      if (want === "paga") {
+        c.set("pago_em", fim);
+      } else {
+        try {
+          c.set("pago_em", "");
+        } catch (_) {}
+      }
       try {
-        comissao.set("pago_em", "");
-      } catch (_) {}
+        // Guard ativo: save NÃO reentra em sincronizarLancamento.
+        app.save(c);
+        n++;
+      } catch (err) {
+        console.error(
+          "[comissao-pago] falha ao espelhar comissão " + c.id + ": " + err,
+        );
+      }
     }
-    app.save(comissao);
+
+    // Efeitos financeiros UMA vez (repasse pago + ciclo pendente).
+    try {
+      if (want === "paga") {
+        recalcularDespesaRepasse(app, profId, fim);
+      } else {
+        recalcularDespesaRepasse(app, profId, fim);
+      }
+      sincronizarRepasseCicloPendente(app, profId);
+    } catch (err) {
+      console.error("[comissao-pago] pós-espelho ciclo: " + err);
+    }
+
     console.log(
-      "[comissao-pago] comissão " +
-        comissaoId +
-        " " +
-        atual +
+      "[comissao-pago] ciclo " +
+        ini +
+        "…" +
+        fim +
+        " prof " +
+        profId +
         " → " +
         want +
-        " (via lançamento " +
-        lancamento.id +
-        ")",
+        " (" +
+        n +
+        " OS) via lanç. " +
+        lancamento.id,
     );
-    return;
+  } finally {
+    _endSync();
   }
-
-  // ── Ciclo/semana (repasse agregado) ─────────────────────────────────────
-  const obs = String(lancamento.get("observacao") || "").trim();
-  const m = obs.match(/^repasse_ciclo:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})/);
-  const profId = String(lancamento.get("profissional_id") || "").trim();
-  if (!m || !profId) {
-    // Legado: repasse pago sem chave de ciclo — não espelha em lote.
-    return;
-  }
-  const ini = m[1];
-  const fim = m[2];
-
-  let list = [];
-  try {
-    list = app.findRecordsByFilter(
-      "prof_comissoes",
-      "profissional = {:pid}",
-      "",
-      500,
-      0,
-      { pid: profId },
-    );
-  } catch (_) {
-    list = [];
-  }
-
-  var n = 0;
-  for (var i = 0; i < (list || []).length; i++) {
-    var c = list[i];
-    var cd = String(c.get("data") || "")
-      .trim()
-      .slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(cd)) continue;
-    if (cd < ini || cd > fim) continue;
-    var atual = String(c.get("status") || "");
-    // Só mexe se o status alvo for o contrário ou se está no status "do ciclo".
-    // Ao pagar: pendente → paga. Ao reabrir: paga → pendente (só as do ciclo).
-    if (want === "paga" && atual === "paga") continue;
-    if (want === "pendente" && atual === "pendente") continue;
-    if (want === "paga" && atual !== "pendente") continue;
-    if (want === "pendente" && atual !== "paga") continue;
-
-    c.set("status", want);
-    if (want === "paga") {
-      // pago_em = data do vencimento do ciclo (aparece no dia certo)
-      c.set("pago_em", fim);
-    } else {
-      try {
-        c.set("pago_em", "");
-      } catch (_) {}
-    }
-    try {
-      app.save(c);
-      n++;
-    } catch (err) {
-      console.error(
-        "[comissao-pago] falha ao espelhar comissão " + c.id + ": " + err,
-      );
-    }
-  }
-  console.log(
-    "[comissao-pago] ciclo " +
-      ini +
-      "…" +
-      fim +
-      " prof " +
-      profId +
-      " → " +
-      want +
-      " (" +
-      n +
-      " OS) via lanç. " +
-      lancamento.id,
-  );
 }
 
 /**
