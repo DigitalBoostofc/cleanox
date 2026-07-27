@@ -179,16 +179,17 @@ function calcValorTotalOs(record) {
 }
 
 /**
- * Base da comissão: total da OS (com extras). Se o valor_pago for MAIOR
- * (ex.: arredondamento/gorjeta), usa o pago. Assim serviço extra nunca fica
- * de fora quando o profissional esqueceu de atualizar valor_pago.
+ * Base da comissão: o que realmente entrou no caixa (`valor_pago`).
+ *
+ * Regra do dono (2026-07): margem de negociação — tabela (principal + extras)
+ * é orçamento; o profissional registra o valor cobrado na conclusão e a
+ * comissão % usa ESSE valor. Se ainda não há pagamento, cai no total orçado
+ * (estimativa / OS sem fechar).
  */
 function valorBaseComissaoOs(record) {
-  const total = calcValorTotalOs(record);
   const pago = Number(record.get("valor_pago") || 0);
-  if (pago > total) return Math.round(pago * 100) / 100;
-  if (total > 0) return total;
-  return pago > 0 ? Math.round(pago * 100) / 100 : 0;
+  if (pago > 0) return Math.round(pago * 100) / 100;
+  return calcValorTotalOs(record);
 }
 
 /**
@@ -496,9 +497,7 @@ function criarComissaoProfissional(app, record, origStatus) {
     return;
   }
 
-  // Base = total da OS (principal + extras cobráveis − descontos).
-  // Não depende só de valor_pago: extras adicionados após o pagamento
-  // ainda entram na comissão percentual.
+  // Base = valor_pago (caixa real). Sem pagamento, total orçado.
   const baseOs = valorBaseComissaoOs(record);
   if (!(baseOs > 0)) {
     console.log("[comissao] OS sem valor total > 0; skip.");

@@ -374,13 +374,14 @@ describe('CleanOS — Garantias Anti-Desvio', { timeout: 60_000 }, () => {
       await deleteOS(s.adminTok, lockOsId)
     })
 
-    it('F1 · profissional não altera valor_servico', async () => {
+    it('F1 · profissional PODE alterar valor_servico (valor negociado no pagamento)', async () => {
+      // Comissão usa valor_pago; valor_servico grava a linha principal negociada.
       const { status } = await PATCH(
         `/api/collections/ordens_servico/records/${lockOsId}`,
         s.profTok,
-        { valor_servico: 9999 }
+        { valor_servico: 95 }
       )
-      assert.notStrictEqual(status, 200, 'valor_servico deveria ser campo bloqueado')
+      assert.strictEqual(status, 200, `valor_servico deveria ser permitido, got ${status}`)
     })
 
     it('F2 · profissional não troca cliente', async () => {

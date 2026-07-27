@@ -48,9 +48,9 @@ class OrdemServicoEvent {
 /// ⭐ Inclui EXATAMENTE os campos liberados ao profissional pela denylist do
 /// servidor (`guardOrdemUpdateRequest` em pb_hooks/os_logic.js):
 /// `status`, `valor_pago`, `forma_pagamento`, `forma_pagamento_outro`,
-/// `checklist_exec`, `adicionais`, `observacoes_prof`, `descontos`. Campos
-/// ausentes NÃO são tocados — nunca envie campos travados (evita 403
-/// desnecessário; gate G-7).
+/// `valor_servico`, `checklist_exec`, `adicionais`, `observacoes_prof`,
+/// `descontos`. Campos ausentes NÃO são tocados — nunca envie campos travados
+/// (evita 403 desnecessário; gate G-7).
 ///
 /// ⚠️ `service_snapshot` NÃO entra aqui: é congelado server-side na criação
 /// (hook `fillServiceSnapshot`) e está na denylist `locked` do hook — reenviá-lo
@@ -59,12 +59,16 @@ class OrdemServicoEvent {
 /// NB: `updateStatus→concluida` exige `valor_pago > 0` + `forma_pagamento`
 /// (`assertPaymentIfConcluida`), exceto OS `refazer` que pode fechar com
 /// valor 0 — por isso ambos são graváveis aqui.
+///
+/// `valor_servico` + `adicionais` no pagamento: grava valor negociado por
+/// linha; a comissão % usa só `valor_pago` (soma cobrada).
 class OSExecPatch {
   const OSExecPatch({
     this.status,
     this.valorPago,
     this.formaPagamento,
     this.formaPagamentoOutro,
+    this.valorServico,
     this.checklistExec,
     this.adicionais,
     this.observacoesProf,
@@ -78,6 +82,9 @@ class OSExecPatch {
   /// Detalhe livre da forma "Outros". Envie '' para limpar quando a forma
   /// escolhida não for [FormaPagamento.outros].
   final String? formaPagamentoOutro;
+
+  /// Valor negociado do serviço principal (pagamento por linha).
+  final double? valorServico;
   final List<Map<String, dynamic>>? checklistExec;
   final List<Map<String, dynamic>>? adicionais;
   final List<Map<String, dynamic>>? observacoesProf;
@@ -91,6 +98,7 @@ class OSExecPatch {
     if (formaPagamentoOutro != null) {
       body['forma_pagamento_outro'] = formaPagamentoOutro;
     }
+    if (valorServico != null) body['valor_servico'] = valorServico;
     if (checklistExec != null) body['checklist_exec'] = checklistExec;
     if (adicionais != null) body['adicionais'] = adicionais;
     if (observacoesProf != null) body['observacoes_prof'] = observacoesProf;

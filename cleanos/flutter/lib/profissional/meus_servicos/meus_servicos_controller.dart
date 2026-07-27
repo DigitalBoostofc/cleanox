@@ -13,6 +13,7 @@ import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/os_execucao.dart';
 import '../../core/repositories/ordens_repository.dart';
 import '../../core/repositories/repo_types.dart';
 import '../../core/repositories/whatsapp_repository.dart';
@@ -276,12 +277,15 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
     _upsert(os.copyWith(chegueiEm: stamp));
   }
 
-  /// Registra pagamento (valor + forma) — pré-requisito para concluir.
+  /// Registra pagamento (valor + forma + linhas negociadas) — pré-requisito
+  /// para concluir. Comissão e caixa usam [valor] (`valor_pago`).
   Future<void> registrarPagamento(
     OrdemServico os, {
     required double valor,
     required FormaPagamento forma,
     String outro = '',
+    double? valorServico,
+    List<ServicoAdicionalOS>? adicionais,
   }) async {
     final updated = await _repo.patchExec(
       os.id,
@@ -291,6 +295,8 @@ class MeusServicosController extends AutoDisposeNotifier<MeusServicosState> {
         valorPago: valor,
         formaPagamento: forma,
         formaPagamentoOutro: outro,
+        valorServico: valorServico,
+        adicionais: adicionais?.map((e) => e.toJson()).toList(),
       ),
     );
     _upsert(updated);

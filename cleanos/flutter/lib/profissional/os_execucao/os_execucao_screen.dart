@@ -103,8 +103,13 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
       await showPagamentoModal(
         context,
         os: os,
-        onSubmit: (valor, forma, outro) =>
-            _ctrl.registrarPagamento(valor: valor, forma: forma, outro: outro),
+        onSubmit: (result) => _ctrl.registrarPagamento(
+          valor: result.valorPago,
+          forma: result.forma,
+          outro: result.outro,
+          valorServico: result.valorServico,
+          adicionais: result.adicionais,
+        ),
       );
       // Sheet fechado sem salvar (cancelou) → não conclui.
       if (!_pagamentoRegistrado(ref.read(osExecucaoProvider(widget.osId)))) {
@@ -142,6 +147,52 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
       showClxToast(
         this.context,
         'Serviço extra adicionado: ${servico.nome}',
+        type: ToastType.success,
+      );
+    } catch (err) {
+      if (!mounted) return;
+      showClxToast(
+        this.context,
+        describeOSError(err).message,
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _removerExtra(BuildContext context, String adicionalId) async {
+    final os = ref.read(osExecucaoProvider(widget.osId)).os;
+    final nome = os?.adicionais
+            .where((a) => a.id == adicionalId)
+            .map((a) => a.nome)
+            .firstOrNull ??
+        'serviço extra';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar serviço extra?'),
+        content: Text(
+          'Remover "$nome" desta OS? Use se o cliente desistiu ou '
+          'não for possível concluir este extra.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Manter'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _ctrl.removerServicoExtra(adicionalId);
+      if (!mounted) return;
+      showClxToast(
+        this.context,
+        'Serviço extra removido',
         type: ToastType.success,
       );
     } catch (err) {
@@ -488,6 +539,9 @@ class _OSExecucaoScreenState extends ConsumerState<OSExecucaoScreen> {
           readOnly: readOnly,
           concluidoPor: os.expand?.profissional?.displayName ?? 'Profissional',
           onAddExtra: readOnly ? null : () => _adicionarExtra(context),
+          onRemoveExtra: readOnly
+              ? null
+              : (id) => _removerExtra(context, id),
           onPickFotoItem: readOnly
               ? null
               : (item, fase) => _pick(fase, checklistItemId: item.id),

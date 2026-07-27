@@ -220,12 +220,14 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     await showPagamentoModal(
       context,
       os: os,
-      onSubmit: (valor, forma, outro) async {
+      onSubmit: (result) async {
         await _ctrl.registrarPagamento(
           os,
-          valor: valor,
-          forma: forma,
-          outro: outro,
+          valor: result.valorPago,
+          forma: result.forma,
+          outro: result.outro,
+          valorServico: result.valorServico,
+          adicionais: result.adicionais,
         );
         if (mounted) {
           _toast(

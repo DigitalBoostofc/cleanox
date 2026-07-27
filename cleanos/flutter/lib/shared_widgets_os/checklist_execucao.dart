@@ -90,10 +90,10 @@ List<ChecklistSecao> agruparChecklistSecoes(
   }
 
   // Ordem: adicionais conhecidos na ordem em que foram anexados.
+  // Mostra mesmo sem itens de checklist (extra cadastrado no painel / vazio).
   final seen = <String>{};
   for (final a in adicionais) {
-    final list = byAdd[a.id];
-    if (list == null || list.isEmpty) continue;
+    final list = byAdd[a.id] ?? const <ChecklistExecItem>[];
     seen.add(a.id);
     final subtotal = a.valor * a.quantidade;
     secoes.add(
@@ -178,6 +178,7 @@ class ChecklistExecucao extends StatefulWidget {
     this.readOnly = false,
     this.nowIso,
     this.onAddExtra,
+    this.onRemoveExtra,
     this.adicionais = const [],
     this.fotos = const [],
     this.onPickFotoItem,
@@ -219,6 +220,9 @@ class ChecklistExecucao extends StatefulWidget {
 
   /// Botão no fim do checklist: profissional adiciona serviço extra do catálogo.
   final VoidCallback? onAddExtra;
+
+  /// Remove um serviço extra (key = adicionalId da seção).
+  final ValueChanged<String>? onRemoveExtra;
 
   @override
   State<ChecklistExecucao> createState() => _ChecklistExecucaoState();
@@ -350,9 +354,24 @@ class _ChecklistExecucaoState extends State<ChecklistExecucao> {
                   done: secoes[si].items.where((i) => i.concluido).length,
                   total: secoes[si].items.length,
                   valorLabel: secoes[si].valorLabel,
+                  onRemove: !widget.readOnly &&
+                          secoes[si].extra &&
+                          widget.onRemoveExtra != null
+                      ? () => widget.onRemoveExtra!(secoes[si].key)
+                      : null,
                 ),
               if (multiSecao || secoes[si].extra)
                 const SizedBox(height: ClxSpace.x2),
+              if (secoes[si].extra && secoes[si].items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+                  child: Text(
+                    'Sem checklist neste extra — cancele se o cliente desistiu.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: clx.ink3,
+                    ),
+                  ),
+                ),
               for (final it in secoes[si].items) ...[
                 _ChecklistTile(
                   item: it,
@@ -407,6 +426,7 @@ class _SecaoHeader extends StatelessWidget {
     required this.done,
     required this.total,
     this.valorLabel,
+    this.onRemove,
   });
 
   final String titulo;
@@ -414,6 +434,7 @@ class _SecaoHeader extends StatelessWidget {
   final int done;
   final int total;
   final String? valorLabel;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -472,6 +493,16 @@ class _SecaoHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x2),
+          ],
+          if (onRemove != null) ...[
+            IconButton(
+              tooltip: 'Cancelar serviço extra',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              icon: Icon(Icons.delete_outline_rounded, size: 20, color: clx.error),
+              onPressed: onRemove,
+            ),
           ],
           if (total > 0)
             Text(

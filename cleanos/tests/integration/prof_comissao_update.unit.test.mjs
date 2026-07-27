@@ -161,10 +161,55 @@ describe('calcValorTotalOs / valorBaseComissaoOs — serviço extra', () => {
     assert.equal(lib.calcValorTotalOs(os), 350)
   })
 
-  it('base de comissão usa total com extra mesmo se valor_pago ficou no principal', () => {
+  it('base de comissão usa valor_pago (não infla com orçamento de extras)', () => {
+    // Caso Adriano/Hendrio: 2 carros no orçamento, só cobrou 1 (R$ 200).
     const os = osRec({
       valor_servico: 200,
-      valor_pago: 200, // bug legado: não atualizou após extra
+      valor_pago: 200,
+      adicionais: [
+        {
+          id: 'add1',
+          nome: 'Extra',
+          valor: 150,
+          quantidade: 1,
+          aprovacao: 'nao_requer',
+        },
+      ],
+    })
+    assert.equal(lib.valorBaseComissaoOs(os), 200)
+  })
+
+  it('base usa valor_pago negociado (abaixo da tabela)', () => {
+    // Principal 200 + sofa 150 = 350; negociou total 330.
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 330,
+      adicionais: [
+        {
+          id: 'add1',
+          nome: 'Sofá',
+          valor: 150,
+          quantidade: 1,
+          aprovacao: 'nao_requer',
+        },
+      ],
+    })
+    assert.equal(lib.valorBaseComissaoOs(os), 330)
+  })
+
+  it('base prefere valor_pago se for maior que o total (gorjeta)', () => {
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 400,
+      adicionais: [],
+    })
+    assert.equal(lib.valorBaseComissaoOs(os), 400)
+  })
+
+  it('sem valor_pago cai no total orçado (estimativa)', () => {
+    const os = osRec({
+      valor_servico: 200,
+      valor_pago: 0,
       adicionais: [
         {
           id: 'add1',
@@ -178,16 +223,7 @@ describe('calcValorTotalOs / valorBaseComissaoOs — serviço extra', () => {
     assert.equal(lib.valorBaseComissaoOs(os), 350)
   })
 
-  it('base prefere valor_pago se for maior que o total (gorjeta)', () => {
-    const os = osRec({
-      valor_servico: 200,
-      valor_pago: 400,
-      adicionais: [],
-    })
-    assert.equal(lib.valorBaseComissaoOs(os), 400)
-  })
-
-  it('atualizarComissao recalcula % sobre total com extra', () => {
+  it('atualizarComissao recalcula % sobre valor_pago', () => {
     const com = rec(
       {
         os: 'os1',
@@ -206,7 +242,7 @@ describe('calcValorTotalOs / valorBaseComissaoOs — serviço extra', () => {
       app,
       osRec({
         valor_servico: 200,
-        valor_pago: 200,
+        valor_pago: 330, // negociado (tabela 350)
         adicionais: [
           {
             id: 'add1',
@@ -218,8 +254,8 @@ describe('calcValorTotalOs / valorBaseComissaoOs — serviço extra', () => {
         ],
       }),
     )
-    assert.equal(com.get('valor_os'), 350)
-    assert.equal(com.get('valor_comissao'), 105) // 30% de 350
+    assert.equal(com.get('valor_os'), 330)
+    assert.equal(com.get('valor_comissao'), 99) // 30% de 330
     assert.equal(app._saved.length, 1)
   })
 })

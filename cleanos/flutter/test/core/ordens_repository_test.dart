@@ -129,6 +129,7 @@ void main() {
         status: OSStatus.concluida,
         valorPago: 150.5,
         formaPagamento: FormaPagamento.pixMaquininha,
+        valorServico: 140,
         checklistExec: [
           {'id': 'c1', 'status': 'concluido'},
         ],
@@ -146,6 +147,7 @@ void main() {
       expect(body['status'], 'concluida');
       expect(body['valor_pago'], 150.5);
       expect(body['forma_pagamento'], 'pix_maquininha');
+      expect(body['valor_servico'], 140);
       expect(body['checklist_exec'], isA<List>());
       expect(body['adicionais'], isA<List>());
       expect(body['observacoes_prof'], isA<List>());
@@ -153,11 +155,12 @@ void main() {
 
       // A denylist do hook trava `service_snapshot` — o patch NUNCA pode enviá-lo.
       expect(body.containsKey('service_snapshot'), isFalse);
-      // Só as 7 chaves liberadas ao profissional.
+      // Campos liberados ao profissional (inclui valor_servico p/ negociação).
       expect(body.keys.toSet(), {
         'status',
         'valor_pago',
         'forma_pagamento',
+        'valor_servico',
         'checklist_exec',
         'adicionais',
         'observacoes_prof',
