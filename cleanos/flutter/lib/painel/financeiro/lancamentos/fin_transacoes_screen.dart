@@ -160,13 +160,15 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
   }
 
   Future<void> _togglePago(FinLancamento l) async {
-    // OS e comissão não alternam pago aqui — dependem da OS / Equipe.
-    if (isLancamentoDependenteExterno(l)) {
+    // Receita via OS: só leitura (status da OS).
+    // Comissão: permite toggle — hook espelha em Equipe e vice-versa.
+    if (!finPodeTogglePagoNaMovimentacao(l)) {
       if (!mounted) return;
-      final msg = isLancamentoComissao(l)
-          ? 'Comissão segue o status em Equipe / comissões.'
-          : 'Receita de OS segue o status da própria OS.';
-      showClxToast(context, msg, type: ToastType.info);
+      showClxToast(
+        context,
+        'Receita de OS segue o status da própria OS.',
+        type: ToastType.info,
+      );
       return;
     }
 
@@ -183,6 +185,24 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
       ref.invalidate(finContasProvider);
       ref.invalidate(finPeriodLancamentosProvider);
       ref.invalidate(finPendentesProvider);
+      // Comissão: Equipe / extrato também mudam (hook espelha prof_comissoes).
+      if (isLancamentoComissao(l)) {
+        ref.invalidate(finComissoesProvider);
+        ref.invalidate(finComissoesPendentesTotalProvider);
+      }
+      if (mounted) {
+        showClxToast(
+          context,
+          isLancamentoComissao(l)
+              ? (novo == LancamentoStatus.pago
+                    ? 'Comissão marcada como paga (Equipe atualizada).'
+                    : 'Comissão reaberta (Equipe atualizada).')
+              : (novo == LancamentoStatus.pago
+                    ? 'Marcado como pago.'
+                    : 'Marcado como pendente.'),
+          type: ToastType.success,
+        );
+      }
     } catch (_) {
       if (mounted) {
         showClxToast(
@@ -970,8 +990,8 @@ class _TxTile extends StatelessWidget {
                             : Icons.push_pin_outlined,
                         color: l.favorito ? clx.primary : clx.ink3,
                       ),
-                      if (dependente)
-                        // OS / comissão: mão 👍/👎 só leitura (status externo).
+                      if (finMostraMaoSomenteLeitura(l))
+                        // Via OS: mão 👍/👎 só leitura.
                         _TxIconAction(
                           tooltip: finPagoHandTooltipDependente(l),
                           onTap: () {},
@@ -982,11 +1002,13 @@ class _TxTile extends StatelessWidget {
                         )
                       else
                         _TxIconAction(
-                          tooltip: pago
-                              ? 'Pago — toque para marcar pendente'
-                              : atrasado
-                                  ? 'Em atraso — toque para marcar pago'
-                                  : 'Pendente — toque para marcar pago',
+                          tooltip: isLancamentoComissao(l)
+                              ? finPagoHandTooltipDependente(l)
+                              : pago
+                                  ? 'Pago — toque para marcar pendente'
+                                  : atrasado
+                                      ? 'Em atraso — toque para marcar pago'
+                                      : 'Pendente — toque para marcar pago',
                           onTap: onTogglePago,
                           icon: pago
                               ? Icons.thumb_up_alt_rounded
@@ -1227,11 +1249,11 @@ class _TableRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 1) 👍 / 👎 — manual toca; OS/comissão só leitura
+              // 1) 👍 / 👎 — manual + comissão tocam; via OS só leitura
               SizedBox(
                 width: 56,
                 child: Center(
-                  child: dependente
+                  child: finMostraMaoSomenteLeitura(l)
                       ? Tooltip(
                           message: finPagoHandTooltipDependente(l),
                           child: Icon(
@@ -1243,11 +1265,13 @@ class _TableRow extends StatelessWidget {
                           ),
                         )
                       : Tooltip(
-                          message: pago
-                              ? 'Pago — toque para marcar pendente'
-                              : atrasado
-                                  ? 'Em atraso — toque para marcar pago'
-                                  : 'Pendente — toque para marcar pago',
+                          message: isLancamentoComissao(l)
+                              ? finPagoHandTooltipDependente(l)
+                              : pago
+                                  ? 'Pago — toque para marcar pendente'
+                                  : atrasado
+                                      ? 'Em atraso — toque para marcar pago'
+                                      : 'Pendente — toque para marcar pago',
                           child: IconButton(
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,

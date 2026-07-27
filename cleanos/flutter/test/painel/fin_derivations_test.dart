@@ -338,9 +338,10 @@ void main() {
       );
     });
 
-    test('mão só-leitura: via OS e comissão sim; manual não', () {
+    test('mão: via OS só-leitura; comissão e manual clicáveis', () {
       final viaOs = fakeLanc(id: '1').copyWith(origem: OrigemLancamento.viaOs);
       expect(finMostraMaoSomenteLeitura(viaOs), isTrue);
+      expect(finPodeTogglePagoNaMovimentacao(viaOs), isFalse);
       expect(
         finPagoHandTooltipDependente(
           viaOs.copyWith(status: LancamentoStatus.previsto),
@@ -354,22 +355,28 @@ void main() {
         contains('Pago (OS concluída)'),
       );
       final comissao = fakeLanc(id: 'comissao-previsto-prof-jp');
-      expect(finMostraMaoSomenteLeitura(comissao), isTrue);
+      // Comissão: clicável (espelha Equipe).
+      expect(finMostraMaoSomenteLeitura(comissao), isFalse);
+      expect(finPodeTogglePagoNaMovimentacao(comissao), isTrue);
       expect(
         finPagoHandTooltipDependente(
           comissao.copyWith(status: LancamentoStatus.pendente),
         ),
-        contains('Equipe'),
+        contains('toque'),
       );
       expect(
         finPagoHandTooltipDependente(
           comissao.copyWith(status: LancamentoStatus.pago),
         ),
-        contains('Pago (marcado em Equipe)'),
+        contains('toque'),
       );
       expect(
         finMostraMaoSomenteLeitura(fakeLanc(id: 'manual')),
         isFalse,
+      );
+      expect(
+        finPodeTogglePagoNaMovimentacao(fakeLanc(id: 'manual')),
+        isTrue,
       );
     });
   });
