@@ -1,8 +1,7 @@
 /// fin_fechar_ciclo.dart — Fechar ciclo de pagamento da equipe (admin).
 ///
-/// Lista o que cada profissional tem **pendente** de repasse, com data do
-/// próximo pagamento e ciclo configurado. Permite pagar em lote (1 prof ou
-/// todos), reutilizando o mesmo hook que a mãozinha 👍 (gera despesa).
+/// Fluxo: 1) escolher profissional → 2) escolher semana com status **não paga**
+/// → 3) ver OS da semana e pagar (gera despesa via hook).
 library;
 
 import 'package:flutter/material.dart';
@@ -42,22 +41,23 @@ class FecharCicloLinha {
 
 /// Agrupa comissões **pendentes** por profissional.
 ///
-/// [janela]: se informada, só OS com data nessa semana/ciclo (escolha do admin).
+/// [janela]: se informada, só OS com data nessa semana/ciclo.
 /// Se null, usa o ciclo **corrente** de cada profissional.
 List<FecharCicloLinha> buildFecharCicloLinhas({
   required List<User> profs,
   required List<ProfComissao> comissoes,
   CicloPagamentoWindow? janela,
   DateTime? now,
+  String? onlyProfId,
 }) {
   final byId = {for (final u in profs) u.id: u};
   final map = <String, List<ProfComissao>>{};
 
-  // Indexa por prof primeiro (todas pendentes) e depois filtra ciclo/semana.
   final allPend = <String, List<ProfComissao>>{};
   for (final c in comissoes) {
     if (c.status != ComissaoStatus.pendente) continue;
     if (c.valorComissao <= 0) continue;
+    if (onlyProfId != null && c.profissional != onlyProfId) continue;
     allPend.putIfAbsent(c.profissional, () => []).add(c);
   }
 
@@ -148,138 +148,127 @@ class _FecharCicloSheet extends ConsumerStatefulWidget {
 }
 
 class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
-  late List<CicloPagamentoWindow> _semanas;
+  /// Profissionais que têm pelo menos 1 comissão pendente.
+  late List<User> _profsComPendente;
+  User? _profSel;
+  List<CicloPagamentoWindow> _semanas = const [];
   CicloPagamentoWindow? _semanaSel;
-  late List<FecharCicloLinha> _linhas;
-  final Set<String> _selectedProf = {};
+  List<ProfComissao> _osSemana = const [];
   bool _paying = false;
-  String? _busyProfId;
 
   @override
   void initState() {
     super.initState();
-    _semanas = listarSemanasComPendentes(widget.profs, widget.comissoes);
-    // Default: semana atual (primeira da lista = mais recente com pendente).
-    _semanaSel = _semanas.isNotEmpty ? _semanas.first : null;
-    _rebuildLinhas(keepSelection: false);
+    _profsComPendente = _profsComComissaoPendente();
+    // Não pré-seleciona: admin escolhe o profissional primeiro.
   }
 
-  void _rebuildLinhas({bool keepSelection = true}) {
-    _linhas = buildFecharCicloLinhas(
-      profs: widget.profs,
-      comissoes: widget.comissoes,
-      janela: _semanaSel,
-    );
-    if (!keepSelection) {
-      _selectedProf
-        ..clear()
-        ..addAll(_linhas.map((l) => l.prof.id));
-    } else {
-      // Remove profs que sumiram na nova semana.
-      _selectedProf.removeWhere(
-        (id) => !_linhas.any((l) => l.prof.id == id),
-      );
-      // Se ficou vazio e há linhas, seleciona todas de novo.
-      if (_selectedProf.isEmpty && _linhas.isNotEmpty) {
-        _selectedProf.addAll(_linhas.map((l) => l.prof.id));
+  List<User> _profsComComissaoPendente() {
+    final ids = <String>{};
+    for (final c in widget.comissoes) {
+      if (c.status == ComissaoStatus.pendente && c.valorComissao > 0) {
+        ids.add(c.profissional);
       }
     }
+    final list = [
+      for (final u in widget.profs)
+        if (ids.contains(u.id)) u,
+    ]..sort(
+        (a, b) => a.displayName.toLowerCase().compareTo(
+              b.displayName.toLowerCase(),
+            ),
+      );
+    // Prof sem cadastro na lista mas com comissão.
+    for (final id in ids) {
+      if (list.any((u) => u.id == id)) continue;
+      list.add(
+        User(
+          id: id,
+          name: id.length > 8 ? id.substring(0, 8) : id,
+          role: Role.profissional,
+        ),
+      );
+    }
+    return list;
   }
 
-  void _onSemanaChanged(CicloPagamentoWindow? w) {
-    if (w == null) return;
+  void _onProfChanged(String? profId) {
+    if (profId == null) return;
+    User? u;
+    for (final p in _profsComPendente) {
+      if (p.id == profId) {
+        u = p;
+        break;
+      }
+    }
+    if (u == null) return;
+    setState(() {
+      _profSel = u;
+      _semanas = listarSemanasComPendentes([u!], widget.comissoes);
+      _semanaSel = _semanas.isNotEmpty ? _semanas.first : null;
+      _osSemana = _pendentesDaSemana();
+    });
+  }
+
+  void _onSemanaChanged(CicloPagamentoWindow w) {
     setState(() {
       _semanaSel = w;
-      _rebuildLinhas(keepSelection: false);
+      _osSemana = _pendentesDaSemana();
     });
+  }
+
+  List<ProfComissao> _pendentesDaSemana() {
+    final u = _profSel;
+    final w = _semanaSel;
+    if (u == null || w == null) return const [];
+    final doProf = [
+      for (final c in widget.comissoes)
+        if (c.profissional == u.id) c,
+    ];
+    final list = comissoesPendentesNaJanela(doProf, w);
+    list.sort((a, b) {
+      final da = comissaoYmd(a);
+      final db = comissaoYmd(b);
+      final cmp = db.compareTo(da);
+      if (cmp != 0) return cmp;
+      return b.valorComissao.compareTo(a.valorComissao);
+    });
+    return list;
+  }
+
+  double get _totalSemana {
+    return _osSemana.fold<int>(
+          0,
+          (s, c) => s + (c.valorComissao * 100).round(),
+        ) /
+        100.0;
   }
 
   String _semanaKey(CicloPagamentoWindow w) =>
       '${w.inicioYmd}_${w.fimYmd}';
 
-  double _totalSemana(CicloPagamentoWindow w) {
-    final linhas = buildFecharCicloLinhas(
-      profs: widget.profs,
-      comissoes: widget.comissoes,
-      janela: w,
-    );
-    return linhas.fold<int>(0, (s, l) => s + (l.total * 100).round()) / 100.0;
-  }
-
-  double get _totalSelected {
-    var cents = 0;
-    for (final l in _linhas) {
-      if (!_selectedProf.contains(l.prof.id)) continue;
-      cents += (l.total * 100).round();
-    }
-    return cents / 100.0;
-  }
-
-  int get _qtdSelected {
-    var n = 0;
-    for (final l in _linhas) {
-      if (!_selectedProf.contains(l.prof.id)) continue;
-      n += l.qtd;
-    }
-    return n;
-  }
-
-  Future<void> _pagarProf(FecharCicloLinha l) async {
-    if (_paying || l.ids.isEmpty) return;
-    final ok = await _confirm(
-      title: 'Pagar ${l.prof.displayName}?',
-      body:
-          '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
-          'Marcar ${l.qtd} comissão${l.qtd == 1 ? '' : 'ões'} '
-          '(${formatCurrency(l.total)}) como paga?\n'
-          'Isso gera despesa no financeiro.',
-    );
-    if (ok != true || !mounted) return;
-    setState(() {
-      _paying = true;
-      _busyProfId = l.prof.id;
-    });
-    try {
-      await ref.read(comissaoRepositoryProvider).marcarLotePagas(l.ids);
-      if (!mounted) return;
-      showClxToast(
-        context,
-        'Pago ${l.prof.displayName}: ${formatCurrency(l.total)}',
-        type: ToastType.success,
-      );
-      widget.onPaid();
-      Navigator.of(context).maybePop();
-    } catch (_) {
-      if (mounted) {
-        showClxToast(
-          context,
-          'Falha ao pagar ${l.prof.displayName}.',
-          type: ToastType.error,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _paying = false;
-          _busyProfId = null;
-        });
-      }
-    }
-  }
-
-  Future<void> _pagarSelecionados() async {
-    if (_paying || _selectedProf.isEmpty) return;
-    final ids = <String>[
-      for (final l in _linhas)
-        if (_selectedProf.contains(l.prof.id)) ...l.ids,
+  double _totalSemanaDe(User u, CicloPagamentoWindow w) {
+    final doProf = [
+      for (final c in widget.comissoes)
+        if (c.profissional == u.id) c,
     ];
-    if (ids.isEmpty) return;
+    final list = comissoesPendentesNaJanela(doProf, w);
+    return list.fold<int>(0, (s, c) => s + (c.valorComissao * 100).round()) /
+        100.0;
+  }
+
+  Future<void> _pagar() async {
+    final u = _profSel;
+    final w = _semanaSel;
+    if (_paying || u == null || w == null || _osSemana.isEmpty) return;
+    final ids = [for (final c in _osSemana) c.id];
+    final total = _totalSemana;
     final ok = await _confirm(
-      title: 'Pagar selecionados?',
+      title: 'Pagar ${u.displayName}?',
       body:
-          '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
-          'Marcar $_qtdSelected comissão${_qtdSelected == 1 ? '' : 'ões'} '
-          '(${formatCurrency(_totalSelected)}) como paga?\n'
+          'Semana ${w.labelBr}\n'
+          'Marcar ${_osSemana.length} comissão${_osSemana.length == 1 ? '' : 'ões'} '
+          '(${formatCurrency(total)}) como paga?\n'
           'Isso gera despesa no financeiro.',
     );
     if (ok != true || !mounted) return;
@@ -289,16 +278,17 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
       if (!mounted) return;
       showClxToast(
         context,
-        'Ciclo pago: ${formatCurrency(_totalSelected)}',
+        'Pago ${u.displayName}: ${formatCurrency(total)} · ${w.labelBr}',
         type: ToastType.success,
       );
       widget.onPaid();
+      // Parent invalidates; fecha sheet para recarregar dados frescos.
       Navigator.of(context).maybePop();
     } catch (_) {
       if (mounted) {
         showClxToast(
           context,
-          'Falha ao pagar o lote. Tente de novo.',
+          'Falha ao pagar ${u.displayName}.',
           type: ToastType.error,
         );
       }
@@ -332,6 +322,7 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final h = MediaQuery.sizeOf(context).height;
+    final u = _profSel;
 
     return SafeArea(
       child: Padding(
@@ -364,7 +355,7 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
                         ),
                       ),
                       Text(
-                        'Escolha a semana e marque como paga (gera despesa).',
+                        '1º profissional · 2º semana não paga · 3º pagar',
                         style: tt.bodySmall?.copyWith(color: clx.ink2),
                       ),
                     ],
@@ -378,11 +369,21 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            // Seletor de semana (dom→sáb / ciclo do prof)
-            if (_semanas.isNotEmpty) ...[
+            const SizedBox(height: 12),
+
+            if (_profsComPendente.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: EmptyState(
+                  icon: Icons.check_circle_outline,
+                  title: 'Nada a pagar',
+                  message: 'Não há comissões pendentes no momento.',
+                ),
+              )
+            else ...[
+              // 1) Profissional
               Text(
-                'Semana a pagar',
+                'Profissional',
                 style: tt.labelMedium?.copyWith(
                   color: clx.ink2,
                   fontWeight: FontWeight.w600,
@@ -391,245 +392,199 @@ class _FecharCicloSheetState extends ConsumerState<_FecharCicloSheet> {
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 // ignore: deprecated_member_use
-                value: _semanaSel == null ? null : _semanaKey(_semanaSel!),
+                value: _profSel?.id,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   isDense: true,
-                  prefixIcon: Icon(Icons.date_range_rounded),
+                  prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
-                hint: const Text('Selecione a semana'),
+                hint: const Text('Selecione o profissional'),
                 items: [
-                  for (final w in _semanas)
+                  for (final p in _profsComPendente)
                     DropdownMenuItem(
-                      value: _semanaKey(w),
+                      value: p.id,
                       child: Text(
-                        '${w.labelBr} · ${formatCurrency(_totalSemana(w))}',
+                        p.displayName,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                 ],
-                onChanged: _paying
-                    ? null
-                    : (key) {
-                        if (key == null) return;
-                        for (final w in _semanas) {
-                          if (_semanaKey(w) == key) {
-                            _onSemanaChanged(w);
-                            break;
-                          }
-                        }
-                      },
+                onChanged: _paying ? null : _onProfChanged,
               ),
-              const SizedBox(height: 10),
-            ],
-            if (_linhas.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: EmptyState(
-                  icon: Icons.check_circle_outline,
-                  title: _semanas.isEmpty
-                      ? 'Nada a pagar'
-                      : 'Nada nesta semana',
-                  message: _semanas.isEmpty
-                      ? 'Não há comissões pendentes no momento.'
-                      : 'Escolha outra semana no seletor acima.',
-                ),
-              )
-            else ...[
-              // Resumo
-              Container(
-                padding: const EdgeInsets.all(ClxSpace.x3),
-                decoration: BoxDecoration(
-                  color: clx.bg3,
-                  borderRadius: ClxRadii.rMd,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${_semanaSel != null ? 'Semana ${_semanaSel!.labelBr}\n' : ''}'
-                        '${_selectedProf.length} profissional${_selectedProf.length == 1 ? '' : 'is'} · '
-                        '$_qtdSelected comissão${_qtdSelected == 1 ? '' : 'ões'}',
-                        style: tt.bodySmall?.copyWith(color: clx.ink2),
-                      ),
-                    ),
-                    Text(
-                      formatCurrency(_totalSelected),
-                      style: tt.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: clx.warning,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: _paying
-                        ? null
-                        : () => setState(
-                              () => _selectedProf
-                                ..clear()
-                                ..addAll(_linhas.map((l) => l.prof.id)),
-                            ),
-                    child: const Text('Todos'),
+              const SizedBox(height: 12),
+
+              // 2) Semana (só depois do prof)
+              if (u != null) ...[
+                Text(
+                  'Semana não paga',
+                  style: tt.labelMedium?.copyWith(
+                    color: clx.ink2,
+                    fontWeight: FontWeight.w600,
                   ),
-                  TextButton(
-                    onPressed: _paying
+                ),
+                const SizedBox(height: 6),
+                if (_semanas.isEmpty)
+                  Text(
+                    'Nenhuma semana com comissão em aberto para este profissional.',
+                    style: tt.bodySmall?.copyWith(color: clx.ink3),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
+                    value:
+                        _semanaSel == null ? null : _semanaKey(_semanaSel!),
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      prefixIcon: Icon(Icons.date_range_rounded),
+                    ),
+                    hint: const Text('Selecione a semana'),
+                    items: [
+                      for (final w in _semanas)
+                        DropdownMenuItem(
+                          value: _semanaKey(w),
+                          child: Text(
+                            '${w.labelBr} · ${formatCurrency(_totalSemanaDe(u, w))}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _paying
                         ? null
-                        : () => setState(() => _selectedProf.clear()),
-                    child: const Text('Nenhum'),
+                        : (key) {
+                            if (key == null) return;
+                            for (final w in _semanas) {
+                              if (_semanaKey(w) == key) {
+                                _onSemanaChanged(w);
+                                break;
+                              }
+                            }
+                          },
                   ),
-                ],
-              ),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: h * 0.45),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: _linhas.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: ClxSpace.x2),
-                  itemBuilder: (_, i) {
-                    final l = _linhas[i];
-                    final sel = _selectedProf.contains(l.prof.id);
-                    final busy = _busyProfId == l.prof.id;
-                    final data = l.proximoPagamento != null
-                        ? formatProximoPagamento(l.proximoPagamento!)
-                        : '—';
-                    return Material(
-                      color: clx.bg2,
-                      borderRadius: ClxRadii.rMd,
-                      child: InkWell(
-                        borderRadius: ClxRadii.rMd,
-                        onTap: _paying
-                            ? null
-                            : () => setState(() {
-                                  if (sel) {
-                                    _selectedProf.remove(l.prof.id);
-                                  } else {
-                                    _selectedProf.add(l.prof.id);
-                                  }
-                                }),
-                        child: Padding(
+                const SizedBox(height: 12),
+              ],
+
+              // 3) Resumo + OS da semana
+              if (u != null && _semanaSel != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(ClxSpace.x3),
+                  decoration: BoxDecoration(
+                    color: clx.bg3,
+                    borderRadius: ClxRadii.rMd,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${u.displayName}\n'
+                          'Semana ${_semanaSel!.labelBr} · '
+                          '${_osSemana.length} OS',
+                          style: tt.bodySmall?.copyWith(color: clx.ink2),
+                        ),
+                      ),
+                      Text(
+                        formatCurrency(_totalSemana),
+                        style: tt.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: clx.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (_osSemana.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'Nenhuma OS pendente nesta semana.',
+                      textAlign: TextAlign.center,
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                    ),
+                  )
+                else ...[
+                  Text(
+                    'OS da semana',
+                    style: tt.labelMedium?.copyWith(
+                      color: clx.ink2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: h * 0.35),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _osSemana.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: ClxSpace.x2),
+                      itemBuilder: (_, i) {
+                        final c = _osSemana[i];
+                        final data = comissaoYmd(c);
+                        final dataBr = data.length >= 10
+                            ? '${data.substring(8, 10)}/${data.substring(5, 7)}/${data.substring(0, 4)}'
+                            : '—';
+                        return Container(
                           padding: const EdgeInsets.all(ClxSpace.x3),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          decoration: BoxDecoration(
+                            color: clx.bg2,
+                            borderRadius: ClxRadii.rMd,
+                            border: Border.all(color: clx.line),
+                          ),
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: sel,
-                                    onChanged: _paying
-                                        ? null
-                                        : (v) => setState(() {
-                                              if (v == true) {
-                                                _selectedProf.add(l.prof.id);
-                                              } else {
-                                                _selectedProf
-                                                    .remove(l.prof.id);
-                                              }
-                                            }),
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          l.prof.displayName,
-                                          style: tt.titleSmall?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        Text(
-                                          l.periodoLabel.isNotEmpty
-                                              ? '${l.cicloLabel} · ${l.periodoLabel}'
-                                              : '${l.cicloLabel} · próximo $data',
-                                          style: tt.bodySmall?.copyWith(
-                                            color: clx.ink3,
-                                          ),
-                                        ),
-                                      ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      c.descricao.isNotEmpty
+                                          ? c.descricao
+                                          : 'Comissão OS',
+                                      style: tt.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: clx.ink,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    formatCurrency(l.total),
-                                    style: tt.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: clx.warning,
+                                    Text(
+                                      dataBr,
+                                      style: tt.bodySmall?.copyWith(
+                                        color: clx.ink3,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                               Text(
-                                '${l.qtd} comissão${l.qtd == 1 ? '' : 'ões'} pendente${l.qtd == 1 ? '' : 's'}',
-                                style: tt.labelSmall?.copyWith(color: clx.ink2),
-                              ),
-                              const SizedBox(height: 6),
-                              // Preview OS
-                              for (final c in l.pendentes.take(3))
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Text(
-                                    '· ${c.descricao.isNotEmpty ? c.descricao : 'Serviço'} — ${formatCurrency(c.valorComissao)}',
-                                    style: tt.bodySmall?.copyWith(
-                                      color: clx.ink2,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              if (l.pendentes.length > 3)
-                                Text(
-                                  '… e mais ${l.pendentes.length - 3}',
-                                  style: tt.labelSmall?.copyWith(
-                                    color: clx.ink3,
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: FilledButton.tonal(
-                                  onPressed:
-                                      _paying ? null : () => _pagarProf(l),
-                                  child: busy
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Text(
-                                          'Pagar ${l.prof.displayName.split(' ').first}',
-                                        ),
+                                formatCurrency(c.valorComissao),
+                                style: tt.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: clx.warning,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: _paying || _selectedProf.isEmpty
-                    ? null
-                    : _pagarSelecionados,
-                child: _paying
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        'Pagar selecionados · ${formatCurrency(_totalSelected)}',
-                      ),
-              ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _paying || _osSemana.isEmpty ? null : _pagar,
+                    child: _paying
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            'Pagar semana · ${formatCurrency(_totalSemana)}',
+                          ),
+                  ),
+                ],
+              ],
             ],
           ],
         ),
