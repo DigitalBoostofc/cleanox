@@ -265,15 +265,23 @@ void main() {
 
   group('Relatórios', () {
     testWidgets('charts de entradas×saídas + por categoria', (tester) async {
+      // Datas no mês BRT corrente (finPeriodProvider / janela de 6m).
+      final hoje = todayLocalDate();
       final fake = FakeFinanceiro(
         categorias: [fakeCategoria(id: 'cat', nome: 'Material')],
         lancamentos: [
-          fakeLanc(id: '1', tipo: TipoLancamento.receita, valor: 300),
+          fakeLanc(
+            id: '1',
+            tipo: TipoLancamento.receita,
+            valor: 300,
+            data: hoje,
+          ),
           fakeLanc(
             id: '2',
             tipo: TipoLancamento.despesa,
             valor: 120,
             categoriaId: 'cat',
+            data: hoje,
           ),
         ],
       );
@@ -358,6 +366,8 @@ void main() {
 
   group('Contas a pagar/receber', () {
     testWidgets('lista despesas em aberto com total', (tester) async {
+      // Vencimento no mês BRT corrente — a lista da aba respeita o período.
+      final hoje = todayLocalDate();
       final fake = FakeFinanceiro(
         lancamentos: [
           fakeLanc(
@@ -365,7 +375,8 @@ void main() {
             tipo: TipoLancamento.despesa,
             descricao: 'Fornecedor',
             status: LancamentoStatus.pendente,
-            vencimento: '2026-07-20',
+            data: hoje,
+            vencimento: hoje,
           ),
         ],
       );
