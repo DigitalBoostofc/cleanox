@@ -202,6 +202,7 @@ bool serieJaTemData(
 }
 
 /// Datas futuras após a base (horizonte por frequência).
+/// Não inclui a data-base (já existe como 1ª ocorrência).
 List<String> datasRecorrenciaAFrente({
   required DateTime baseDate,
   required FrequenciaRecorrencia frequencia,
@@ -212,6 +213,36 @@ List<String> datasRecorrenciaAFrente({
     for (var i = 1; i <= n; i++)
       formatYmdLocal(addFrequencia(baseDate, frequencia, i)),
   ];
+}
+
+/// True se [ymd] cai na grade da frequência a partir de [baseYmd]
+/// (ex.: semanal a cada 7 dias; mensal no mesmo dia do mês).
+bool dataNaGradeFrequencia({
+  required String baseYmd,
+  required String ymd,
+  required FrequenciaRecorrencia frequencia,
+}) {
+  final base = parseYmdLocal(baseYmd);
+  final d = parseYmdLocal(ymd);
+  if (base == null || d == null) return false;
+  if (d.isBefore(base)) return false;
+  if (_isMensalLike(frequencia)) {
+    var i = 0;
+    while (i < 240) {
+      final cand = addFrequencia(base, frequencia, i);
+      if (formatYmdLocal(cand) == ymd) return true;
+      if (cand.isAfter(d)) return false;
+      i += 1;
+    }
+    return false;
+  }
+  final stepDays = switch (frequencia) {
+    FrequenciaRecorrencia.diario => 1,
+    FrequenciaRecorrencia.semanal => 7,
+    FrequenciaRecorrencia.quinzenal => 15,
+    _ => 7,
+  };
+  return d.difference(base).inDays % stepDays == 0;
 }
 
 /// Quantas ocorrências criar à frente ao salvar um fixo.
