@@ -534,8 +534,8 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
     if (_old.text.isEmpty) oldErr = 'Informe a senha atual';
     if (_new.text.isEmpty) {
       newErr = 'Informe a nova senha';
-    } else if (_new.text.length < 8) {
-      newErr = 'Mínimo 8 caracteres';
+    } else if (_new.text.length < 4) {
+      newErr = 'Mínimo 4 caracteres';
     }
     if (_new.text != _confirm.text) confirmErr = 'As senhas não coincidem';
     setState(() {
@@ -658,7 +658,7 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
                           'Nova senha',
                           _new,
                           error: _newErr,
-                          hint: 'Mínimo 8 caracteres',
+                          hint: 'Mínimo 4 caracteres',
                           onChanged: () {
                             if (_newErr != null) {
                               setState(() => _newErr = null);

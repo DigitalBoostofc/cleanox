@@ -4,7 +4,7 @@
 /// (admin/gerente/profissional). Regras de segurança espelhadas do React:
 ///   • ao EDITAR, e-mail/senha não mudam aqui (senha → Admin UI do PocketBase);
 ///   • ninguém altera o PRÓPRIO papel (o dropdown fica travado);
-///   • senha mínima 8 + confirmação na criação.
+///   • senha mínima 4 + confirmação na criação.
 /// O servidor continua sendo a linha de defesa — a UI só antecipa a validação.
 ///
 /// Grava via `UsuariosRepository` (core). Resolve `true` quando salvou.
@@ -129,8 +129,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       }
       if (_senha.text.isEmpty) {
         errs['senha'] = 'Senha é obrigatória';
-      } else if (_senha.text.length < 8) {
-        errs['senha'] = 'Mínimo 8 caracteres';
+      } else if (_senha.text.length < 4) {
+        errs['senha'] = 'Mínimo 4 caracteres';
       }
       if (_senha.text != _senhaConfirm.text) {
         errs['senhaConfirm'] = 'Senhas não coincidem';
@@ -401,7 +401,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                     required: true,
                     controller: _senha,
                     errorKey: 'senha',
-                    hint: 'Mínimo 8 caracteres',
+                    hint: 'Mínimo 4 caracteres',
                     obscure: true,
                   ),
                   _field(
@@ -702,8 +702,8 @@ class _ResetSenhaDialogState extends ConsumerState<_ResetSenhaDialog> {
 
   Map<String, String> _validate() {
     final errs = <String, String>{};
-    if (_nova.text.length < 8) {
-      errs['nova'] = 'Mínimo 8 caracteres';
+    if (_nova.text.length < 4) {
+      errs['nova'] = 'Mínimo 4 caracteres';
     }
     if (_nova.text != _confirm.text) {
       errs['confirm'] = 'Senhas não coincidem';
@@ -810,7 +810,7 @@ class _ResetSenhaDialogState extends ConsumerState<_ResetSenhaDialog> {
                   label: 'Nova senha',
                   controller: _nova,
                   errorKey: 'nova',
-                  hint: 'Mínimo 8 caracteres',
+                  hint: 'Mínimo 4 caracteres',
                 ),
                 _senhaField(
                   label: 'Confirmar nova senha',

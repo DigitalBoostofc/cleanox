@@ -19,17 +19,17 @@ describe('validarNovaSenha', () => {
     assert.equal(validarNovaSenha('umasenha123', 'umasenha123'), null)
   })
 
-  it('mínimo é 8 caracteres', () => {
-    assert.equal(SENHA_MIN, 8)
+  it('mínimo é 4 caracteres', () => {
+    assert.equal(SENHA_MIN, 4)
   })
 
-  it('senha curta (<8) → erro de tamanho', () => {
-    const err = validarNovaSenha('1234567', '1234567')
-    assert.match(err, /pelo menos 8/)
+  it('senha curta (<4) → erro de tamanho', () => {
+    const err = validarNovaSenha('123', '123')
+    assert.match(err, /pelo menos 4/)
   })
 
-  it('exatamente 8 caracteres → ok', () => {
-    assert.equal(validarNovaSenha('12345678', '12345678'), null)
+  it('exatamente 4 caracteres → ok', () => {
+    assert.equal(validarNovaSenha('1234', '1234'), null)
   })
 
   it('senha e confirmação diferentes → não coincidem', () => {
@@ -38,11 +38,11 @@ describe('validarNovaSenha', () => {
   })
 
   it('não-string (undefined) → erro de tamanho, sem lançar', () => {
-    assert.match(validarNovaSenha(undefined, undefined), /pelo menos 8/)
+    assert.match(validarNovaSenha(undefined, undefined), /pelo menos 4/)
   })
 
   it('tamanho é checado ANTES da igualdade (curta ganha)', () => {
     // Ambas curtas e iguais: a mensagem é a de tamanho, não a de coincidência.
-    assert.match(validarNovaSenha('123', '123'), /pelo menos 8/)
+    assert.match(validarNovaSenha('12', '12'), /pelo menos 4/)
   })
 })

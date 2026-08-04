@@ -7,7 +7,7 @@
  */
 
 /** Mínimo de caracteres da senha (espelha a regra do form do painel). */
-const SENHA_MIN = 8;
+const SENHA_MIN = 4;
 
 /**
  * Valida a nova senha proposta. Retorna a mensagem de erro (PT-BR) ou `null`

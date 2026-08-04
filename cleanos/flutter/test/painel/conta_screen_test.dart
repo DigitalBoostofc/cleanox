@@ -65,7 +65,7 @@ void main() {
       expect(find.text('As senhas não coincidem'), findsOneWidget);
     });
 
-    testWidgets('validação: nova senha curta → "Mínimo 8 caracteres"', (
+    testWidgets('validação: nova senha curta → "Mínimo 4 caracteres"', (
       tester,
     ) async {
       await pumpPainel(
@@ -82,7 +82,7 @@ void main() {
       await tester.tap(find.widgetWithText(ClxButton, 'Alterar senha'));
       await tester.pump();
 
-      expect(find.text('Mínimo 8 caracteres'), findsOneWidget);
+      expect(find.text('Mínimo 4 caracteres'), findsOneWidget);
     });
   });
 }
