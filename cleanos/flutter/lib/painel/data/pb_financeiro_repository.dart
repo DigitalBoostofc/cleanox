@@ -603,6 +603,8 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   @override
   Future<int> materializarSerieAFrente(FinSerie serie) async {
     if (!serie.isAtiva) return 0;
+    // Remove previstos fora da grade (ex.: backfill juntou dias errados).
+    await _pruneOffScheduleSerie(serie);
     final baseDate = parseYmdLocal(serie.dataInicio);
     if (baseDate == null) return 0;
     final freq = serie.frequenciaEfetiva;
@@ -684,8 +686,33 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
 
   String _hojeBrt() => todayLocalDate();
 
+  /// Apaga não-pagos cuja data não cai na grade da série (mantém pagos).
+  Future<int> _pruneOffScheduleSerie(FinSerie serie) async {
+    final base = (serie.dataInicio).trim();
+    if (base.isEmpty) return 0;
+    final freq = serie.frequenciaEfetiva;
+    final members = await _listBySerieId(serie.id);
+    var n = 0;
+    for (final l in members) {
+      if (l.status == LancamentoStatus.pago) continue;
+      final ymd = _ymdOf(l.data);
+      if (dataNaGradeFrequencia(
+        baseYmd: base,
+        ymd: ymd,
+        frequencia: freq,
+      )) {
+        continue;
+      }
+      try {
+        await deleteLancamento(l.id);
+        n++;
+      } catch (_) {}
+    }
+    return n;
+  }
+
   /// Apaga lançamentos da série com data >= [fromYmd] e status ≠ pago
-  /// (previsto/pendente/em_atraso). Pagos nunca são tocados aqui.
+  /// (previsto/pendente/em_atraso). Pagos nunca são tocados.
   Future<int> _deleteFuturosNaoPagos(String serieId, String fromYmd) async {
     final members = await _listBySerieId(serieId);
     var n = 0;
@@ -702,14 +729,32 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   }
 
   /// Propaga template da série para ocorrências não pagas + poda por data_fim.
-  Future<void> _propagarSerieParaOcorrencias(FinSerie serie) async {
+  ///
+  /// Se [rebuildCalendario] (ex.: mudou frequência), apaga não-pagos e
+  /// rematerializa o horizonte — só patch de campos não corrige as datas.
+  Future<void> _propagarSerieParaOcorrencias(
+    FinSerie serie, {
+    bool rebuildCalendario = false,
+  }) async {
     // 1) data_fim: remove não-pagos depois do último dia válido.
     final fim = (serie.dataFim ?? '').trim();
     if (fim.isNotEmpty) {
       await _deleteFuturosNaoPagos(serie.id, _diaApos(fim));
     }
 
-    // 2) Atualiza template nos restantes não pagos.
+    if (rebuildCalendario) {
+      // Remove previstos/pendentes (mantém pagos) e recria calendário.
+      final inicio = (serie.dataInicio.trim().isNotEmpty)
+          ? _ymdOf(serie.dataInicio)
+          : _hojeBrt();
+      await _deleteFuturosNaoPagos(serie.id, inicio);
+      if (serie.isAtiva) {
+        await materializarSerieAFrente(serie);
+      }
+      return;
+    }
+
+    // 2) Atualiza template nos restantes não pagos (sem mexer nas datas).
     final members = await _listBySerieId(serie.id);
     final patch = <String, dynamic>{
       'descricao': serie.descricao,
@@ -743,8 +788,15 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     String id,
     Map<String, dynamic> data,
   ) async {
+    final antes = await _getSerie(id);
     final serie = await updateSerie(id, data);
-    await _propagarSerieParaOcorrencias(serie);
+    final freqMudou = data.containsKey('frequencia') &&
+        antes != null &&
+        serie.frequenciaEfetiva != antes.frequenciaEfetiva;
+    await _propagarSerieParaOcorrencias(
+      serie,
+      rebuildCalendario: freqMudou,
+    );
     return serie;
   }
 

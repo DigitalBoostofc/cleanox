@@ -351,8 +351,9 @@ class _SerieCard extends StatelessWidget {
   }
 }
 
-/// Edita valor / descrição / conta / categoria da regra.
-/// Ocorrências futuras passam a usar o novo valor no ensure (via série).
+/// Edita a regra (descrição, valor, conta, categoria, frequência, data fim).
+/// Ocorrências não pagas recebem o template; se a frequência mudar, o calendário
+/// de previstos é refeito (pagos ficam).
 class _SerieEditForm extends ConsumerStatefulWidget {
   const _SerieEditForm({required this.serie});
   final FinSerie serie;
@@ -367,6 +368,7 @@ class _SerieEditFormState extends ConsumerState<_SerieEditForm> {
   late final TextEditingController _dataFim;
   String? _contaId;
   String? _categoriaId;
+  late FrequenciaRecorrencia _frequencia;
   bool _saving = false;
   String? _err;
 
@@ -381,6 +383,7 @@ class _SerieEditFormState extends ConsumerState<_SerieEditForm> {
     _dataFim = TextEditingController(text: s.dataFim ?? '');
     _contaId = s.contaId.isEmpty ? null : s.contaId;
     _categoriaId = s.categoriaId.isEmpty ? null : s.categoriaId;
+    _frequencia = s.frequenciaEfetiva;
   }
 
   @override
@@ -416,9 +419,10 @@ class _SerieEditFormState extends ConsumerState<_SerieEditForm> {
         'valor': v,
         'conta_id': _contaId ?? widget.serie.contaId,
         'categoria_id': _categoriaId ?? widget.serie.categoriaId,
+        'frequencia': _frequencia.wire,
         'data_fim': fimRaw,
       };
-      // Propaga valor/descrição para previstos e poda após data_fim.
+      // Propaga template; se frequência mudou, recria calendário de não-pagos.
       await ref
           .read(financeiroRepositoryProvider)
           .updateSeriePropagando(widget.serie.id, body);
@@ -465,6 +469,25 @@ class _SerieEditFormState extends ConsumerState<_SerieEditForm> {
             ],
           ),
           const SizedBox(height: 12),
+          DropdownButtonFormField<FrequenciaRecorrencia>(
+            // ignore: deprecated_member_use
+            value: _frequencia,
+            decoration: const InputDecoration(
+              labelText: 'Frequência',
+              helperText: 'Diário, semanal, quinzenal, mensal…',
+            ),
+            items: [
+              for (final f in FrequenciaRecorrencia.values)
+                DropdownMenuItem(
+                  value: f,
+                  child: Text(f.labelSingular),
+                ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _frequencia = v);
+            },
+          ),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             // ignore: deprecated_member_use
             value: _contaId,
@@ -493,6 +516,15 @@ class _SerieEditFormState extends ConsumerState<_SerieEditForm> {
               labelText: 'Data fim (AAAA-MM-DD, opcional)',
               hintText: 'Vazio = sem data fim',
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ao mudar a frequência, os lançamentos ainda não pagos são '
+            'recalculados. Os já pagos permanecem no extrato.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.clx.ink3,
+                  height: 1.35,
+                ),
           ),
         ],
       ),
