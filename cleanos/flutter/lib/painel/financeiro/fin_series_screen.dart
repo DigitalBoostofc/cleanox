@@ -18,6 +18,18 @@ import 'fin_recorrencia.dart';
 import 'fin_serie_actions.dart';
 import 'ui/fin_ui.dart';
 
+/// Abre o modal **Editar cobrança fixa** (mesmo da tela Cobranças fixas).
+/// Resolve `true` se salvou. Usado também a partir do extrato/transações.
+Future<bool?> showSerieEditForm(
+  BuildContext context, {
+  required FinSerie serie,
+}) {
+  return showFinModal<bool>(
+    context,
+    _SerieEditForm(serie: serie),
+  );
+}
+
 class FinSeriesScreen extends ConsumerWidget {
   const FinSeriesScreen({super.key});
 
@@ -26,10 +38,7 @@ class FinSeriesScreen extends ConsumerWidget {
     WidgetRef ref,
     FinSerie s,
   ) async {
-    final ok = await showFinModal<bool>(
-      context,
-      _SerieEditForm(serie: s),
-    );
+    final ok = await showSerieEditForm(context, serie: s);
     if (ok == true) {
       ref.invalidate(finSeriesProvider);
       await refreshAfterSerieMutation(ref);

@@ -365,8 +365,10 @@ class _LancamentoDetailPanel extends StatelessWidget {
                 ),
                 _Action(
                   icon: Icons.edit_outlined,
-                  label: 'Editar',
-                  onTap: () => Navigator.of(context).pop('edit'),
+                  label: l.isDaSerie ? 'Editar fixa' : 'Editar',
+                  onTap: () => Navigator.of(context).pop(
+                    l.isDaSerie ? 'edit_serie' : 'edit',
+                  ),
                 ),
                 if (l.isDaSerie)
                   _Action(
