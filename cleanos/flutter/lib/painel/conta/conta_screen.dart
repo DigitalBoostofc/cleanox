@@ -451,8 +451,8 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
     if (_old.text.isEmpty) errs['old'] = 'Informe a senha atual';
     if (_new.text.isEmpty) {
       errs['new'] = 'Informe a nova senha';
-    } else if (_new.text.length < 8) {
-      errs['new'] = 'Mínimo 8 caracteres';
+    } else if (_new.text.length < 4) {
+      errs['new'] = 'Mínimo 4 caracteres';
     }
     if (_new.text != _confirm.text) {
       errs['confirm'] = 'As senhas não coincidem';
@@ -543,7 +543,7 @@ class _AlterarSenhaCardState extends ConsumerState<_AlterarSenhaCard> {
             const SizedBox(height: ClxSpace.x3),
             _PwdField(
               label: 'Nova senha',
-              hint: 'Ao menos 8 caracteres',
+              hint: 'Ao menos 4 caracteres',
               controller: _new,
               error: _fieldErrs['new'],
               autofillHint: AutofillHints.newPassword,
