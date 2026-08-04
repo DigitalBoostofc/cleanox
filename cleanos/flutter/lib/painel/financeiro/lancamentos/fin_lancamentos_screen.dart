@@ -19,6 +19,7 @@ import '../fin_derivations.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import '../fin_serie_actions.dart';
+import '../fin_series_screen.dart';
 import 'fin_lancamentos_controller.dart';
 import 'lancamento_detail_panel.dart';
 import 'lancamento_form.dart';
@@ -155,13 +156,50 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
     if (!mounted || action == null || dependente) return;
     switch (action) {
       case 'edit':
-        await _openForm(editing: l);
+        if (l.isDaSerie) {
+          await _editSerieFromLancamento(l);
+        } else {
+          await _openForm(editing: l);
+        }
+      case 'edit_serie':
+        await _editSerieFromLancamento(l);
       case 'duplicate':
       case 'repeat': // legado do botão antigo "Repetir" → agora é duplicar
         await _duplicate(l);
       case 'delete':
       case 'stop_series':
         await _delete(l);
+    }
+  }
+
+  Future<void> _editSerieFromLancamento(FinLancamento l) async {
+    try {
+      final serie =
+          await ref.read(financeiroRepositoryProvider).ensureSerieForLancamento(l);
+      if (!mounted) return;
+      final ok = await showSerieEditForm(context, serie: serie);
+      if (ok == true) {
+        ref.invalidate(finSeriesProvider);
+        await _refreshAfterMutation();
+        if (mounted) {
+          showClxToast(
+            context,
+            'Cobrança fixa atualizada.',
+            type: ToastType.success,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showClxToast(
+          context,
+          finErrorMessage(
+            e,
+            fallback: 'Não foi possível editar a cobrança fixa.',
+          ),
+          type: ToastType.error,
+        );
+      }
     }
   }
 
@@ -518,7 +556,14 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
             onDetail: () => _openDetail(row.item!),
             onEdit: isLancamentoDependenteExterno(row.item!)
                 ? () => _openDetail(row.item!)
-                : () => _openForm(editing: row.item!),
+                : () {
+                    final item = row.item!;
+                    if (item.isDaSerie) {
+                      _editSerieFromLancamento(item);
+                    } else {
+                      _openForm(editing: item);
+                    }
+                  },
             onDuplicate: isLancamentoDependenteExterno(row.item!)
                 ? () {}
                 : () => _duplicate(row.item!),

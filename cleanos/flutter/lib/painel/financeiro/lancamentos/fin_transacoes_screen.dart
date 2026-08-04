@@ -21,6 +21,7 @@ import '../fin_export.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import '../fin_serie_actions.dart';
+import '../fin_series_screen.dart';
 import '../ui/fin_ui.dart';
 import 'fin_lancamentos_controller.dart';
 import 'lancamento_detail_panel.dart';
@@ -133,7 +134,13 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
     if (!mounted || action == null) return;
     switch (action) {
       case 'edit':
-        await _openForm(editing: l);
+        if (l.isDaSerie) {
+          await _editSerieFromLancamento(l);
+        } else {
+          await _openForm(editing: l);
+        }
+      case 'edit_serie':
+        await _editSerieFromLancamento(l);
       case 'duplicate':
       case 'repeat':
         try {
@@ -158,6 +165,35 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
       case 'delete':
       case 'stop_series':
         await _delete(l);
+    }
+  }
+
+  /// Abre o mesmo modal de Cobranças fixas, sem sair do extrato.
+  Future<void> _editSerieFromLancamento(FinLancamento l) async {
+    try {
+      final repo = ref.read(financeiroRepositoryProvider);
+      final serie = await repo.ensureSerieForLancamento(l);
+      if (!mounted) return;
+      final ok = await showSerieEditForm(context, serie: serie);
+      if (ok == true) {
+        ref.invalidate(finSeriesProvider);
+        await _refreshAfterMutation();
+        if (mounted) {
+          showClxToast(
+            context,
+            'Cobrança fixa atualizada.',
+            type: ToastType.success,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showClxToast(
+          context,
+          finErrorMessage(e, fallback: 'Não foi possível editar a cobrança fixa.'),
+          type: ToastType.error,
+        );
+      }
     }
   }
 
