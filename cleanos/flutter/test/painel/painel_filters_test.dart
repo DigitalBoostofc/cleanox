@@ -90,8 +90,11 @@ void main() {
   });
 
   group('profissionaisFilter', () {
-    test('fixa o papel profissional', () {
-      expect(profissionaisFilter(), "role = 'profissional'");
+    test('fixa o papel profissional e só ativos', () {
+      expect(
+        profissionaisFilter(),
+        "role = 'profissional' && ativo = true",
+      );
     });
   });
 

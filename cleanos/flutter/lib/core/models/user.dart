@@ -61,6 +61,10 @@ class User with _$User {
     /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
     @JsonKey(name: 'cor_agenda') @Default('') String corAgenda,
 
+    /// Colaborador ativo na operação (migration 52). Inativo some das listas
+    /// de atribuição (OS/agenda), mas mantém histórico e login.
+    @Default(true) bool ativo,
+
     @Default(false) bool verified,
     @JsonKey(name: 'emailVisibility') @Default(false) bool emailVisibility,
     String? created,
@@ -88,6 +92,8 @@ class User with _$User {
     if (pd2 == null || pd2 == '') j['pagamento_dia_2'] = 0;
     if (j['avatar'] == null) j['avatar'] = '';
     if (j['cor_agenda'] == null) j['cor_agenda'] = '';
+    // Campo novo: ausência → ativo (não some da lista por default).
+    if (j['ativo'] == null) j['ativo'] = true;
     return User.fromJson(j);
   }
 

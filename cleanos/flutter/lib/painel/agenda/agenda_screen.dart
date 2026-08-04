@@ -19,17 +19,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/agenda/agenda_layout.dart';
 import '../../core/agenda/agenda_prof_cor.dart';
-import '../../core/auth/auth_providers.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
-import '../../core/models/user.dart';
 import '../ordens/os_detail.dart';
 import '../ordens/os_form.dart';
-import '../usuarios/disponibilidade_editor.dart';
 import 'agenda_controller.dart';
 import 'ajuste_sheet.dart';
 import 'day_column.dart';
@@ -216,18 +213,6 @@ class _Toolbar extends ConsumerWidget {
     final clx = context.clx;
     final state = ref.watch(agendaControllerProvider);
     final notifier = ref.read(agendaControllerProvider.notifier);
-    final role = ref.watch(currentRoleProvider);
-    final canManageDisp = role == Role.admin || role == Role.gerente;
-    final profId = state.filterProfId;
-    User? selectedProf;
-    if (profId != null) {
-      for (final p in state.profissionais) {
-        if (p.id == profId) {
-          selectedProf = p;
-          break;
-        }
-      }
-    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -289,65 +274,46 @@ class _Toolbar extends ConsumerWidget {
             icon: const Icon(Icons.refresh_rounded),
             onPressed: notifier.load,
           ),
-          // Filtro de profissional + engrenagem de disponibilidade.
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                // 260: "Todos os profissionais" + prefixIcon cabem sem cortar.
-                width: 260,
-                child: DropdownButtonFormField<String?>(
-                  initialValue: state.filterProfId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: clx.bg2,
-                    prefixIcon: const Icon(Icons.badge_outlined, size: 18),
-                    border: const OutlineInputBorder(
-                      borderRadius: ClxRadii.rMd,
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  hint: const Text(
+          // Filtro de profissional (só ativos — profissionaisFilter).
+          SizedBox(
+            // 260: "Todos os profissionais" + prefixIcon cabem sem cortar.
+            width: 260,
+            child: DropdownButtonFormField<String?>(
+              initialValue: state.filterProfId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: clx.bg2,
+                prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+                border: const OutlineInputBorder(
+                  borderRadius: ClxRadii.rMd,
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              hint: const Text(
+                'Todos os profissionais',
+                overflow: TextOverflow.ellipsis,
+              ),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text(
                     'Todos os profissionais',
                     overflow: TextOverflow.ellipsis,
                   ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text(
-                        'Todos os profissionais',
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                ),
+                for (final p in state.profissionais)
+                  DropdownMenuItem(
+                    value: p.id,
+                    child: Text(
+                      p.displayName,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    for (final p in state.profissionais)
-                      DropdownMenuItem(
-                        value: p.id,
-                        child: Text(
-                          p.displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: notifier.setFilterProf,
-                ),
-              ),
-              if (selectedProf != null && canManageDisp)
-                Builder(
-                  builder: (context) {
-                    final prof = selectedProf!;
-                    return IconButton(
-                      tooltip: 'Configurar disponibilidade',
-                      icon: const Icon(Icons.settings_outlined, size: 18),
-                      onPressed: () => showDisponibilidadeEditor(
-                        context,
-                        profissional: prof,
-                      ),
-                    );
-                  },
-                ),
-            ],
+                  ),
+              ],
+              onChanged: notifier.setFilterProf,
+            ),
           ),
           // Abas de visão.
           SegmentedButton<AgendaView>(

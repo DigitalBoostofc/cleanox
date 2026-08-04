@@ -39,8 +39,13 @@ String? clienteSearchFilter(String query) {
   }).join(' && ');
 }
 
-/// Filtro fixo de profissionais (papel = profissional). Sem entrada do usuário.
+/// Filtro fixo de profissionais **ativos** (atribuição OS/agenda/comissões).
+/// Inativos ficam fora das listas de escolha.
 String profissionaisFilter() =>
+    'role = ${pbStringLiteral(Role.profissional.wire)} && ativo = true';
+
+/// Todos os profissionais (inclui inativos) — tela Usuários / admin.
+String profissionaisTodosFilter() =>
     'role = ${pbStringLiteral(Role.profissional.wire)}';
 
 /// Filtro do catálogo de Serviços: busca por nome (`~`) + categoria/grupo (`=`).

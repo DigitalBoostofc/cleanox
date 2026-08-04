@@ -67,6 +67,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   final TextEditingController _senhaConfirm = TextEditingController();
 
   Role _role = Role.profissional;
+  bool _ativo = true;
   bool _saving = false;
   String? _saveError;
   final Map<String, String> _errs = {};
@@ -87,6 +88,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       _email.text = u.email;
       _whatsapp.text = u.whatsapp ?? '';
       _role = u.role;
+      _ativo = u.ativo;
       _corAgenda = parseHexCorAgenda(u.corAgenda);
     }
   }
@@ -177,6 +179,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
             'cor_agenda': corWire,
+            'ativo': _ativo,
           },
           avatar: avatar,
         );
@@ -187,6 +190,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'email': _email.text.trim(),
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
+            'ativo': _ativo,
             'cor_agenda': corWire,
             'password': _senha.text,
             'passwordConfirm': _senhaConfirm.text,
@@ -367,6 +371,20 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                 _roleField(clx, self),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ativo na operação'),
+                  subtitle: Text(
+                    _ativo
+                        ? 'Aparece nas listas (OS, agenda, comissões).'
+                        : 'Não aparece nas listas de atribuição. Histórico fica.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: clx.ink3,
+                        ),
+                  ),
+                  value: _ativo,
+                  onChanged: (v) => setState(() => _ativo = v),
+                ),
                 if (_role == Role.profissional) _corAgendaField(clx),
                 _field(
                   label: 'WhatsApp',
