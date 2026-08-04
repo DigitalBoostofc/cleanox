@@ -17,6 +17,7 @@ import '../../../core/design/design.dart';
 import '../../../core/formatters/formatters.dart';
 import '../../../core/models/financeiro.dart';
 import '../fin_categoria_picker.dart';
+import '../fin_common.dart';
 import '../fin_form_kit.dart';
 import '../fin_providers.dart';
 import 'fin_lancamentos_controller.dart';
@@ -161,6 +162,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
     ref.invalidate(finContasProvider);
     ref.invalidate(finPeriodLancamentosProvider);
     ref.invalidate(finPendentesProvider);
+    ref.invalidate(finSeriesProvider);
     // Transações montada → controller vivo; senão não cria provider órfão.
     if (ref.exists(finLancControllerProvider)) {
       await ref.read(finLancControllerProvider.notifier).refresh();
@@ -213,40 +215,34 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
         .toList();
     // Uma data só: principal = vencimento (espelha nos dois campos do PB).
     final dataYmd = _data.text.trim();
+    // Body limpo: PB grava opcionais como "" (R2) — não enviar null.
     final baseBody = <String, dynamic>{
       'tipo': _tipo.wire,
       'descricao': _descricao.text.trim(),
       'categoria_id': _categoriaId,
-      'subcategoria_id': _subcategoriaId,
+      'subcategoria_id': (_subcategoriaId ?? '').trim(),
       'valor': valor,
       'conta_id': _contaId,
       'data': dataYmd,
       'vencimento': dataYmd,
       'status': _status.wire,
       'recorrencia': rec.wire,
-      // Frequência da série (semanal, mensal…) — só em fixa/recorrente.
-      'frequencia': (rec == RecorrenciaTipo.fixa ||
-              rec == RecorrenciaTipo.recorrente)
-          ? _frequenciaFromPeriodo(_freqFixa).wire
-          : null,
-      if (rec == RecorrenciaTipo.parcelada) ...{
-        'parcela_atual': _isEdit ? (widget.editing!.parcelaAtual ?? 1) : 1,
-        'parcelas_total': _parcelasN,
-      } else ...{
-        'parcela_atual': null,
-        'parcelas_total': null,
-      },
       'tags': tags,
-      'forma_pagamento': _formaPagamento.text.trim().isEmpty
-          ? null
-          : _formaPagamento.text.trim(),
-      'observacao': _observacao.text.trim().isEmpty
-          ? null
-          : _observacao.text.trim(),
+      'forma_pagamento': _formaPagamento.text.trim(),
+      'observacao': _observacao.text.trim(),
       'anexos': _anexos.map((a) => a.toJson()).toList(),
       // origem só na CRIAÇÃO (anti-desvio): sempre 'manual'. Na edição não tocamos.
       if (!_isEdit) 'origem': OrigemLancamento.manual.wire,
     };
+    // Frequência da série (semanal, mensal…) — só em fixa/recorrente.
+    if (rec == RecorrenciaTipo.fixa || rec == RecorrenciaTipo.recorrente) {
+      baseBody['frequencia'] = _frequenciaFromPeriodo(_freqFixa).wire;
+    }
+    if (rec == RecorrenciaTipo.parcelada) {
+      baseBody['parcela_atual'] =
+          _isEdit ? (widget.editing!.parcelaAtual ?? 1) : 1;
+      baseBody['parcelas_total'] = _parcelasN;
+    }
     try {
       final repo = ref.read(financeiroRepositoryProvider);
       if (_isEdit) {
@@ -273,13 +269,47 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
           });
         }
       } else {
-        final criado = await repo.createLancamento(baseBody);
-        // Fixa/recorrente: já cria os próximos 12 meses como previstos.
+        // Fixa/recorrente: cria a REGRA (fin_series) + 1ª ocorrência + horizonte.
+        Map<String, dynamic> createBody = Map<String, dynamic>.from(baseBody);
         if (rec == RecorrenciaTipo.fixa || rec == RecorrenciaTipo.recorrente) {
-          await repo.materializarRecorrenciaAFrente(criado);
+          try {
+            final serie = await repo.createSerie({
+              'tipo': _tipo.wire,
+              'descricao': _descricao.text.trim(),
+              'categoria_id': _categoriaId,
+              'subcategoria_id': (_subcategoriaId ?? '').trim(),
+              'valor': valor,
+              'conta_id': _contaId,
+              'recorrencia': rec.wire,
+              'frequencia': _frequenciaFromPeriodo(_freqFixa).wire,
+              'status': FinSerieStatus.ativa.wire,
+              'data_inicio': dataYmd,
+              'data_fim': '',
+              'forma_pagamento': _formaPagamento.text.trim(),
+              'observacao': _observacao.text.trim(),
+              'tags': tags,
+            });
+            createBody['serie_id'] = serie.id;
+          } catch (e) {
+            // Sem migration ainda: segue só com lançamentos (legado).
+            debugPrint('[lancamento_form] createSerie: $e');
+          }
+        }
+        final criado = await repo.createLancamento(createBody);
+        if (rec == RecorrenciaTipo.fixa || rec == RecorrenciaTipo.recorrente) {
+          try {
+            await repo.materializarRecorrenciaAFrente(criado);
+          } catch (e) {
+            // Série base salva; próximas ocorrências entram no ensure.
+            debugPrint('[lancamento_form] materializar: $e');
+          }
         }
       }
-      await _refreshListsAfterSave();
+      try {
+        await _refreshListsAfterSave();
+      } catch (e) {
+        debugPrint('[lancamento_form] refresh pós-save: $e');
+      }
       if (!mounted) return;
       if (andAnother && !_isEdit) {
         // Mantém data/conta/categoria; limpa o que muda a cada lançamento.
@@ -305,11 +335,14 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
         return;
       }
       Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _saving = false;
-          _saveError = 'Não foi possível salvar o lançamento.';
+          _saveError = finErrorMessage(
+            e,
+            fallback: 'Não foi possível salvar o lançamento.',
+          );
         });
       }
     }

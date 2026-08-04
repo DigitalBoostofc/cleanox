@@ -135,6 +135,7 @@ _$FinLancamentoImpl _$$FinLancamentoImplFromJson(Map<String, dynamic> json) =>
         json['frequencia'],
         unknownValue: FrequenciaRecorrencia.mensal,
       ),
+      serieId: json['serie_id'] as String?,
       parcelaAtual: (json['parcela_atual'] as num?)?.toInt(),
       parcelasTotal: (json['parcelas_total'] as num?)?.toInt(),
       origem:
@@ -177,6 +178,7 @@ Map<String, dynamic> _$$FinLancamentoImplToJson(_$FinLancamentoImpl instance) =>
       'status': _$LancamentoStatusEnumMap[instance.status]!,
       'recorrencia': _$RecorrenciaTipoEnumMap[instance.recorrencia]!,
       'frequencia': _$FrequenciaRecorrenciaEnumMap[instance.frequencia],
+      'serie_id': instance.serieId,
       'parcela_atual': instance.parcelaAtual,
       'parcelas_total': instance.parcelasTotal,
       'origem': _$OrigemLancamentoEnumMap[instance.origem]!,
@@ -221,6 +223,78 @@ const _$FrequenciaRecorrenciaEnumMap = {
 const _$OrigemLancamentoEnumMap = {
   OrigemLancamento.manual: 'manual',
   OrigemLancamento.viaOs: 'via_os',
+};
+
+_$FinSerieImpl _$$FinSerieImplFromJson(Map<String, dynamic> json) =>
+    _$FinSerieImpl(
+      id: json['id'] as String,
+      tipo:
+          $enumDecodeNullable(
+            _$TipoLancamentoEnumMap,
+            json['tipo'],
+            unknownValue: TipoLancamento.despesa,
+          ) ??
+          TipoLancamento.despesa,
+      descricao: json['descricao'] as String? ?? '',
+      categoriaId: json['categoria_id'] as String? ?? '',
+      subcategoriaId: json['subcategoria_id'] as String?,
+      valor: (json['valor'] as num?)?.toDouble() ?? 0,
+      contaId: json['conta_id'] as String? ?? '',
+      recorrencia:
+          $enumDecodeNullable(
+            _$RecorrenciaTipoEnumMap,
+            json['recorrencia'],
+            unknownValue: RecorrenciaTipo.fixa,
+          ) ??
+          RecorrenciaTipo.fixa,
+      frequencia: $enumDecodeNullable(
+        _$FrequenciaRecorrenciaEnumMap,
+        json['frequencia'],
+        unknownValue: FrequenciaRecorrencia.mensal,
+      ),
+      status:
+          $enumDecodeNullable(
+            _$FinSerieStatusEnumMap,
+            json['status'],
+            unknownValue: FinSerieStatus.ativa,
+          ) ??
+          FinSerieStatus.ativa,
+      dataInicio: json['data_inicio'] as String? ?? '',
+      dataFim: json['data_fim'] as String?,
+      formaPagamento: json['forma_pagamento'] as String?,
+      observacao: json['observacao'] as String?,
+      tags:
+          (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+          const <String>[],
+      created: json['created'] as String?,
+      updated: json['updated'] as String?,
+    );
+
+Map<String, dynamic> _$$FinSerieImplToJson(_$FinSerieImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'tipo': _$TipoLancamentoEnumMap[instance.tipo]!,
+      'descricao': instance.descricao,
+      'categoria_id': instance.categoriaId,
+      'subcategoria_id': instance.subcategoriaId,
+      'valor': instance.valor,
+      'conta_id': instance.contaId,
+      'recorrencia': _$RecorrenciaTipoEnumMap[instance.recorrencia]!,
+      'frequencia': _$FrequenciaRecorrenciaEnumMap[instance.frequencia],
+      'status': _$FinSerieStatusEnumMap[instance.status]!,
+      'data_inicio': instance.dataInicio,
+      'data_fim': instance.dataFim,
+      'forma_pagamento': instance.formaPagamento,
+      'observacao': instance.observacao,
+      'tags': instance.tags,
+      'created': instance.created,
+      'updated': instance.updated,
+    };
+
+const _$FinSerieStatusEnumMap = {
+  FinSerieStatus.ativa: 'ativa',
+  FinSerieStatus.pausada: 'pausada',
+  FinSerieStatus.encerrada: 'encerrada',
 };
 
 _$FinLimiteImpl _$$FinLimiteImplFromJson(Map<String, dynamic> json) =>

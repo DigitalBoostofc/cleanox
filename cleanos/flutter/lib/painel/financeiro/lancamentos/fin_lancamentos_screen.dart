@@ -18,6 +18,7 @@ import '../fin_common.dart';
 import '../fin_derivations.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
+import '../fin_serie_actions.dart';
 import 'fin_lancamentos_controller.dart';
 import 'lancamento_detail_panel.dart';
 import 'lancamento_form.dart';
@@ -159,6 +160,7 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
       case 'repeat': // legado do botão antigo "Repetir" → agora é duplicar
         await _duplicate(l);
       case 'delete':
+      case 'stop_series':
         await _delete(l);
     }
   }
@@ -218,32 +220,17 @@ class _FinLancamentosScreenState extends ConsumerState<FinLancamentosScreen> {
   }
 
   Future<void> _delete(FinLancamento l) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir lançamento'),
-        content: Text(
-          'Excluir "${l.descricao}"? Isso ajusta o saldo da conta.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: context.clx.error),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final choice = await showDeleteSerieDialog(context, lancamento: l);
+    if (choice == DeleteLancamentoChoice.cancel) return;
     try {
-      await ref.read(financeiroRepositoryProvider).deleteLancamento(l.id);
-      await _refreshAfterMutation();
-      if (mounted) {
-        showClxToast(context, 'Lançamento excluído.', type: ToastType.success);
+      final msg = await applyDeleteLancamentoChoice(
+        ref,
+        l: l,
+        choice: choice,
+      );
+      await refreshAfterSerieMutation(ref);
+      if (mounted && msg != null) {
+        showClxToast(context, msg, type: ToastType.success);
       }
     } catch (_) {
       if (mounted) {

@@ -94,9 +94,9 @@ class _LancamentoDetailPanel extends StatelessWidget {
   String _recorrenciaDescricao(FinLancamento l) => switch (l.recorrencia) {
     RecorrenciaTipo.unica => 'Não se aplica',
     RecorrenciaTipo.fixa =>
-      '${l.frequenciaEfetiva.labelSingular} (fixa, até cancelar)',
+      '${l.frequenciaEfetiva.labelSingular} (fixa — gerencie em Cobranças fixas)',
     RecorrenciaTipo.recorrente =>
-      '${l.frequenciaEfetiva.labelSingular} (recorrente)',
+      '${l.frequenciaEfetiva.labelSingular} (recorrente — gerencie em Cobranças fixas)',
     RecorrenciaTipo.parcelada =>
       'Parcelada em ${l.parcelasTotal ?? '—'}x',
   };
@@ -368,12 +368,20 @@ class _LancamentoDetailPanel extends StatelessWidget {
                   label: 'Editar',
                   onTap: () => Navigator.of(context).pop('edit'),
                 ),
-                _Action(
-                  icon: Icons.delete_outline_rounded,
-                  label: 'Excluir',
-                  danger: true,
-                  onTap: () => Navigator.of(context).pop('delete'),
-                ),
+                if (l.isDaSerie)
+                  _Action(
+                    icon: Icons.block_outlined,
+                    label: 'Parar',
+                    danger: true,
+                    onTap: () => Navigator.of(context).pop('stop_series'),
+                  )
+                else
+                  _Action(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Excluir',
+                    danger: true,
+                    onTap: () => Navigator.of(context).pop('delete'),
+                  ),
               ],
             ),
           ),
