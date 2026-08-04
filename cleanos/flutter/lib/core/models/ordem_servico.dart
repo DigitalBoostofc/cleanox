@@ -28,6 +28,7 @@ part 'ordem_servico.g.dart';
 class OSExpand with _$OSExpand {
   const factory OSExpand({
     User? profissional,
+    User? profissional2,
     ServicoPB? servico,
     Cliente? cliente,
   }) = _OSExpand;
@@ -64,8 +65,20 @@ class OrdemServico with _$OrdemServico {
     /// `duracaoEfetivaMin` (OS > profissional > 60).
     @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson) int? duracaoMin,
 
-    /// Relation → users (ID).
+    /// Relation → users (ID) — profissional principal.
     String? profissional,
+
+    /// 2º profissional (só quando [execucaoModo] == dupla).
+    @JsonKey(name: 'profissional2') String? profissional2,
+
+    /// solo | dupla — forma de prestação. Legado/vazio = solo.
+    @JsonKey(
+      name: 'execucao_modo',
+      unknownEnumValue: ExecucaoModo.solo,
+    )
+    @Default(ExecucaoModo.solo)
+    ExecucaoModo execucaoModo,
+
     @JsonKey(unknownEnumValue: OSStatus.agendada)
     @Default(OSStatus.agendada)
     OSStatus status,
@@ -156,16 +169,52 @@ class OrdemServico with _$OrdemServico {
   factory OrdemServico.fromRecord(RecordModel record) {
     final base = OrdemServico.fromJson(record.toJson());
     final profRec = _expandOne(record, 'profissional');
+    final prof2Rec = _expandOne(record, 'profissional2');
     final servRec = _expandOne(record, 'servico');
     final cliRec = _expandOne(record, 'cliente');
-    if (profRec == null && servRec == null && cliRec == null) return base;
+    if (profRec == null &&
+        prof2Rec == null &&
+        servRec == null &&
+        cliRec == null) {
+      return base;
+    }
     return base.copyWith(
       expand: OSExpand(
         profissional: profRec == null ? null : User.fromRecord(profRec),
+        profissional2: prof2Rec == null ? null : User.fromRecord(prof2Rec),
         servico: servRec == null ? null : ServicoPB.fromRecord(servRec),
         cliente: cliRec == null ? null : Cliente.fromRecord(cliRec),
       ),
     );
+  }
+
+  /// True quando a OS roda com 2 profissionais e comissão é dividida /2.
+  bool get isDupla =>
+      execucaoModo == ExecucaoModo.dupla &&
+      (profissional2 ?? '').isNotEmpty;
+
+  /// IDs dos profissionais na OS (1 ou 2).
+  List<String> get profissionaisIds {
+    final out = <String>[];
+    final p1 = (profissional ?? '').trim();
+    final p2 = (profissional2 ?? '').trim();
+    if (p1.isNotEmpty) out.add(p1);
+    if (isDupla && p2.isNotEmpty && p2 != p1) out.add(p2);
+    return out;
+  }
+
+  /// Nomes para lista/card (usa expand se veio).
+  String get profissionaisLabel {
+    final n1 = expand?.profissional?.displayName;
+    final n2 = expand?.profissional2?.displayName;
+    if (isDupla) {
+      if ((n1 ?? '').isNotEmpty && (n2 ?? '').isNotEmpty) {
+        return '$n1 + $n2';
+      }
+      if ((n1 ?? '').isNotEmpty) return '$n1 + (dupla)';
+      return 'Dupla';
+    }
+    return (n1 ?? '').isEmpty ? '—' : n1!;
   }
 
   /// Total do resumo financeiro da execução: serviço + adicionais COBRÁVEIS −

@@ -20,6 +20,7 @@
 // ----------------------------------------------------------------------------
 onRecordCreate((e) => {
   const lib = require(`${__hooks}/os_logic.js`);
+  lib.normalizeExecucaoDupla(e.record);
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record); // limpa/define endereço conforme status
   lib.stampIniciadaEm(e.record); // carimbo de início (create direto em em_andamento)
@@ -27,31 +28,50 @@ onRecordCreate((e) => {
   lib.assertPaymentIfConcluida(e.record);
   lib.setRepasseIfConcluida(e.record); // F-002: cobre create-as-concluida (OS nascendo concluida)
 
-  // doc 09 §3: OS nascendo já atribuída a um profissional → push "Nova OS".
-  const novoProf = lib.relId(e.record.get("profissional"));
+  // doc 09 §3: OS nascendo já atribuída → push/WhatsApp "Nova OS" (1º e 2º).
+  const profsCreate = lib.profIdsDaOs(e.record);
 
+  const authCreate = e.auth;
   e.next();
 
   // Aviso "Nova OS" pelo WhatsApp do profissional (best-effort, nunca bloqueia o
   // create). Traz um deep-link que abre o app direto na OS. Ver notifyProfNovaOS.
-  if (novoProf) {
+  for (let i = 0; i < profsCreate.length; i++) {
     try {
-      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(e.app, novoProf, e.record);
+      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(
+        e.app,
+        profsCreate[i],
+        e.record,
+      );
     } catch (err) {
       console.error("[notifyProf] Falha ao notificar nova OS (create, ignorado): " + err);
     }
+  }
+
+  // Feed interno: "OS criada" (admin/gerente; profissional não lê a coleção).
+  try {
+    require(`${__hooks}/os_atividade_lib.js`).logOsCreate(e.app, e.record, authCreate);
+  } catch (err) {
+    console.error("[os_atividade] logOsCreate (ignorado): " + err);
   }
 }, "ordens_servico");
 
 onRecordUpdate((e) => {
   const lib = require(`${__hooks}/os_logic.js`);
 
-  // Detecta ATRIBUIÇÃO (mudança de profissional) ANTES do save, comparando com o
-  // estado original — para disparar o push "Nova OS" só quando de fato muda.
-  const orig     = e.record.original ? e.record.original() : null;
-  const antesProf = orig ? lib.relId(orig.get("profissional")) : "";
-  const novoProf  = lib.relId(e.record.get("profissional"));
-  const atribuiu  = !!novoProf && novoProf !== antesProf;
+  // Detecta ATRIBUIÇÃO (1º e/ou 2º) ANTES do save — notifica só quem ENTROU.
+  const orig = e.record.original ? e.record.original() : null;
+  const antesSet = {};
+  if (orig) {
+    const antesIds = lib.profIdsDaOs(orig);
+    for (let i = 0; i < antesIds.length; i++) antesSet[antesIds[i]] = true;
+  }
+  lib.normalizeExecucaoDupla(e.record);
+  const novosIds = lib.profIdsDaOs(e.record);
+  const notificar = [];
+  for (let i = 0; i < novosIds.length; i++) {
+    if (!antesSet[novosIds[i]]) notificar.push(novosIds[i]);
+  }
 
   lib.syncDenormalized(e.app, e.record);
   lib.manageEndereco(e.app, e.record);
@@ -62,16 +82,35 @@ onRecordUpdate((e) => {
   lib.setRepasseIfConcluida(e.record); // F-002: pendente na transição → concluida
   lib.triggerRatingWebhookIfConcluida(e.app, e.record);
 
+  // Snapshot do original ANTES do commit (para o log de alterações).
+  const authUpdate = e.auth;
+  const origSnap = orig;
+
   e.next();
 
-  // Aviso "Nova OS" pelo WhatsApp do profissional (best-effort, nunca bloqueia o
-  // update). Só na transição de atribuição real. Deep-link abre o app na OS.
-  if (atribuiu) {
+  // Aviso "Nova OS" pelo WhatsApp (best-effort). Só quem acabou de ser atribuído.
+  for (let i = 0; i < notificar.length; i++) {
     try {
-      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(e.app, novoProf, e.record);
+      require(`${__hooks}/whatsapp_helpers.js`).notifyProfNovaOS(
+        e.app,
+        notificar[i],
+        e.record,
+      );
     } catch (err) {
       console.error("[notifyProf] Falha ao notificar nova OS (update, ignorado): " + err);
     }
+  }
+
+  // Feed interno: log de cada campo de negócio alterado.
+  try {
+    require(`${__hooks}/os_atividade_lib.js`).logOsUpdate(
+      e.app,
+      e.record,
+      origSnap,
+      authUpdate,
+    );
+  } catch (err) {
+    console.error("[os_atividade] logOsUpdate (ignorado): " + err);
   }
 }, "ordens_servico");
 

@@ -24,6 +24,7 @@ import '../../financeiro/lancamentos/fin_lancamentos_controller.dart';
 import '../../financeiro/lancamentos/lancamento_form.dart';
 import '../../ordens/ordens_controller.dart';
 import '../../ordens/os_form.dart';
+import '../notificacoes_bell.dart';
 import '../painel_nav.dart';
 
 /// Destinos na barra inferior (ordem: Início · Clientes · [FAB] · OS · Carteira).
@@ -377,6 +378,7 @@ class _EasypayTopBar extends StatelessWidget {
                 ],
               ),
             ),
+            const NotificacoesBell(),
             Semantics(
               button: true,
               label: menuOpen ? 'Fechar menu' : 'Abrir menu',

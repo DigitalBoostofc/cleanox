@@ -670,7 +670,7 @@ class _OrdemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final prof = os.expand?.profissional;
+    final profLabel = os.profissionaisLabel;
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
     // Concluída pode ser editada (correção); cancelada não.
@@ -729,7 +729,7 @@ class _OrdemRow extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Text(
-                prof?.displayName ?? '—',
+                profLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: tt.bodyLarge?.copyWith(color: clx.ink2),
@@ -819,7 +819,7 @@ class _OrdemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final prof = os.expand?.profissional;
+    final profLabel = os.profissionaisLabel;
     final aberta =
         os.status != OSStatus.concluida && os.status != OSStatus.cancelada;
     final tt = Theme.of(context).textTheme;
@@ -913,10 +913,10 @@ class _OrdemCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (prof != null) ...[
+                      if (profLabel != '—') ...[
                         const SizedBox(height: 6),
                         Text(
-                          prof.displayName,
+                          profLabel,
                           style: tt.labelMedium?.copyWith(color: clx.ink3),
                         ),
                       ],
@@ -1012,7 +1012,7 @@ class _OrdemCard extends StatelessWidget {
               ),
             ],
           ),
-          if (prof != null) ...[
+          if (profLabel != '—') ...[
             const SizedBox(height: ClxSpace.x1),
             Row(
               children: [
@@ -1020,7 +1020,7 @@ class _OrdemCard extends StatelessWidget {
                 const SizedBox(width: ClxSpace.x1),
                 Expanded(
                   child: Text(
-                    prof.displayName,
+                    profLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.bodyMedium?.copyWith(color: clx.ink2),

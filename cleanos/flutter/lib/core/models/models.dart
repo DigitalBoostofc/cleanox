@@ -7,6 +7,7 @@ export 'config_atuacao.dart';
 export 'disponibilidade.dart';
 export 'financeiro.dart';
 export 'ordem_servico.dart';
+export 'os_atividade.dart';
 export 'os_execucao.dart';
 export 'prof_comissao.dart';
 export 'servico.dart';

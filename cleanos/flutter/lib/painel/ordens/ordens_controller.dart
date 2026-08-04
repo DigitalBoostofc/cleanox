@@ -28,7 +28,7 @@ const int kOrdensPerPage = 30;
 
 /// Expand da lista do Painel (mostra o nome do profissional). NÃO precisa de
 /// `cliente` — `nome_curto`/`bairro` já vêm denormalizados na OS.
-const String _kListExpand = 'profissional,cliente';
+const String _kListExpand = 'profissional,profissional2,cliente';
 
 /// Período da lista de OS (feedback do dono, 16/07: as contagens cresceriam
 /// para sempre — o dia a dia é a semana corrente; o resto é exceção).

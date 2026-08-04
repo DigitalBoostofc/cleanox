@@ -11,6 +11,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../models/user.dart';
 import '../pb/pb_client.dart';
 import '../repositories/ordens_repository.dart';
+import '../repositories/os_atividade_repository.dart';
 import 'auth_service.dart';
 
 /// PocketBase singleton (deve ter passado por [PbClient.init] no boot).
@@ -40,4 +41,9 @@ final currentRoleProvider = Provider<Role?>(
 /// Repositório real de Ordens de Serviço (impl PB sobre o singleton).
 final ordensRepositoryProvider = Provider<OrdensRepository>(
   (ref) => PbOrdensRepository(ref.watch(pocketBaseProvider)),
+);
+
+/// Feed de atividade da OS + notificações in-app (admin/gerente).
+final osAtividadeRepositoryProvider = Provider<OsAtividadeRepository>(
+  (ref) => PbOsAtividadeRepository(ref.watch(pocketBaseProvider)),
 );

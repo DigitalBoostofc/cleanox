@@ -79,6 +79,10 @@ class _PagamentoFormState extends State<_PagamentoForm> {
   bool _loading = false;
   String? _error;
 
+  // Total = linhas OU valor final informado (taxas avulsas / maquininha).
+  late final TextEditingController _totalFinalCtrl;
+  bool _totalManual = false;
+
   @override
   void initState() {
     super.initState();
@@ -107,6 +111,29 @@ class _PagamentoFormState extends State<_PagamentoForm> {
       _principalCtrl.text = _fmtValor(os.valorPago!);
     }
 
+    final totalInicial = (os.valorPago ?? 0) > 0
+        ? os.valorPago!
+        : (() {
+            var s = principal;
+            for (final a in _extrasCobraveis) {
+              s += a.valor * a.quantidade;
+            }
+            return s;
+          })();
+    _totalFinalCtrl = TextEditingController(text: _fmtValor(totalInicial));
+    // Se valor_pago diverge da soma de tabela, marca como manual.
+    final somaTabela = (() {
+      var s = principal;
+      for (final a in _extrasCobraveis) {
+        s += a.valor * a.quantidade;
+      }
+      return s;
+    })();
+    if ((os.valorPago ?? 0) > 0 &&
+        ((os.valorPago! - somaTabela).abs() > 0.009)) {
+      _totalManual = true;
+    }
+
     _outroCtrl = TextEditingController(
       text: os.formaPagamentoOutro ?? '',
     );
@@ -119,6 +146,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
     for (final c in _extraCtrls) {
       c.dispose();
     }
+    _totalFinalCtrl.dispose();
     _outroCtrl.dispose();
     super.dispose();
   }
@@ -139,6 +167,18 @@ class _PagamentoFormState extends State<_PagamentoForm> {
     return (sum * 100).roundToDouble() / 100;
   }
 
+  double get _totalFinal {
+    if (_totalManual) {
+      return _parseValor(_totalFinalCtrl.text) ?? _totalLinhas;
+    }
+    return _totalLinhas;
+  }
+
+  void _syncTotalFromLinhas() {
+    if (_totalManual) return;
+    _totalFinalCtrl.text = _fmtValor(_totalLinhas);
+  }
+
   void _usarTabela() {
     setState(() {
       _principalCtrl.text = _fmtValor(widget.os.valorServico ?? 0);
@@ -146,6 +186,8 @@ class _PagamentoFormState extends State<_PagamentoForm> {
         final a = _extrasCobraveis[i];
         _extraCtrls[i].text = _fmtValor(a.valor * a.quantidade);
       }
+      _totalManual = false;
+      _totalFinalCtrl.text = _fmtValor(_totalLinhas);
       _error = null;
     });
   }
@@ -174,10 +216,10 @@ class _PagamentoFormState extends State<_PagamentoForm> {
       extrasValores.add(v);
     }
 
-    final total = _totalLinhas;
+    final total = (_totalFinal * 100).roundToDouble() / 100;
     // Refazer aceita valor 0; OS normal exige valor > 0.
     if (total < 0 || (total == 0 && !widget.os.refazer)) {
-      setState(() => _error = 'Informe o valor pago.');
+      setState(() => _error = 'Informe o valor final pago.');
       return;
     }
     if (total > 0 && _forma == null) {
@@ -260,8 +302,9 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           const SizedBox(height: ClxSpace.x3),
         ] else ...[
           Text(
-            'Informe o valor cobrado em cada serviço. A comissão usa o '
-            'total registrado (pode negociar abaixo da tabela).',
+            'Informe o valor de cada serviço e o total final pago. '
+            'Taxas extras da maquininha entram no total final. '
+            'A comissão usa o total final.',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -273,6 +316,9 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           label: principalNome,
           tabela: os.valorServico ?? 0,
           controller: _principalCtrl,
+          onChanged: () {
+            setState(_syncTotalFromLinhas);
+          },
         ),
         for (var i = 0; i < _extrasCobraveis.length; i++) ...[
           const SizedBox(height: ClxSpace.x2),
@@ -283,6 +329,9 @@ class _PagamentoFormState extends State<_PagamentoForm> {
                 : _extrasCobraveis[i].nome,
             tabela: _extrasCobraveis[i].valor * _extrasCobraveis[i].quantidade,
             controller: _extraCtrls[i],
+            onChanged: () {
+              setState(_syncTotalFromLinhas);
+            },
           ),
         ],
 
@@ -296,33 +345,25 @@ class _PagamentoFormState extends State<_PagamentoForm> {
         ],
 
         const SizedBox(height: ClxSpace.x3),
-        Container(
-          padding: const EdgeInsets.all(ClxSpace.x3),
-          decoration: BoxDecoration(
-            color: clx.bg2,
-            borderRadius: ClxRadii.rMd,
-            border: Border.all(color: clx.line),
+        Text(
+          'Valor final pago (caixa / comissão)',
+          style: tt.labelMedium?.copyWith(color: clx.ink2),
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        TextField(
+          controller: _totalFinalCtrl,
+          enabled: !_loading,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          ],
+          decoration: InputDecoration(
+            hintText: '0,00',
+            helperText: _totalManual
+                ? 'Total manual (inclui taxas avulsas). Toque em “Usar preços de tabela” para voltar à soma.'
+                : 'Soma das linhas. Edite para incluir taxa extra não listada.',
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Total a registrar',
-                  style: tt.labelLarge?.copyWith(
-                    color: clx.ink,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                formatCurrency(_totalLinhas),
-                style: tt.labelLarge?.copyWith(
-                  color: clx.accent,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
+          onChanged: (_) => setState(() => _totalManual = true),
         ),
         Align(
           alignment: Alignment.centerLeft,
@@ -399,6 +440,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
     required String label,
     required double tabela,
     required TextEditingController controller,
+    VoidCallback? onChanged,
   }) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
@@ -429,7 +471,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
           ],
           decoration: const InputDecoration(hintText: '0,00'),
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => onChanged?.call(),
         ),
       ],
     );

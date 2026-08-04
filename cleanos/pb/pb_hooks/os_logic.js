@@ -51,6 +51,73 @@ function relId(v) {
   return v ? String(v) : "";
 }
 
+/** solo | dupla — vazio/legado = solo. */
+function execucaoModo(record) {
+  const m = String(record.get("execucao_modo") || "")
+    .trim()
+    .toLowerCase();
+  return m === "dupla" ? "dupla" : "solo";
+}
+
+/** IDs únicos dos profissionais da OS (1 em solo, até 2 em dupla). */
+function profIdsDaOs(record) {
+  const p1 = relId(record.get("profissional"));
+  const p2 = relId(record.get("profissional2"));
+  const out = [];
+  if (p1) out.push(p1);
+  if (p2 && p2 !== p1) out.push(p2);
+  // Solo: ignora profissional2 mesmo se residual no banco.
+  if (execucaoModo(record) !== "dupla") {
+    return p1 ? [p1] : [];
+  }
+  return out;
+}
+
+/** Auth é o 1º ou o 2º profissional atribuído? */
+function isProfAtribuidoOs(record, userId) {
+  const uid = String(userId || "");
+  if (!uid) return false;
+  const ids = profIdsDaOs(record);
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i] === uid) return true;
+  }
+  // Fallback defensivo: se modo solo mas profissional2 bate (dados sujos).
+  if (relId(record.get("profissional")) === uid) return true;
+  if (relId(record.get("profissional2")) === uid) return true;
+  return false;
+}
+
+/**
+ * Normaliza modo + 2º profissional ANTES do save.
+ * - solo → limpa profissional2, grava execucao_modo=solo
+ * - dupla → exige 2 profissionais distintos
+ */
+function normalizeExecucaoDupla(record) {
+  let modo = execucaoModo(record);
+  const p1 = relId(record.get("profissional"));
+  const p2 = relId(record.get("profissional2"));
+
+  // Sem 2º e não pediu dupla → solo.
+  if (modo !== "dupla" || !p2) {
+    record.set("execucao_modo", "solo");
+    if (p2) record.set("profissional2", "");
+    return;
+  }
+
+  if (!p1) {
+    throw new BadRequestError(
+      "OS em dupla precisa do profissional principal.",
+    );
+  }
+  if (p1 === p2) {
+    throw new BadRequestError(
+      "Os dois profissionais da dupla precisam ser pessoas diferentes.",
+    );
+  }
+  record.set("execucao_modo", "dupla");
+  record.set("profissional2", p2);
+}
+
 // Lê um JSONField de um record como valor JS JÁ PARSEADO.
 //
 // IMPORTANTE (goja/PocketBase): record.get() num campo JSON devolve um
@@ -506,13 +573,76 @@ function guardOrdemUpdateRequest(e) {
   // ---------------- PROFISSIONAL ----------------
   const orig = e.record.original();
 
-  // 1) precisa ser o profissional atribuído (no estado ORIGINAL).
-  if (relId(orig.get("profissional")) !== String(auth.id)) {
+  // 1) precisa ser o profissional atribuído (1º ou 2º, no estado ORIGINAL).
+  if (!isProfAtribuidoOs(orig, auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
-  // 2) só pode agir enquanto atribuida ou em_andamento.
+  // 2) estados editáveis:
+  //    - atribuida | em_andamento: fluxo normal de execução
+  //    - concluida: só correção de pagamento (valor_pago / forma) —
+  //      taxas extras na maquininha, erro de digitação, etc.
   const from = String(orig.get("status"));
+  if (from === "concluida") {
+    // Permite só campos de pagamento. Status e resto ficam congelados.
+    const allowedPay = {
+      valor_pago: true,
+      forma_pagamento: true,
+      forma_pagamento_outro: true,
+      // linhas negociadas (opcional): mantém laudo alinhado ao cobrado
+      valor_servico: true,
+      adicionais: true,
+    };
+    // Campos relation nunca mudam na correção de pagamento.
+    const relLockedConcl = ["cliente", "servico", "profissional", "profissional2"];
+    for (let i = 0; i < relLockedConcl.length; i++) {
+      const f = relLockedConcl[i];
+      if (relId(orig.get(f)) !== relId(e.record.get(f))) {
+        throw new ForbiddenError("Profissional não pode alterar o campo: " + f);
+      }
+    }
+    // Qualquer outro campo de negócio que mudou e não está na lista → 403.
+    // Usa a denylist ampla: se mudou e não é pagamento, bloqueia.
+    const maybeLocked = [
+      "status",
+      "nome_curto",
+      "bairro",
+      "tipo_servico_nome",
+      "data_hora",
+      "duracao_min",
+      "execucao_modo",
+      "endereco_liberado",
+      "aviso_a_caminho_em",
+      "avaliacao_nota",
+      "avaliacao_motivo",
+      "avaliacao_em",
+      "avaliacao_solicitada_em",
+      "repasse_status",
+      "repasse_valor",
+      "checklist_exec",
+      "observacoes_prof",
+      "descontos",
+      "observacoes",
+      "refazer",
+      "motivo_cancelamento",
+      "cancelado_por",
+      "cancelado_por_nome",
+      "cancelado_em",
+      "service_snapshot",
+    ];
+    for (let i = 0; i < maybeLocked.length; i++) {
+      const f = maybeLocked[i];
+      if (allowedPay[f]) continue;
+      if (changed(orig, e.record, f)) {
+        throw new ForbiddenError(
+          "OS concluída: só é possível corrigir o valor/forma de pagamento.",
+        );
+      }
+    }
+    // Pagamento ainda precisa ser válido se valor > 0.
+    assertPaymentIfConcluida(e.record);
+    return;
+  }
   if (from !== "atribuida" && from !== "em_andamento") {
     throw new ForbiddenError(
       "Esta OS não está num estado editável pelo profissional."
@@ -523,7 +653,7 @@ function guardOrdemUpdateRequest(e) {
   //    checklist/adicionais/obs (denylist abaixo).
   // F-08: campos relation (cliente, servico, profissional) comparados via relId()
   //       para evitar falsos positivos com String() em valores null/undefined.
-  const relLocked = ["cliente", "servico", "profissional"];
+  const relLocked = ["cliente", "servico", "profissional", "profissional2"];
   for (let i = 0; i < relLocked.length; i++) {
     const f = relLocked[i];
     if (relId(orig.get(f)) !== relId(e.record.get(f))) {
@@ -539,6 +669,8 @@ function guardOrdemUpdateRequest(e) {
     // O profissional NÃO estica o próprio serviço via PATCH. Fora do OSExecPatch
     // do Flutter (core/repositories/repo_types.dart) — os dois lados casam.
     "duracao_min",
+    // Forma de prestação (solo/dupla): só o painel define.
+    "execucao_modo",
     // valor_servico: liberado ao profissional para registrar valor negociado
     // por linha no pagamento (comissão = valor_pago; linhas alimentam laudo/caixa).
     "endereco_liberado",        // só o hook de modelo escreve
@@ -728,6 +860,10 @@ module.exports = {
   fullName,
   isSuperuser,
   relId,
+  execucaoModo,
+  profIdsDaOs,
+  isProfAtribuidoOs,
+  normalizeExecucaoDupla,
   readJsonField,
   normalizePhone,
   phonesMatch,

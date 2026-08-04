@@ -18,6 +18,14 @@ _$OrdemServicoImpl _$$OrdemServicoImplFromJson(
   dataHora: json['data_hora'] as String? ?? '',
   duracaoMin: _duracaoMinFromJson(json['duracao_min']),
   profissional: json['profissional'] as String?,
+  profissional2: json['profissional2'] as String?,
+  execucaoModo:
+      $enumDecodeNullable(
+        _$ExecucaoModoEnumMap,
+        json['execucao_modo'],
+        unknownValue: ExecucaoModo.solo,
+      ) ??
+      ExecucaoModo.solo,
   status:
       $enumDecodeNullable(
         _$OSStatusEnumMap,
@@ -93,6 +101,8 @@ Map<String, dynamic> _$$OrdemServicoImplToJson(
   'data_hora': instance.dataHora,
   'duracao_min': instance.duracaoMin,
   'profissional': instance.profissional,
+  'profissional2': instance.profissional2,
+  'execucao_modo': _$ExecucaoModoEnumMap[instance.execucaoModo]!,
   'status': _$OSStatusEnumMap[instance.status]!,
   'valor_servico': instance.valorServico,
   'endereco_liberado': instance.enderecoLiberado,
@@ -122,6 +132,11 @@ Map<String, dynamic> _$$OrdemServicoImplToJson(
   'relatorio_enviado_em': instance.relatorioEnviadoEm,
   'created': instance.created,
   'updated': instance.updated,
+};
+
+const _$ExecucaoModoEnumMap = {
+  ExecucaoModo.solo: 'solo',
+  ExecucaoModo.dupla: 'dupla',
 };
 
 const _$OSStatusEnumMap = {

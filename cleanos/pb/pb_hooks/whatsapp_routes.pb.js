@@ -163,9 +163,8 @@ routerAdd("POST", "/api/cleanos/os/{id}/a-caminho", (e) => {
   const osId = e.request.pathValue("id");
   const os   = $app.findRecordById("ordens_servico", osId);
 
-  // 3) Verifica que é o profissional dono.
-  const profId = lib.relId(os.get("profissional"));
-  if (profId !== String(e.auth.id)) {
+  // 3) Verifica que é o profissional dono (1º ou 2º da dupla).
+  if (!lib.isProfAtribuidoOs(os, e.auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
@@ -297,8 +296,7 @@ routerAdd("GET", "/api/cleanos/os/{id}/contato-cliente", (e) => {
   const osId = e.request.pathValue("id");
   const os = $app.findRecordById("ordens_servico", osId);
 
-  const profId = lib.relId(os.get("profissional"));
-  if (profId !== String(e.auth.id)) {
+  if (!lib.isProfAtribuidoOs(os, e.auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
@@ -516,12 +514,11 @@ routerAdd("POST", "/api/cleanos/os/{id}/relatorio", (e) => {
   const osId = e.request.pathValue("id");
   const os   = $app.findRecordById("ordens_servico", osId);
 
-  // 3) Permissão: admin/gerente sempre; profissional só a OS dele.
+  // 3) Permissão: admin/gerente sempre; profissional só a OS dele (1º ou 2º).
   if (role === "admin" || role === "gerente") {
     /* ok */
   } else if (role === "profissional") {
-    const profId = lib.relId(os.get("profissional"));
-    if (profId !== String(e.auth.id)) {
+    if (!lib.isProfAtribuidoOs(os, e.auth.id)) {
       throw new ForbiddenError("Você não está atribuído a esta OS.");
     }
   } else {
@@ -649,8 +646,8 @@ routerAdd("POST", "/api/cleanos/os/{id}/posicao", (e) => {
   const osId = e.request.pathValue("id");
   const os   = $app.findRecordById("ordens_servico", osId);
 
-  // 3) Dono.
-  if (lib.relId(os.get("profissional")) !== String(e.auth.id)) {
+  // 3) Dono (1º ou 2º da dupla).
+  if (!lib.isProfAtribuidoOs(os, e.auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
 
@@ -727,7 +724,7 @@ routerAdd("POST", "/api/cleanos/os/{id}/cheguei", (e) => {
   }
   const osId = e.request.pathValue("id");
   const os   = $app.findRecordById("ordens_servico", osId);
-  if (lib.relId(os.get("profissional")) !== String(e.auth.id)) {
+  if (!lib.isProfAtribuidoOs(os, e.auth.id)) {
     throw new ForbiddenError("Você não está atribuído a esta OS.");
   }
   // Atribuída ou em andamento (pode chegar antes de "Iniciar serviço").

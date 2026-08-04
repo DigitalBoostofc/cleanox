@@ -21,6 +21,10 @@ class Collections {
   static const String disponibilidade = 'disponibilidade';
   static const String osEvidencias = 'os_evidencias';
   static const String profComissoes = 'prof_comissoes';
+  /// Feed interno da OS (comentários + log) — admin/gerente only.
+  static const String osAtividade = 'os_atividade';
+  /// Notificações in-app (menções @) — dono da notificação.
+  static const String notificacoes = 'notificacoes';
 }
 
 /* ---- Módulo Financeiro ---- */
@@ -175,6 +179,38 @@ enum OSStatus {
     (s) => s.wire == value,
     orElse: () => OSStatus.agendada,
   );
+}
+
+/* ---- Forma de prestação (1 ou 2 profissionais) ---- */
+enum ExecucaoModo {
+  @JsonValue('solo')
+  solo,
+  @JsonValue('dupla')
+  dupla;
+
+  String get wire => switch (this) {
+    ExecucaoModo.solo => 'solo',
+    ExecucaoModo.dupla => 'dupla',
+  };
+
+  String get label => switch (this) {
+    ExecucaoModo.solo => 'Individual (1 profissional)',
+    ExecucaoModo.dupla => 'Dupla (2 profissionais)',
+  };
+
+  /// Em dupla a comissão %/fixo de cada um é metade (ex.: 30% → 15% cada).
+  double get fracaoComissao => switch (this) {
+    ExecucaoModo.solo => 1.0,
+    ExecucaoModo.dupla => 0.5,
+  };
+
+  static const List<ExecucaoModo> all = [ExecucaoModo.solo, ExecucaoModo.dupla];
+
+  static ExecucaoModo fromWire(String? value) {
+    final v = (value ?? '').trim().toLowerCase();
+    if (v == 'dupla') return ExecucaoModo.dupla;
+    return ExecucaoModo.solo;
+  }
 }
 
 /* ---- Formas de pagamento ---- */

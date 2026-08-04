@@ -14,7 +14,7 @@ import 'repo_types.dart';
 
 /// Expand padrão da execução (profissional + serviço). NUNCA inclui `cliente`
 /// no app do profissional (anti-desvio).
-const String kExecExpand = 'profissional,servico';
+const String kExecExpand = 'profissional,profissional2,servico';
 
 abstract class OrdensRepository {
   /// OS de um profissional numa janela [start, end) opcional (BRT).
@@ -84,7 +84,9 @@ class PbOrdensRepository implements OrdensRepository {
     String profId, {
     DateRange? janela,
   }) async {
-    final filterParts = ["profissional = {:prof}"];
+    final filterParts = [
+      '(profissional = {:prof} || profissional2 = {:prof})',
+    ];
     final params = <String, dynamic>{'prof': profId};
     if (janela != null) {
       filterParts.add("data_hora >= {:ini} && data_hora < {:fim}");
@@ -149,7 +151,7 @@ class PbOrdensRepository implements OrdensRepository {
     if (novoId.isEmpty) {
       throw StateError('Resposta de reabrir sem osId da nova OS.');
     }
-    return getOne(novoId, expand: 'profissional,servico,cliente');
+    return getOne(novoId, expand: 'profissional,profissional2,servico,cliente');
   }
 
   @override

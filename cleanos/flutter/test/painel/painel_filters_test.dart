@@ -33,10 +33,11 @@ void main() {
     test('sem filtros → null', () {
       expect(ordensFilter(), isNull);
     });
-    test('status + profissional compõem com &&', () {
+    test('status + profissional compõem com && (1º ou 2º)', () {
       final f = ordensFilter(status: OSStatus.concluida, profissionalId: 'p1')!;
       expect(f.contains("status = 'concluida'"), isTrue);
       expect(f.contains("profissional = 'p1'"), isTrue);
+      expect(f.contains("profissional2 = 'p1'"), isTrue);
       expect(f.contains('&&'), isTrue);
     });
     test('janela de datas', () {
@@ -65,13 +66,14 @@ void main() {
   });
 
   group('ordensOcupamAgendaFilter', () {
-    test('cruza profissional + janela do dia e exclui canceladas', () {
+    test('cruza profissional (1º|2º) + janela do dia e exclui canceladas', () {
       final f = ordensOcupamAgendaFilter(
         profissionalId: 'p1',
         dataInicio: '2026-07-06 03:00:00',
         dataFim: '2026-07-07 03:00:00',
       );
       expect(f.contains("profissional = 'p1'"), isTrue);
+      expect(f.contains("profissional2 = 'p1'"), isTrue);
       expect(f.contains("data_hora >= '2026-07-06 03:00:00'"), isTrue);
       expect(f.contains("data_hora < '2026-07-07 03:00:00'"), isTrue);
       expect(f.contains("status != 'cancelada'"), isTrue);

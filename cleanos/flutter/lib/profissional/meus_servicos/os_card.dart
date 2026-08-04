@@ -646,13 +646,26 @@ class OSCard extends StatelessWidget {
         );
       case OSStatus.concluida:
         // O serviço fechou, mas o profissional ainda pode REVER o que fez
-        // (checklist, fotos, laudo) — a execução abre em modo leitura.
-        return ClxButton(
-          label: 'Ver detalhes do serviço',
-          variant: ClxButtonVariant.ghost,
-          icon: Icons.receipt_long_outlined,
-          expand: true,
-          onPressed: onChecklist,
+        // (checklist, fotos, laudo) e CORRIGIR o valor pago (taxas / erro).
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClxButton(
+              label: 'Corrigir valor pago',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.payments_outlined,
+              expand: true,
+              onPressed: actionLoading ? null : onPagar,
+            ),
+            const SizedBox(height: ClxSpace.x2),
+            ClxButton(
+              label: 'Ver detalhes do serviço',
+              variant: ClxButtonVariant.ghost,
+              icon: Icons.receipt_long_outlined,
+              expand: true,
+              onPressed: onChecklist,
+            ),
+          ],
         );
       case OSStatus.agendada:
         return const SizedBox.shrink();

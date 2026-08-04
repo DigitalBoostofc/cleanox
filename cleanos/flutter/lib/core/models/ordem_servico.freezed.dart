@@ -18,6 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 /// @nodoc
 mixin _$OSExpand {
   User? get profissional => throw _privateConstructorUsedError;
+  User? get profissional2 => throw _privateConstructorUsedError;
   ServicoPB? get servico => throw _privateConstructorUsedError;
   Cliente? get cliente => throw _privateConstructorUsedError;
 
@@ -33,9 +34,15 @@ abstract class $OSExpandCopyWith<$Res> {
   factory $OSExpandCopyWith(OSExpand value, $Res Function(OSExpand) then) =
       _$OSExpandCopyWithImpl<$Res, OSExpand>;
   @useResult
-  $Res call({User? profissional, ServicoPB? servico, Cliente? cliente});
+  $Res call({
+    User? profissional,
+    User? profissional2,
+    ServicoPB? servico,
+    Cliente? cliente,
+  });
 
   $UserCopyWith<$Res>? get profissional;
+  $UserCopyWith<$Res>? get profissional2;
   $ServicoPBCopyWith<$Res>? get servico;
   $ClienteCopyWith<$Res>? get cliente;
 }
@@ -56,6 +63,7 @@ class _$OSExpandCopyWithImpl<$Res, $Val extends OSExpand>
   @override
   $Res call({
     Object? profissional = freezed,
+    Object? profissional2 = freezed,
     Object? servico = freezed,
     Object? cliente = freezed,
   }) {
@@ -64,6 +72,10 @@ class _$OSExpandCopyWithImpl<$Res, $Val extends OSExpand>
             profissional: freezed == profissional
                 ? _value.profissional
                 : profissional // ignore: cast_nullable_to_non_nullable
+                      as User?,
+            profissional2: freezed == profissional2
+                ? _value.profissional2
+                : profissional2 // ignore: cast_nullable_to_non_nullable
                       as User?,
             servico: freezed == servico
                 ? _value.servico
@@ -89,6 +101,20 @@ class _$OSExpandCopyWithImpl<$Res, $Val extends OSExpand>
 
     return $UserCopyWith<$Res>(_value.profissional!, (value) {
       return _then(_value.copyWith(profissional: value) as $Val);
+    });
+  }
+
+  /// Create a copy of OSExpand
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserCopyWith<$Res>? get profissional2 {
+    if (_value.profissional2 == null) {
+      return null;
+    }
+
+    return $UserCopyWith<$Res>(_value.profissional2!, (value) {
+      return _then(_value.copyWith(profissional2: value) as $Val);
     });
   }
 
@@ -130,10 +156,17 @@ abstract class _$$OSExpandImplCopyWith<$Res>
   ) = __$$OSExpandImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({User? profissional, ServicoPB? servico, Cliente? cliente});
+  $Res call({
+    User? profissional,
+    User? profissional2,
+    ServicoPB? servico,
+    Cliente? cliente,
+  });
 
   @override
   $UserCopyWith<$Res>? get profissional;
+  @override
+  $UserCopyWith<$Res>? get profissional2;
   @override
   $ServicoPBCopyWith<$Res>? get servico;
   @override
@@ -155,6 +188,7 @@ class __$$OSExpandImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? profissional = freezed,
+    Object? profissional2 = freezed,
     Object? servico = freezed,
     Object? cliente = freezed,
   }) {
@@ -163,6 +197,10 @@ class __$$OSExpandImplCopyWithImpl<$Res>
         profissional: freezed == profissional
             ? _value.profissional
             : profissional // ignore: cast_nullable_to_non_nullable
+                  as User?,
+        profissional2: freezed == profissional2
+            ? _value.profissional2
+            : profissional2 // ignore: cast_nullable_to_non_nullable
                   as User?,
         servico: freezed == servico
             ? _value.servico
@@ -180,10 +218,17 @@ class __$$OSExpandImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$OSExpandImpl implements _OSExpand {
-  const _$OSExpandImpl({this.profissional, this.servico, this.cliente});
+  const _$OSExpandImpl({
+    this.profissional,
+    this.profissional2,
+    this.servico,
+    this.cliente,
+  });
 
   @override
   final User? profissional;
+  @override
+  final User? profissional2;
   @override
   final ServicoPB? servico;
   @override
@@ -191,7 +236,7 @@ class _$OSExpandImpl implements _OSExpand {
 
   @override
   String toString() {
-    return 'OSExpand(profissional: $profissional, servico: $servico, cliente: $cliente)';
+    return 'OSExpand(profissional: $profissional, profissional2: $profissional2, servico: $servico, cliente: $cliente)';
   }
 
   @override
@@ -201,12 +246,15 @@ class _$OSExpandImpl implements _OSExpand {
             other is _$OSExpandImpl &&
             (identical(other.profissional, profissional) ||
                 other.profissional == profissional) &&
+            (identical(other.profissional2, profissional2) ||
+                other.profissional2 == profissional2) &&
             (identical(other.servico, servico) || other.servico == servico) &&
             (identical(other.cliente, cliente) || other.cliente == cliente));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, profissional, servico, cliente);
+  int get hashCode =>
+      Object.hash(runtimeType, profissional, profissional2, servico, cliente);
 
   /// Create a copy of OSExpand
   /// with the given fields replaced by the non-null parameter values.
@@ -220,12 +268,15 @@ class _$OSExpandImpl implements _OSExpand {
 abstract class _OSExpand implements OSExpand {
   const factory _OSExpand({
     final User? profissional,
+    final User? profissional2,
     final ServicoPB? servico,
     final Cliente? cliente,
   }) = _$OSExpandImpl;
 
   @override
   User? get profissional;
+  @override
+  User? get profissional2;
   @override
   ServicoPB? get servico;
   @override
@@ -277,8 +328,16 @@ mixin _$OrdemServico {
   @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
   int? get duracaoMin => throw _privateConstructorUsedError;
 
-  /// Relation → users (ID).
+  /// Relation → users (ID) — profissional principal.
   String? get profissional => throw _privateConstructorUsedError;
+
+  /// 2º profissional (só quando [execucaoModo] == dupla).
+  @JsonKey(name: 'profissional2')
+  String? get profissional2 => throw _privateConstructorUsedError;
+
+  /// solo | dupla — forma de prestação. Legado/vazio = solo.
+  @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+  ExecucaoModo get execucaoModo => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: OSStatus.agendada)
   OSStatus get status => throw _privateConstructorUsedError;
   @JsonKey(name: 'valor_servico')
@@ -403,6 +462,9 @@ abstract class $OrdemServicoCopyWith<$Res> {
     @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
     int? duracaoMin,
     String? profissional,
+    @JsonKey(name: 'profissional2') String? profissional2,
+    @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+    ExecucaoModo execucaoModo,
     @JsonKey(unknownEnumValue: OSStatus.agendada) OSStatus status,
     @JsonKey(name: 'valor_servico') double? valorServico,
     @JsonKey(name: 'endereco_liberado') String? enderecoLiberado,
@@ -474,6 +536,8 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? dataHora = null,
     Object? duracaoMin = freezed,
     Object? profissional = freezed,
+    Object? profissional2 = freezed,
+    Object? execucaoModo = null,
     Object? status = null,
     Object? valorServico = freezed,
     Object? enderecoLiberado = freezed,
@@ -543,6 +607,14 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
                 ? _value.profissional
                 : profissional // ignore: cast_nullable_to_non_nullable
                       as String?,
+            profissional2: freezed == profissional2
+                ? _value.profissional2
+                : profissional2 // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            execucaoModo: null == execucaoModo
+                ? _value.execucaoModo
+                : execucaoModo // ignore: cast_nullable_to_non_nullable
+                      as ExecucaoModo,
             status: null == status
                 ? _value.status
                 : status // ignore: cast_nullable_to_non_nullable
@@ -717,6 +789,9 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
     int? duracaoMin,
     String? profissional,
+    @JsonKey(name: 'profissional2') String? profissional2,
+    @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+    ExecucaoModo execucaoModo,
     @JsonKey(unknownEnumValue: OSStatus.agendada) OSStatus status,
     @JsonKey(name: 'valor_servico') double? valorServico,
     @JsonKey(name: 'endereco_liberado') String? enderecoLiberado,
@@ -789,6 +864,8 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? dataHora = null,
     Object? duracaoMin = freezed,
     Object? profissional = freezed,
+    Object? profissional2 = freezed,
+    Object? execucaoModo = null,
     Object? status = null,
     Object? valorServico = freezed,
     Object? enderecoLiberado = freezed,
@@ -858,6 +935,14 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
             ? _value.profissional
             : profissional // ignore: cast_nullable_to_non_nullable
                   as String?,
+        profissional2: freezed == profissional2
+            ? _value.profissional2
+            : profissional2 // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        execucaoModo: null == execucaoModo
+            ? _value.execucaoModo
+            : execucaoModo // ignore: cast_nullable_to_non_nullable
+                  as ExecucaoModo,
         status: null == status
             ? _value.status
             : status // ignore: cast_nullable_to_non_nullable
@@ -997,6 +1082,9 @@ class _$OrdemServicoImpl extends _OrdemServico {
     @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
     this.duracaoMin,
     this.profissional,
+    @JsonKey(name: 'profissional2') this.profissional2,
+    @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+    this.execucaoModo = ExecucaoModo.solo,
     @JsonKey(unknownEnumValue: OSStatus.agendada)
     this.status = OSStatus.agendada,
     @JsonKey(name: 'valor_servico') this.valorServico,
@@ -1090,9 +1178,19 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
   final int? duracaoMin;
 
-  /// Relation → users (ID).
+  /// Relation → users (ID) — profissional principal.
   @override
   final String? profissional;
+
+  /// 2º profissional (só quando [execucaoModo] == dupla).
+  @override
+  @JsonKey(name: 'profissional2')
+  final String? profissional2;
+
+  /// solo | dupla — forma de prestação. Legado/vazio = solo.
+  @override
+  @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+  final ExecucaoModo execucaoModo;
   @override
   @JsonKey(unknownEnumValue: OSStatus.agendada)
   final OSStatus status;
@@ -1239,7 +1337,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, refazer: $refazer, canalOrigem: $canalOrigem, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, profissional2: $profissional2, execucaoModo: $execucaoModo, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, refazer: $refazer, canalOrigem: $canalOrigem, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1261,6 +1359,10 @@ class _$OrdemServicoImpl extends _OrdemServico {
                 other.duracaoMin == duracaoMin) &&
             (identical(other.profissional, profissional) ||
                 other.profissional == profissional) &&
+            (identical(other.profissional2, profissional2) ||
+                other.profissional2 == profissional2) &&
+            (identical(other.execucaoModo, execucaoModo) ||
+                other.execucaoModo == execucaoModo) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.valorServico, valorServico) ||
                 other.valorServico == valorServico) &&
@@ -1337,6 +1439,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
     dataHora,
     duracaoMin,
     profissional,
+    profissional2,
+    execucaoModo,
     status,
     valorServico,
     enderecoLiberado,
@@ -1395,6 +1499,9 @@ abstract class _OrdemServico extends OrdemServico {
     @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
     final int? duracaoMin,
     final String? profissional,
+    @JsonKey(name: 'profissional2') final String? profissional2,
+    @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+    final ExecucaoModo execucaoModo,
     @JsonKey(unknownEnumValue: OSStatus.agendada) final OSStatus status,
     @JsonKey(name: 'valor_servico') final double? valorServico,
     @JsonKey(name: 'endereco_liberado') final String? enderecoLiberado,
@@ -1486,9 +1593,19 @@ abstract class _OrdemServico extends OrdemServico {
   @JsonKey(name: 'duracao_min', fromJson: _duracaoMinFromJson)
   int? get duracaoMin;
 
-  /// Relation → users (ID).
+  /// Relation → users (ID) — profissional principal.
   @override
   String? get profissional;
+
+  /// 2º profissional (só quando [execucaoModo] == dupla).
+  @override
+  @JsonKey(name: 'profissional2')
+  String? get profissional2;
+
+  /// solo | dupla — forma de prestação. Legado/vazio = solo.
+  @override
+  @JsonKey(name: 'execucao_modo', unknownEnumValue: ExecucaoModo.solo)
+  ExecucaoModo get execucaoModo;
   @override
   @JsonKey(unknownEnumValue: OSStatus.agendada)
   OSStatus get status;

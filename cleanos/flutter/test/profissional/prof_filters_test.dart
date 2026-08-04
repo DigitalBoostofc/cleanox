@@ -19,20 +19,23 @@ void main() {
     }
   });
 
-  test('filtros das 3 janelas de Meus Serviços', () {
+  test('filtros das 3 janelas de Meus Serviços incluem 2º profissional', () {
     expect(
       profOrdensHojeFilter('p1', bounds),
-      "profissional = 'p1' && data_hora >= '2026-07-02 03:00:00' "
+      "(profissional = 'p1' || profissional2 = 'p1') "
+      "&& data_hora >= '2026-07-02 03:00:00' "
       "&& data_hora < '2026-07-03 03:00:00' && status != 'cancelada'",
     );
     expect(
       profOrdensProximasFilter('p1', bounds),
-      "profissional = 'p1' && data_hora >= '2026-07-03 03:00:00' "
+      "(profissional = 'p1' || profissional2 = 'p1') "
+      "&& data_hora >= '2026-07-03 03:00:00' "
       "&& status != 'cancelada'",
     );
     expect(
       profOrdensAtrasadasAbertasFilter('p1', bounds),
-      "profissional = 'p1' && (status = 'atribuida' "
+      "(profissional = 'p1' || profissional2 = 'p1') "
+      "&& (status = 'atribuida' "
       "|| status = 'em_andamento') && data_hora < '2026-07-02 03:00:00'",
     );
   });
@@ -40,11 +43,13 @@ void main() {
   test('filtros do Mapa e do Perfil', () {
     expect(
       profOsEmAndamentoFilter('p1'),
-      "profissional = 'p1' && status = 'em_andamento'",
+      "(profissional = 'p1' || profissional2 = 'p1') "
+      "&& status = 'em_andamento'",
     );
     expect(
       profAvaliadasFilter('p1'),
-      "profissional = 'p1' && status = 'concluida' && avaliacao_nota >= 1",
+      "(profissional = 'p1' || profissional2 = 'p1') "
+      "&& status = 'concluida' && avaliacao_nota >= 1",
     );
   });
 
@@ -54,7 +59,8 @@ void main() {
     // O trecho injetado fica DENTRO do literal escapado — não vira operador.
     expect(
       f,
-      "profissional = 'p1\\' || status = \\'atribuida' "
+      "(profissional = 'p1\\' || status = \\'atribuida' "
+      "|| profissional2 = 'p1\\' || status = \\'atribuida') "
       "&& status = 'em_andamento'",
     );
   });
