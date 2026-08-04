@@ -32,6 +32,8 @@ class FinCollections {
   static const String lancamentos = 'fin_lancamentos';
   static const String limites = 'fin_limites';
   static const String objetivos = 'fin_objetivos';
+  /// Regras de despesa/receita fixa (ativa | pausada | encerrada).
+  static const String series = 'fin_series';
   static const String profComissoes = 'prof_comissoes';
 }
 

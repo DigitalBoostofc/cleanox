@@ -50,6 +50,11 @@ final finObjetivosProvider = FutureProvider.autoDispose<List<FinObjetivo>>(
   (ref) => ref.watch(financeiroRepositoryProvider).listObjetivos(),
 );
 
+/// Regras de despesas/receitas fixas (`fin_series`).
+final finSeriesProvider = FutureProvider.autoDispose<List<FinSerie>>(
+  (ref) => ref.watch(financeiroRepositoryProvider).listSeries(),
+);
+
 /* ─────────────────────── período selecionado (mês, BRT) ─────────────────────── */
 
 /// Mês selecionado nos painéis de agregado (Visão geral / Relatórios / Limites).

@@ -72,6 +72,11 @@ class FinMaisScreen extends ConsumerWidget {
             child: Column(
               children: [
                 _Item(
+                  icon: Icons.autorenew_rounded,
+                  label: 'Cobranças fixas',
+                  onTap: () => context.go('/painel/financeiro/fixas'),
+                ),
+                _Item(
                   icon: Icons.bookmark_border_rounded,
                   label: 'Categorias',
                   onTap: () => context.go('/painel/financeiro/categorias'),

@@ -976,6 +976,10 @@ mixin _$FinLancamento {
   /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
   @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
   FrequenciaRecorrencia? get frequencia => throw _privateConstructorUsedError;
+
+  /// ID da regra em `fin_series` ("" no PB → null). Liga ocorrências à série.
+  @JsonKey(name: 'serie_id')
+  String? get serieId => throw _privateConstructorUsedError;
   @JsonKey(name: 'parcela_atual')
   int? get parcelaAtual => throw _privateConstructorUsedError;
   @JsonKey(name: 'parcelas_total')
@@ -1034,6 +1038,7 @@ abstract class $FinLancamentoCopyWith<$Res> {
     RecorrenciaTipo recorrencia,
     @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
     FrequenciaRecorrencia? frequencia,
+    @JsonKey(name: 'serie_id') String? serieId,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual) OrigemLancamento origem,
@@ -1078,6 +1083,7 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
     Object? status = null,
     Object? recorrencia = null,
     Object? frequencia = freezed,
+    Object? serieId = freezed,
     Object? parcelaAtual = freezed,
     Object? parcelasTotal = freezed,
     Object? origem = null,
@@ -1143,6 +1149,10 @@ class _$FinLancamentoCopyWithImpl<$Res, $Val extends FinLancamento>
                 ? _value.frequencia
                 : frequencia // ignore: cast_nullable_to_non_nullable
                       as FrequenciaRecorrencia?,
+            serieId: freezed == serieId
+                ? _value.serieId
+                : serieId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             parcelaAtual: freezed == parcelaAtual
                 ? _value.parcelaAtual
                 : parcelaAtual // ignore: cast_nullable_to_non_nullable
@@ -1230,6 +1240,7 @@ abstract class _$$FinLancamentoImplCopyWith<$Res>
     RecorrenciaTipo recorrencia,
     @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
     FrequenciaRecorrencia? frequencia,
+    @JsonKey(name: 'serie_id') String? serieId,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual) OrigemLancamento origem,
@@ -1273,6 +1284,7 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
     Object? status = null,
     Object? recorrencia = null,
     Object? frequencia = freezed,
+    Object? serieId = freezed,
     Object? parcelaAtual = freezed,
     Object? parcelasTotal = freezed,
     Object? origem = null,
@@ -1338,6 +1350,10 @@ class __$$FinLancamentoImplCopyWithImpl<$Res>
             ? _value.frequencia
             : frequencia // ignore: cast_nullable_to_non_nullable
                   as FrequenciaRecorrencia?,
+        serieId: freezed == serieId
+            ? _value.serieId
+            : serieId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         parcelaAtual: freezed == parcelaAtual
             ? _value.parcelaAtual
             : parcelaAtual // ignore: cast_nullable_to_non_nullable
@@ -1418,6 +1434,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     @JsonKey(unknownEnumValue: RecorrenciaTipo.unica)
     this.recorrencia = RecorrenciaTipo.unica,
     @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal) this.frequencia,
+    @JsonKey(name: 'serie_id') this.serieId,
     @JsonKey(name: 'parcela_atual') this.parcelaAtual,
     @JsonKey(name: 'parcelas_total') this.parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -1478,6 +1495,11 @@ class _$FinLancamentoImpl extends _FinLancamento {
   @override
   @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
   final FrequenciaRecorrencia? frequencia;
+
+  /// ID da regra em `fin_series` ("" no PB → null). Liga ocorrências à série.
+  @override
+  @JsonKey(name: 'serie_id')
+  final String? serieId;
   @override
   @JsonKey(name: 'parcela_atual')
   final int? parcelaAtual;
@@ -1533,7 +1555,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
 
   @override
   String toString() {
-    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, frequencia: $frequencia, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, favorito: $favorito, anexos: $anexos, created: $created, updated: $updated)';
+    return 'FinLancamento(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, data: $data, vencimento: $vencimento, status: $status, recorrencia: $recorrencia, frequencia: $frequencia, serieId: $serieId, parcelaAtual: $parcelaAtual, parcelasTotal: $parcelasTotal, origem: $origem, osId: $osId, osNumero: $osNumero, clienteNome: $clienteNome, servicoNome: $servicoNome, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, favorito: $favorito, anexos: $anexos, created: $created, updated: $updated)';
   }
 
   @override
@@ -1559,6 +1581,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
                 other.recorrencia == recorrencia) &&
             (identical(other.frequencia, frequencia) ||
                 other.frequencia == frequencia) &&
+            (identical(other.serieId, serieId) || other.serieId == serieId) &&
             (identical(other.parcelaAtual, parcelaAtual) ||
                 other.parcelaAtual == parcelaAtual) &&
             (identical(other.parcelasTotal, parcelasTotal) ||
@@ -1599,6 +1622,7 @@ class _$FinLancamentoImpl extends _FinLancamento {
     status,
     recorrencia,
     frequencia,
+    serieId,
     parcelaAtual,
     parcelasTotal,
     origem,
@@ -1647,6 +1671,7 @@ abstract class _FinLancamento extends FinLancamento {
     final RecorrenciaTipo recorrencia,
     @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
     final FrequenciaRecorrencia? frequencia,
+    @JsonKey(name: 'serie_id') final String? serieId,
     @JsonKey(name: 'parcela_atual') final int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') final int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -1703,6 +1728,11 @@ abstract class _FinLancamento extends FinLancamento {
   @override
   @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
   FrequenciaRecorrencia? get frequencia;
+
+  /// ID da regra em `fin_series` ("" no PB → null). Liga ocorrências à série.
+  @override
+  @JsonKey(name: 'serie_id')
+  String? get serieId;
   @override
   @JsonKey(name: 'parcela_atual')
   int? get parcelaAtual;
@@ -1747,6 +1777,566 @@ abstract class _FinLancamento extends FinLancamento {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$FinLancamentoImplCopyWith<_$FinLancamentoImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+FinSerie _$FinSerieFromJson(Map<String, dynamic> json) {
+  return _FinSerie.fromJson(json);
+}
+
+/// @nodoc
+mixin _$FinSerie {
+  String get id => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+  TipoLancamento get tipo => throw _privateConstructorUsedError;
+  String get descricao => throw _privateConstructorUsedError;
+  @JsonKey(name: 'categoria_id')
+  String get categoriaId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'subcategoria_id')
+  String? get subcategoriaId => throw _privateConstructorUsedError;
+  double get valor => throw _privateConstructorUsedError;
+  @JsonKey(name: 'conta_id')
+  String get contaId => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+  RecorrenciaTipo get recorrencia => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  FrequenciaRecorrencia? get frequencia => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+  FinSerieStatus get status => throw _privateConstructorUsedError;
+  @JsonKey(name: 'data_inicio')
+  String get dataInicio => throw _privateConstructorUsedError;
+  @JsonKey(name: 'data_fim')
+  String? get dataFim => throw _privateConstructorUsedError;
+  @JsonKey(name: 'forma_pagamento')
+  String? get formaPagamento => throw _privateConstructorUsedError;
+  String? get observacao => throw _privateConstructorUsedError;
+  List<String> get tags => throw _privateConstructorUsedError;
+  String? get created => throw _privateConstructorUsedError;
+  String? get updated => throw _privateConstructorUsedError;
+
+  /// Serializes this FinSerie to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of FinSerie
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $FinSerieCopyWith<FinSerie> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $FinSerieCopyWith<$Res> {
+  factory $FinSerieCopyWith(FinSerie value, $Res Function(FinSerie) then) =
+      _$FinSerieCopyWithImpl<$Res, FinSerie>;
+  @useResult
+  $Res call({
+    String id,
+    @JsonKey(unknownEnumValue: TipoLancamento.despesa) TipoLancamento tipo,
+    String descricao,
+    @JsonKey(name: 'categoria_id') String categoriaId,
+    @JsonKey(name: 'subcategoria_id') String? subcategoriaId,
+    double valor,
+    @JsonKey(name: 'conta_id') String contaId,
+    @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+    RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
+    @JsonKey(unknownEnumValue: FinSerieStatus.ativa) FinSerieStatus status,
+    @JsonKey(name: 'data_inicio') String dataInicio,
+    @JsonKey(name: 'data_fim') String? dataFim,
+    @JsonKey(name: 'forma_pagamento') String? formaPagamento,
+    String? observacao,
+    List<String> tags,
+    String? created,
+    String? updated,
+  });
+}
+
+/// @nodoc
+class _$FinSerieCopyWithImpl<$Res, $Val extends FinSerie>
+    implements $FinSerieCopyWith<$Res> {
+  _$FinSerieCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of FinSerie
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? tipo = null,
+    Object? descricao = null,
+    Object? categoriaId = null,
+    Object? subcategoriaId = freezed,
+    Object? valor = null,
+    Object? contaId = null,
+    Object? recorrencia = null,
+    Object? frequencia = freezed,
+    Object? status = null,
+    Object? dataInicio = null,
+    Object? dataFim = freezed,
+    Object? formaPagamento = freezed,
+    Object? observacao = freezed,
+    Object? tags = null,
+    Object? created = freezed,
+    Object? updated = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String,
+            tipo: null == tipo
+                ? _value.tipo
+                : tipo // ignore: cast_nullable_to_non_nullable
+                      as TipoLancamento,
+            descricao: null == descricao
+                ? _value.descricao
+                : descricao // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoriaId: null == categoriaId
+                ? _value.categoriaId
+                : categoriaId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            subcategoriaId: freezed == subcategoriaId
+                ? _value.subcategoriaId
+                : subcategoriaId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            valor: null == valor
+                ? _value.valor
+                : valor // ignore: cast_nullable_to_non_nullable
+                      as double,
+            contaId: null == contaId
+                ? _value.contaId
+                : contaId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            recorrencia: null == recorrencia
+                ? _value.recorrencia
+                : recorrencia // ignore: cast_nullable_to_non_nullable
+                      as RecorrenciaTipo,
+            frequencia: freezed == frequencia
+                ? _value.frequencia
+                : frequencia // ignore: cast_nullable_to_non_nullable
+                      as FrequenciaRecorrencia?,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as FinSerieStatus,
+            dataInicio: null == dataInicio
+                ? _value.dataInicio
+                : dataInicio // ignore: cast_nullable_to_non_nullable
+                      as String,
+            dataFim: freezed == dataFim
+                ? _value.dataFim
+                : dataFim // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            formaPagamento: freezed == formaPagamento
+                ? _value.formaPagamento
+                : formaPagamento // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            observacao: freezed == observacao
+                ? _value.observacao
+                : observacao // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            tags: null == tags
+                ? _value.tags
+                : tags // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
+            created: freezed == created
+                ? _value.created
+                : created // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updated: freezed == updated
+                ? _value.updated
+                : updated // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$FinSerieImplCopyWith<$Res>
+    implements $FinSerieCopyWith<$Res> {
+  factory _$$FinSerieImplCopyWith(
+    _$FinSerieImpl value,
+    $Res Function(_$FinSerieImpl) then,
+  ) = __$$FinSerieImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String id,
+    @JsonKey(unknownEnumValue: TipoLancamento.despesa) TipoLancamento tipo,
+    String descricao,
+    @JsonKey(name: 'categoria_id') String categoriaId,
+    @JsonKey(name: 'subcategoria_id') String? subcategoriaId,
+    double valor,
+    @JsonKey(name: 'conta_id') String contaId,
+    @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+    RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
+    @JsonKey(unknownEnumValue: FinSerieStatus.ativa) FinSerieStatus status,
+    @JsonKey(name: 'data_inicio') String dataInicio,
+    @JsonKey(name: 'data_fim') String? dataFim,
+    @JsonKey(name: 'forma_pagamento') String? formaPagamento,
+    String? observacao,
+    List<String> tags,
+    String? created,
+    String? updated,
+  });
+}
+
+/// @nodoc
+class __$$FinSerieImplCopyWithImpl<$Res>
+    extends _$FinSerieCopyWithImpl<$Res, _$FinSerieImpl>
+    implements _$$FinSerieImplCopyWith<$Res> {
+  __$$FinSerieImplCopyWithImpl(
+    _$FinSerieImpl _value,
+    $Res Function(_$FinSerieImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of FinSerie
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? tipo = null,
+    Object? descricao = null,
+    Object? categoriaId = null,
+    Object? subcategoriaId = freezed,
+    Object? valor = null,
+    Object? contaId = null,
+    Object? recorrencia = null,
+    Object? frequencia = freezed,
+    Object? status = null,
+    Object? dataInicio = null,
+    Object? dataFim = freezed,
+    Object? formaPagamento = freezed,
+    Object? observacao = freezed,
+    Object? tags = null,
+    Object? created = freezed,
+    Object? updated = freezed,
+  }) {
+    return _then(
+      _$FinSerieImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String,
+        tipo: null == tipo
+            ? _value.tipo
+            : tipo // ignore: cast_nullable_to_non_nullable
+                  as TipoLancamento,
+        descricao: null == descricao
+            ? _value.descricao
+            : descricao // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoriaId: null == categoriaId
+            ? _value.categoriaId
+            : categoriaId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        subcategoriaId: freezed == subcategoriaId
+            ? _value.subcategoriaId
+            : subcategoriaId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        valor: null == valor
+            ? _value.valor
+            : valor // ignore: cast_nullable_to_non_nullable
+                  as double,
+        contaId: null == contaId
+            ? _value.contaId
+            : contaId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        recorrencia: null == recorrencia
+            ? _value.recorrencia
+            : recorrencia // ignore: cast_nullable_to_non_nullable
+                  as RecorrenciaTipo,
+        frequencia: freezed == frequencia
+            ? _value.frequencia
+            : frequencia // ignore: cast_nullable_to_non_nullable
+                  as FrequenciaRecorrencia?,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as FinSerieStatus,
+        dataInicio: null == dataInicio
+            ? _value.dataInicio
+            : dataInicio // ignore: cast_nullable_to_non_nullable
+                  as String,
+        dataFim: freezed == dataFim
+            ? _value.dataFim
+            : dataFim // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        formaPagamento: freezed == formaPagamento
+            ? _value.formaPagamento
+            : formaPagamento // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        observacao: freezed == observacao
+            ? _value.observacao
+            : observacao // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        tags: null == tags
+            ? _value._tags
+            : tags // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
+        created: freezed == created
+            ? _value.created
+            : created // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updated: freezed == updated
+            ? _value.updated
+            : updated // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$FinSerieImpl extends _FinSerie {
+  const _$FinSerieImpl({
+    required this.id,
+    @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+    this.tipo = TipoLancamento.despesa,
+    this.descricao = '',
+    @JsonKey(name: 'categoria_id') this.categoriaId = '',
+    @JsonKey(name: 'subcategoria_id') this.subcategoriaId,
+    this.valor = 0,
+    @JsonKey(name: 'conta_id') this.contaId = '',
+    @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+    this.recorrencia = RecorrenciaTipo.fixa,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal) this.frequencia,
+    @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+    this.status = FinSerieStatus.ativa,
+    @JsonKey(name: 'data_inicio') this.dataInicio = '',
+    @JsonKey(name: 'data_fim') this.dataFim,
+    @JsonKey(name: 'forma_pagamento') this.formaPagamento,
+    this.observacao,
+    final List<String> tags = const <String>[],
+    this.created,
+    this.updated,
+  }) : _tags = tags,
+       super._();
+
+  factory _$FinSerieImpl.fromJson(Map<String, dynamic> json) =>
+      _$$FinSerieImplFromJson(json);
+
+  @override
+  final String id;
+  @override
+  @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+  final TipoLancamento tipo;
+  @override
+  @JsonKey()
+  final String descricao;
+  @override
+  @JsonKey(name: 'categoria_id')
+  final String categoriaId;
+  @override
+  @JsonKey(name: 'subcategoria_id')
+  final String? subcategoriaId;
+  @override
+  @JsonKey()
+  final double valor;
+  @override
+  @JsonKey(name: 'conta_id')
+  final String contaId;
+  @override
+  @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+  final RecorrenciaTipo recorrencia;
+  @override
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  final FrequenciaRecorrencia? frequencia;
+  @override
+  @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+  final FinSerieStatus status;
+  @override
+  @JsonKey(name: 'data_inicio')
+  final String dataInicio;
+  @override
+  @JsonKey(name: 'data_fim')
+  final String? dataFim;
+  @override
+  @JsonKey(name: 'forma_pagamento')
+  final String? formaPagamento;
+  @override
+  final String? observacao;
+  final List<String> _tags;
+  @override
+  @JsonKey()
+  List<String> get tags {
+    if (_tags is EqualUnmodifiableListView) return _tags;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_tags);
+  }
+
+  @override
+  final String? created;
+  @override
+  final String? updated;
+
+  @override
+  String toString() {
+    return 'FinSerie(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, recorrencia: $recorrencia, frequencia: $frequencia, status: $status, dataInicio: $dataInicio, dataFim: $dataFim, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, created: $created, updated: $updated)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$FinSerieImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.tipo, tipo) || other.tipo == tipo) &&
+            (identical(other.descricao, descricao) ||
+                other.descricao == descricao) &&
+            (identical(other.categoriaId, categoriaId) ||
+                other.categoriaId == categoriaId) &&
+            (identical(other.subcategoriaId, subcategoriaId) ||
+                other.subcategoriaId == subcategoriaId) &&
+            (identical(other.valor, valor) || other.valor == valor) &&
+            (identical(other.contaId, contaId) || other.contaId == contaId) &&
+            (identical(other.recorrencia, recorrencia) ||
+                other.recorrencia == recorrencia) &&
+            (identical(other.frequencia, frequencia) ||
+                other.frequencia == frequencia) &&
+            (identical(other.status, status) || other.status == status) &&
+            (identical(other.dataInicio, dataInicio) ||
+                other.dataInicio == dataInicio) &&
+            (identical(other.dataFim, dataFim) || other.dataFim == dataFim) &&
+            (identical(other.formaPagamento, formaPagamento) ||
+                other.formaPagamento == formaPagamento) &&
+            (identical(other.observacao, observacao) ||
+                other.observacao == observacao) &&
+            const DeepCollectionEquality().equals(other._tags, _tags) &&
+            (identical(other.created, created) || other.created == created) &&
+            (identical(other.updated, updated) || other.updated == updated));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    tipo,
+    descricao,
+    categoriaId,
+    subcategoriaId,
+    valor,
+    contaId,
+    recorrencia,
+    frequencia,
+    status,
+    dataInicio,
+    dataFim,
+    formaPagamento,
+    observacao,
+    const DeepCollectionEquality().hash(_tags),
+    created,
+    updated,
+  );
+
+  /// Create a copy of FinSerie
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$FinSerieImplCopyWith<_$FinSerieImpl> get copyWith =>
+      __$$FinSerieImplCopyWithImpl<_$FinSerieImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$FinSerieImplToJson(this);
+  }
+}
+
+abstract class _FinSerie extends FinSerie {
+  const factory _FinSerie({
+    required final String id,
+    @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+    final TipoLancamento tipo,
+    final String descricao,
+    @JsonKey(name: 'categoria_id') final String categoriaId,
+    @JsonKey(name: 'subcategoria_id') final String? subcategoriaId,
+    final double valor,
+    @JsonKey(name: 'conta_id') final String contaId,
+    @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+    final RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    final FrequenciaRecorrencia? frequencia,
+    @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+    final FinSerieStatus status,
+    @JsonKey(name: 'data_inicio') final String dataInicio,
+    @JsonKey(name: 'data_fim') final String? dataFim,
+    @JsonKey(name: 'forma_pagamento') final String? formaPagamento,
+    final String? observacao,
+    final List<String> tags,
+    final String? created,
+    final String? updated,
+  }) = _$FinSerieImpl;
+  const _FinSerie._() : super._();
+
+  factory _FinSerie.fromJson(Map<String, dynamic> json) =
+      _$FinSerieImpl.fromJson;
+
+  @override
+  String get id;
+  @override
+  @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+  TipoLancamento get tipo;
+  @override
+  String get descricao;
+  @override
+  @JsonKey(name: 'categoria_id')
+  String get categoriaId;
+  @override
+  @JsonKey(name: 'subcategoria_id')
+  String? get subcategoriaId;
+  @override
+  double get valor;
+  @override
+  @JsonKey(name: 'conta_id')
+  String get contaId;
+  @override
+  @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+  RecorrenciaTipo get recorrencia;
+  @override
+  @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+  FrequenciaRecorrencia? get frequencia;
+  @override
+  @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+  FinSerieStatus get status;
+  @override
+  @JsonKey(name: 'data_inicio')
+  String get dataInicio;
+  @override
+  @JsonKey(name: 'data_fim')
+  String? get dataFim;
+  @override
+  @JsonKey(name: 'forma_pagamento')
+  String? get formaPagamento;
+  @override
+  String? get observacao;
+  @override
+  List<String> get tags;
+  @override
+  String? get created;
+  @override
+  String? get updated;
+
+  /// Create a copy of FinSerie
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$FinSerieImplCopyWith<_$FinSerieImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

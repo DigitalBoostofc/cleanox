@@ -92,6 +92,24 @@ enum OrigemLancamento {
   String get wire => this == OrigemLancamento.viaOs ? 'via_os' : 'manual';
 }
 
+/// Estado da regra de cobrança fixa (`fin_series.status`).
+enum FinSerieStatus {
+  @JsonValue('ativa')
+  ativa,
+  @JsonValue('pausada')
+  pausada,
+  @JsonValue('encerrada')
+  encerrada;
+
+  String get wire => name;
+
+  String get label => switch (this) {
+        FinSerieStatus.ativa => 'Ativa',
+        FinSerieStatus.pausada => 'Pausada',
+        FinSerieStatus.encerrada => 'Encerrada',
+      };
+}
+
 enum ContaTipo {
   @JsonValue('carteira')
   carteira,
@@ -210,6 +228,8 @@ class FinLancamento with _$FinLancamento {
     /// Periodicidade da série (só faz sentido em fixa/recorrente). Vazio no PB → mensal.
     @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
     FrequenciaRecorrencia? frequencia,
+    /// ID da regra em `fin_series` ("" no PB → null). Liga ocorrências à série.
+    @JsonKey(name: 'serie_id') String? serieId,
     @JsonKey(name: 'parcela_atual') int? parcelaAtual,
     @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(unknownEnumValue: OrigemLancamento.manual)
@@ -246,8 +266,14 @@ class FinLancamento with _$FinLancamento {
     if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
     // Select opcional: PB manda "" quando vazio → trata como null (default mensal na geração).
     if (json['frequencia'] == '') json['frequencia'] = null;
-    // Bool ausente em registros antigos (pré-mig 41) → false.
-    json['favorito'] = json['favorito'] == true;
+    if (json['serie_id'] == '') json['serie_id'] = null;
+    // Bool pode vir 0/1 em alguns caminhos SQLite/export.
+    json['favorito'] = json['favorito'] == true || json['favorito'] == 1;
+    // anexos: lista ou ausente; nunca string.
+    final anex = json['anexos'];
+    if (anex is! List) json['anexos'] = <dynamic>[];
+    final tags = json['tags'];
+    if (tags is! List) json['tags'] = <dynamic>[];
     return FinLancamento.fromJson(json);
   }
 
@@ -257,6 +283,67 @@ class FinLancamento with _$FinLancamento {
 
   /// Valor COM sinal (receita +, despesa −).
   double get valorComSinal => tipo == TipoLancamento.receita ? valor : -valor;
+
+  /// Pertence a uma regra fixa/recorrente (tem série ou tipo fixa/recorrente).
+  bool get isDaSerie =>
+      (serieId != null && serieId!.isNotEmpty) ||
+      recorrencia == RecorrenciaTipo.fixa ||
+      recorrencia == RecorrenciaTipo.recorrente;
+}
+
+/* ---- Série (regra de despesa/receita fixa) ---- */
+@freezed
+class FinSerie with _$FinSerie {
+  const factory FinSerie({
+    required String id,
+    @JsonKey(unknownEnumValue: TipoLancamento.despesa)
+    @Default(TipoLancamento.despesa)
+    TipoLancamento tipo,
+    @Default('') String descricao,
+    @JsonKey(name: 'categoria_id') @Default('') String categoriaId,
+    @JsonKey(name: 'subcategoria_id') String? subcategoriaId,
+    @Default(0) double valor,
+    @JsonKey(name: 'conta_id') @Default('') String contaId,
+    @JsonKey(unknownEnumValue: RecorrenciaTipo.fixa)
+    @Default(RecorrenciaTipo.fixa)
+    RecorrenciaTipo recorrencia,
+    @JsonKey(unknownEnumValue: FrequenciaRecorrencia.mensal)
+    FrequenciaRecorrencia? frequencia,
+    @JsonKey(unknownEnumValue: FinSerieStatus.ativa)
+    @Default(FinSerieStatus.ativa)
+    FinSerieStatus status,
+    @JsonKey(name: 'data_inicio') @Default('') String dataInicio,
+    @JsonKey(name: 'data_fim') String? dataFim,
+    @JsonKey(name: 'forma_pagamento') String? formaPagamento,
+    String? observacao,
+    @Default(<String>[]) List<String> tags,
+    String? created,
+    String? updated,
+  }) = _FinSerie;
+
+  const FinSerie._();
+
+  factory FinSerie.fromJson(Map<String, dynamic> json) =>
+      _$FinSerieFromJson(json);
+
+  factory FinSerie.fromRecord(RecordModel record) {
+    final json = record.toJson();
+    if (json['subcategoria_id'] == '') json['subcategoria_id'] = null;
+    if (json['data_fim'] == '') json['data_fim'] = null;
+    if (json['forma_pagamento'] == '') json['forma_pagamento'] = null;
+    if (json['observacao'] == '') json['observacao'] = null;
+    if (json['frequencia'] == '') json['frequencia'] = null;
+    final tags = json['tags'];
+    if (tags is! List) json['tags'] = <dynamic>[];
+    return FinSerie.fromJson(json);
+  }
+
+  FrequenciaRecorrencia get frequenciaEfetiva =>
+      frequencia ?? FrequenciaRecorrencia.mensal;
+
+  bool get isAtiva => status == FinSerieStatus.ativa;
+  bool get isPausada => status == FinSerieStatus.pausada;
+  bool get isEncerrada => status == FinSerieStatus.encerrada;
 }
 
 /* ---- Limite de gastos por categoria + mês ---- */

@@ -8,6 +8,7 @@ import 'package:cleanos/core/models/financeiro.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
 import 'package:cleanos/painel/data/pb_financeiro_repository.dart';
 import 'package:cleanos/painel/financeiro/fin_derivations.dart';
+import 'package:cleanos/painel/financeiro/fin_recorrencia.dart';
 
 FinConta fakeConta({
   required String id,
@@ -276,6 +277,106 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
 
   @override
   Future<int> materializarRecorrenciaAFrente(FinLancamento template) async => 0;
+
+  @override
+  Future<int> materializarSerieAFrente(FinSerie serie) async => 0;
+
+  List<FinSerie> series = const [];
+
+  @override
+  Future<List<FinSerie>> listSeries() async {
+    if (fail) throw Exception('falha');
+    return series;
+  }
+
+  @override
+  Future<FinSerie> createSerie(Map<String, dynamic> data) async {
+    final s = FinSerie(
+      id: 'serie_${series.length + 1}',
+      tipo: TipoLancamento.values.byName(
+        (data['tipo'] as String?) ?? TipoLancamento.despesa.wire,
+      ),
+      descricao: (data['descricao'] as String?) ?? '',
+      categoriaId: (data['categoria_id'] as String?) ?? '',
+      valor: (data['valor'] as num?)?.toDouble() ?? 0,
+      contaId: (data['conta_id'] as String?) ?? '',
+      dataInicio: (data['data_inicio'] as String?) ?? '',
+    );
+    series = [...series, s];
+    return s;
+  }
+
+  @override
+  Future<FinSerie> updateSerie(String id, Map<String, dynamic> data) async {
+    final i = series.indexWhere((s) => s.id == id);
+    if (i < 0) {
+      return FinSerie(id: id, descricao: (data['descricao'] as String?) ?? '');
+    }
+    final cur = series[i];
+    final next = cur.copyWith(
+      descricao: (data['descricao'] as String?) ?? cur.descricao,
+      valor: (data['valor'] as num?)?.toDouble() ?? cur.valor,
+      status: data['status'] != null
+          ? FinSerieStatus.values.byName(data['status'] as String)
+          : cur.status,
+      dataFim: data.containsKey('data_fim')
+          ? (data['data_fim'] as String?)
+          : cur.dataFim,
+    );
+    series = [...series]..[i] = next;
+    return next;
+  }
+
+  @override
+  Future<FinSerie> updateSeriePropagando(
+    String id,
+    Map<String, dynamic> data,
+  ) =>
+      updateSerie(id, data);
+
+  @override
+  Future<void> deleteSerie(String id) async {
+    series = series.where((s) => s.id != id).toList();
+  }
+
+  @override
+  Future<FinSerie> pausarSerie(String serieId, {String? aPartirDeYmd}) =>
+      updateSerie(serieId, {'status': FinSerieStatus.pausada.wire});
+
+  @override
+  Future<FinSerie> retomarSerie(String serieId) =>
+      updateSerie(serieId, {'status': FinSerieStatus.ativa.wire, 'data_fim': ''});
+
+  @override
+  Future<FinSerie> encerrarSerie(String serieId, {String? dataFimYmd}) =>
+      updateSerie(serieId, {
+        'status': FinSerieStatus.encerrada.wire,
+        'data_fim': dataFimYmd ?? '2026-01-01',
+      });
+
+  @override
+  Future<int> excluirOcorrenciasSerie({
+    required String serieId,
+    required SerieExclusaoEscopo escopo,
+    FinLancamento? referencia,
+  }) async =>
+      0;
+
+  @override
+  Future<FinSerie> ensureSerieForLancamento(FinLancamento l) async {
+    if ((l.serieId ?? '').isNotEmpty) {
+      final found = series.where((s) => s.id == l.serieId).toList();
+      if (found.isNotEmpty) return found.first;
+    }
+    return createSerie({
+      'tipo': l.tipo.wire,
+      'descricao': l.descricao,
+      'categoria_id': l.categoriaId,
+      'valor': l.valor,
+      'conta_id': l.contaId,
+      'data_inicio': l.data,
+    });
+  }
 
   @override
   Future<List<FinLimite>> listLimites() async {

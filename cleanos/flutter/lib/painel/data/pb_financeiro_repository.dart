@@ -36,6 +36,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
 import '../../core/repositories/financeiro_repository.dart';
 import '../../core/repositories/repo_types.dart';
+import '../../core/formatters/formatters.dart' show todayLocalDate;
 import '../financeiro/fin_derivations.dart';
 import '../financeiro/fin_recorrencia.dart';
 import 'painel_filters.dart';
@@ -73,11 +74,48 @@ abstract class FinanceiroPanelRepository implements FinanceiroRepository {
   /// Materializa no [periodo] as ocorrências mensais faltantes de despesas/
   /// receitas `fixa`/`recorrente` (status `previsto`). Idempotente.
   /// Retorna quantas ocorrências novas foram criadas.
+  /// Só gera para séries **ativas** (ou legado sem série ainda ativo por chave).
   Future<int> ensureRecorrenciasNoPeriodo(Periodo periodo);
 
   /// Ao criar um lançamento fixo/recorrente: grava as próximas
-  /// [kRecorrenciaMesesAFrente] ocorrências mensais como `previsto`.
+  /// ocorrências como `previsto` (respeita série se [template.serieId] setado).
   Future<int> materializarRecorrenciaAFrente(FinLancamento template);
+
+  /// Materializa à frente a partir da regra [serie] (só se ativa).
+  Future<int> materializarSerieAFrente(FinSerie serie);
+
+  /// CRUD de regras fixas (`fin_series`).
+  Future<List<FinSerie>> listSeries();
+  Future<FinSerie> createSerie(Map<String, dynamic> data);
+  Future<FinSerie> updateSerie(String id, Map<String, dynamic> data);
+  Future<void> deleteSerie(String id);
+
+  /// Atualiza a regra e propaga para ocorrências futuras não pagas:
+  /// - valor/descrição/conta/categoria nos previstos/pendentes
+  /// - se [data_fim] setada, remove não-pagos depois do fim
+  /// - se ativa, completa o horizonte materializado
+  Future<FinSerie> updateSeriePropagando(String id, Map<String, dynamic> data);
+
+  /// Pausa a série (não gera mais) e apaga ocorrências futuras não pagas.
+  Future<FinSerie> pausarSerie(String serieId, {String? aPartirDeYmd});
+
+  /// Retoma série pausada e materializa horizonte à frente.
+  Future<FinSerie> retomarSerie(String serieId);
+
+  /// Encerra a série: status encerrada + data_fim + apaga futuros não pagos
+  /// **depois** de [dataFimYmd] (o dia do fim ainda pode existir se não pago).
+  Future<FinSerie> encerrarSerie(String serieId, {String? dataFimYmd});
+
+  /// Exclui lançamentos da série conforme [escopo].
+  /// Retorna quantos registros foram apagados.
+  Future<int> excluirOcorrenciasSerie({
+    required String serieId,
+    required SerieExclusaoEscopo escopo,
+    FinLancamento? referencia,
+  });
+
+  /// Garante que um lançamento fixo legado tenha `serie_id` (cria série se preciso).
+  Future<FinSerie> ensureSerieForLancamento(FinLancamento l);
 
   /// Metas de caixa (`fin_objetivos`).
   Future<List<FinObjetivo>> listObjetivos();
@@ -99,6 +137,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   RecordService get _lancamentos => _pb.collection(FinCollections.lancamentos);
   RecordService get _limites => _pb.collection(FinCollections.limites);
   RecordService get _objetivos => _pb.collection(FinCollections.objetivos);
+  RecordService get _series => _pb.collection(FinCollections.series);
 
   /* ─────────────────────── Contas / Carteiras ─────────────────────── */
 
@@ -277,6 +316,8 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       'vencimento': l.vencimento,
       'status': l.status.wire,
       'recorrencia': l.recorrencia.wire,
+      'frequencia': l.frequencia?.wire,
+      'serie_id': l.serieId,
       'parcela_atual': l.parcelaAtual,
       'parcelas_total': l.parcelasTotal,
       'origem': OrigemLancamento.manual.wire,
@@ -312,6 +353,13 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
         '(recorrencia = ${pbStringLiteral(RecorrenciaTipo.fixa.wire)} '
         '|| recorrencia = ${pbStringLiteral(RecorrenciaTipo.recorrente.wire)}) '
         '&& data < ${pbStringLiteral(antesDe)}';
+    return _listLancamentosAll(filter: filter, sort: 'data');
+  }
+
+  Future<List<FinLancamento>> _listLancamentosAll({
+    required String filter,
+    String sort = 'data',
+  }) async {
     final out = <FinLancamento>[];
     var page = 1;
     const perPage = 200;
@@ -320,7 +368,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
         page: page,
         perPage: perPage,
         filter: filter,
-        sort: 'data',
+        sort: sort,
       );
       out.addAll(res.items);
       if (page >= res.totalPages || res.items.isEmpty) break;
@@ -328,6 +376,16 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     }
     return out;
   }
+
+  Future<List<FinLancamento>> _listBySerieId(String serieId) {
+    return _listLancamentosAll(
+      filter: 'serie_id = ${pbStringLiteral(serieId)}',
+      sort: 'data',
+    );
+  }
+
+  String _ymdOf(String raw) =>
+      raw.length >= 10 ? raw.substring(0, 10) : raw.trim();
 
   @override
   Future<int> ensureRecorrenciasNoPeriodo(Periodo periodo) {
@@ -342,27 +400,44 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   }
 
   Future<int> _ensureRecorrenciasImpl(Periodo periodo) async {
-    // Templates e ocorrências até o fim do período (+ 1 ano p/ semanal).
+    var created = 0;
+    // Chaves soft já cobertas por fin_series (evita duplicar no path legado).
+    final seriesKeys = <String>{};
+    // 1) Séries com ID (caminho canônico).
+    try {
+      final series = await listSeries();
+      for (final s in series) {
+        seriesKeys.add(_serieBusinessKey(s));
+        if (!s.isAtiva) continue;
+        created += await _materializarSerieNoPeriodo(s, periodo);
+      }
+    } catch (_) {
+      // Collection pode não existir ainda (pré-migrate) — cai no legado.
+    }
+
+    // 2) Legado: fixa/recorrente SEM serie_id e SEM série já cadastrada.
     final horizonte = parseYmdLocal(periodo.end) ?? DateTime.now();
     final ativos = await _listRecorrenciasAtivas(
       antesDe: formatYmdLocal(addMonthsClamped(horizonte, 1)),
     );
-    if (ativos.isEmpty) return 0;
-
     final bySerie = <String, List<FinLancamento>>{};
     for (final l in ativos) {
       if (!isRecorrenciaAtiva(l.recorrencia)) continue;
-      bySerie.putIfAbsent(serieRecorrenciaKey(l), () => []).add(l);
+      // Já coberto pelo caminho de série.
+      if (l.serieId != null && l.serieId!.isNotEmpty) continue;
+      final key = serieRecorrenciaKey(l);
+      // Já existe fin_series com essa chave → não materializar por soft-key
+      // (evita duplicata se só parte dos membros tem serie_id).
+      if (seriesKeys.contains(key)) continue;
+      bySerie.putIfAbsent(key, () => []).add(l);
     }
 
-    var created = 0;
     for (final members in bySerie.values) {
       members.sort((a, b) => a.data.compareTo(b.data));
       final template = members.first;
       final baseDate = parseYmdLocal(template.data);
       if (baseDate == null) continue;
 
-      // Existentes: YMD sempre; year-month só mensal+ (semanal ≠ 1×/mês).
       final freq = template.frequenciaEfetiva;
       final existentes = chavesExistentesSerie(
         members.map((m) => m.data),
@@ -376,8 +451,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       );
       for (final dataYmd in faltantes) {
         String? venc;
-        if (template.vencimento != null &&
-            template.vencimento!.isNotEmpty) {
+        if (template.vencimento != null && template.vencimento!.isNotEmpty) {
           final v0 = parseYmdLocal(template.vencimento!);
           final d0 = parseYmdLocal(dataYmd);
           if (v0 != null && d0 != null) {
@@ -394,9 +468,78 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     return created;
   }
 
+  /// Chave de negócio alinhada a [serieRecorrenciaKey] para uma [FinSerie].
+  String _serieBusinessKey(FinSerie s) => serieRecorrenciaKey(
+        FinLancamento(
+          id: s.id,
+          tipo: s.tipo,
+          descricao: s.descricao,
+          categoriaId: s.categoriaId,
+          subcategoriaId: s.subcategoriaId,
+          valor: s.valor,
+          contaId: s.contaId,
+          data: s.dataInicio,
+          recorrencia: s.recorrencia,
+          frequencia: s.frequencia,
+        ),
+      );
+
+  Future<int> _materializarSerieNoPeriodo(
+    FinSerie serie,
+    Periodo periodo,
+  ) async {
+    if (!serie.isAtiva) return 0;
+    final baseDate = parseYmdLocal(serie.dataInicio);
+    if (baseDate == null) return 0;
+    final fimSerie = (serie.dataFim != null && serie.dataFim!.isNotEmpty)
+        ? parseYmdLocal(serie.dataFim!)
+        : null;
+
+    // Periodo efetivo: corta em data_fim da série (fim exclusivo = dia seguinte).
+    var end = periodo.end;
+    if (fimSerie != null) {
+      final endSerieExcl = formatYmdLocal(fimSerie.add(const Duration(days: 1)));
+      if (endSerieExcl.compareTo(periodo.start) <= 0) return 0;
+      if (endSerieExcl.compareTo(end) < 0) end = endSerieExcl;
+    }
+    final periodoEfetivo = Periodo(periodo.start, end);
+
+    final members = await _listBySerieId(serie.id);
+    final freq = serie.frequenciaEfetiva;
+    final existentes = chavesExistentesSerie(
+      members.map((m) => m.data),
+      frequencia: freq,
+    );
+    final faltantes = datasRecorrenciaFaltantes(
+      baseDate: baseDate,
+      frequencia: freq,
+      periodo: periodoEfetivo,
+      datasExistentes: existentes,
+    );
+    var created = 0;
+    for (final dataYmd in faltantes) {
+      try {
+        await createLancamento(bodyOcorrenciaDaSerie(serie, dataYmd));
+        created++;
+      } catch (_) {
+        // Race com outra aba — segue.
+      }
+    }
+    return created;
+  }
+
   @override
   Future<int> materializarRecorrenciaAFrente(FinLancamento template) async {
     if (!isRecorrenciaAtiva(template.recorrencia)) return 0;
+    // Preferir série se existir.
+    final sid = (template.serieId ?? '').trim();
+    if (sid.isNotEmpty) {
+      try {
+        final serie = await _getSerie(sid);
+        if (serie != null) return materializarSerieAFrente(serie);
+      } catch (_) {}
+    }
+
     final baseDate = parseYmdLocal(template.data);
     if (baseDate == null) return 0;
     final freq = template.frequenciaEfetiva;
@@ -413,7 +556,9 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     final existentes = chavesExistentesSerie(
       [
         for (final l in ativos)
-          if (serieRecorrenciaKey(l) == key) l.data,
+          if ((sid.isNotEmpty && l.serieId == sid) ||
+              (sid.isEmpty && serieRecorrenciaKey(l) == key))
+            l.data,
       ],
       frequencia: freq,
     );
@@ -433,15 +578,300 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
           venc = formatYmdLocal(d0.add(Duration(days: deltaDays)));
         }
       }
-      await createLancamento(
-        bodyOcorrenciaPrevista(template, dataYmd, vencimentoYmd: venc),
-      );
-      existentes.addAll(
-        chavesExistentesSerie([dataYmd], frequencia: freq),
-      );
-      created++;
+      try {
+        await createLancamento(
+          bodyOcorrenciaPrevista(
+            template,
+            dataYmd,
+            vencimentoYmd: venc,
+            serieId: sid.isEmpty ? null : sid,
+          ),
+        );
+        existentes.addAll(
+          chavesExistentesSerie([dataYmd], frequencia: freq),
+        );
+        created++;
+      } catch (_) {
+        existentes.addAll(
+          chavesExistentesSerie([dataYmd], frequencia: freq),
+        );
+      }
     }
     return created;
+  }
+
+  @override
+  Future<int> materializarSerieAFrente(FinSerie serie) async {
+    if (!serie.isAtiva) return 0;
+    final baseDate = parseYmdLocal(serie.dataInicio);
+    if (baseDate == null) return 0;
+    final freq = serie.frequenciaEfetiva;
+    final fimSerie = (serie.dataFim != null && serie.dataFim!.isNotEmpty)
+        ? parseYmdLocal(serie.dataFim!)
+        : null;
+
+    final members = await _listBySerieId(serie.id);
+    final existentes = chavesExistentesSerie(
+      members.map((m) => m.data),
+      frequencia: freq,
+    );
+
+    var created = 0;
+    for (final dataYmd in datasRecorrenciaAFrente(
+      baseDate: baseDate,
+      frequencia: freq,
+    )) {
+      if (fimSerie != null) {
+        final d = parseYmdLocal(dataYmd);
+        if (d != null && d.isAfter(fimSerie)) break;
+      }
+      if (serieJaTemData(existentes, dataYmd, frequencia: freq)) continue;
+      try {
+        await createLancamento(bodyOcorrenciaDaSerie(serie, dataYmd));
+        existentes.addAll(
+          chavesExistentesSerie([dataYmd], frequencia: freq),
+        );
+        created++;
+      } catch (_) {
+        existentes.addAll(
+          chavesExistentesSerie([dataYmd], frequencia: freq),
+        );
+      }
+    }
+    return created;
+  }
+
+  /* ─────────────────────── Séries (fin_series) ─────────────────────── */
+
+  @override
+  Future<List<FinSerie>> listSeries() async {
+    final recs = await _series.getFullList(sort: 'descricao');
+    return recs.map(FinSerie.fromRecord).toList();
+  }
+
+  Future<FinSerie?> _getSerie(String id) async {
+    if (id.isEmpty) return null;
+    try {
+      final rec = await _series.getOne(id);
+      return FinSerie.fromRecord(rec);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<FinSerie> createSerie(Map<String, dynamic> data) async {
+    final rec = await _series.create(body: data);
+    return FinSerie.fromRecord(rec);
+  }
+
+  @override
+  Future<FinSerie> updateSerie(String id, Map<String, dynamic> data) async {
+    final rec = await _series.update(id, body: data);
+    return FinSerie.fromRecord(rec);
+  }
+
+  @override
+  Future<void> deleteSerie(String id) => _series.delete(id);
+
+  /// Primeiro dia **após** [dataFimYmd] (não-pagos a partir daqui saem).
+  /// [dataFimYmd] é o último dia válido da série (inclusive).
+  String _diaApos(String dataFimYmd) {
+    final d = parseYmdLocal(dataFimYmd);
+    if (d == null) return dataFimYmd;
+    return formatYmdLocal(d.add(const Duration(days: 1)));
+  }
+
+  String _hojeBrt() => todayLocalDate();
+
+  /// Apaga lançamentos da série com data >= [fromYmd] e status ≠ pago
+  /// (previsto/pendente/em_atraso). Pagos nunca são tocados aqui.
+  Future<int> _deleteFuturosNaoPagos(String serieId, String fromYmd) async {
+    final members = await _listBySerieId(serieId);
+    var n = 0;
+    for (final l in members) {
+      final d = _ymdOf(l.data);
+      if (d.compareTo(fromYmd) < 0) continue;
+      if (l.status == LancamentoStatus.pago) continue;
+      try {
+        await deleteLancamento(l.id);
+        n++;
+      } catch (_) {}
+    }
+    return n;
+  }
+
+  /// Propaga template da série para ocorrências não pagas + poda por data_fim.
+  Future<void> _propagarSerieParaOcorrencias(FinSerie serie) async {
+    // 1) data_fim: remove não-pagos depois do último dia válido.
+    final fim = (serie.dataFim ?? '').trim();
+    if (fim.isNotEmpty) {
+      await _deleteFuturosNaoPagos(serie.id, _diaApos(fim));
+    }
+
+    // 2) Atualiza template nos restantes não pagos.
+    final members = await _listBySerieId(serie.id);
+    final patch = <String, dynamic>{
+      'descricao': serie.descricao,
+      'valor': serie.valor,
+      'conta_id': serie.contaId,
+      'categoria_id': serie.categoriaId,
+      'subcategoria_id': (serie.subcategoriaId ?? '').trim(),
+      'frequencia': serie.frequenciaEfetiva.wire,
+      'recorrencia': serie.recorrencia == RecorrenciaTipo.recorrente
+          ? RecorrenciaTipo.recorrente.wire
+          : RecorrenciaTipo.fixa.wire,
+      'forma_pagamento': serie.formaPagamento ?? '',
+      'observacao': serie.observacao ?? '',
+      'tags': serie.tags,
+    };
+    for (final l in members) {
+      if (l.status == LancamentoStatus.pago) continue;
+      try {
+        await updateLancamento(l.id, patch);
+      } catch (_) {}
+    }
+
+    // 3) Completa horizonte se ainda ativa.
+    if (serie.isAtiva) {
+      await materializarSerieAFrente(serie);
+    }
+  }
+
+  @override
+  Future<FinSerie> updateSeriePropagando(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    final serie = await updateSerie(id, data);
+    await _propagarSerieParaOcorrencias(serie);
+    return serie;
+  }
+
+  @override
+  Future<FinSerie> pausarSerie(String serieId, {String? aPartirDeYmd}) async {
+    final from = aPartirDeYmd ?? _hojeBrt();
+    // Mantém o dia de [from] em diante limpo (não pagos).
+    await _deleteFuturosNaoPagos(serieId, from);
+    return updateSerie(serieId, {
+      'status': FinSerieStatus.pausada.wire,
+    });
+  }
+
+  @override
+  Future<FinSerie> retomarSerie(String serieId) async {
+    final serie = await updateSerie(serieId, {
+      'status': FinSerieStatus.ativa.wire,
+      'data_fim': '',
+    });
+    await materializarSerieAFrente(serie);
+    return serie;
+  }
+
+  @override
+  Future<FinSerie> encerrarSerie(String serieId, {String? dataFimYmd}) async {
+    // data_fim = último dia válido (default: hoje BRT). Não-pagos depois saem.
+    final fim = dataFimYmd ?? _hojeBrt();
+    await _deleteFuturosNaoPagos(serieId, _diaApos(fim));
+    return updateSerie(serieId, {
+      'status': FinSerieStatus.encerrada.wire,
+      'data_fim': fim,
+    });
+  }
+
+  @override
+  Future<int> excluirOcorrenciasSerie({
+    required String serieId,
+    required SerieExclusaoEscopo escopo,
+    FinLancamento? referencia,
+  }) async {
+    switch (escopo) {
+      case SerieExclusaoEscopo.somenteEste:
+        if (referencia == null) return 0;
+        await deleteLancamento(referencia.id);
+        return 1;
+      case SerieExclusaoEscopo.esteEFuturos:
+        final from = referencia != null
+            ? _ymdOf(referencia.data)
+            : _hojeBrt();
+        final refId = referencia?.id;
+        final members = await _listBySerieId(serieId);
+        var n = 0;
+        for (final l in members) {
+          if (_ymdOf(l.data).compareTo(from) < 0) continue;
+          // Mantém históricos pagos, exceto o lançamento que o usuário abriu.
+          final isRef = refId != null && l.id == refId;
+          if (l.status == LancamentoStatus.pago && !isRef) continue;
+          try {
+            await deleteLancamento(l.id);
+            n++;
+          } catch (_) {}
+        }
+        return n;
+      case SerieExclusaoEscopo.futurosEEncerrar:
+      case SerieExclusaoEscopo.encerrarMantendoPagos:
+        // Mesma regra de [encerrarSerie]: data_fim=hoje; poda a partir de amanhã.
+        final fim = _hojeBrt();
+        final n = await _deleteFuturosNaoPagos(serieId, _diaApos(fim));
+        await updateSerie(serieId, {
+          'status': FinSerieStatus.encerrada.wire,
+          'data_fim': fim,
+        });
+        return n;
+    }
+  }
+
+  @override
+  Future<FinSerie> ensureSerieForLancamento(FinLancamento l) async {
+    final sid = (l.serieId ?? '').trim();
+    if (sid.isNotEmpty) {
+      final existing = await _getSerie(sid);
+      if (existing != null) return existing;
+    }
+    final all = await listSeries();
+    final key = serieRecorrenciaKey(l);
+    FinSerie? matchAtiva;
+    FinSerie? matchQualquer;
+    for (final s in all) {
+      if (_serieBusinessKey(s) != key) continue;
+      matchQualquer ??= s;
+      if (s.isAtiva) {
+        matchAtiva = s;
+        break;
+      }
+    }
+    final chosen = matchAtiva ?? matchQualquer;
+    if (chosen != null) {
+      await _linkSoftKeySiblings(key, chosen.id, preferId: l.id);
+      return chosen;
+    }
+    final created = await createSerie(bodySerieFromLancamento(l));
+    await _linkSoftKeySiblings(key, created.id, preferId: l.id);
+    return created;
+  }
+
+  /// Liga lançamentos da soft-key sem serie_id à série [serieId].
+  Future<void> _linkSoftKeySiblings(
+    String key,
+    String serieId, {
+    String? preferId,
+  }) async {
+    if (preferId != null && preferId.isNotEmpty) {
+      try {
+        await updateLancamento(preferId, {'serie_id': serieId});
+      } catch (_) {}
+    }
+    final siblings = await _listRecorrenciasAtivas(
+      antesDe: formatYmdLocal(addMonthsClamped(DateTime.now(), 36)),
+    );
+    for (final m in siblings) {
+      if ((m.serieId ?? '').isNotEmpty) continue;
+      if (serieRecorrenciaKey(m) != key) continue;
+      if (preferId != null && m.id == preferId) continue;
+      try {
+        await updateLancamento(m.id, {'serie_id': serieId});
+      } catch (_) {}
+    }
   }
 
   /* ─────────────────────── Limites de gasto ─────────────────────── */

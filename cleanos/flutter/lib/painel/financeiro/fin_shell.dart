@@ -22,6 +22,7 @@ import 'fin_objetivos_screen.dart';
 import 'fin_planejamento_screen.dart';
 import 'fin_principal_screen.dart';
 import 'fin_relatorios_screen.dart';
+import 'fin_series_screen.dart';
 import 'fin_tags_screen.dart';
 import 'lancamentos/fin_transacoes_screen.dart';
 import 'lancamentos/lancamento_form.dart';
@@ -40,7 +41,8 @@ enum FinTab {
   tags('Tags', 'tags'),
   carteiras('Carteiras', 'carteiras'),
   planejamento('Planejamento', 'planejamento'),
-  limites('Limites', 'limites');
+  limites('Limites', 'limites'),
+  series('Cobranças fixas', 'fixas');
 
   const FinTab(this.label, this.slug);
   final String label;
@@ -77,6 +79,10 @@ enum FinTab {
         return FinTab.planejamento;
       case 'limites':
         return FinTab.limites;
+      case 'fixas':
+      case 'series':
+      case 'recorrentes':
+        return FinTab.series;
       default:
         return FinTab.principal;
     }
@@ -99,6 +105,9 @@ enum FinTab {
       'carteiras',
       'planejamento',
       'limites',
+      'fixas',
+      'series',
+      'recorrentes',
     };
     return known.contains(slug);
   }
@@ -251,6 +260,7 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
         FinTab.contas => const FinContasPagarReceberScreen(),
         FinTab.objetivos => const FinObjetivosScreen(),
         FinTab.tags => const FinTagsScreen(),
+        FinTab.series => const FinSeriesScreen(),
       };
 }
 

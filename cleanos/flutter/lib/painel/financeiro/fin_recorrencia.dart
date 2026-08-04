@@ -230,32 +230,97 @@ int horizontePassos(FrequenciaRecorrencia f) => switch (f) {
 const int kRecorrenciaMesesAFrente = 12;
 
 /// Body PB para materializar uma ocorrência prevista a partir do template.
+/// Opcionais como "" (R2) — não manda null (PB/SDK falha em lote).
 Map<String, dynamic> bodyOcorrenciaPrevista(
   FinLancamento template,
   String dataYmd, {
   String? vencimentoYmd,
-}) =>
-    <String, dynamic>{
-      'tipo': template.tipo.wire,
-      'descricao': template.descricao,
-      'categoria_id': template.categoriaId,
-      'subcategoria_id': template.subcategoriaId,
-      'valor': template.valor,
-      'conta_id': template.contaId,
-      'data': dataYmd,
-      'vencimento': vencimentoYmd,
-      'status': LancamentoStatus.previsto.wire,
-      'recorrencia': template.recorrencia.wire,
-      'frequencia': template.frequenciaEfetiva.wire,
-      'parcela_atual': null,
-      'parcelas_total': null,
-      'origem': OrigemLancamento.manual.wire,
-      'os_id': null,
-      'os_numero': null,
-      'cliente_nome': null,
-      'servico_nome': null,
-      'forma_pagamento': template.formaPagamento,
-      'observacao': template.observacao,
-      'tags': template.tags,
-      'anexos': template.anexos.map((a) => a.toJson()).toList(),
-    };
+  String? serieId,
+}) {
+  final venc = (vencimentoYmd ?? dataYmd).trim();
+  final sid = (serieId ?? template.serieId ?? '').trim();
+  return <String, dynamic>{
+    'tipo': template.tipo.wire,
+    'descricao': template.descricao,
+    'categoria_id': template.categoriaId,
+    'subcategoria_id': (template.subcategoriaId ?? '').trim(),
+    'valor': template.valor,
+    'conta_id': template.contaId,
+    'data': dataYmd,
+    'vencimento': venc.isEmpty ? dataYmd : venc,
+    'status': LancamentoStatus.previsto.wire,
+    'recorrencia': template.recorrencia.wire,
+    'frequencia': template.frequenciaEfetiva.wire,
+    'serie_id': sid,
+    'origem': OrigemLancamento.manual.wire,
+    'forma_pagamento': template.formaPagamento ?? '',
+    'observacao': template.observacao ?? '',
+    'tags': template.tags,
+    'anexos': const <Map<String, dynamic>>[],
+  };
+}
+
+/// Body de ocorrência a partir da regra `fin_series`.
+Map<String, dynamic> bodyOcorrenciaDaSerie(
+  FinSerie serie,
+  String dataYmd, {
+  String? vencimentoYmd,
+}) {
+  final venc = (vencimentoYmd ?? dataYmd).trim();
+  return <String, dynamic>{
+    'tipo': serie.tipo.wire,
+    'descricao': serie.descricao,
+    'categoria_id': serie.categoriaId,
+    'subcategoria_id': (serie.subcategoriaId ?? '').trim(),
+    'valor': serie.valor,
+    'conta_id': serie.contaId,
+    'data': dataYmd,
+    'vencimento': venc.isEmpty ? dataYmd : venc,
+    'status': LancamentoStatus.previsto.wire,
+    'recorrencia': serie.recorrencia == RecorrenciaTipo.recorrente
+        ? RecorrenciaTipo.recorrente.wire
+        : RecorrenciaTipo.fixa.wire,
+    'frequencia': serie.frequenciaEfetiva.wire,
+    'serie_id': serie.id,
+    'origem': OrigemLancamento.manual.wire,
+    'forma_pagamento': serie.formaPagamento ?? '',
+    'observacao': serie.observacao ?? '',
+    'tags': serie.tags,
+    'anexos': const <Map<String, dynamic>>[],
+  };
+}
+
+/// Body para criar `fin_series` a partir do 1º lançamento da regra.
+Map<String, dynamic> bodySerieFromLancamento(FinLancamento l) {
+  final rec = l.recorrencia == RecorrenciaTipo.recorrente
+      ? RecorrenciaTipo.recorrente
+      : RecorrenciaTipo.fixa;
+  return <String, dynamic>{
+    'tipo': l.tipo.wire,
+    'descricao': l.descricao.trim(),
+    'categoria_id': l.categoriaId,
+    'subcategoria_id': (l.subcategoriaId ?? '').trim(),
+    'valor': l.valor,
+    'conta_id': l.contaId,
+    'recorrencia': rec.wire,
+    'frequencia': l.frequenciaEfetiva.wire,
+    'status': FinSerieStatus.ativa.wire,
+    'data_inicio': l.data.length >= 10 ? l.data.substring(0, 10) : l.data,
+    'data_fim': '',
+    'forma_pagamento': l.formaPagamento ?? '',
+    'observacao': l.observacao ?? '',
+    'tags': l.tags,
+  };
+}
+
+/// Escopo de exclusão de ocorrências de uma série.
+enum SerieExclusaoEscopo {
+  /// Só o lançamento aberto.
+  somenteEste,
+  /// Este e todos com data >= data deste.
+  esteEFuturos,
+  /// Todos os futuros (data > hoje ou >= dataFim), série fica encerrada.
+  futurosEEncerrar,
+  /// Apaga previstos/pendentes futuros; pagos ficam; encerra série.
+  encerrarMantendoPagos,
+}
