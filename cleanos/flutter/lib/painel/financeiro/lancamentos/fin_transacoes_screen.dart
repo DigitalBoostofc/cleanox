@@ -1085,7 +1085,7 @@ class _DesktopTable extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              // header: mãos | categoria | data | descrição | conta | valor | pin
+              // header: pin | categoria | data | descrição | conta | valor | mão
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1094,16 +1094,17 @@ class _DesktopTable extends StatelessWidget {
                 ),
                 child: const Row(
                   children: [
-                    // Mãozinha — sem rótulo
-                    _H('', 56),
-                    // Categoria (ícone) logo ao lado das mãos
+                    // Pin favorito — sem rótulo
+                    _H('', 48),
+                    // Categoria (ícone)
                     _H('', 48),
                     _H('Data', 100),
                     // Só Descrição alinhada à esquerda
                     Expanded(flex: 3, child: _H('Descrição', null, left: true)),
                     Expanded(child: _H('Conta', null)),
                     SizedBox(width: 110, child: _H('Valor', null)),
-                    SizedBox(width: 48, child: _H('', null)),
+                    // Mãozinha paga/pendente (direita)
+                    SizedBox(width: 56, child: _H('', null)),
                   ],
                 ),
               ),
@@ -1238,7 +1239,84 @@ class _TableRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 1) 👍 / 👎 — manual + comissão tocam; via OS só leitura
+              // 1) Pin favorito (esquerda)
+              SizedBox(
+                width: 48,
+                child: Center(
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: l.favorito ? 'Desfavoritar' : 'Favoritar',
+                    onPressed: onToggleFav,
+                    icon: Icon(
+                      l.favorito ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 18,
+                      color: l.favorito ? clx.primary : clx.ink3,
+                    ),
+                  ),
+                ),
+              ),
+              // 2) Categoria (só ícone)
+              SizedBox(
+                width: 48,
+                child: Tooltip(
+                  message: cat?.nome ?? 'Sem categoria',
+                  child: Center(
+                    child: FinCategoriaAvatar(categoria: cat, size: 28),
+                  ),
+                ),
+              ),
+              // 3) Data
+              SizedBox(
+                width: 100,
+                child: Text(
+                  formatDateOnlyBr(l.data),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: atrasado ? clx.error : clx.ink2,
+                    fontSize: 13,
+                    fontWeight: atrasado ? FontWeight.w700 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              // 4) Descrição — única coluna de texto alinhada à esquerda
+              Expanded(
+                flex: 3,
+                child: Text(
+                  isComissao ? l.descricao : _txTitleWithServico(l),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: atrasado ? clx.error : null,
+                  ),
+                ),
+              ),
+              // 5) Conta
+              Expanded(
+                child: Text(
+                  conta?.nome ?? '—',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: atrasado ? clx.error.withValues(alpha: 0.85) : null,
+                  ),
+                ),
+              ),
+              // 6) Valor
+              SizedBox(
+                width: 110,
+                child: Text(
+                  formatCurrency(l.valor),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: atrasado ? clx.error : tipoColor(clx, l.tipo),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              // 7) 👍 / 👎 — direita (manual + comissão tocam; via OS só leitura)
               SizedBox(
                 width: 56,
                 child: Center(
@@ -1280,95 +1358,6 @@ class _TableRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                ),
-              ),
-              // 2) Categoria (só ícone) — ao lado das mãos
-              SizedBox(
-                width: 48,
-                child: Tooltip(
-                  message: cat?.nome ?? 'Sem categoria',
-                  child: Center(
-                    child: FinCategoriaAvatar(categoria: cat, size: 28),
-                  ),
-                ),
-              ),
-              // 3) Data
-              SizedBox(
-                width: 100,
-                child: Text(
-                  formatDateOnlyBr(l.data),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: atrasado ? clx.error : clx.ink2,
-                    fontSize: 13,
-                    fontWeight: atrasado ? FontWeight.w700 : FontWeight.w400,
-                  ),
-                ),
-              ),
-              // 4) Descrição — única coluna de texto alinhada à esquerda
-              Expanded(
-                flex: 3,
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        isComissao
-                            ? l.descricao
-                            : _txTitleWithServico(l),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.left,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: atrasado ? clx.error : null,
-                        ),
-                      ),
-                    ),
-                    if (l.favorito) ...[
-                      const SizedBox(width: 6),
-                      Icon(Icons.push_pin, size: 14, color: clx.primary),
-                    ],
-                  ],
-                ),
-              ),
-              // 5) Conta
-              Expanded(
-                child: Text(
-                  conta?.nome ?? '—',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: atrasado ? clx.error.withValues(alpha: 0.85) : null,
-                  ),
-                ),
-              ),
-              // 6) Valor
-              SizedBox(
-                width: 110,
-                child: Text(
-                  formatCurrency(l.valor),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: atrasado ? clx.error : tipoColor(clx, l.tipo),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              // 7) Pin
-              SizedBox(
-                width: 48,
-                child: Center(
-                  child: IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: l.favorito ? 'Desfavoritar' : 'Favoritar',
-                    onPressed: onToggleFav,
-                    icon: Icon(
-                      l.favorito ? Icons.push_pin : Icons.push_pin_outlined,
-                      size: 18,
-                      color: l.favorito ? clx.primary : clx.ink3,
-                    ),
-                  ),
                 ),
               ),
             ],
