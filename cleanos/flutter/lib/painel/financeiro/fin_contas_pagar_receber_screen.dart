@@ -1,10 +1,8 @@
 /// fin_contas_pagar_receber_screen.dart — Contas a pagar / a receber.
 ///
-/// Espelha `ContasPagarReceber.tsx`: seletor de mês (BRT) + Filtros + abas
-/// A pagar / A receber / Todas + 4 KPIs GLOBAIS (total a pagar/receber, vencendo
-/// hoje, em atraso) derivados de [contasAPagar]/[contasAReceber] vs. HOJE. As
-/// listas respeitam o mês + filtros (tipo/origem/categoria/conta/vencimento) e
-/// têm a ação "marcar pago". Rodapé informativo sobre recebimentos via OS.
+/// Seletor de mês (BRT) + Filtros + abas A pagar / A receber / Todas + 4 KPIs
+/// do **mês selecionado** (total a pagar/receber, vencendo hoje, em atraso) —
+/// mesmo recorte da lista. Ação "marcar pago". Rodapé sobre recebimentos via OS.
 library;
 
 import 'package:flutter/material.dart';
@@ -246,18 +244,20 @@ class _FinContasPagarReceberScreenState
               final aReceberAll = contasAReceber(pendentes, hoje);
               double sum(List<ContaPendente> xs) =>
                   xs.fold<double>(0, (s, p) => s + p.lancamento.valor);
-              final todos = [...aPagarAll, ...aReceberAll];
-              final vencendoHoje = todos.where((p) => p.vencendoHoje).toList();
-              final emAtraso = todos.where((p) => p.emAtraso).toList();
 
               final mostrarPagar = _aba != _Aba.receber;
               final mostrarReceber = _aba != _Aba.pagar;
+              // Lista E cards de totais: mesmo recorte (mês + filtros).
               final aPagar = _filters.tipo == TipoLancamento.receita
                   ? <ContaPendente>[]
                   : _aplicar(aPagarAll, mesPrefix, hoje);
               final aReceber = _filters.tipo == TipoLancamento.despesa
                   ? <ContaPendente>[]
                   : _aplicar(aReceberAll, mesPrefix, hoje);
+              final todosMes = [...aPagar, ...aReceber];
+              final vencendoHoje =
+                  todosMes.where((p) => p.vencendoHoje).toList();
+              final emAtraso = todosMes.where((p) => p.emAtraso).toList();
 
               return ListView(
                 padding: const EdgeInsets.all(ClxSpace.x6),
@@ -276,19 +276,19 @@ class _FinContasPagarReceberScreenState
                     cards: [
                       FinKpiCard(
                         label: 'Total a pagar',
-                        value: formatCurrency(sum(aPagarAll)),
+                        value: formatCurrency(sum(aPagar)),
                         color: context.clx.finExpense,
                         icon: Icons.south_west_rounded,
                         hint:
-                            '${aPagarAll.length} ${aPagarAll.length == 1 ? 'item' : 'itens'}',
+                            '${aPagar.length} ${aPagar.length == 1 ? 'item' : 'itens'}',
                       ),
                       FinKpiCard(
                         label: 'Total a receber',
-                        value: formatCurrency(sum(aReceberAll)),
+                        value: formatCurrency(sum(aReceber)),
                         color: context.clx.finIncome,
                         icon: Icons.north_east_rounded,
                         hint:
-                            '${aReceberAll.length} ${aReceberAll.length == 1 ? 'item' : 'itens'}',
+                            '${aReceber.length} ${aReceber.length == 1 ? 'item' : 'itens'}',
                       ),
                       FinKpiCard(
                         label: 'Vencendo hoje',
@@ -311,8 +311,8 @@ class _FinContasPagarReceberScreenState
                   Padding(
                     padding: const EdgeInsets.only(top: ClxSpace.x2),
                     child: Text(
-                      'Os totais consideram todas as contas em aberto. As listas '
-                      'abaixo respeitam o período e os filtros selecionados.',
+                      'Totais e lista usam o mês selecionado '
+                      '(${period.label}) e os filtros ativos.',
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: context.clx.ink3),
