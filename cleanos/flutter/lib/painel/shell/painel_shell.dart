@@ -33,6 +33,7 @@ import '../../core/design/design.dart';
 import '../../core/design/theme_fintech.dart';
 import '../../core/models/collections.dart';
 import 'fintech/fintech_painel_shell.dart';
+import 'notificacoes_bell.dart';
 import 'painel_nav.dart';
 
 class PainelShell extends ConsumerWidget {
@@ -582,6 +583,7 @@ class _DesktopTopBar extends ConsumerWidget {
               ),
             ),
           ),
+          const NotificacoesBell(),
           ClxPressScale(
             onTap: () =>
                 ref.read(themeModeControllerProvider.notifier).toggle(),
@@ -747,6 +749,7 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
               ),
             ),
           ),
+          const NotificacoesBell(),
           IconButton(
             tooltip: 'Alternar tema',
             icon: Icon(

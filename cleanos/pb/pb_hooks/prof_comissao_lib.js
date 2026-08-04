@@ -85,25 +85,50 @@ function listarComissoesDaOs(app, osId) {
 
 /**
  * Recalcula valor_comissao a partir do tipo congelado na linha + base da OS.
- *   percentual → baseOs × base_valor%
- *   fixo | diaria → base_valor (não escala com o valor da OS)
+ *   percentual → baseOs × base_valor% × fracao
+ *   fixo | diaria → base_valor × fracao (diária em geral fracao=1)
  *
  * [baseOs] = total da OS (principal + extras cobráveis − descontos), ver
  * [valorBaseComissaoOs] — NÃO usar só valor_servico do orçamento inicial.
+ * [fracao] = 1 solo; 0.5 em dupla (percentual/fixo). Diária usa 1.
  */
-function calcValorComissao(tipoAplicado, baseValor, baseOs) {
+function calcValorComissao(tipoAplicado, baseValor, baseOs, fracao) {
   const tipo = String(tipoAplicado || "").toLowerCase();
   const base = Number(baseValor || 0);
   const osValor = Number(baseOs || 0);
+  const f = fracao == null || !(Number(fracao) > 0) ? 1 : Number(fracao);
   if (!(base > 0)) return 0;
   if (tipo === "percentual") {
     if (!(osValor > 0)) return 0;
-    return Math.round(((osValor * base) / 100) * 100) / 100;
+    return Math.round(((osValor * base) / 100) * f * 100) / 100;
   }
   if (tipo === "fixo" || tipo === "diaria") {
-    return Math.round(base * 100) / 100;
+    return Math.round(base * f * 100) / 100;
   }
   return 0;
+}
+
+/** Fração da comissão %/fixo: 0.5 em dupla, 1 em solo. Diária não usa isto. */
+function fracaoComissaoOs(record) {
+  try {
+    const osLib = require(`${__hooks}/os_logic.js`);
+    return osLib.execucaoModo(record) === "dupla" ? 0.5 : 1;
+  } catch (_) {
+    const m = String(record.get("execucao_modo") || "").toLowerCase();
+    return m === "dupla" ? 0.5 : 1;
+  }
+}
+
+function profIdsParaComissao(record) {
+  try {
+    return require(`${__hooks}/os_logic.js`).profIdsDaOs(record);
+  } catch (_) {
+    const p1 = String(record.get("profissional") || "");
+    const p2 = String(record.get("profissional2") || "");
+    const modo = String(record.get("execucao_modo") || "").toLowerCase();
+    if (modo === "dupla" && p1 && p2 && p1 !== p2) return [p1, p2];
+    return p1 ? [p1] : [];
+  }
 }
 
 /**
@@ -197,6 +222,7 @@ function valorBaseComissaoOs(record) {
  * Atualiza todas as comissões ligadas a essa OS. Se não existir comissão
  * (config ausente na conclusão, backfill), tenta criar como na 1ª transição.
  *
+ * Em dupla: mantém 1 linha por profissional da OS; remove órfãs; cria faltantes.
  * Best-effort. app.save na comissão dispara prof_comissao_pago (repasse se paga).
  */
 function atualizarComissaoDaOs(app, record) {
@@ -205,9 +231,13 @@ function atualizarComissaoDaOs(app, record) {
 
   const baseOs = valorBaseComissaoOs(record);
   const list = listarComissoesDaOs(app, osId);
+  const profIds = profIdsParaComissao(record);
+  const fracao = fracaoComissaoOs(record);
+  const nomeCurto = String(record.get("nome_curto") || "");
+  const servico = String(record.get("tipo_servico_nome") || "");
+  const emDupla = fracao < 1;
 
   if (!list || list.length === 0) {
-    // Ainda não há linha — tenta criar como se fosse a 1ª conclusão.
     console.log(
       "[comissao] OS " +
         osId +
@@ -217,90 +247,115 @@ function atualizarComissaoDaOs(app, record) {
     return;
   }
 
-  const nomeCurto = String(record.get("nome_curto") || "");
-  const servico = String(record.get("tipo_servico_nome") || "");
-  const profIdOs = String(record.get("profissional") || "");
-
+  // Mapa profId → comissões existentes (diária pode coexistir com %).
+  const byProf = {};
   for (let i = 0; i < list.length; i++) {
     const rec = list[i];
+    const pid = String(rec.get("profissional") || "");
+    if (!byProf[pid]) byProf[pid] = [];
+    byProf[pid].push(rec);
+  }
+
+  // Remove comissões de quem saiu da OS (troca de time / saiu da dupla).
+  const wanted = {};
+  for (let i = 0; i < profIds.length; i++) wanted[profIds[i]] = true;
+  const pagoLib = require(`${__hooks}/prof_comissao_pago_lib.js`);
+  for (let i = 0; i < list.length; i++) {
+    const rec = list[i];
+    const pid = String(rec.get("profissional") || "");
+    if (wanted[pid]) continue;
     try {
-      const tipo = String(rec.get("tipo_aplicado") || "").toLowerCase();
-      const base = Number(rec.get("base_valor") || 0);
-      const novoValor = calcValorComissao(tipo, base, baseOs);
-      const velhoValor = Number(rec.get("valor_comissao") || 0);
-      const velhoOs = Number(rec.get("valor_os") || 0);
-
-      // Espelha o profissional atual da OS (se reatribuída ainda concluída).
-      if (profIdOs) {
-        const profAtual = String(rec.get("profissional") || "");
-        if (profAtual !== profIdOs) {
-          rec.set("profissional", profIdOs);
-          try {
-            const p = app.findRecordById("users", profIdOs);
-            rec.set("profissional_nome", String(p.get("name") || ""));
-          } catch (_) {
-            /* nome fica o antigo */
-          }
-        }
+      try {
+        pagoLib.apagarLancamentoDaComissao(app, rec.id);
+      } catch (err) {
+        console.error("[comissao] remoção despesa órfã falhou: " + err);
       }
+      app.delete(rec);
+      console.log(
+        "[comissao] removida órfã " + rec.id + " (prof " + pid + " saiu da OS)",
+      );
+    } catch (err) {
+      console.error("[comissao] falha ao remover órfã " + rec.id + ": " + err);
+    }
+  }
 
-      let mudou = false;
-      if (velhoOs !== baseOs) {
-        rec.set("valor_os", baseOs);
-        mudou = true;
-      }
-      if (velhoValor !== novoValor) {
-        rec.set("valor_comissao", novoValor);
-        mudou = true;
-      }
+  // Atualiza linhas dos profissionais atuais.
+  for (let p = 0; p < profIds.length; p++) {
+    const profId = profIds[p];
+    const rows = byProf[profId] || [];
+    if (rows.length === 0) {
+      // Faltava linha (entrou na dupla depois) — cria como 1ª vez p/ este prof.
+      _criarComissaoParaProf(app, record, profId, {
+        force: true,
+        skipDiariaDupCheck: false,
+      });
+      continue;
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const rec = rows[i];
+      try {
+        const tipo = String(rec.get("tipo_aplicado") || "").toLowerCase();
+        const base = Number(rec.get("base_valor") || 0);
+        // Diária: valor cheio por dia (não divide). %/fixo: fraciona na dupla.
+        const fLinha = tipo === "diaria" ? 1 : fracao;
+        const novoValor = calcValorComissao(tipo, base, baseOs, fLinha);
+        const velhoValor = Number(rec.get("valor_comissao") || 0);
+        const velhoOs = Number(rec.get("valor_os") || 0);
 
-      // Descrição: percentual/fixo reflete serviço; diária mantém prefixo.
-      if (tipo === "diaria") {
-        const ymd = String(rec.get("data") || dataParedeDaOs(record)).slice(
-          0,
-          10,
-        );
-        const desc =
-          "Diária · " + ymd + (nomeCurto ? " · " + nomeCurto : "");
-        if (String(rec.get("descricao") || "") !== desc) {
-          rec.set("descricao", desc);
+        let mudou = false;
+        if (velhoOs !== baseOs) {
+          rec.set("valor_os", baseOs);
           mudou = true;
         }
-      } else {
-        const desc =
-          (servico || "OS") + (nomeCurto ? " · " + nomeCurto : "");
+        if (velhoValor !== novoValor) {
+          rec.set("valor_comissao", novoValor);
+          mudou = true;
+        }
+
+        // Descrição: percentual/fixo reflete serviço; diária mantém prefixo.
+        let desc;
+        if (tipo === "diaria") {
+          const ymd = String(rec.get("data") || dataParedeDaOs(record)).slice(
+            0,
+            10,
+          );
+          desc = "Diária · " + ymd + (nomeCurto ? " · " + nomeCurto : "");
+        } else {
+          desc = (servico || "OS") + (nomeCurto ? " · " + nomeCurto : "");
+          if (emDupla) desc += " · Dupla";
+        }
         if (desc && String(rec.get("descricao") || "") !== desc) {
           rec.set("descricao", desc);
           mudou = true;
         }
-      }
 
-      if (!mudou) {
+        if (!mudou) {
+          console.log(
+            "[comissao] OS " + osId + " regravada; comissão " + rec.id + " ok.",
+          );
+          continue;
+        }
+
+        app.save(rec);
         console.log(
-          "[comissao] OS " + osId + " regravada; comissão " + rec.id + " ok.",
+          "[comissao] OS " +
+            osId +
+            " base total → R$ " +
+            baseOs +
+            "; comissão " +
+            rec.id +
+            " " +
+            tipo +
+            " R$ " +
+            velhoValor +
+            " → R$ " +
+            novoValor,
         );
-        continue;
+      } catch (err) {
+        console.error(
+          "[comissao] falha ao atualizar comissão da OS " + osId + ": " + err,
+        );
       }
-
-      app.save(rec);
-      console.log(
-        "[comissao] OS " +
-          osId +
-          " base total → R$ " +
-          baseOs +
-          "; comissão " +
-          rec.id +
-          " " +
-          tipo +
-          " R$ " +
-          velhoValor +
-          " → R$ " +
-          novoValor,
-      );
-    } catch (err) {
-      console.error(
-        "[comissao] falha ao atualizar comissão da OS " + osId + ": " + err,
-      );
     }
   }
 }
@@ -427,13 +482,25 @@ function criarComissaoProfissional(app, record, origStatus) {
     return;
   }
 
-  const profId = String(record.get("profissional") || "");
-  if (!profId) {
+  const profIds = profIdsParaComissao(record);
+  if (!profIds.length) {
     console.log("[comissao] OS sem profissional; skip.");
     return;
   }
 
+  for (let i = 0; i < profIds.length; i++) {
+    _criarComissaoParaProf(app, record, profIds[i], { force: false });
+  }
+}
+
+/**
+ * Cria comissão de UM profissional para a OS (percentual/fixo/diária).
+ * Em dupla: % e fixo usam metade (fracao 0.5). Diária permanece valor cheio/dia.
+ */
+function _criarComissaoParaProf(app, record, profId, opts) {
+  opts = opts || {};
   const osId = record.id;
+  if (!profId || !osId) return;
 
   let prof;
   try {
@@ -446,22 +513,26 @@ function criarComissaoProfissional(app, record, origStatus) {
   const tipo = String(prof.get("comissao_tipo") || "nenhuma").toLowerCase();
   const base = Number(prof.get("comissao_valor") || 0);
   if (!(base > 0)) {
-    console.log("[comissao] comissao_valor inválido; skip.");
+    console.log("[comissao] comissao_valor inválido p/ " + profId + "; skip.");
     return;
   }
+
+  const fracao = fracaoComissaoOs(record);
+  const emDupla = fracao < 1;
+  const baseOs = valorBaseComissaoOs(record);
+  const nomeCurto = String(record.get("nome_curto") || "");
+  const servico = String(record.get("tipo_servico_nome") || "");
 
   // ── Diária: 1× por dia BRT se ≥1 OS concluída (não exige valor_pago) ─────
   if (tipo === "diaria") {
     const ymd = dataParedeDaOs(record);
-    if (jaTemDiariaNoDia(app, profId, ymd)) {
+    if (!opts.skipDiariaDupCheck && jaTemDiariaNoDia(app, profId, ymd)) {
       console.log(
         "[comissao] diária já existe p/ " + profId + " em " + ymd + "; skip.",
       );
       return;
     }
     const valorComissao = Math.round(base * 100) / 100;
-    const baseOs = valorBaseComissaoOs(record);
-    const nomeCurto = String(record.get("nome_curto") || "");
     try {
       salvarComissao(app, {
         profissional: profId,
@@ -474,9 +545,7 @@ function criarComissaoProfissional(app, record, origStatus) {
         status: "pendente",
         data: ymd,
         descricao:
-          "Diária · " +
-          ymd +
-          (nomeCurto ? " · " + nomeCurto : ""),
+          "Diária · " + ymd + (nomeCurto ? " · " + nomeCurto : ""),
       });
       console.log(
         "[comissao] diária " +
@@ -498,34 +567,46 @@ function criarComissaoProfissional(app, record, origStatus) {
   }
 
   // Base = valor_pago (caixa real). Sem pagamento, total orçado.
-  const baseOs = valorBaseComissaoOs(record);
   if (!(baseOs > 0)) {
     console.log("[comissao] OS sem valor total > 0; skip.");
     return;
   }
 
-  // Anti-duplicata por OS (percentual/fixo)
-  try {
-    app.findFirstRecordByFilter(
-      "prof_comissoes",
-      "os = '" + osId.replace(/'/g, "\\'") + "'",
-    );
-    console.log("[comissao] já existe para OS " + osId + "; skip.");
-    return;
-  } catch (_) {
-    /* not found */
+  // Anti-duplicata por OS + profissional (percentual/fixo)
+  if (!opts.force) {
+    try {
+      app.findFirstRecordByFilter(
+        "prof_comissoes",
+        "os = {:os} && profissional = {:pid} && tipo_aplicado != 'diaria'",
+        { os: osId, pid: profId },
+      );
+      console.log(
+        "[comissao] já existe para OS " + osId + " + prof " + profId + "; skip.",
+      );
+      return;
+    } catch (_) {
+      /* not found — ok */
+    }
+  } else {
+    // force: se já existe linha %/fixo deste prof, não cria outra.
+    try {
+      app.findFirstRecordByFilter(
+        "prof_comissoes",
+        "os = {:os} && profissional = {:pid} && tipo_aplicado != 'diaria'",
+        { os: osId, pid: profId },
+      );
+      return;
+    } catch (_) {
+      /* not found */
+    }
   }
 
-  let valorComissao = 0;
-  if (tipo === "percentual") {
-    valorComissao = Math.round(((baseOs * base) / 100) * 100) / 100;
-  } else {
-    valorComissao = Math.round(base * 100) / 100;
-  }
+  const valorComissao = calcValorComissao(tipo, base, baseOs, fracao);
   if (!(valorComissao > 0)) return;
 
-  const nomeCurto = String(record.get("nome_curto") || "");
-  const servico = String(record.get("tipo_servico_nome") || "");
+  let desc = (servico || "OS") + (nomeCurto ? " · " + nomeCurto : "");
+  if (emDupla) desc += " · Dupla";
+
   try {
     salvarComissao(app, {
       profissional: profId,
@@ -537,7 +618,7 @@ function criarComissaoProfissional(app, record, origStatus) {
       base_valor: base,
       status: "pendente",
       data: dataParedeDaOs(record),
-      descricao: (servico || "OS") + (nomeCurto ? " · " + nomeCurto : ""),
+      descricao: desc,
     });
     console.log(
       "[comissao] OS " +
@@ -548,6 +629,7 @@ function criarComissaoProfissional(app, record, origStatus) {
         valorComissao +
         " (" +
         tipo +
+        (emDupla ? " · dupla/2" : "") +
         ") para " +
         profId,
     );
@@ -566,4 +648,6 @@ module.exports = {
   removerComissoesDaOs,
   dataBrtAgora,
   dataParedeDaOs,
+  fracaoComissaoOs,
+  profIdsParaComissao,
 };

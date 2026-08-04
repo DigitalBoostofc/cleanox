@@ -49,7 +49,7 @@ import 'os_status_rules.dart';
 /// A OS gravada volta com o profissional/cliente expandidos: ela substitui o
 /// registro na lista e alimenta o detalhe, que sem o expand mostraria "—" no
 /// lugar do nome do profissional recém-atribuído.
-const String _kFormExpand = 'profissional,cliente';
+const String _kFormExpand = 'profissional,profissional2,cliente';
 
 Future<OrdemServico?> showOSForm(BuildContext context, {OrdemServico? editing}) {
   return showDialog<OrdemServico>(
@@ -131,6 +131,8 @@ class OSForm extends ConsumerStatefulWidget {
 class _OSFormState extends ConsumerState<OSForm> {
   final TextEditingController _tipoServico = TextEditingController();
   final TextEditingController _valor = TextEditingController();
+  /// Valor realmente cobrado na maquininha (`valor_pago`) — base de comissão/caixa.
+  final TextEditingController _valorPago = TextEditingController();
   final TextEditingController _observacoes = TextEditingController();
 
   /// Hora de início — entrada LIVRE 'HH:MM' (snap de 15 min ao sair do campo).
@@ -141,6 +143,8 @@ class _OSFormState extends ConsumerState<OSForm> {
   String _clienteLabel = '';
   String _servicoId = '';
   String _profissionalId = '';
+  String _profissional2Id = '';
+  ExecucaoModo _execucaoModo = ExecucaoModo.solo;
   String _dataDate = ''; // yyyy-MM-dd (BRT)
 
   /// Duração da OS (min). `null` = ainda não decidida → prefilada, VISÍVEL, com a
@@ -199,7 +203,17 @@ class _OSFormState extends ConsumerState<OSForm> {
       _servicoId = os.servico ?? '';
       _tipoServico.text = os.tipoServicoNome ?? '';
       _valor.text = os.valorServico == null ? '' : _numText(os.valorServico!);
+      _valorPago.text =
+          os.valorPago == null || os.valorPago! <= 0
+              ? ''
+              : _numText(os.valorPago!);
       _profissionalId = os.profissional ?? '';
+      _profissional2Id = os.profissional2 ?? '';
+      _execucaoModo = os.execucaoModo;
+      // Se veio 2º prof no banco, trata como dupla (defesa se modo vazio legado).
+      if (_profissional2Id.isNotEmpty) {
+        _execucaoModo = ExecucaoModo.dupla;
+      }
       _observacoes.text = os.observacoes ?? '';
       _extras = List<ServicoAdicionalOS>.from(os.adicionais);
       _incluirExtras = _extras.isNotEmpty;
@@ -230,6 +244,7 @@ class _OSFormState extends ConsumerState<OSForm> {
   void dispose() {
     _tipoServico.dispose();
     _valor.dispose();
+    _valorPago.dispose();
     _observacoes.dispose();
     _hora.dispose();
     _horaFocus.dispose();
@@ -340,9 +355,34 @@ class _OSFormState extends ConsumerState<OSForm> {
 
   /// Profissional mudou: reseta e recarrega disponibilidade + ocupação.
   void _onProfissional(String v) {
-    setState(() => _profissionalId = v);
+    setState(() {
+      _profissionalId = v;
+      // Não pode ser o mesmo da dupla.
+      if (_profissional2Id.isNotEmpty && _profissional2Id == v) {
+        _profissional2Id = '';
+      }
+    });
     _fetchDisp();
     _fetchOcupados();
+  }
+
+  void _onExecucaoModo(ExecucaoModo m) {
+    setState(() {
+      _execucaoModo = m;
+      if (m == ExecucaoModo.solo) {
+        _profissional2Id = '';
+      }
+    });
+  }
+
+  void _onProfissional2(String v) {
+    setState(() {
+      _profissional2Id = v;
+      if (v.isNotEmpty && v == _profissionalId) {
+        // Impede igualar ao principal.
+        _profissional2Id = '';
+      }
+    });
   }
 
   /// Limites [start, end) do dia [date] em string UTC do PB (BRT centralizado,
@@ -472,6 +512,18 @@ class _OSFormState extends ConsumerState<OSForm> {
           ? 'Informe o valor (0 permitido em Refazer)'
           : 'Informe o valor';
     }
+    if (_execucaoModo == ExecucaoModo.dupla) {
+      if (_profissionalId.isEmpty) {
+        errs['profissional'] =
+            'Dupla exige o profissional principal';
+      }
+      if (_profissional2Id.isEmpty) {
+        errs['profissional2'] = 'Escolha o 2º profissional da dupla';
+      } else if (_profissional2Id == _profissionalId) {
+        errs['profissional2'] =
+            'O 2º profissional precisa ser outra pessoa';
+      }
+    }
     return errs;
   }
 
@@ -487,6 +539,9 @@ class _OSFormState extends ConsumerState<OSForm> {
     }
 
     final hasProf = _profissionalId.isNotEmpty;
+    final isDupla = _execucaoModo == ExecucaoModo.dupla &&
+        _profissional2Id.isNotEmpty &&
+        _profissional2Id != _profissionalId;
     final editing = widget.editing;
 
     // Tirar o profissional de uma OS EM ANDAMENTO rebaixa o status — e o hook
@@ -518,12 +573,32 @@ class _OSFormState extends ConsumerState<OSForm> {
       'tipo_servico_nome': _tipoServico.text.trim(),
       'valor_servico': valor,
       'profissional': hasProf ? _profissionalId : null,
+      'profissional2': isDupla ? _profissional2Id : null,
+      'execucao_modo': isDupla
+          ? ExecucaoModo.dupla.wire
+          : ExecucaoModo.solo.wire,
       'observacoes': _observacoes.text.trim(),
       // Sempre envia a lista (mesmo vazia no edit) para poder limpar extras.
       'adicionais': _incluirExtras
           ? _extras.map((e) => e.toJson()).toList()
           : <Map<String, dynamic>>[],
     };
+
+    // Valor pago (caixa real): comissão e receita usam ESTE campo.
+    // Em OS concluída é a correção do dono/gestor; em aberta, opcional.
+    final pagoRaw = _valorPago.text.trim();
+    if (pagoRaw.isNotEmpty) {
+      final pago = double.tryParse(pagoRaw.replaceAll(',', '.'));
+      if (pago != null && pago >= 0) {
+        payload['valor_pago'] = pago;
+        // Se admin preencheu pago em OS já concluída e não havia forma, mantém a
+        // existente no servidor (não mexe). assertPayment exige forma se pago>0.
+      }
+    } else if (_isEdit &&
+        widget.editing?.status == OSStatus.concluida &&
+        widget.editing?.refazer != true) {
+      // Campo limpo em concluída (não-refazer) não apaga o pago — evita 400.
+    }
     // Concluída/cancelada: NÃO manda data/duração (congeladas no servidor).
     if (!_horarioCongelado) {
       final hora = hhmmDeMinutos(snap15(_horaMin!));
@@ -821,12 +896,49 @@ class _OSFormState extends ConsumerState<OSForm> {
           ),
 
           // Profissional.
-          _label('Profissional'),
+          _label('Forma de prestação'),
+          DropdownButtonFormField<ExecucaoModo>(
+            key: const ValueKey('os-execucao-modo'),
+            initialValue: _execucaoModo,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            items: [
+              for (final m in ExecucaoModo.all)
+                DropdownMenuItem(value: m, child: Text(m.label)),
+            ],
+            onChanged: _saving
+                ? null
+                : (v) {
+                    if (v != null) _onExecucaoModo(v);
+                  },
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: ClxSpace.x1),
+            child: Text(
+              _execucaoModo == ExecucaoModo.dupla
+                  ? 'Em dupla, a comissão de cada um é a metade '
+                      '(ex.: 30% → 15% para cada).'
+                  : 'Um profissional executa sozinho e fica com a comissão integral.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+
+          _label(
+            _execucaoModo == ExecucaoModo.dupla
+                ? 'Profissional principal'
+                : 'Profissional',
+          ),
           DropdownButtonFormField<String>(
             key: const ValueKey('os-profissional'),
             initialValue: _profissionalId.isEmpty ? null : _profissionalId,
             isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
+            decoration: InputDecoration(
+              isDense: true,
+              errorText: _errs['profissional'],
+            ),
             hint: const Text('— Não atribuído (Em agendamento) —'),
             items: [
               const DropdownMenuItem(
@@ -850,6 +962,37 @@ class _OSFormState extends ConsumerState<OSForm> {
               ).textTheme.bodySmall?.copyWith(color: clx.ink3),
             ),
           ),
+          if (_execucaoModo == ExecucaoModo.dupla) ...[
+            const SizedBox(height: ClxSpace.x4),
+            _label('2º profissional'),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('os-profissional2'),
+              initialValue:
+                  _profissional2Id.isEmpty ? null : _profissional2Id,
+              isExpanded: true,
+              decoration: InputDecoration(
+                isDense: true,
+                errorText: _errs['profissional2'],
+              ),
+              hint: const Text('— Escolher parceiro —'),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('— Escolher parceiro —'),
+                ),
+                for (final p in lk.profissionais)
+                  if (p.id != _profissionalId)
+                    DropdownMenuItem(
+                      value: p.id,
+                      child: Text(
+                        p.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+              ],
+              onChanged: _saving ? null : (v) => _onProfissional2(v ?? ''),
+            ),
+          ],
           const SizedBox(height: ClxSpace.x4),
 
           // Data + hora + duração: lado a lado em telas largas; empilhados no
@@ -877,19 +1020,53 @@ class _OSFormState extends ConsumerState<OSForm> {
           const SizedBox(height: ClxSpace.x4),
 
           // Valor.
-          _textField(
-            label: 'Valor do serviço principal (R\$)',
-            required: true,
-            controller: _valor,
-            errorKey: 'valor',
-            hint: '0,00',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
+                    _textField(
+                      label: 'Valor do serviço principal (R\$)',
+                      required: true,
+                      controller: _valor,
+                      errorKey: 'valor',
+                      hint: '0,00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: ClxSpace.x1, bottom: ClxSpace.x2),
+                      child: Text(
+                        'Orçamento / tabela. A comissão e o caixa usam o '
+                        '"Valor pago" (abaixo), não este campo sozinho.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: clx.ink3,
+                        ),
+                      ),
+                    ),
 
-          // Serviços extras (orçamento; o prof registra o valor cobrado no app).
-          _extrasSection(clx),
+                    // Valor pago real (maquininha) — editável pelo admin/gerente inclusive
+                    // em OS concluída; recalcula comissão + receita no servidor.
+                    _textField(
+                      label: 'Valor pago — caixa real (R\$)',
+                      controller: _valorPago,
+                      hint: 'O que entrou na maquininha / Pix',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: ClxSpace.x1),
+                      child: Text(
+                        widget.editing?.status == OSStatus.concluida
+                            ? 'OS concluída: altere aqui para corrigir o total cobrado '
+                                '(taxas extras, erro de digitação). Comissão e movimentação '
+                                'atualizam sozinhas.'
+                            : 'Preencha na conclusão (profissional) ou corrija aqui. '
+                                'Pode ser maior que a soma dos serviços (taxas avulsas).',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: clx.ink3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: ClxSpace.x4),
 
-          // Observações.
+                    // Serviços extras (orçamento; o prof registra o valor cobrado no app).
+                    _extrasSection(clx),
+
+                    // Observações.
           _textField(
             label: 'Observações',
             controller: _observacoes,

@@ -73,7 +73,7 @@ onRecordCreateRequest((e) => {
         } catch (_) {
           os = null; // OS inexistente → deixa a createRule/validação nativa decidir
         }
-        if (os && relId(os.get("profissional")) !== String(auth.id)) {
+        if (os && !require(`${__hooks}/os_logic.js`).isProfAtribuidoOs(os, auth.id)) {
           throw new ForbiddenError(
             "Você não pode anexar evidência a uma OS que não é sua."
           );

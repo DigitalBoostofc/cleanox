@@ -20,6 +20,7 @@ import '../../core/models/user.dart';
 import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import '../../shared_widgets_os/os_financeiro_resumo.dart';
 import 'ordens_controller.dart';
+import 'os_atividade_panel.dart';
 import 'os_rebaixar_confirm.dart';
 
 enum OSDetailIntent { editar, execucao }
@@ -38,15 +39,30 @@ class OSDetailResult {
 }
 
 Future<OSDetailResult?> showOSDetail(BuildContext context, OrdemServico os) {
+  final size = MediaQuery.sizeOf(context);
+  // Desktop/tablet: modal largo estilo Trello (detalhes | comentários).
+  // Mobile/estreito: coluna única (max ~560).
+  final wide = size.width >= 720;
+  final maxW = wide
+      ? (size.width * 0.92).clamp(720.0, 960.0)
+      : 560.0;
+  final maxH = (size.height * 0.88).clamp(480.0, 820.0);
   return showDialog<OSDetailResult>(
     context: context,
     builder: (_) => Dialog(
-      insetPadding: const EdgeInsets.all(ClxSpace.x4),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: wide ? ClxSpace.x6 : ClxSpace.x4,
+        vertical: ClxSpace.x4,
+      ),
       shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
-        child: OSDetail(os: os),
+        constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+        child: SizedBox(
+          width: maxW,
+          height: maxH,
+          child: OSDetail(os: os),
+        ),
       ),
     ),
   );
@@ -283,7 +299,6 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     );
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
@@ -321,97 +336,50 @@ class _OSDetailState extends ConsumerState<OSDetail> {
           ),
         ),
         Divider(height: 1, color: clx.line),
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(ClxSpace.x5),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _section(clx, 'Identificação', [
-                  _row(clx, 'Cliente', _os.clienteNomeExibicao),
-                  _row(clx, 'Bairro', _os.bairro),
-                  _row(clx, 'Serviço', _os.tipoServicoNome ?? '—'),
-                  _row(clx, 'Data / Hora', formatDateTime(_os.dataHora)),
-                  if ((_os.observacoes ?? '').isNotEmpty)
-                    _row(clx, 'Observações', _os.observacoes!),
-                ]),
-                if (_os.status == OSStatus.cancelada)
-                  _section(clx, 'Cancelamento', [
-                    _row(
-                      clx,
-                      'Motivo',
-                      (_os.motivoCancelamento ?? '').trim().isEmpty
-                          ? '—'
-                          : _os.motivoCancelamento!,
+        // Corpo: desktop ≥720 → split Trello (detalhes | atividade);
+        // estreito → coluna única com atividade no fim do scroll.
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final split = constraints.maxWidth >= 700;
+              final details = _buildDetailsBody(clx, tt, profs);
+              if (split) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(ClxSpace.x5),
+                        child: details,
+                      ),
                     ),
-                    _row(
-                      clx,
-                      'Cancelado por',
-                      (_os.canceladoPorNome ?? '').trim().isEmpty
-                          ? '—'
-                          : _os.canceladoPorNome!,
+                    VerticalDivider(width: 1, thickness: 1, color: clx.line),
+                    Expanded(
+                      flex: 4,
+                      child: ColoredBox(
+                        color: clx.bg2.withValues(alpha: 0.35),
+                        child: OsAtividadePanel(
+                          osId: _os.id,
+                          sidePanel: true,
+                        ),
+                      ),
                     ),
-                    _row(
-                      clx,
-                      'Quando',
-                      (_os.canceladoEm ?? '').trim().isEmpty
-                          ? '—'
-                          : formatDateTime(_os.canceladoEm!),
-                    ),
-                  ]),
-                if (_os.status == OSStatus.emAndamento &&
-                    (_os.enderecoLiberado ?? '').isNotEmpty)
-                  _section(clx, 'Endereço (liberado)', [
-                    Text(
-                      _os.enderecoLiberado!,
-                      style: tt.bodyLarge?.copyWith(color: clx.ink),
-                    ),
-                  ]),
-                _profissionalSection(clx, profs),
-                _section(clx, 'Financeiro', [
-                  _row(
-                    clx,
-                    'Serviço principal',
-                    _os.valorServico == null
-                        ? '—'
-                        : formatCurrency(_os.valorServico!),
-                  ),
-                  for (final a in adicionaisCobraveis(_os))
-                    _row(
-                      clx,
-                      a.nome.isEmpty
-                          ? 'Serviço extra'
-                          : 'Extra: ${a.nome}${a.quantidade > 1 ? ' ×${a.quantidade}' : ''}',
-                      formatCurrency(a.valor * a.quantidade),
-                    ),
-                  if (_os.descontos > 0)
-                    _row(clx, 'Descontos', '− ${formatCurrency(_os.descontos)}'),
-                  _row(
-                    clx,
-                    'Valor total da OS',
-                    formatCurrency(_os.valorTotal),
-                  ),
-                  _row(
-                    clx,
-                    'Valor pago (movimentação)',
-                    _os.valorPago == null
-                        ? '—'
-                        : formatCurrency(_os.valorPago!),
-                  ),
-                  _row(
-                    clx,
-                    'Forma de pagamento',
-                    _os.formaPagamento?.label ?? '—',
-                  ),
-                  _row(
-                    clx,
-                    'Repasse',
-                    _repasseTexto(),
-                  ),
-                ]),
-                if (_os.status == OSStatus.concluida) _avaliacaoSection(clx),
-              ],
-            ),
+                  ],
+                );
+              }
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(ClxSpace.x5),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    details,
+                    const SizedBox(height: ClxSpace.x2),
+                    OsAtividadePanel(osId: _os.id),
+                  ],
+                ),
+              );
+            },
           ),
         ),
         Divider(height: 1, color: clx.line),
@@ -463,10 +431,111 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     );
   }
 
+  /// Coluna esquerda (ou corpo único no mobile): seções da OS sem o feed.
+  Widget _buildDetailsBody(
+    CleanoxColors clx,
+    TextTheme tt,
+    List<User> profs,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _section(clx, 'Identificação', [
+          _row(clx, 'Cliente', _os.clienteNomeExibicao),
+          _row(clx, 'Bairro', _os.bairro),
+          _row(clx, 'Serviço', _os.tipoServicoNome ?? '—'),
+          _row(clx, 'Data / Hora', formatDateTime(_os.dataHora)),
+          if ((_os.observacoes ?? '').isNotEmpty)
+            _row(clx, 'Observações', _os.observacoes!),
+        ]),
+        if (_os.status == OSStatus.cancelada)
+          _section(clx, 'Cancelamento', [
+            _row(
+              clx,
+              'Motivo',
+              (_os.motivoCancelamento ?? '').trim().isEmpty
+                  ? '—'
+                  : _os.motivoCancelamento!,
+            ),
+            _row(
+              clx,
+              'Cancelado por',
+              (_os.canceladoPorNome ?? '').trim().isEmpty
+                  ? '—'
+                  : _os.canceladoPorNome!,
+            ),
+            _row(
+              clx,
+              'Quando',
+              (_os.canceladoEm ?? '').trim().isEmpty
+                  ? '—'
+                  : formatDateTime(_os.canceladoEm!),
+            ),
+          ]),
+        if (_os.status == OSStatus.emAndamento &&
+            (_os.enderecoLiberado ?? '').isNotEmpty)
+          _section(clx, 'Endereço (liberado)', [
+            Text(
+              _os.enderecoLiberado!,
+              style: tt.bodyLarge?.copyWith(color: clx.ink),
+            ),
+          ]),
+        _profissionalSection(clx, profs),
+        _section(clx, 'Financeiro', [
+          _row(
+            clx,
+            'Serviço principal',
+            _os.valorServico == null
+                ? '—'
+                : formatCurrency(_os.valorServico!),
+          ),
+          for (final a in adicionaisCobraveis(_os))
+            _row(
+              clx,
+              a.nome.isEmpty
+                  ? 'Serviço extra'
+                  : 'Extra: ${a.nome}${a.quantidade > 1 ? ' ×${a.quantidade}' : ''}',
+              formatCurrency(a.valor * a.quantidade),
+            ),
+          if (_os.descontos > 0)
+            _row(clx, 'Descontos', '− ${formatCurrency(_os.descontos)}'),
+          _row(
+            clx,
+            'Valor total da OS',
+            formatCurrency(_os.valorTotal),
+          ),
+          _row(
+            clx,
+            'Valor pago (movimentação)',
+            _os.valorPago == null ? '—' : formatCurrency(_os.valorPago!),
+          ),
+          _row(
+            clx,
+            'Forma de pagamento',
+            _os.formaPagamento?.label ?? '—',
+          ),
+          _row(clx, 'Repasse', _repasseTexto()),
+        ]),
+        if (_os.status == OSStatus.concluida) _avaliacaoSection(clx),
+      ],
+    );
+  }
+
   Widget _profissionalSection(CleanoxColors clx, List<User> profs) {
     final prof = _os.expand?.profissional;
+    final prof2 = _os.expand?.profissional2;
+    final modoLabel = _os.isDupla ? 'Dupla' : 'Individual';
+    final nomes = <String>[
+      if (prof != null) prof.displayName,
+      if (_os.isDupla && prof2 != null) prof2.displayName,
+    ];
     return _section(clx, 'Profissional', [
-      _row(clx, 'Atribuído', prof?.displayName ?? '—'),
+      _row(clx, 'Forma', modoLabel),
+      _row(
+        clx,
+        _os.isDupla ? 'Equipe' : 'Atribuído',
+        nomes.isEmpty ? '—' : nomes.join(' + '),
+      ),
       if (_aberta) ...[
         const SizedBox(height: ClxSpace.x2),
         Row(

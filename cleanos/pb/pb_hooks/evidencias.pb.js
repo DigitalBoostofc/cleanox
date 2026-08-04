@@ -44,7 +44,7 @@ onRecordCreateRequest((e) => {
   if (!autorizado) {
     try {
       const os = $app.findRecordById("ordens_servico", osId);
-      autorizado = lib.relId(os.get("profissional")) === String(auth.id);
+      autorizado = lib.isProfAtribuidoOs(os, auth.id);
     } catch (_) {
       autorizado = false;
     }

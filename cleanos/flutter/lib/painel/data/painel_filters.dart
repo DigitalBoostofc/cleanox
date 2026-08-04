@@ -60,17 +60,23 @@ String? servicosFilter({String? search, String? categoria, String? grupo}) {
 String disponibilidadeDoProfissionalFilter(String profId) =>
     'profissional = ${pbStringLiteral(profId)}';
 
+/// Filtro "este profissional é dono da OS" (1º ou 2º da dupla).
+String profOsOwnerFilter(String profId) {
+  final lit = pbStringLiteral(profId);
+  return '(profissional = $lit || profissional2 = $lit)';
+}
+
 /// Filtro das OS que OCUPAM a agenda de um profissional num dia [inicio, fim)
 /// (strings UTC do PB). Exclui canceladas — elas não ocupam slot. Espelha o
 /// filtro de disponibilidade do `OSFormSection.tsx` (seletor de slot da Nova OS):
-/// `profissional='id' && data_hora>='start' && data_hora<'end' && status!='cancelada'`.
+/// `(profissional|profissional2)='id' && data_hora>='start' && data_hora<'end' && status!='cancelada'`.
 /// Valores escapados via [pbStringLiteral] (seguro contra injeção).
 String ordensOcupamAgendaFilter({
   required String profissionalId,
   required String dataInicio,
   required String dataFim,
 }) =>
-    'profissional = ${pbStringLiteral(profissionalId)} '
+    '${profOsOwnerFilter(profissionalId)} '
     '&& data_hora >= ${pbStringLiteral(dataInicio)} '
     '&& data_hora < ${pbStringLiteral(dataFim)} '
     '&& status != ${pbStringLiteral(OSStatus.cancelada.wire)}';
@@ -109,7 +115,7 @@ String? ordensFilter({
   return andAll([
     if (status != null) 'status = ${pbStringLiteral(status.wire)}',
     if (profissionalId != null && profissionalId.isNotEmpty)
-      'profissional = ${pbStringLiteral(profissionalId)}',
+      profOsOwnerFilter(profissionalId),
     if (dataInicio != null && dataInicio.isNotEmpty)
       "data_hora >= ${pbStringLiteral(dataInicio)}",
     if (dataFim != null && dataFim.isNotEmpty)

@@ -309,7 +309,11 @@ class AgendaState {
       (o) => o.status != OSStatus.cancelada,
     );
     if (filterProfId != null) {
-      list = list.where((o) => o.profissional == filterProfId);
+      list = list.where(
+        (o) =>
+            o.profissional == filterProfId ||
+            (o.isDupla && o.profissional2 == filterProfId),
+      );
     }
     return list.toList();
   }

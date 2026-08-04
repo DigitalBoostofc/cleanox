@@ -17,6 +17,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/repositories/whatsapp_repository.dart';
 import '../data/prof_providers.dart';
@@ -217,6 +218,7 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
   }
 
   Future<void> _pagar(OrdemServico os) async {
+    final jaConcluida = os.status == OSStatus.concluida;
     await showPagamentoModal(
       context,
       os: os,
@@ -231,7 +233,9 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
         );
         if (mounted) {
           _toast(
-            'Pagamento registrado. Agora você pode concluir o serviço.',
+            jaConcluida
+                ? 'Valor pago atualizado. Comissão recalculada.'
+                : 'Pagamento registrado. Agora você pode concluir o serviço.',
             ToastType.success,
           );
         }

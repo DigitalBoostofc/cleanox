@@ -29,9 +29,11 @@ routerAdd(
       const esc = maps.escFilter;
 
       const filter =
-        'profissional = "' +
+        '(profissional = "' +
         esc(profId) +
-        '" && data_hora >= "' +
+        '" || profissional2 = "' +
+        esc(profId) +
+        '") && data_hora >= "' +
         bounds.start +
         '" && data_hora < "' +
         bounds.end +
@@ -55,7 +57,7 @@ routerAdd(
       for (let i = 0; i < rows.length; i++) {
         const os = rows[i];
         try {
-          if (lib.relId(os.get("profissional")) !== profId) continue;
+          if (!lib.isProfAtribuidoOs(os, profId)) continue;
 
           let endereco = String(os.get("endereco_liberado") || "").trim();
           if (!endereco) {
@@ -322,8 +324,7 @@ routerAdd(
       throw new NotFoundError("OS não encontrada.");
     }
 
-    const profId = lib.relId(os.get("profissional"));
-    if (role === "profissional" && profId !== authId) {
+    if (role === "profissional" && !lib.isProfAtribuidoOs(os, authId)) {
       throw new ForbiddenError("Esta OS não é sua.");
     }
     if (role !== "profissional" && role !== "admin" && role !== "gerente") {

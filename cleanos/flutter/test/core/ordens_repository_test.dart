@@ -79,6 +79,7 @@ void main() {
       // O filtro precisa amarrar o profissional (anti-desvio: só as suas OS).
       final filter = requests.single.url.queryParameters['filter'] ?? '';
       expect(filter, contains("profissional = 'prof1'"));
+      expect(filter, contains("profissional2 = 'prof1'"));
       expect(filter, contains('data_hora >='));
       // Expand da execução (nunca inclui cliente).
       expect(requests.single.url.queryParameters['expand'], kExecExpand);
