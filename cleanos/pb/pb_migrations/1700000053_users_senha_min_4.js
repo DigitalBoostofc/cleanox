@@ -7,35 +7,30 @@
 migrate(
   (app) => {
     const users = app.findCollectionByNameOrId("users");
+    // PB 0.22+: passwordAuth fica em collection.options.passwordAuth
+    const opt = users.options || {};
+    const pa = Object.assign({}, opt.passwordAuth || { enabled: true, identityFields: ["email"] });
+    pa.minPasswordLength = 4;
+    opt.passwordAuth = pa;
+    users.options = opt;
+    // Algumas builds expõem getter/setter direto:
     try {
-      // PocketBase auth collection: passwordAuth.minPasswordLength
       if (users.passwordAuth) {
         users.passwordAuth.minPasswordLength = 4;
-        app.save(users);
-      } else if (users.options && users.options.passwordAuth) {
-        users.options.passwordAuth.minPasswordLength = 4;
-        app.save(users);
       }
-    } catch (e) {
-      // Fallback: set via raw options if API shape differs.
-      try {
-        const opt = users.options || {};
-        opt.passwordAuth = opt.passwordAuth || { enabled: true, identityFields: ["email"] };
-        opt.passwordAuth.minPasswordLength = 4;
-        users.options = opt;
-        app.save(users);
-      } catch (e2) {
-        console.log("[mig 53] não foi possível setar minPasswordLength: " + e2);
-      }
-    }
+    } catch (_) {}
+    app.save(users);
   },
   (app) => {
     const users = app.findCollectionByNameOrId("users");
+    const opt = users.options || {};
+    const pa = Object.assign({}, opt.passwordAuth || {});
+    pa.minPasswordLength = 8;
+    opt.passwordAuth = pa;
+    users.options = opt;
     try {
-      if (users.passwordAuth) {
-        users.passwordAuth.minPasswordLength = 8;
-        app.save(users);
-      }
+      if (users.passwordAuth) users.passwordAuth.minPasswordLength = 8;
     } catch (_) {}
+    app.save(users);
   },
 );
