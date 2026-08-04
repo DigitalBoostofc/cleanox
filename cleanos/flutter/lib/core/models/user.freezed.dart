@@ -66,6 +66,10 @@ mixin _$User {
   /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
   @JsonKey(name: 'cor_agenda')
   String get corAgenda => throw _privateConstructorUsedError;
+
+  /// Colaborador ativo na operação (migration 52). Inativo some das listas
+  /// de atribuição (OS/agenda), mas mantém histórico e login.
+  bool get ativo => throw _privateConstructorUsedError;
   bool get verified => throw _privateConstructorUsedError;
   @JsonKey(name: 'emailVisibility')
   bool get emailVisibility => throw _privateConstructorUsedError;
@@ -105,6 +109,7 @@ abstract class $UserCopyWith<$Res> {
     @JsonKey(name: 'pagamento_dia_2') int pagamentoDia2,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
+    bool ativo,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -140,6 +145,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? pagamentoDia2 = null,
     Object? avatar = null,
     Object? corAgenda = null,
+    Object? ativo = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -199,6 +205,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.corAgenda
                 : corAgenda // ignore: cast_nullable_to_non_nullable
                       as String,
+            ativo: null == ativo
+                ? _value.ativo
+                : ativo // ignore: cast_nullable_to_non_nullable
+                      as bool,
             verified: null == verified
                 ? _value.verified
                 : verified // ignore: cast_nullable_to_non_nullable
@@ -248,6 +258,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     @JsonKey(name: 'pagamento_dia_2') int pagamentoDia2,
     String avatar,
     @JsonKey(name: 'cor_agenda') String corAgenda,
+    bool ativo,
     bool verified,
     @JsonKey(name: 'emailVisibility') bool emailVisibility,
     String? created,
@@ -280,6 +291,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? pagamentoDia2 = null,
     Object? avatar = null,
     Object? corAgenda = null,
+    Object? ativo = null,
     Object? verified = null,
     Object? emailVisibility = null,
     Object? created = freezed,
@@ -339,6 +351,10 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.corAgenda
             : corAgenda // ignore: cast_nullable_to_non_nullable
                   as String,
+        ativo: null == ativo
+            ? _value.ativo
+            : ativo // ignore: cast_nullable_to_non_nullable
+                  as bool,
         verified: null == verified
             ? _value.verified
             : verified // ignore: cast_nullable_to_non_nullable
@@ -382,6 +398,7 @@ class _$UserImpl extends _User {
     @JsonKey(name: 'pagamento_dia_2') this.pagamentoDia2 = 0,
     this.avatar = '',
     @JsonKey(name: 'cor_agenda') this.corAgenda = '',
+    this.ativo = true,
     this.verified = false,
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
@@ -451,6 +468,12 @@ class _$UserImpl extends _User {
   @override
   @JsonKey(name: 'cor_agenda')
   final String corAgenda;
+
+  /// Colaborador ativo na operação (migration 52). Inativo some das listas
+  /// de atribuição (OS/agenda), mas mantém histórico e login.
+  @override
+  @JsonKey()
+  final bool ativo;
   @override
   @JsonKey()
   final bool verified;
@@ -464,7 +487,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, ativo: $ativo, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -492,6 +515,7 @@ class _$UserImpl extends _User {
             (identical(other.avatar, avatar) || other.avatar == avatar) &&
             (identical(other.corAgenda, corAgenda) ||
                 other.corAgenda == corAgenda) &&
+            (identical(other.ativo, ativo) || other.ativo == ativo) &&
             (identical(other.verified, verified) ||
                 other.verified == verified) &&
             (identical(other.emailVisibility, emailVisibility) ||
@@ -517,6 +541,7 @@ class _$UserImpl extends _User {
     pagamentoDia2,
     avatar,
     corAgenda,
+    ativo,
     verified,
     emailVisibility,
     created,
@@ -557,6 +582,7 @@ abstract class _User extends User {
     @JsonKey(name: 'pagamento_dia_2') final int pagamentoDia2,
     final String avatar,
     @JsonKey(name: 'cor_agenda') final String corAgenda,
+    final bool ativo,
     final bool verified,
     @JsonKey(name: 'emailVisibility') final bool emailVisibility,
     final String? created,
@@ -623,6 +649,11 @@ abstract class _User extends User {
   @override
   @JsonKey(name: 'cor_agenda')
   String get corAgenda;
+
+  /// Colaborador ativo na operação (migration 52). Inativo some das listas
+  /// de atribuição (OS/agenda), mas mantém histórico e login.
+  @override
+  bool get ativo;
   @override
   bool get verified;
   @override

@@ -1,10 +1,10 @@
 /// usuarios_screen.dart — CRUD de Usuários do Painel (admin/gerente/profissional).
 ///
-/// Espelha `Usuarios.tsx`: tabela (Nome / E-mail / Papel) no desktop, cards no
-/// mobile; criar/editar via [UsuarioForm]; excluir com confirmação. Para
-/// profissionais, expõe também o editor de DISPONIBILIDADE semanal (alimenta a
-/// Agenda). Guardas de segurança (não excluir a própria conta) espelhadas do React;
-/// o servidor continua sendo a linha de defesa. Todos os estados.
+/// Tabela/cards de Usuários (admin/gerente/profissional).
+///
+/// Criar/editar via [UsuarioForm]; excluir com confirmação.
+/// Status ativo/inativo (migration 52) + filtro. Horários/disponibilidade
+/// semanal **não** são expostos aqui (agenda livre — feature legada).
 library;
 
 import 'package:flutter/material.dart';
@@ -14,7 +14,6 @@ import 'package:pocketbase/pocketbase.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/models/user.dart';
-import 'disponibilidade_editor.dart';
 import 'usuario_form.dart';
 import 'usuarios_controller.dart';
 
@@ -31,8 +30,17 @@ String _deleteErrorMessage(Object? err) {
   return 'Não foi possível excluir o usuário.';
 }
 
-class UsuariosScreen extends ConsumerWidget {
+enum _FiltroAtivo { todos, ativos, inativos }
+
+class UsuariosScreen extends ConsumerStatefulWidget {
   const UsuariosScreen({super.key});
+
+  @override
+  ConsumerState<UsuariosScreen> createState() => _UsuariosScreenState();
+}
+
+class _UsuariosScreenState extends ConsumerState<UsuariosScreen> {
+  _FiltroAtivo _filtro = _FiltroAtivo.ativos;
 
   Future<void> _novo(BuildContext context, WidgetRef ref) async {
     final saved = await showUsuarioForm(context);
@@ -54,10 +62,6 @@ class UsuariosScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _disponibilidade(BuildContext context, User u) async {
-    // O editor mostra o próprio feedback de sucesso/erro (inline).
-    await showDisponibilidadeEditor(context, profissional: u);
-  }
 
   Future<void> _excluir(BuildContext context, WidgetRef ref, User u) async {
     final myId = ref.read(currentUserProvider)?.id;
@@ -94,15 +98,27 @@ class UsuariosScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(usuariosControllerProvider);
     // 🔒 Guard de UI: só admin exclui usuário (espelha o React — o botão de
     // excluir só aparece para admin). O servidor é a linha de defesa final.
     final canDelete = ref.watch(currentRoleProvider) == Role.admin;
+    final filtered = switch (_filtro) {
+      _FiltroAtivo.todos => state.items,
+      _FiltroAtivo.ativos => state.items.where((u) => u.ativo).toList(),
+      _FiltroAtivo.inativos => state.items.where((u) => !u.ativo).toList(),
+    };
+    final viewState = state.copyWith(items: filtered);
     return Column(
       children: [
-        _Toolbar(onNovo: () => _novo(context, ref)),
-        Expanded(child: _body(context, ref, state, canDelete)),
+        _Toolbar(
+          onNovo: () => _novo(context, ref),
+          filtro: _filtro,
+          onFiltro: (f) => setState(() => _filtro = f),
+          total: state.items.length,
+          visiveis: filtered.length,
+        ),
+        Expanded(child: _body(context, ref, viewState, canDelete)),
       ],
     );
   }
@@ -174,8 +190,9 @@ class UsuariosScreen extends ConsumerWidget {
           child: Row(
             children: const [
               _HeaderCell('Nome', flex: 3),
-              _HeaderCell('E-mail', flex: 4),
+              _HeaderCell('E-mail', flex: 3),
               _HeaderCell('Papel', flex: 2),
+              _HeaderCell('Status', flex: 2),
               _HeaderCell('', flex: 2),
             ],
           ),
@@ -190,9 +207,6 @@ class UsuariosScreen extends ConsumerWidget {
               return _UsuarioRow(
                 user: u,
                 onTap: () => _editar(context, ref, u),
-                onDisponibilidade: u.role == Role.profissional
-                    ? () => _disponibilidade(context, u)
-                    : null,
                 onExcluir: canDelete ? () => _excluir(context, ref, u) : null,
               );
             },
@@ -218,9 +232,6 @@ class UsuariosScreen extends ConsumerWidget {
           child: _UsuarioCard(
             user: u,
             onTap: () => _editar(context, ref, u),
-            onDisponibilidade: u.role == Role.profissional
-                ? () => _disponibilidade(context, u)
-                : null,
             onExcluir: canDelete ? () => _excluir(context, ref, u) : null,
           ),
         );
@@ -230,8 +241,18 @@ class UsuariosScreen extends ConsumerWidget {
 }
 
 class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.onNovo});
+  const _Toolbar({
+    required this.onNovo,
+    required this.filtro,
+    required this.onFiltro,
+    required this.total,
+    required this.visiveis,
+  });
   final VoidCallback onNovo;
+  final _FiltroAtivo filtro;
+  final ValueChanged<_FiltroAtivo> onFiltro;
+  final int total;
+  final int visiveis;
 
   @override
   Widget build(BuildContext context) {
@@ -246,12 +267,35 @@ class _Toolbar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: clx.line)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: ClxSpace.x3,
+        runSpacing: ClxSpace.x2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           ClxButton(
             label: 'Novo usuário',
             icon: Icons.add_rounded,
             onPressed: onNovo,
+          ),
+          SegmentedButton<_FiltroAtivo>(
+            segments: const [
+              ButtonSegment(value: _FiltroAtivo.ativos, label: Text('Ativos')),
+              ButtonSegment(
+                value: _FiltroAtivo.inativos,
+                label: Text('Inativos'),
+              ),
+              ButtonSegment(value: _FiltroAtivo.todos, label: Text('Todos')),
+            ],
+            selected: {filtro},
+            onSelectionChanged: (s) {
+              if (s.isNotEmpty) onFiltro(s.first);
+            },
+          ),
+          Text(
+            '$visiveis de $total',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: clx.ink3,
+                ),
           ),
         ],
       ),
@@ -311,13 +355,11 @@ class _UsuarioRow extends StatelessWidget {
   const _UsuarioRow({
     required this.user,
     required this.onTap,
-    required this.onDisponibilidade,
     required this.onExcluir,
   });
 
   final User user;
   final VoidCallback onTap;
-  final VoidCallback? onDisponibilidade;
 
   /// `null` esconde a ação de excluir (só admin exclui — espelha o React).
   final VoidCallback? onExcluir;
@@ -355,7 +397,7 @@ class _UsuarioRow extends StatelessWidget {
               ),
             ),
             Expanded(
-              flex: 4,
+              flex: 3,
               child: Text(
                 user.email,
                 maxLines: 1,
@@ -368,7 +410,6 @@ class _UsuarioRow extends StatelessWidget {
               child: Row(
                 children: [
                   Flexible(child: _RoleChip(role: user.role)),
-                  // "(app)" — o profissional acessa pelo app (espelha o React).
                   if (user.role == Role.profissional) ...[
                     const SizedBox(width: ClxSpace.x2),
                     Text(
@@ -381,18 +422,16 @@ class _UsuarioRow extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _AtivoChip(ativo: user.ativo),
+              ),
+            ),
+            Expanded(
+              flex: 2,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (onDisponibilidade != null)
-                    IconButton(
-                      tooltip: 'Disponibilidade',
-                      icon: const Icon(
-                        Icons.event_available_outlined,
-                        size: 18,
-                      ),
-                      onPressed: onDisponibilidade,
-                    ),
                   IconButton(
                     tooltip: 'Editar',
                     icon: const Icon(Icons.edit_outlined, size: 18),
@@ -422,13 +461,11 @@ class _UsuarioCard extends StatelessWidget {
   const _UsuarioCard({
     required this.user,
     required this.onTap,
-    required this.onDisponibilidade,
     required this.onExcluir,
   });
 
   final User user;
   final VoidCallback onTap;
-  final VoidCallback? onDisponibilidade;
 
   /// `null` esconde a ação de excluir (só admin exclui — espelha o React).
   final VoidCallback? onExcluir;
@@ -468,19 +505,14 @@ class _UsuarioCard extends StatelessWidget {
                 ),
               ),
               _RoleChip(role: user.role),
+              const SizedBox(width: ClxSpace.x2),
+              _AtivoChip(ativo: user.ativo),
             ],
           ),
           const SizedBox(height: ClxSpace.x2),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (onDisponibilidade != null)
-                ClxButton(
-                  label: 'Disponibilidade',
-                  variant: ClxButtonVariant.ghost,
-                  icon: Icons.event_available_outlined,
-                  onPressed: onDisponibilidade,
-                ),
               if (onExcluir != null)
                 IconButton(
                   tooltip: 'Excluir',
@@ -499,6 +531,22 @@ class _UsuarioCard extends StatelessWidget {
   }
 }
 
+
+class _AtivoChip extends StatelessWidget {
+  const _AtivoChip({required this.ativo});
+  final bool ativo;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return ClxChip(
+      label: ativo ? 'Ativo' : 'Inativo',
+      color: ativo ? clx.success : clx.ink3,
+      dense: true,
+    );
+  }
+}
+
 class _ConfirmDeleteDialog extends StatelessWidget {
   const _ConfirmDeleteDialog({
     required this.nome,
@@ -512,7 +560,6 @@ class _ConfirmDeleteDialog extends StatelessWidget {
     final clx = context.clx;
     final content = isProfissional
         ? 'Tem certeza que deseja excluir o profissional "$nome"? '
-          'A agenda de disponibilidade deste profissional também será excluída. '
           'Esta ação não pode ser desfeita.'
         : 'Tem certeza que deseja excluir o usuário "$nome"? Esta ação não pode '
           'ser desfeita.';

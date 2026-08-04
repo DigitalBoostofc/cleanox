@@ -18,7 +18,10 @@ class PbComissaoRepository implements ComissaoRepository {
     final recs = await _pb
         .collection(Collections.users)
         .getFullList(
-          filter: _pb.filter('role = {:r}', {'r': Role.profissional.wire}),
+          filter: _pb.filter(
+            'role = {:r} && ativo = true',
+            {'r': Role.profissional.wire},
+          ),
           sort: 'nome',
         );
     return recs.map(User.fromRecord).toList();
