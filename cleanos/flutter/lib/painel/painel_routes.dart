@@ -127,7 +127,10 @@ StatefulShellRoute painelShellRoute(
                 // no FinanceiroShell.
                 builder: (context, state) {
                   final tabSlug = state.pathParameters['tab'] ?? 'principal';
-                  return FinanceiroShell(tabSlug: tabSlug);
+                  return FinanceiroShell(
+                    tabSlug: tabSlug,
+                    tipoQuery: state.uri.queryParameters['tipo'],
+                  );
                 },
               ),
             ],

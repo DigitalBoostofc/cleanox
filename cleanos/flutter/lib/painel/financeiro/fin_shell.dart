@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/models/financeiro.dart';
 import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import 'carteiras/fin_carteiras_screen.dart';
@@ -125,9 +126,10 @@ enum FinTab {
 }
 
 class FinanceiroShell extends ConsumerStatefulWidget {
-  const FinanceiroShell({super.key, this.tabSlug});
+  const FinanceiroShell({super.key, this.tabSlug, this.tipoQuery});
 
   final String? tabSlug;
+  final String? tipoQuery;
 
   @override
   ConsumerState<FinanceiroShell> createState() => _FinanceiroShellState();
@@ -249,7 +251,13 @@ class _FinanceiroShellState extends ConsumerState<FinanceiroShell> {
 
   Widget _body(FinTab tab) => switch (tab) {
         FinTab.principal => const FinPrincipalScreen(),
-        FinTab.transacoes => const FinTransacoesScreen(),
+        FinTab.transacoes => FinTransacoesScreen(
+          initialTipo: switch (widget.tipoQuery) {
+            'receita' => TipoLancamento.receita,
+            'despesa' => TipoLancamento.despesa,
+            _ => null,
+          },
+        ),
         FinTab.planejamento || FinTab.limites =>
           const FinPlanejamentoScreen(),
         FinTab.mais => const FinMaisScreen(),
