@@ -15,6 +15,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/cliente.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 import '../../shared_widgets_os/cancelar_os_dialog.dart';
@@ -24,6 +25,30 @@ import 'os_atividade_panel.dart';
 import 'os_rebaixar_confirm.dart';
 
 enum OSDetailIntent { editar, execucao }
+
+/// Rua + número do cliente para o detalhe da OS (Painel / expand cliente).
+///
+/// Público e puro para unit test — a UI só repassa `os.expand?.cliente`.
+String formatOsRuaExibicao(Cliente? c) {
+  if (c == null) return '—';
+  final parts = <String>[
+    if ((c.enderecoRua ?? '').trim().isNotEmpty) c.enderecoRua!.trim(),
+    if ((c.enderecoNumero ?? '').trim().isNotEmpty) c.enderecoNumero!.trim(),
+  ];
+  if (parts.isEmpty) return '—';
+  return parts.join(', ');
+}
+
+/// Cidade (+ UF) do cliente para o detalhe da OS.
+String formatOsCidadeExibicao(Cliente? c) {
+  if (c == null) return '—';
+  final cidade = (c.enderecoCidade ?? '').trim();
+  final uf = (c.enderecoEstado ?? '').trim();
+  if (cidade.isEmpty && uf.isEmpty) return '—';
+  if (cidade.isEmpty) return uf;
+  if (uf.isEmpty) return cidade;
+  return '$cidade — $uf';
+}
 
 class OSDetailResult {
   const OSDetailResult({this.changed = false, this.intent, this.os});
@@ -100,6 +125,12 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   /// **concluída** — correção pós-fechamento. Cancelada permanece bloqueada.
   /// Data/hora/duração de concluída ficam congeladas no form/servidor.
   bool get _editavel => _os.status != OSStatus.cancelada;
+
+  /// Rua + número do cliente (cofre expandido). Painel only.
+  String get _ruaExibicao => formatOsRuaExibicao(_os.expand?.cliente);
+
+  /// Cidade (+ UF se houver) do cliente.
+  String get _cidadeExibicao => formatOsCidadeExibicao(_os.expand?.cliente);
 
   Future<void> _reatribuir() async {
     // Mexer no profissional de uma OS EM ANDAMENTO rebaixa o status, e o hook do
@@ -442,7 +473,11 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       children: [
         _section(clx, 'Identificação', [
           _row(clx, 'Cliente', _os.clienteNomeExibicao),
+          // Rua/cidade vêm do cofre expandido (só Painel). Agenda/Ordens já
+          // pedem expand=cliente — admin precisa ver o local sem abrir Editar.
+          _row(clx, 'Rua', _ruaExibicao),
           _row(clx, 'Bairro', _os.bairro),
+          _row(clx, 'Cidade', _cidadeExibicao),
           _row(clx, 'Serviço', _os.tipoServicoNome ?? '—'),
           _row(clx, 'Data / Hora', formatDateTime(_os.dataHora)),
           if ((_os.observacoes ?? '').isNotEmpty)
