@@ -52,6 +52,8 @@ class FinSeriesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
     final async = ref.watch(finSeriesProvider);
+    final progress =
+        ref.watch(finSeriesParcelasProgressProvider).valueOrNull ?? const {};
     final cats = ref.watch(finCategoriasProvider).valueOrNull ?? const [];
     final contas = ref.watch(finContasProvider).valueOrNull ?? const [];
     final catById = {for (final c in cats) c.id: c};
@@ -83,6 +85,25 @@ class FinSeriesScreen extends ConsumerWidget {
           final encerradas =
               list.where((s) => s.status == FinSerieStatus.encerrada).toList();
 
+          Widget card(FinSerie s) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _SerieCard(
+                  serie: s,
+                  categoria: catById[s.categoriaId],
+                  conta: contaById[s.contaId],
+                  parcelasProgress: s.isParcelada ? progress[s.id] : null,
+                  onEdit: () => _editSerie(context, ref, s),
+                  onPausar: s.status == FinSerieStatus.ativa
+                      ? () => pausarSerieUi(context, ref, s)
+                      : null,
+                  onRetomar: s.status != FinSerieStatus.ativa
+                      ? () => retomarSerieUi(context, ref, s)
+                      : null,
+                  onEncerrar: s.status != FinSerieStatus.encerrada
+                      ? () => encerrarSerieUi(context, ref, s)
+                      : null,
+                ),
+              );
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
             children: [
@@ -126,19 +147,7 @@ class FinSeriesScreen extends ConsumerWidget {
                     ),
                   )
                 else
-                  for (final s in ativas)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SerieCard(
-                        serie: s,
-                        categoria: catById[s.categoriaId],
-                        conta: contaById[s.contaId],
-                        onEdit: () => _editSerie(context, ref, s),
-                        onPausar: () => pausarSerieUi(context, ref, s),
-                        onRetomar: null,
-                        onEncerrar: () => encerrarSerieUi(context, ref, s),
-                      ),
-                    ),
+                  for (final s in ativas) card(s),
                 if (pausadas.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _SectionHeader(
@@ -146,19 +155,7 @@ class FinSeriesScreen extends ConsumerWidget {
                     count: pausadas.length,
                     color: clx.warning,
                   ),
-                  for (final s in pausadas)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SerieCard(
-                        serie: s,
-                        categoria: catById[s.categoriaId],
-                        conta: contaById[s.contaId],
-                        onEdit: () => _editSerie(context, ref, s),
-                        onPausar: null,
-                        onRetomar: () => retomarSerieUi(context, ref, s),
-                        onEncerrar: () => encerrarSerieUi(context, ref, s),
-                      ),
-                    ),
+                  for (final s in pausadas) card(s),
                 ],
                 if (encerradas.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -167,19 +164,7 @@ class FinSeriesScreen extends ConsumerWidget {
                     count: encerradas.length,
                     color: clx.ink3,
                   ),
-                  for (final s in encerradas)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SerieCard(
-                        serie: s,
-                        categoria: catById[s.categoriaId],
-                        conta: contaById[s.contaId],
-                        onEdit: () => _editSerie(context, ref, s),
-                        onPausar: null,
-                        onRetomar: () => retomarSerieUi(context, ref, s),
-                        onEncerrar: null,
-                      ),
-                    ),
+                  for (final s in encerradas) card(s),
                 ],
               ],
             ],
@@ -230,6 +215,7 @@ class _SerieCard extends StatelessWidget {
     required this.serie,
     this.categoria,
     this.conta,
+    this.parcelasProgress,
     required this.onEdit,
     this.onPausar,
     this.onRetomar,
@@ -239,6 +225,7 @@ class _SerieCard extends StatelessWidget {
   final FinSerie serie;
   final FinCategoria? categoria;
   final FinConta? conta;
+  final SerieParcelasProgresso? parcelasProgress;
   final VoidCallback onEdit;
   final VoidCallback? onPausar;
   final VoidCallback? onRetomar;
@@ -255,6 +242,14 @@ class _SerieCard extends StatelessWidget {
       FinSerieStatus.pausada => clx.warning,
       FinSerieStatus.encerrada => clx.ink3,
     };
+    final prog = parcelasProgress;
+    final parcelasLabel = s.isParcelada
+        ? (prog != null
+            ? 'Parcelada · ${prog.rotulo(s.parcelasTotal)} pagas'
+            : (s.parcelasTotal != null && s.parcelasTotal! > 0
+                ? 'Parcelada ${s.parcelasTotal}×'
+                : 'Parcelada'))
+        : s.frequenciaEfetiva.labelSingular;
 
     return FinCard(
       child: Column(
@@ -294,12 +289,12 @@ class _SerieCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                s.isParcelada
-                    ? (s.parcelasTotal != null && s.parcelasTotal! > 0
-                        ? 'Parcelada ${s.parcelasTotal}×'
-                        : 'Parcelada')
-                    : s.frequenciaEfetiva.labelSingular,
-                style: tt.labelMedium?.copyWith(color: clx.ink3),
+                parcelasLabel,
+                style: tt.labelMedium?.copyWith(
+                  color: clx.ink3,
+                  fontWeight:
+                      s.isParcelada ? FontWeight.w700 : FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -325,6 +320,17 @@ class _SerieCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+          if (s.isParcelada && prog != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Parcelas pagas ${prog.rotulo(s.parcelasTotal)}'
+              '${prog.ocorrencias > 0 ? ' · ${prog.ocorrencias} lançamento${prog.ocorrencias == 1 ? '' : 's'}' : ''}',
+              style: tt.bodyMedium?.copyWith(
+                color: clx.ink2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 6),
           Text(
             [

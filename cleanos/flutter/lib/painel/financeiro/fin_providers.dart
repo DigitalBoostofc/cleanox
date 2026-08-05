@@ -22,6 +22,7 @@ import '../data/painel_providers.dart' show comissaoRepositoryProvider;
 import '../data/pb_financeiro_repository.dart';
 import 'fin_derivations.dart';
 import 'fin_filters.dart';
+import 'fin_recorrencia.dart';
 
 /// Repositório do Financeiro. Tipado pela interface do Painel
 /// ([FinanceiroPanelRepository]) — expõe os extras (transferir/ajustarSaldo) e
@@ -54,6 +55,20 @@ final finObjetivosProvider = FutureProvider.autoDispose<List<FinObjetivo>>(
 final finSeriesProvider = FutureProvider.autoDispose<List<FinSerie>>(
   (ref) => ref.watch(financeiroRepositoryProvider).listSeries(),
 );
+
+/// Progresso pagas/total das séries **parceladas** (Cobranças fixas).
+///
+/// Depende de [finSeriesProvider]; só busca lançamentos das parceladas.
+final finSeriesParcelasProgressProvider =
+    FutureProvider.autoDispose<Map<String, SerieParcelasProgresso>>((ref) async {
+  final series = await ref.watch(finSeriesProvider.future);
+  final ids = [
+    for (final s in series)
+      if (s.isParcelada) s.id,
+  ];
+  if (ids.isEmpty) return const {};
+  return ref.watch(financeiroRepositoryProvider).progressoParcelasSeries(ids);
+});
 
 /* ─────────────────────── período selecionado (mês, BRT) ─────────────────────── */
 

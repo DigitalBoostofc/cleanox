@@ -373,3 +373,31 @@ enum SerieExclusaoEscopo {
   /// Apaga previstos/pendentes futuros; pagos ficam; encerra série.
   encerrarMantendoPagos,
 }
+
+/// Progresso de uma compra parcelada (Cobranças fixas).
+class SerieParcelasProgresso {
+  const SerieParcelasProgresso({
+    required this.pagas,
+    required this.ocorrencias,
+  });
+
+  /// Quantas ocorrências com status pago.
+  final int pagas;
+
+  /// Quantas ocorrências ligadas à série (pagas + em aberto).
+  final int ocorrencias;
+
+  /// Denominador para UI: [parcelasTotalSerie] se > 0, senão [ocorrencias].
+  int totalEfetivo(int? parcelasTotalSerie) {
+    final n = parcelasTotalSerie ?? 0;
+    if (n > 0) return n;
+    return ocorrencias;
+  }
+
+  /// Ex.: `1/10` (pagas / total).
+  String rotulo(int? parcelasTotalSerie) {
+    final t = totalEfetivo(parcelasTotalSerie);
+    if (t <= 0) return '$pagas/?';
+    return '$pagas/$t';
+  }
+}
