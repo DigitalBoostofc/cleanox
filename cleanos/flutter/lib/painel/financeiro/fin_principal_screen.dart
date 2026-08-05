@@ -38,6 +38,11 @@ class FinPrincipalScreen extends ConsumerStatefulWidget {
 class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
   bool _saldoVisivel = true;
 
+  void _abrirTransacoes({TipoLancamento? tipo}) {
+    final query = tipo == null ? '' : '?tipo=${tipo.wire}';
+    context.go('/painel/financeiro/transacoes$query');
+  }
+
   Future<void> _novo(
     TipoLancamento tipo,
   ) async {
@@ -137,8 +142,11 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   freq: freq,
                   onNovaReceita: () => _novo(TipoLancamento.receita),
                   onNovaDespesa: () => _novo(TipoLancamento.despesa),
-                  onGoTransacoes: () =>
-                      context.go('/painel/financeiro/transacoes'),
+                  onGoTransacoes: _abrirTransacoes,
+                  onGoReceitas: () =>
+                      _abrirTransacoes(tipo: TipoLancamento.receita),
+                  onGoDespesas: () =>
+                      _abrirTransacoes(tipo: TipoLancamento.despesa),
                   onGoPlanejamento: () =>
                       context.go('/painel/financeiro/planejamento'),
                   onGoContas: () => context.go('/painel/financeiro/carteiras'),
@@ -173,8 +181,11 @@ class _FinPrincipalScreenState extends ConsumerState<FinPrincipalScreen> {
                   economiaPct: economiaPct,
                   freq: freq,
                   lancs: lancs,
-                  onGoTransacoes: () =>
-                      context.go('/painel/financeiro/transacoes'),
+                  onGoTransacoes: _abrirTransacoes,
+                  onGoReceitas: () =>
+                      _abrirTransacoes(tipo: TipoLancamento.receita),
+                  onGoDespesas: () =>
+                      _abrirTransacoes(tipo: TipoLancamento.despesa),
                   onGoPlanejamento: () =>
                       context.go('/painel/financeiro/planejamento'),
                   onGoContas: () => context.go('/painel/financeiro/carteiras'),
@@ -225,6 +236,8 @@ class _MobileBody extends StatelessWidget {
     required this.onNovaReceita,
     required this.onNovaDespesa,
     required this.onGoTransacoes,
+    required this.onGoReceitas,
+    required this.onGoDespesas,
     required this.onGoPlanejamento,
     required this.onGoContas,
     required this.onGoObjetivos,
@@ -257,6 +270,8 @@ class _MobileBody extends StatelessWidget {
   final VoidCallback onNovaReceita;
   final VoidCallback onNovaDespesa;
   final VoidCallback onGoTransacoes;
+  final VoidCallback onGoReceitas;
+  final VoidCallback onGoDespesas;
   final VoidCallback onGoPlanejamento;
   final VoidCallback onGoContas;
   final VoidCallback onGoObjetivos;
@@ -314,7 +329,7 @@ class _MobileBody extends StatelessWidget {
                   child: _HeroStat(
                     label: 'Receitas',
                     value: formatCurrency(resumo.entradas),
-                    onTap: onNovaReceita,
+                    onTap: onGoReceitas,
                   ),
                 ),
                 Container(
@@ -326,7 +341,7 @@ class _MobileBody extends StatelessWidget {
                   child: _HeroStat(
                     label: 'Despesas',
                     value: formatCurrency(resumo.saidas),
-                    onTap: onNovaDespesa,
+                    onTap: onGoDespesas,
                   ),
                 ),
               ],
@@ -365,7 +380,7 @@ class _MobileBody extends StatelessWidget {
                   label: 'Receitas',
                   value: resumo.entradas,
                   income: true,
-                  onTap: onNovaReceita,
+                  onTap: onGoReceitas,
                 ),
               ),
               const SizedBox(width: ClxSpace.x3),
@@ -374,7 +389,7 @@ class _MobileBody extends StatelessWidget {
                   label: 'Despesas',
                   value: resumo.saidas,
                   income: false,
-                  onTap: onNovaDespesa,
+                  onTap: onGoDespesas,
                 ),
               ),
             ],
@@ -694,6 +709,8 @@ class _DesktopBody extends StatefulWidget {
     required this.freq,
     required this.lancs,
     required this.onGoTransacoes,
+    required this.onGoReceitas,
+    required this.onGoDespesas,
     required this.onGoPlanejamento,
     required this.onGoContas,
     required this.onGoObjetivos,
@@ -720,6 +737,8 @@ class _DesktopBody extends StatefulWidget {
   final List<_FreqPoint> freq;
   final List<FinLancamento> lancs;
   final VoidCallback onGoTransacoes;
+  final VoidCallback onGoReceitas;
+  final VoidCallback onGoDespesas;
   final VoidCallback onGoPlanejamento;
   final VoidCallback onGoContas;
   final VoidCallback onGoObjetivos;
@@ -943,7 +962,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                       icon: Icons.arrow_upward_rounded,
                       iconBg: clx.finIncome,
                       valueColor: clx.finIncome,
-                      onTap: _editing ? null : w.onGoTransacoes,
+                      onTap: _editing ? null : w.onGoReceitas,
                       bordered: false,
                     ),
                   ),
@@ -955,7 +974,7 @@ class _DesktopBodyState extends State<_DesktopBody> {
                       icon: Icons.arrow_downward_rounded,
                       iconBg: clx.finExpense,
                       valueColor: clx.finExpense,
-                      onTap: _editing ? null : w.onGoTransacoes,
+                      onTap: _editing ? null : w.onGoDespesas,
                       bordered: false,
                     ),
                   ),

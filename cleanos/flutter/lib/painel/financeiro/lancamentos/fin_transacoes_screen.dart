@@ -35,7 +35,9 @@ T? _firstOrNull<T>(Iterable<T> it, bool Function(T) test) {
 }
 
 class FinTransacoesScreen extends ConsumerStatefulWidget {
-  const FinTransacoesScreen({super.key});
+  const FinTransacoesScreen({super.key, this.initialTipo});
+
+  final TipoLancamento? initialTipo;
 
   @override
   ConsumerState<FinTransacoesScreen> createState() =>
@@ -51,6 +53,27 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyInitialTipo());
+  }
+
+  @override
+  void didUpdateWidget(covariant FinTransacoesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTipo != widget.initialTipo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applyInitialTipo());
+    }
+  }
+
+  void _applyInitialTipo() {
+    final tipo = widget.initialTipo;
+    if (!mounted || tipo == null) return;
+    final current = ref.read(finLancControllerProvider).filters;
+    if (current.tipo == tipo) return;
+    unawaited(
+      ref
+          .read(finLancControllerProvider.notifier)
+          .setFilters(current.copyWith(tipo: tipo)),
+    );
   }
 
   @override
