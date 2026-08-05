@@ -149,13 +149,14 @@ function _sqlUpdateLancMeta(app, id, fields) {
 
 /**
  * Resolve categoria de despesa da comissão/repasse.
- * Retorna { categoriaId, subcategoriaId } — sub sempre vazia ("").
+ * Retorna { categoriaId, subcategoriaId }; cria a subcategoria com o nome
+ * do profissional quando ela ainda não existe.
  *
  * Canônico (dono 2026-07-24): só a raiz **"Equipe"** (sem subcategorias
  * Comissões/Profissionais). Subs legadas, se ainda existirem, são ignoradas
  * (migração 1700000047 remove e re-aponta lançamentos).
  */
-function acharCategoriaComissao(app) {
+function acharCategoriaComissao(app, profId, profNome) {
   // 1) Raiz Equipe
   try {
     const equipe = app.findFirstRecordByFilter(
@@ -163,6 +164,28 @@ function acharCategoriaComissao(app) {
       "tipo = 'despesa' && nome = 'Equipe' && (parent_id = '' || parent_id = null)",
     );
     if (equipe) {
+      var nome = String(profNome || '').trim();
+      if (nome) {
+        try {
+          var sub = app.findFirstRecordByFilter(
+            'fin_categorias',
+            "tipo = 'despesa' && parent_id = {:parent} && nome = {:nome}",
+            { parent: equipe.id, nome: nome },
+          );
+          if (!sub) {
+            var col = app.findCollectionByNameOrId('fin_categorias');
+            sub = new Record(col);
+            sub.set('nome', nome);
+            sub.set('tipo', 'despesa');
+            sub.set('parent_id', equipe.id);
+            sub.set('icone', 'person');
+            sub.set('cor', '#F59E0B');
+            sub.set('arquivada', false);
+            app.save(sub);
+          }
+          return { categoriaId: equipe.id, subcategoriaId: sub.id };
+        } catch (_) {}
+      }
       return { categoriaId: equipe.id, subcategoriaId: null };
     }
   } catch (_) {}
@@ -415,6 +438,8 @@ function recalcularDespesaRepasse(app, profId, ymd) {
   var cents = 0;
   var profNome = "";
   var n = 0;
+  var nOs = 0;
+  var nBonus = 0;
   var minYmd = "";
   var maxYmd = "";
   for (var i = 0; i < (list || []).length; i++) {
@@ -423,6 +448,11 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     if (!(v > 0)) continue;
     cents += Math.round(v * 100);
     n++;
+    if (String(c.get("tipo_aplicado") || "") === "bonificacao") {
+      nBonus++;
+    } else {
+      nOs++;
+    }
     if (!profNome) {
       profNome = String(c.get("profissional_nome") || "").trim();
     }
@@ -459,7 +489,7 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     } catch (_) {}
   }
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, p, profNome);
   if (!cats || !cats.categoriaId) {
     console.log("[comissao-pago] nenhuma categoria de despesa; skip repasse.");
     return null;
@@ -475,13 +505,14 @@ function recalcularDespesaRepasse(app, profId, ymd) {
   if (minYmd && maxYmd) {
     periodo = _labelPeriodoBr(minYmd, maxYmd);
   }
+  var resumo = nBonus > 0
+    ? nOs + " OS + " + nBonus + (nBonus === 1 ? " bonificação" : " bonificações")
+    : n + " OS";
   var descricao =
     "Repasse · " +
     (profNome || p.slice(0, 8)) +
     (periodo ? " · " + periodo : " · " + _ymdBr(d)) +
-    " (" +
-    n +
-    " OS)";
+    " (" + resumo + ")";
 
   if (existente) {
     var mudou = false;
@@ -617,11 +648,6 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     return null;
   }
 
-  const cats = acharCategoriaComissao(app);
-  if (!cats || !cats.categoriaId) {
-    console.log("[comissao-pago] nenhuma categoria de despesa; skip.");
-    return null;
-  }
   const contaId = acharConta(app);
   if (!contaId) {
     console.log("[comissao-pago] nenhuma conta ativa; skip.");
@@ -639,9 +665,21 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     } catch (_) {}
   }
 
+  const cats = acharCategoriaComissao(
+    app,
+    String(comissao.get("profissional") || ""),
+    profNome,
+  );
+  if (!cats || !cats.categoriaId) {
+    console.log("[comissao-pago] nenhuma categoria de despesa; skip.");
+    return null;
+  }
+
   const desc = String(comissao.get("descricao") || "");
-  const descricao =
-    "Comissão" + (profNome ? " · " + profNome : "") + (desc ? " · " + desc : "");
+  const isBonus = String(comissao.get("tipo_aplicado") || "") === "bonificacao";
+  const descricao = isBonus
+    ? "Bonificação" + (profNome ? " · " + profNome : "") + (desc ? " · " + desc : "")
+    : "Comissão" + (profNome ? " · " + profNome : "") + (desc ? " · " + desc : "");
 
   const osId = String(comissao.get("os") || "");
   const data = dataLancamentoComissao(app, comissao);
@@ -813,7 +851,7 @@ function _upsertDespesaOsPaga(app, comissao, profId) {
   }
   var descricao = _descricaoComissaoOsPaga(profNome || p.slice(0, 8), comissao);
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, p, profNome);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
@@ -849,6 +887,10 @@ function _upsertDespesaOsPaga(app, comissao, profId) {
     }
     if (String(existente.get("categoria_id") || "") !== cats.categoriaId) {
       existente.set("categoria_id", cats.categoriaId);
+      mudou = true;
+    }
+    if (String(existente.get("subcategoria_id") || "") !== (cats.subcategoriaId || "")) {
+      existente.set("subcategoria_id", cats.subcategoriaId || "");
       mudou = true;
     }
     try {
@@ -907,31 +949,15 @@ function _nomeClienteDaComissao(comissao) {
   return rest || "OS";
 }
 
-function _isBonificacao(comissao) {
-  return String(comissao.get("tipo_aplicado") || "").toLowerCase() === "bonificacao";
-}
-
-function _motivoBonificacao(comissao) {
-  var desc = String(comissao.get("descricao") || "").trim();
-  if (!desc) return "Bonificação";
-  if (desc.toLowerCase().indexOf("bonificação") === 0) {
-    var idx = desc.indexOf("·");
-    if (idx >= 0) {
-      var rest = desc.slice(idx + 1).trim();
-      if (rest) return rest;
-    }
-    return "Bonificação";
-  }
-  return desc;
-}
-
 /**
  * Padrão dono: "Comissão - {prof} - OS - {cliente}"
  */
 function _descricaoComissaoOsPaga(profNome, comissao) {
   var nome = String(profNome || "").trim() || "Profissional";
-  if (_isBonificacao(comissao)) {
-    return "Bonificação - " + nome + " - " + _motivoBonificacao(comissao);
+  if (String(comissao.get("tipo_aplicado") || "") === "bonificacao") {
+    var motivo = String(comissao.get("descricao") || "").trim();
+    motivo = motivo.replace(/^bonificação\s*[·-]\s*/i, "");
+    return "Bonificação - " + nome + (motivo ? " - " + motivo : "");
   }
   var cliente = _nomeClienteDaComissao(comissao);
   return "Comissão - " + nome + " - OS - " + cliente;
@@ -1187,10 +1213,22 @@ function sincronizarCiclosDoProf(app, profId) {
     var v = Number(c.get("valor_comissao") || 0);
     if (!(v > 0)) continue;
     var st = String(c.get("status") || "");
+    var isBonus = String(c.get("tipo_aplicado") || "") === "bonificacao";
     var cd = String(c.get("data") || "")
       .trim()
       .slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cd)) cd = dataBrtHojeYmd();
+    if (isBonus) {
+      // Bonificação não participa do ciclo automático nem é contada como OS.
+      if (st === "paga") {
+        var bonusWin = cicloDoProfEm(app, p, cd);
+        if (!bonusWin || !bonusWin.inicio || !bonusWin.fim) {
+          bonusWin = { inicio: cd, fim: cd };
+        }
+        pagas.push({ c: c, win: bonusWin });
+      }
+      continue;
+    }
     var win = cicloDoProfEm(app, p, cd);
     if (!win || !win.inicio || !win.fim) continue;
     var gkey = win.inicio + "_" + win.fim;
@@ -1199,7 +1237,6 @@ function sincronizarCiclosDoProf(app, profId) {
         win: win,
         pendCents: 0,
         pendN: 0,
-        pendBonusN: 0,
         profNome: String(c.get("profissional_nome") || "").trim(),
       };
     }
@@ -1208,7 +1245,6 @@ function sincronizarCiclosDoProf(app, profId) {
     } else if (st === "pendente") {
       grupos[gkey].pendCents += Math.round(v * 100);
       grupos[gkey].pendN++;
-      if (_isBonificacao(c)) grupos[gkey].pendBonusN++;
     }
     if (!grupos[gkey].profNome) {
       grupos[gkey].profNome = String(c.get("profissional_nome") || "").trim();
@@ -1228,7 +1264,7 @@ function sincronizarCiclosDoProf(app, profId) {
 
   // Classifica pagas: individual (tem 1:1) vs lote (sem 1:1)
   var idsIndividuais = {}; // comissao_id → true
-  var loteGrupos = {}; // key ini_fim_pagoEm → { win, pe, cents, n, bonusN, nome, ids:[] }
+  var loteGrupos = {}; // key ini_fim_pagoEm → { win, pe, cents, n, nOs, nBonus, nome, ids:[] }
   for (var pi = 0; pi < pagas.length; pi++) {
     var pc = pagas[pi].c;
     var pwin = pagas[pi].win;
@@ -1255,7 +1291,8 @@ function sincronizarCiclosDoProf(app, profId) {
         pe: pe,
         cents: 0,
         n: 0,
-        bonusN: 0,
+        nOs: 0,
+        nBonus: 0,
         nome: String(pc.get("profissional_nome") || "").trim(),
         ids: [],
       };
@@ -1264,7 +1301,11 @@ function sincronizarCiclosDoProf(app, profId) {
       Number(pc.get("valor_comissao") || 0) * 100,
     );
     loteGrupos[lkey].n++;
-    if (_isBonificacao(pc)) loteGrupos[lkey].bonusN++;
+    if (String(pc.get("tipo_aplicado") || "") === "bonificacao") {
+      loteGrupos[lkey].nBonus++;
+    } else {
+      loteGrupos[lkey].nOs++;
+    }
     loteGrupos[lkey].ids.push(pcid);
     if (!loteGrupos[lkey].nome) {
       loteGrupos[lkey].nome = String(pc.get("profissional_nome") || "").trim();
@@ -1381,36 +1422,21 @@ function sincronizarCiclosDoProf(app, profId) {
     profNome = String(u.get("name") || u.get("nome") || "");
   } catch (_) {}
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, p, profNome);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
-
-  function _resumoItens(n, bonusN) {
-    var totalN = Number(n || 0);
-    var bonus = Number(bonusN || 0);
-    if (bonus < 0) bonus = 0;
-    if (bonus > totalN) bonus = totalN;
-    var osN = totalN - bonus;
-    if (bonus === 0) return totalN + " OS";
-    if (osN === 0) return bonus + (bonus === 1 ? " bonificação" : " bonificações");
-    return (
-      osN +
-      " OS + " +
-      bonus +
-      (bonus === 1 ? " bonificação" : " bonificações")
-    );
-  }
 
   function _upsertAgg(
     obsKey,
     status,
     total,
     n,
-    bonusN,
     dataYmd,
     nome,
     isPendente,
+    nOs,
+    nBonus,
   ) {
     if (!(total > 0) || n === 0) return null;
     var descricao;
@@ -1420,22 +1446,21 @@ function sincronizarCiclosDoProf(app, profId) {
       var periodo =
         parts.length >= 3 ? _labelPeriodoBr(parts[1], parts[2]) : dataYmd;
       descricao =
-        (bonusN > 0 ? "Repasse" : "Comissão") +
-        " · " +
-        nome +
-        " · " +
-        periodo +
-        " (" +
-        _resumoItens(n, bonusN) +
-        ")";
+        "Comissão · " + nome + " · " + periodo + " (" + n + " OS)";
     } else {
-      // lote pago: "Comissão - Prof - N OS" ou repasse misto com bonificação.
-      descricao =
-        (bonusN > 0 ? "Repasse" : "Comissão") +
-        " - " +
-        nome +
-        " - " +
-        _resumoItens(n, bonusN);
+      if (nBonus > 0) {
+        descricao =
+          "Repasse - " +
+          nome +
+          " - " +
+          nOs +
+          " OS + " +
+          nBonus +
+          (nBonus === 1 ? " bonificação" : " bonificações");
+      } else {
+        // lote pago: "Comissão - Prof - N OS"
+        descricao = "Comissão - " + nome + " - " + n + " OS";
+      }
     }
     var existente = null;
     for (var j = 0; j < cands.length; j++) {
@@ -1512,7 +1537,6 @@ function sincronizarCiclosDoProf(app, profId) {
       "pendente",
       g.pendCents / 100.0,
       g.pendN,
-      g.pendBonusN,
       g.win.fim,
       nome,
       true,
@@ -1543,10 +1567,11 @@ function sincronizarCiclosDoProf(app, profId) {
       "pago",
       L.cents / 100.0,
       L.n,
-      L.bonusN,
       L.pe,
       nomeL,
       false,
+      L.nOs,
+      L.nBonus,
     );
     if (rL) lastSaved = rL;
   }

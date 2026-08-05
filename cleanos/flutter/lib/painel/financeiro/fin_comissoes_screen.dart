@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -36,39 +35,35 @@ String formatPercent(double v) {
   return '$texto%';
 }
 
-/// Identidade usada em superfícies históricas: inativar nunca apaga o nome.
-String nomeProfissionalNoHistorico(User user) =>
-    user.ativo ? user.displayName : '${user.displayName} (inativo)';
+String nomeProfissionalNoHistorico(User user) {
+  final nome = user.displayName.trim();
+  return user.ativo ? nome : '$nome (inativo)';
+}
 
 String nomeCurtoProfissionalNoHistorico(User user) {
-  final partes = user.displayName.trim().split(RegExp(r'\s+'));
-  final curto = partes.length <= 1
-      ? partes.first
-      : '${partes.first} ${partes.last[0]}.';
+  final nome = user.displayName.trim();
+  final partes = nome.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (partes.length < 2) return nomeProfissionalNoHistorico(user);
+  final curto = '${partes.first} ${partes[1][0]}.';
   return user.ativo ? curto : '$curto (inativo)';
 }
 
-/// O clique no gráfico usa identidade estável, nunca o rótulo abreviado.
-String? profissionalIdDaFatia(FinSlice slice) => slice.id;
+double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.75;
 
-/// Gráficos de comissão seguem a mesma cor configurada em Usuários/Agenda.
-Color corGraficoComissaoProfissional(User? user) => corAgendaProfissional(user);
+String profissionalIdDaFatia(FinSlice slice) => slice.id ?? '';
 
-/// Só a identidade fica mais discreta; valores históricos mantêm contraste.
-double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.64;
+Color corGraficoComissaoProfissional(User user) {
+  final raw = user.corAgenda.trim().replaceFirst('#', '');
+  final hex = raw.length == 6 ? 'FF$raw' : raw;
+  final value = int.tryParse(hex, radix: 16);
+  return value == null ? Colors.blue : Color(value);
+}
 
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
-  return ref
-      .watch(comissaoRepositoryProvider)
-      .listProfissionais(incluirInativos: true);
+  return ref.watch(comissaoRepositoryProvider).listProfissionais();
 });
-
-final _comissoesProfissionaisAtivosProvider =
-    FutureProvider.autoDispose<List<User>>((ref) {
-      return ref.watch(comissaoRepositoryProvider).listProfissionais();
-    });
 
 final _comissoesExtratoProvider =
     FutureProvider.autoDispose<List<ProfComissao>>((ref) {
@@ -96,23 +91,8 @@ final _osAtribuidasProvider = FutureProvider.autoDispose<List<OrdemServico>>((
   return out;
 });
 
-/// OS concluídas recentes para vincular bonificação manual opcionalmente.
-final _osBonificacaoProvider = FutureProvider.autoDispose<List<OrdemServico>>((
-  ref,
-) async {
-  final repo = ref.watch(ordensRepositoryProvider);
-  final res = await repo.list(
-    page: 1,
-    perPage: 100,
-    filter: "status = 'concluida'",
-    sort: '-data_hora',
-    expand: 'profissional,profissional2,cliente',
-  );
-  return res.items;
-});
-
 /// Filtro do sheet flutuante (null = todos).
-enum _FiltroSheet { abertas, pagas, todas }
+enum _FiltroSheet { abertas, pagas, bonificacoes, todas }
 
 /// Data de parede 'YYYY-MM-DD' da comissão (`data` ou `created`).
 String _comissaoYmd(ProfComissao c) {
@@ -185,8 +165,8 @@ class FinComissoesScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: ClxSpace.x1),
                     Text(
-                      'Comissões acumulam por profissional e bonificações são lançadas manualmente. '
-                      'Ao marcar como paga (👍) ou fechar o ciclo, gera despesa '
+                      'Comissões acumulam por profissional (sem despesa a cada OS). '
+                      'Ao marcar como paga (👍) ou fechar o ciclo, gera **uma** despesa '
                       'com o total do repasse daquele dia. Reabrir (👎) recalcula o total.',
                       style: Theme.of(
                         context,
@@ -196,16 +176,6 @@ class FinComissoesScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: ClxSpace.x2),
-              IconButton(
-                tooltip: 'Adicionar bonificação',
-                onPressed: () => _openBonificacaoSheet(context, ref),
-                icon: Icon(Icons.card_giftcard_rounded, color: clx.ink2),
-                style: IconButton.styleFrom(
-                  backgroundColor: clx.bg2,
-                  side: BorderSide(color: clx.line),
-                ),
-              ),
-              const SizedBox(width: ClxSpace.x1),
               IconButton(
                 tooltip: 'Fechar ciclo de pagamento',
                 onPressed: () {
@@ -236,6 +206,28 @@ class FinComissoesScreen extends ConsumerWidget {
                 style: IconButton.styleFrom(
                   backgroundColor: clx.bg2,
                   side: BorderSide(color: clx.line),
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x1),
+              IconButton(
+                tooltip: 'Adicionar bonificação',
+                onPressed: () {
+                  final list = profs.asData?.value ?? const <User>[];
+                  _showCenteredBlurDialog(
+                    context: context,
+                    child: _BonificacaoForm(
+                      profissionais: list,
+                      onSaved: () {
+                        ref.invalidate(_comissoesExtratoProvider);
+                        ref.invalidate(_comissoesProfissionaisProvider);
+                      },
+                    ),
+                  );
+                },
+                icon: Icon(Icons.stars_rounded, color: clx.warning),
+                style: IconButton.styleFrom(
+                  backgroundColor: clx.warning.withValues(alpha: 0.1),
+                  side: BorderSide(color: clx.warning.withValues(alpha: 0.4)),
                 ),
               ),
             ],
@@ -308,19 +300,6 @@ class FinComissoesScreen extends ConsumerWidget {
     _showCenteredBlurDialog(context: context, child: const _ConfigSheet());
   }
 
-  void _openBonificacaoSheet(BuildContext context, WidgetRef ref) {
-    _showCenteredBlurDialog(
-      context: context,
-      child: _BonificacaoSheet(
-        onSaved: () {
-          ref.invalidate(_comissoesExtratoProvider);
-          ref.invalidate(_comissoesProfissionaisProvider);
-          ref.invalidate(_comissoesProfissionaisAtivosProvider);
-        },
-      ),
-    );
-  }
-
   Future<void> _toggleStatus(
     BuildContext context,
     WidgetRef ref,
@@ -331,7 +310,13 @@ class FinComissoesScreen extends ConsumerWidget {
         : ComissaoStatus.paga;
     try {
       await ref.read(comissaoRepositoryProvider).setStatus(c.id, next);
+      // Equipe + Movimentações: hook reescreve fatias da semana
+      // (pendente N OS / paga M OS).
       ref.invalidate(_comissoesExtratoProvider);
+      ref.invalidate(finPeriodLancamentosProvider);
+      ref.invalidate(finPendentesProvider);
+      ref.invalidate(finContasProvider);
+      ref.invalidate(finComissoesPendentesTotalProvider);
       if (!context.mounted) return;
       showClxToast(
         context,
@@ -454,7 +439,7 @@ class _Dashboard extends StatelessWidget {
 
   String nomeProf(String id) {
     for (final u in profs) {
-      if (u.id == id) return nomeProfissionalNoHistorico(u);
+      if (u.id == id) return u.displayName;
     }
     return id.length > 8 ? id.substring(0, 8) : id;
   }
@@ -464,13 +449,6 @@ class _Dashboard extends StatelessWidget {
     if (p.isEmpty) return '—';
     if (p.length == 1) return p.first;
     return '${p.first} ${p.last[0]}.';
-  }
-
-  String nomeCurtoProf(String id) {
-    for (final u in profs) {
-      if (u.id == id) return nomeCurtoProfissionalNoHistorico(u);
-    }
-    return shortName(nomeProf(id));
   }
 
   @override
@@ -510,17 +488,21 @@ class _Dashboard extends StatelessWidget {
         ),
       );
 
-    User? findProf(String id) {
-      for (final u in profs) {
-        if (u.id == id) return u;
-      }
-      return null;
-    }
+    final bonusEntries = totalBonificacoesPorProfissional(
+      items,
+    ).entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
-    // Cores por profissional: mesmas escolhidas em Usuários e usadas na Agenda.
+    // Cores estáveis por profissional (mesmas nos 2 donuts).
+    final sortedProfIds = profEntries.map((e) => e.key).toList()
+      ..sort((a, b) {
+        final na = byProf[a]?.nome ?? nomeProf(a);
+        final nb = byProf[b]?.nome ?? nomeProf(b);
+        return na.toLowerCase().compareTo(nb.toLowerCase());
+      });
+    final series = finSeriesColors(context, sortedProfIds.length);
     final colorByProf = <String, Color>{
-      for (final e in profEntries)
-        e.key: corGraficoComissaoProfissional(findProf(e.key)),
+      for (var i = 0; i < sortedProfIds.length; i++)
+        sortedProfIds[i]: series[i],
     };
 
     // Dois gráficos separados: em aberto × pagas (não misturar no mesmo donut).
@@ -528,8 +510,7 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.aberto > 0)
           FinSlice(
-            id: e.key,
-            label: nomeCurtoProf(e.key),
+            label: shortName(e.value.nome),
             value: e.value.aberto,
             color: colorByProf[e.key] ?? clx.warning,
           ),
@@ -539,8 +520,7 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.pago > 0)
           FinSlice(
-            id: e.key,
-            label: nomeCurtoProf(e.key),
+            label: shortName(e.value.nome),
             value: e.value.pago,
             color: colorByProf[e.key] ?? clx.success,
           ),
@@ -633,6 +613,14 @@ class _Dashboard extends StatelessWidget {
           ),
           const SizedBox(height: ClxSpace.x4),
         ],
+        if (bonusEntries.isNotEmpty) ...[
+          _BonificacaoReport(
+            entries: bonusEntries,
+            nomeProf: nomeProf,
+            onTap: (id) => onOpenSheet(_FiltroSheet.bonificacoes, profId: id),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+        ],
         if (narrow)
           Column(
             children: [
@@ -676,13 +664,13 @@ class _Dashboard extends StatelessWidget {
             totalAberto: totalAberto,
             totalPago: totalPago,
             onTapAberto: (slice) {
-              final id = profissionalIdDaFatia(slice);
+              final id = _profIdByShortName(slice.label, byProf);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.abertas, profId: id);
               }
             },
             onTapPago: (slice) {
-              final id = profissionalIdDaFatia(slice);
+              final id = _profIdByShortName(slice.label, byProf);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.pagas, profId: id);
               }
@@ -718,6 +706,17 @@ class _Dashboard extends StatelessWidget {
     );
   }
 
+  /// Resolve id do profissional a partir do shortName da legenda do donut.
+  String? _profIdByShortName(
+    String label,
+    Map<String, ({double aberto, double pago, String nome})> byProf,
+  ) {
+    for (final e in byProf.entries) {
+      if (shortName(e.value.nome) == label) return e.key;
+    }
+    return null;
+  }
+
   /// Profissionais com comissão ativa OU com lançamentos no extrato.
   List<Widget> _buildProfExtratoList({
     required BuildContext context,
@@ -730,7 +729,7 @@ class _Dashboard extends StatelessWidget {
   }) {
     final ids = <String>{};
     for (final u in profs) {
-      if (u.ativo && u.hasComissaoAtiva) ids.add(u.id);
+      if (u.hasComissaoAtiva) ids.add(u.id);
     }
     for (final c in items) {
       if (c.profissional.isNotEmpty) ids.add(c.profissional);
@@ -768,9 +767,7 @@ class _Dashboard extends StatelessWidget {
         ids.map((id) {
           final u = findUser(id);
           final agg = byProf[id];
-          final nome = u != null
-              ? nomeProfissionalNoHistorico(u)
-              : (agg?.nome ?? nomeProf(id));
+          final nome = u?.displayName ?? agg?.nome ?? nomeProf(id);
           final pago = agg?.pago ?? 0.0;
           // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
           final cicloPend = u != null
@@ -814,10 +811,7 @@ class _Dashboard extends StatelessWidget {
             nome: nome,
             email: u?.email ?? '',
             resumo: u?.comissaoResumo ?? '',
-            comissaoAtiva: u?.hasComissaoAtiva ?? false,
-            identidadeOpacity: u != null
-                ? opacidadeProfissionalNoHistorico(u)
-                : 0.64,
+            ativo: u?.hasComissaoAtiva ?? false,
             aberto: aberto,
             pago: pago,
             nAbertas: nAbertas,
@@ -840,8 +834,7 @@ class _Dashboard extends StatelessWidget {
           nome: r.nome,
           email: r.email,
           resumo: r.resumo,
-          comissaoAtiva: r.comissaoAtiva,
-          identidadeOpacity: r.identidadeOpacity,
+          ativo: r.ativo,
           aberto: r.aberto,
           pago: r.pago,
           nAbertas: r.nAbertas,
@@ -855,6 +848,93 @@ class _Dashboard extends StatelessWidget {
         const SizedBox(height: ClxSpace.x2),
       ],
     ];
+  }
+}
+
+class _BonificacaoReport extends StatelessWidget {
+  const _BonificacaoReport({
+    required this.entries,
+    required this.nomeProf,
+    required this.onTap,
+  });
+
+  final List<MapEntry<String, double>> entries;
+  final String Function(String) nomeProf;
+  final ValueChanged<String> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final total = entries.fold<double>(0, (sum, e) => sum + e.value);
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.stars_rounded, color: clx.warning),
+              const SizedBox(width: ClxSpace.x2),
+              Expanded(
+                child: Text(
+                  'Relatório de bonificações',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.ink,
+                  ),
+                ),
+              ),
+              Text(
+                formatCurrency(total),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: clx.warning,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x1),
+          Text(
+            'Total por profissional · toque no valor para ver as bonificações.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0) Divider(height: ClxSpace.x3, color: clx.line),
+            InkWell(
+              onTap: () => onTap(entries[i].key),
+              borderRadius: ClxRadii.rMd,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: ClxSpace.x2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        nomeProf(entries[i].key),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: clx.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatCurrency(entries[i].value),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: clx.warning,
+                      ),
+                    ),
+                    const SizedBox(width: ClxSpace.x1),
+                    Icon(Icons.chevron_right_rounded, color: clx.ink3),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -1011,8 +1091,7 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.nome,
     required this.email,
     required this.resumo,
-    required this.comissaoAtiva,
-    required this.identidadeOpacity,
+    required this.ativo,
     required this.aberto,
     required this.pago,
     required this.nAbertas,
@@ -1027,8 +1106,7 @@ class _ProfExtratoCard extends StatelessWidget {
   final String nome;
   final String email;
   final String resumo;
-  final bool comissaoAtiva;
-  final double identidadeOpacity;
+  final bool ativo;
   final double aberto;
   final double pago;
   final int nAbertas;
@@ -1066,13 +1144,11 @@ class _ProfExtratoCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: clx.primary.withValues(
-                      alpha: 0.14 * identidadeOpacity,
-                    ),
+                    backgroundColor: clx.primary.withValues(alpha: 0.14),
                     child: Text(
                       inicial,
                       style: TextStyle(
-                        color: clx.primary.withValues(alpha: identidadeOpacity),
+                        color: clx.primary,
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
                       ),
@@ -1093,9 +1169,7 @@ class _ProfExtratoCard extends StatelessWidget {
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       fontWeight: FontWeight.w700,
-                                      color: clx.ink.withValues(
-                                        alpha: identidadeOpacity,
-                                      ),
+                                      color: clx.ink,
                                     ),
                               ),
                             ),
@@ -1103,9 +1177,7 @@ class _ProfExtratoCard extends StatelessWidget {
                               const SizedBox(width: ClxSpace.x2),
                               ClxChip(
                                 label: resumo,
-                                color: identidadeOpacity < 1
-                                    ? clx.ink3
-                                    : (comissaoAtiva ? clx.success : clx.ink3),
+                                color: ativo ? clx.success : clx.ink3,
                               ),
                             ],
                           ],
@@ -1115,12 +1187,9 @@ class _ProfExtratoCard extends StatelessWidget {
                             email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: clx.ink2.withValues(
-                                    alpha: identidadeOpacity,
-                                  ),
-                                ),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(color: clx.ink2),
                           ),
                       ],
                     ),
@@ -1338,7 +1407,10 @@ class _ComissaoRow extends StatelessWidget {
     final dataLabel = item.data != null && item.data!.isNotEmpty
         ? formatDateOnlyBr(item.data!)
         : '—';
-    final titulo = item.descricao.isNotEmpty ? item.descricao : 'Comissão OS';
+    final isBonus = item.tipoAplicado == ProfComissaoTipo.bonificacao;
+    final titulo = item.descricao.isNotEmpty
+        ? item.descricao
+        : (isBonus ? 'Bonificação' : 'Comissão OS');
 
     return ClxCard(
       child: Row(
@@ -1397,16 +1469,10 @@ class _ComissaoRow extends StatelessWidget {
                   ).textTheme.bodySmall?.copyWith(color: clx.ink2),
                 ),
                 Text(
-                  item.tipoAplicado == ProfComissaoTipo.bonificacao
-                      ? (item.os.isEmpty
-                            ? 'Bonificação avulsa'
-                            : 'Bonificação vinculada à OS')
+                  isBonus
+                      ? 'Bonificação manual'
                       : 'OS ${formatCurrency(item.valorOs)} · '
-                            '${item.tipoAplicado == ProfComissaoTipo.percentual
-                                ? formatPercent(item.baseValor)
-                                : item.tipoAplicado == ProfComissaoTipo.diaria
-                                ? 'diária'
-                                : 'fixo'}',
+                            '${item.tipoAplicado == ProfComissaoTipo.percentual ? formatPercent(item.baseValor) : 'fixo'}',
                   style: Theme.of(
                     context,
                   ).textTheme.labelSmall?.copyWith(color: clx.ink3),
@@ -1468,7 +1534,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
 
   String _nome(List<User> profs, String id) {
     for (final u in profs) {
-      if (u.id == id) return nomeProfissionalNoHistorico(u);
+      if (u.id == id) return u.displayName;
     }
     return id;
   }
@@ -1498,6 +1564,10 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
         list.where((c) => c.status == ComissaoStatus.pendente).toList(),
       _FiltroSheet.pagas =>
         list.where((c) => c.status == ComissaoStatus.paga).toList(),
+      _FiltroSheet.bonificacoes =>
+        list
+            .where((c) => c.tipoAplicado == ProfComissaoTipo.bonificacao)
+            .toList(),
       _FiltroSheet.todas => list,
     };
 
@@ -1511,6 +1581,10 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
         : switch (_filtro) {
             _FiltroSheet.abertas => 'Comissões em aberto',
             _FiltroSheet.pagas => 'Comissões pagas',
+            _FiltroSheet.bonificacoes =>
+              prof != null
+                  ? 'Bonificações de ${prof.displayName}'
+                  : 'Todas as bonificações',
             _FiltroSheet.todas => 'Todas as comissões',
           };
 
@@ -1555,7 +1629,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: prof?.ativo == false ? clx.ink3 : clx.ink,
+                              color: clx.ink,
                             ),
                       ),
                       if (subtitulo != null)
@@ -1589,6 +1663,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                       label: Text(switch (f) {
                         _FiltroSheet.abertas => 'Em aberto',
                         _FiltroSheet.pagas => 'Pagas',
+                        _FiltroSheet.bonificacoes => 'Bonificações',
                         _FiltroSheet.todas => 'Todas',
                       }),
                       selected: _filtro == f,
@@ -1629,7 +1704,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                           atual.fimYmd == g.janela.fimYmd;
                       return _SemanaComissaoSection(
                         grupo: g,
-                        profNome: nomeProfissionalNoHistorico(prof),
+                        profNome: prof.displayName,
                         isAtual: isAtual,
                         onToggle: widget.onToggle,
                       );
@@ -1778,50 +1853,43 @@ class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
   }
 }
 
-/* ─────────────────────── bonificação manual ─────────────────────── */
+class _BonificacaoForm extends ConsumerStatefulWidget {
+  const _BonificacaoForm({required this.profissionais, required this.onSaved});
 
-class _BonificacaoSheet extends ConsumerStatefulWidget {
-  const _BonificacaoSheet({required this.onSaved});
-
+  final List<User> profissionais;
   final VoidCallback onSaved;
 
   @override
-  ConsumerState<_BonificacaoSheet> createState() => _BonificacaoSheetState();
+  ConsumerState<_BonificacaoForm> createState() => _BonificacaoFormState();
 }
 
-class _BonificacaoSheetState extends ConsumerState<_BonificacaoSheet> {
-  String _profissionalId = '';
-  String _osId = '';
+class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
+  late User? _profissional;
   final _valor = TextEditingController();
-  final _descricao = TextEditingController();
+  final _motivo = TextEditingController();
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _profissional = widget.profissionais.isEmpty
+        ? null
+        : widget.profissionais.first;
+  }
 
   @override
   void dispose() {
     _valor.dispose();
-    _descricao.dispose();
+    _motivo.dispose();
     super.dispose();
-  }
-
-  String _osLabel(OrdemServico os) {
-    final data = _osYmdBrt(os);
-    final valor = os.valorPago ?? os.valorServico ?? 0;
-    final nome = os.nomeCurto.trim().isEmpty ? 'OS ${os.id}' : os.nomeCurto;
-    final servico = (os.tipoServicoNome ?? '').trim();
-    final base = servico.isEmpty ? nome : '$nome · $servico';
-    return '$base · $data · ${formatCurrency(valor)}';
   }
 
   Future<void> _save() async {
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.')) ?? 0;
-    if (_profissionalId.isEmpty) {
-      showClxToast(context, 'Escolha o profissional.', type: ToastType.warning);
-      return;
-    }
-    if (valor <= 0) {
+    if (_profissional == null || valor <= 0) {
       showClxToast(
         context,
-        'Informe uma bonificação maior que zero.',
+        'Informe profissional e valor maior que zero.',
         type: ToastType.warning,
       );
       return;
@@ -1831,15 +1899,19 @@ class _BonificacaoSheetState extends ConsumerState<_BonificacaoSheet> {
       await ref
           .read(comissaoRepositoryProvider)
           .criarBonificacao(
-            profissionalId: _profissionalId,
+            profissionalId: _profissional!.id,
             valor: valor,
-            osId: _osId.isEmpty ? null : _osId,
-            descricao: _descricao.text,
+            descricao: _motivo.text.trim(),
           );
       widget.onSaved();
-      if (!mounted) return;
-      Navigator.of(context).maybePop();
-      showClxToast(context, 'Bonificação adicionada.', type: ToastType.success);
+      if (mounted) {
+        Navigator.of(context).maybePop();
+        showClxToast(
+          context,
+          'Bonificação adicionada.',
+          type: ToastType.success,
+        );
+      }
     } catch (_) {
       if (mounted) {
         showClxToast(
@@ -1856,157 +1928,81 @@ class _BonificacaoSheetState extends ConsumerState<_BonificacaoSheet> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final profs = ref.watch(_comissoesProfissionaisAtivosProvider);
-    final ordens = ref.watch(_osBonificacaoProvider);
-
     return Container(
+      padding: const EdgeInsets.all(ClxSpace.x5),
       decoration: BoxDecoration(
         color: clx.bg,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: clx.line),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Adicionar bonificação',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: ClxSpace.x2),
+          DropdownButtonFormField<User>(
+            initialValue: _profissional,
+            decoration: const InputDecoration(
+              labelText: 'Profissional',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final u in widget.profissionais)
+                DropdownMenuItem(value: u, child: Text(u.displayName)),
+            ],
+            onChanged: _saving
+                ? null
+                : (u) => setState(() => _profissional = u),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          TextField(
+            controller: _valor,
+            enabled: !_saving,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Valor da bonificação (R\$)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          TextField(
+            controller: _motivo,
+            enabled: !_saving,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Motivo / observação (opcional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x4),
+          FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_rounded),
+            label: const Text('Salvar bonificação'),
           ),
         ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(ClxSpace.x5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Adicionar bonificação',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: clx.ink,
-                            ),
-                      ),
-                      Text(
-                        'Valor manual para qualquer profissional, ligado a uma OS ou avulso.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: clx.ink2),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Fechar',
-                  icon: const Icon(Icons.close_rounded),
-                  color: clx.ink2,
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: ClxSpace.x4),
-            profs.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => ErrorBanner(
-                message: 'Não foi possível carregar profissionais.',
-                onRetry: () =>
-                    ref.invalidate(_comissoesProfissionaisAtivosProvider),
-              ),
-              data: (list) => DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _profissionalId.isEmpty ? null : _profissionalId,
-                decoration: const InputDecoration(
-                  labelText: 'Profissional',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  for (final u in list)
-                    DropdownMenuItem(value: u.id, child: Text(u.displayName)),
-                ],
-                onChanged: _saving
-                    ? null
-                    : (v) => setState(() => _profissionalId = v ?? ''),
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x3),
-            TextField(
-              controller: _valor,
-              enabled: !_saving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-              ],
-              decoration: const InputDecoration(
-                labelText: 'Valor da bonificação (R\$)',
-                hintText: 'ex: 40',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x3),
-            ordens.when(
-              loading: () => const LinearProgressIndicator(minHeight: 2),
-              error: (_, __) => ErrorBanner(
-                message: 'Não foi possível carregar OS para vínculo opcional.',
-                onRetry: () => ref.invalidate(_osBonificacaoProvider),
-              ),
-              data: (list) => DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _osId,
-                decoration: const InputDecoration(
-                  labelText: 'OS vinculada (opcional)',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  const DropdownMenuItem(
-                    value: '',
-                    child: Text('Sem OS · avulsa'),
-                  ),
-                  for (final os in list)
-                    DropdownMenuItem(value: os.id, child: Text(_osLabel(os))),
-                ],
-                onChanged: _saving
-                    ? null
-                    : (v) => setState(() => _osId = v ?? ''),
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x3),
-            TextField(
-              controller: _descricao,
-              enabled: !_saving,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Motivo / observação',
-                hintText: 'ex: apoio em serviço em dupla',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: ClxSpace.x4),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.card_giftcard_rounded),
-              label: const Text('Adicionar bonificação'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2020,7 +2016,7 @@ class _ConfigSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
-    final profsAsync = ref.watch(_comissoesProfissionaisAtivosProvider);
+    final profsAsync = ref.watch(_comissoesProfissionaisProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -2092,7 +2088,7 @@ class _ConfigSheet extends ConsumerWidget {
                 child: ErrorBanner(
                   message: 'Não foi possível carregar profissionais.',
                   onRetry: () =>
-                      ref.invalidate(_comissoesProfissionaisAtivosProvider),
+                      ref.invalidate(_comissoesProfissionaisProvider),
                 ),
               ),
               data: (list) {
@@ -2119,7 +2115,6 @@ class _ConfigSheet extends ConsumerWidget {
                     return _ProfComissaoCard(
                       user: u,
                       onSaved: () {
-                        ref.invalidate(_comissoesProfissionaisAtivosProvider);
                         ref.invalidate(_comissoesProfissionaisProvider);
                         showClxToast(
                           context,

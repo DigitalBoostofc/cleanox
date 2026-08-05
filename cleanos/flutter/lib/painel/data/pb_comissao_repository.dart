@@ -7,8 +7,6 @@ import '../../core/models/collections.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/comissao_repository.dart';
-import '../../core/formatters/formatters.dart';
-import 'painel_filters.dart';
 
 class PbComissaoRepository implements ComissaoRepository {
   PbComissaoRepository(this._pb);
@@ -20,9 +18,7 @@ class PbComissaoRepository implements ComissaoRepository {
     final recs = await _pb
         .collection(Collections.users)
         .getFullList(
-          filter: incluirInativos
-              ? profissionaisTodosFilter()
-              : profissionaisFilter(),
+          filter: _pb.filter('role = {:r}', {'r': Role.profissional.wire}),
           sort: 'nome',
         );
     return recs.map(User.fromRecord).toList();
@@ -69,35 +65,6 @@ class PbComissaoRepository implements ComissaoRepository {
   }
 
   @override
-  Future<ProfComissao> criarBonificacao({
-    required String profissionalId,
-    required double valor,
-    String? osId,
-    String descricao = '',
-  }) async {
-    final cleanOs = (osId ?? '').trim();
-    final cleanDesc = descricao.trim();
-    final body = <String, dynamic>{
-      'profissional': profissionalId,
-      // R2: relation opcional sem OS fica vazia.
-      'os': cleanOs,
-      'valor_os': 0,
-      'valor_comissao': valor,
-      'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
-      'base_valor': valor,
-      'status': ComissaoStatus.pendente.wire,
-      'data': todayLocalDate(),
-      'descricao': cleanDesc.isEmpty
-          ? 'Bonificação'
-          : 'Bonificação · $cleanDesc',
-    };
-    final rec = await _pb
-        .collection(Collections.profComissoes)
-        .create(body: body);
-    return ProfComissao.fromRecord(rec);
-  }
-
-  @override
   Future<ProfComissao> marcarPaga(String id) =>
       setStatus(id, ComissaoStatus.paga);
 
@@ -127,5 +94,34 @@ class PbComissaoRepository implements ComissaoRepository {
       if (id.isEmpty) continue;
       await setStatus(id, ComissaoStatus.paga);
     }
+  }
+
+  @override
+  Future<ProfComissao> criarBonificacao({
+    required String profissionalId,
+    required double valor,
+    String descricao = '',
+    String? osId,
+  }) async {
+    final now = DateTime.now().toUtc().subtract(const Duration(hours: 3));
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    final rec = await _pb
+        .collection(Collections.profComissoes)
+        .create(
+          body: {
+            'profissional': profissionalId,
+            'os': osId ?? '',
+            'valor_os': 0,
+            'valor_comissao': valor,
+            'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
+            'base_valor': valor,
+            'status': ComissaoStatus.pendente.wire,
+            'data': '$y-$m-$d',
+            'descricao': descricao.trim(),
+          },
+        );
+    return ProfComissao.fromRecord(rec);
   }
 }

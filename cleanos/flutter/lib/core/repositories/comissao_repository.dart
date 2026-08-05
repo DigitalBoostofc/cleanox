@@ -7,9 +7,6 @@ import '../models/user.dart';
 
 abstract class ComissaoRepository {
   /// Lista profissionais (users role=profissional) com config de comissão.
-  ///
-  /// Por padrão retorna somente ativos para telas de configuração/seleção.
-  /// Superfícies históricas usam [incluirInativos] para preservar os nomes.
   Future<List<User>> listProfissionais({bool incluirInativos = false});
 
   /// Atualiza comissão + frequência + dia(s) de pagamento no user.
@@ -28,16 +25,6 @@ abstract class ComissaoRepository {
     String sort,
   });
 
-  /// Cria bonificação manual para um profissional.
-  ///
-  /// [osId] é opcional: vazio/null = bonificação avulsa, sem OS vinculada.
-  Future<ProfComissao> criarBonificacao({
-    required String profissionalId,
-    required double valor,
-    String? osId,
-    String descricao = '',
-  });
-
   /// Marca comissão como paga (admin/gerente).
   Future<ProfComissao> marcarPaga(String id);
 
@@ -47,4 +34,12 @@ abstract class ComissaoRepository {
   /// Marca várias comissões como pagas (fecha ciclo em lote).
   /// Cada uma dispara o hook de despesa (via_comissao).
   Future<void> marcarLotePagas(List<String> ids);
+
+  /// Cria uma bonificação manual, independente da configuração automática.
+  Future<ProfComissao> criarBonificacao({
+    required String profissionalId,
+    required double valor,
+    String descricao,
+    String? osId,
+  });
 }

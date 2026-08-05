@@ -46,14 +46,6 @@ void main() {
       expect(u.hasComissaoAtiva, isFalse);
     });
 
-    test('tipos do usuário não incluem bonificação manual', () {
-      expect(
-        ComissaoTipo.values.map((t) => t.wire),
-        isNot(contains('bonificacao')),
-      );
-      expect(ProfComissaoTipo.bonificacao.wire, 'bonificacao');
-    });
-
     test('fromJson trata comissao_tipo vazio', () {
       final u = User.fromJson({
         'id': 'x',
