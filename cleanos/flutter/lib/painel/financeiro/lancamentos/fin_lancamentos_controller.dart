@@ -183,6 +183,7 @@ class FinLancController extends StateNotifier<FinLancState> {
         nomePorProfId: nomePorProf,
         previstoOsByProf: const {},
         contaId: contaPadrao,
+        lancamentosExistentes: base,
       );
       if (previstos.isEmpty) return base;
 

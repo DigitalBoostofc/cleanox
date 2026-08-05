@@ -272,6 +272,7 @@ final finPendentesProvider = FutureProvider.autoDispose<List<FinLancamento>>((
       profissionais: profs,
       nomePorProfId: nomePorProf,
       contaId: contaPadrao,
+      lancamentosExistentes: out,
     );
     if (previstos.isNotEmpty) {
       final ids = {for (final l in out) l.id};

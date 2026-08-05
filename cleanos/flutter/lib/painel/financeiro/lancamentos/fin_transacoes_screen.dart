@@ -380,6 +380,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
       profissionais: profs,
       nomePorProfId: nomePorProf,
       contaId: contaPadrao,
+      lancamentosExistentes: periodLancs,
     );
     final baseBalanco = [
       ...periodLancs,

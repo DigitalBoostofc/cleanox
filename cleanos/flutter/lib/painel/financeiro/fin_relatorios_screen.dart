@@ -959,6 +959,7 @@ class _Body extends StatelessWidget {
           profissionais: profs,
           nomePorProfId: nomePorProf,
           contaId: contaPadrao,
+          lancamentosExistentes: todos,
         );
 
         final idsTodos = {for (final l in todos) l.id};

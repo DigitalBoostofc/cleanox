@@ -722,7 +722,109 @@ void main() {
       expect(byId['jp']!.data, '2026-07-31');
       expect(byId['hp']!.data, '2026-07-31');
       final total = lancs.fold<int>(0, (s, x) => s + (x.valor * 100).round());
-      expect(total / 100.0, 750);
+      expect(total, 75000);
+    });
+
+    test('abate despesa de ciclo aberta (não duplica 174+174)', () {
+      final now = DateTime.utc(2026, 8, 5, 15);
+      final hp = User(
+        id: 'hp',
+        name: 'Hendrio Piter',
+        role: Role.profissional,
+        pagamentoFrequencia: PagamentoFrequencia.semanal,
+        pagamentoDia: 6, // sábado
+      );
+      final cicloAberto = FinLancamento(
+        id: 'ciclo1',
+        tipo: TipoLancamento.despesa,
+        descricao: 'Comissão · Hendrio Piter · 02/08 a 08/08/2026 (4 OS)',
+        valor: 174,
+        data: '2026-08-08',
+        status: LancamentoStatus.pendente,
+        observacao: 'repasse_ciclo:2026-08-02:2026-08-08',
+      );
+      final lancs = finComissoesPendentesComoLancamentos(
+        comissoes: const [
+          ProfComissao(
+            id: 'c1',
+            profissional: 'hp',
+            os: 'os1',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-03',
+          ),
+          ProfComissao(
+            id: 'c2',
+            profissional: 'hp',
+            os: 'os2',
+            valorComissao: 45,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-03',
+          ),
+          ProfComissao(
+            id: 'c3',
+            profissional: 'hp',
+            os: 'os3',
+            valorComissao: 9,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-03',
+          ),
+          ProfComissao(
+            id: 'c4',
+            profissional: 'hp',
+            os: 'os4',
+            valorComissao: 60,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-04',
+          ),
+        ],
+        categorias: cats,
+        profissionais: [hp],
+        nomePorProfId: const {'hp': 'Hendrio Piter'},
+        lancamentosExistentes: [cicloAberto],
+        now: now,
+      );
+      // 174 já materializado no ciclo → sintético some
+      expect(lancs, isEmpty);
+      expect(finIsRepasseCicloAberto(cicloAberto), isTrue);
+    });
+
+    test('ciclo cobre só parte: sintético fica com residual', () {
+      final now = DateTime.utc(2026, 8, 5, 15);
+      final hp = User(
+        id: 'hp',
+        name: 'Hendrio Piter',
+        role: Role.profissional,
+      );
+      final cicloAberto = FinLancamento(
+        id: 'ciclo1',
+        tipo: TipoLancamento.despesa,
+        descricao: 'Comissão · Hendrio Piter · 02/08 a 08/08/2026 (4 OS)',
+        valor: 100,
+        data: '2026-08-08',
+        status: LancamentoStatus.pendente,
+        observacao: 'repasse_ciclo:2026-08-02:2026-08-08',
+      );
+      final lancs = finComissoesPendentesComoLancamentos(
+        comissoes: const [
+          ProfComissao(
+            id: 'c1',
+            profissional: 'hp',
+            os: 'os1',
+            valorComissao: 174,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-03',
+          ),
+        ],
+        categorias: cats,
+        profissionais: [hp],
+        nomePorProfId: const {'hp': 'Hendrio Piter'},
+        lancamentosExistentes: [cicloAberto],
+        now: now,
+      );
+      expect(lancs, hasLength(1));
+      expect(lancs.single.valor, 74);
+      expect(lancs.single.descricao, 'Comissão · Hendrio Piter');
     });
   });
 
