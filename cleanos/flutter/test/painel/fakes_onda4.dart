@@ -291,6 +291,11 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
 
   @override
   Future<FinSerie> createSerie(Map<String, dynamic> data) async {
+    final recWire = (data['recorrencia'] as String?) ?? RecorrenciaTipo.fixa.wire;
+    final rec = RecorrenciaTipo.values.firstWhere(
+      (e) => e.wire == recWire,
+      orElse: () => RecorrenciaTipo.fixa,
+    );
     final s = FinSerie(
       id: 'serie_${series.length + 1}',
       tipo: TipoLancamento.values.byName(
@@ -301,6 +306,8 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
       valor: (data['valor'] as num?)?.toDouble() ?? 0,
       contaId: (data['conta_id'] as String?) ?? '',
       dataInicio: (data['data_inicio'] as String?) ?? '',
+      recorrencia: rec,
+      parcelasTotal: (data['parcelas_total'] as num?)?.toInt(),
     );
     series = [...series, s];
     return s;

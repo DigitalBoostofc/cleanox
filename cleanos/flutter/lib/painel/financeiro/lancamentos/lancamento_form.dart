@@ -248,8 +248,39 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
       if (_isEdit) {
         await repo.updateLancamento(widget.editing!.id, baseBody);
       } else if (rec == RecorrenciaTipo.parcelada) {
-        // Cria TODAS as parcelas: divide o valor e avança a data (= vencimento).
+        // Cria REGRA parcelada + TODAS as parcelas (valor do form = TOTAL ÷ N).
+        String? serieId;
         final valores = _dividirParcelas(valor!, _parcelasN);
+        final valorParcela = valores.isNotEmpty ? valores.first : valor;
+        try {
+          final lastDate = _formatYmd(
+            _addPeriodo(
+              _parseYmd(dataYmd) ?? DateTime.now(),
+              _parcelasN - 1,
+              _parcelaUnidade,
+            ),
+          );
+          final serie = await repo.createSerie({
+            'tipo': _tipo.wire,
+            'descricao': _descricao.text.trim(),
+            'categoria_id': _categoriaId,
+            'subcategoria_id': (_subcategoriaId ?? '').trim(),
+            'valor': valorParcela,
+            'conta_id': _contaId,
+            'recorrencia': RecorrenciaTipo.parcelada.wire,
+            'frequencia': _frequenciaFromPeriodo(_parcelaUnidade).wire,
+            'status': FinSerieStatus.ativa.wire,
+            'data_inicio': dataYmd,
+            'data_fim': lastDate,
+            'parcelas_total': _parcelasN,
+            'forma_pagamento': _formaPagamento.text.trim(),
+            'observacao': _observacao.text.trim(),
+            'tags': tags,
+          });
+          serieId = serie.id;
+        } catch (e) {
+          debugPrint('[lancamento_form] createSerie parcelada: $e');
+        }
         final baseDate = _parseYmd(dataYmd) ?? DateTime.now();
         for (var i = 0; i < _parcelasN; i++) {
           final dataI = _formatYmd(
@@ -262,6 +293,7 @@ class _LancamentoFormState extends ConsumerState<LancamentoForm> {
             'vencimento': dataI,
             'parcela_atual': i + 1,
             'parcelas_total': _parcelasN,
+            if (serieId != null) 'serie_id': serieId,
             // 1ª parcela herda o status escolhido; demais ficam previstas.
             'status': i == 0
                 ? _status.wire

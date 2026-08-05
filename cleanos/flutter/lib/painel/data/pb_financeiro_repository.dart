@@ -351,7 +351,8 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   }) async {
     final filter =
         '(recorrencia = ${pbStringLiteral(RecorrenciaTipo.fixa.wire)} '
-        '|| recorrencia = ${pbStringLiteral(RecorrenciaTipo.recorrente.wire)}) '
+        '|| recorrencia = ${pbStringLiteral(RecorrenciaTipo.recorrente.wire)} '
+        '|| recorrencia = ${pbStringLiteral(RecorrenciaTipo.parcelada.wire)}) '
         '&& data < ${pbStringLiteral(antesDe)}';
     return _listLancamentosAll(filter: filter, sort: 'data');
   }
@@ -481,6 +482,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
           data: s.dataInicio,
           recorrencia: s.recorrencia,
           frequencia: s.frequencia,
+          parcelasTotal: s.parcelasTotal,
         ),
       );
 
@@ -489,6 +491,7 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     Periodo periodo,
   ) async {
     if (!serie.isAtiva) return 0;
+    if (serie.isParcelada) return 0;
     final baseDate = parseYmdLocal(serie.dataInicio);
     if (baseDate == null) return 0;
     final fimSerie = (serie.dataFim != null && serie.dataFim!.isNotEmpty)
@@ -603,6 +606,8 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
   @override
   Future<int> materializarSerieAFrente(FinSerie serie) async {
     if (!serie.isAtiva) return 0;
+    // Parcelada: todas as N parcelas já nascem na criação — não regenera.
+    if (serie.isParcelada) return 0;
     // Remove previstos fora da grade (ex.: backfill juntou dias errados).
     await _pruneOffScheduleSerie(serie);
     final baseDate = parseYmdLocal(serie.dataInicio);
@@ -765,10 +770,13 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
       'frequencia': serie.frequenciaEfetiva.wire,
       'recorrencia': serie.recorrencia == RecorrenciaTipo.recorrente
           ? RecorrenciaTipo.recorrente.wire
-          : RecorrenciaTipo.fixa.wire,
+          : serie.recorrencia == RecorrenciaTipo.parcelada
+              ? RecorrenciaTipo.parcelada.wire
+              : RecorrenciaTipo.fixa.wire,
       'forma_pagamento': serie.formaPagamento ?? '',
       'observacao': serie.observacao ?? '',
       'tags': serie.tags,
+      if (serie.isParcelada) 'parcelas_total': serie.parcelasTotal ?? 0,
     };
     for (final l in members) {
       if (l.status == LancamentoStatus.pago) continue;

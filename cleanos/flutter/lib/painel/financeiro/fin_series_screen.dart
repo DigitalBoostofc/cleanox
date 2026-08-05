@@ -94,8 +94,9 @@ class FinSeriesScreen extends ConsumerWidget {
               ),
               const SizedBox(height: ClxSpace.x2),
               Text(
-                'Despesas e receitas que se repetem (aluguel, internet, software…). '
-                'Aqui você vê o que está ativo e pode pausar ou encerrar.',
+                'Despesas e receitas que se repetem (aluguel, internet, software…) '
+                'e compras parceladas. Aqui você vê o que está ativo e pode pausar '
+                'ou encerrar.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: clx.ink3,
                       height: 1.35,
@@ -107,7 +108,7 @@ class FinSeriesScreen extends ConsumerWidget {
                   icon: Icons.autorenew_rounded,
                   message: 'Nenhuma cobrança fixa cadastrada.',
                   hint:
-                      'Ao criar um lançamento no extrato, marque “é uma despesa fixa” '
+                      'Ao criar no extrato, marque “é uma despesa fixa” ou “parcelado” '
                       'para ela aparecer aqui.',
                 )
               else ...[
@@ -293,15 +294,28 @@ class _SerieCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                s.frequenciaEfetiva.labelSingular,
+                s.isParcelada
+                    ? (s.parcelasTotal != null && s.parcelasTotal! > 0
+                        ? 'Parcelada ${s.parcelasTotal}×'
+                        : 'Parcelada')
+                    : s.frequenciaEfetiva.labelSingular,
                 style: tt.labelMedium?.copyWith(color: clx.ink3),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            s.descricao.isEmpty ? '(sem descrição)' : s.descricao,
-            style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.autorenew_rounded, size: 18, color: clx.ink3),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  s.descricao.isEmpty ? '(sem descrição)' : s.descricao,
+                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(

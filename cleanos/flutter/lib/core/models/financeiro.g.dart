@@ -261,6 +261,7 @@ _$FinSerieImpl _$$FinSerieImplFromJson(Map<String, dynamic> json) =>
           FinSerieStatus.ativa,
       dataInicio: json['data_inicio'] as String? ?? '',
       dataFim: json['data_fim'] as String?,
+      parcelasTotal: (json['parcelas_total'] as num?)?.toInt(),
       formaPagamento: json['forma_pagamento'] as String?,
       observacao: json['observacao'] as String?,
       tags:
@@ -284,6 +285,7 @@ Map<String, dynamic> _$$FinSerieImplToJson(_$FinSerieImpl instance) =>
       'status': _$FinSerieStatusEnumMap[instance.status]!,
       'data_inicio': instance.dataInicio,
       'data_fim': instance.dataFim,
+      'parcelas_total': instance.parcelasTotal,
       'forma_pagamento': instance.formaPagamento,
       'observacao': instance.observacao,
       'tags': instance.tags,

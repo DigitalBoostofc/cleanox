@@ -11,15 +11,24 @@ library;
 import '../../core/models/financeiro.dart';
 import 'fin_derivations.dart';
 
-/// Fixa e recorrente geram série; parcelada já materializa na criação.
+/// Fixa e recorrente geram série contínua; parcelada materializa N parcelas na criação.
 bool isRecorrenciaAtiva(RecorrenciaTipo r) =>
     r == RecorrenciaTipo.fixa || r == RecorrenciaTipo.recorrente;
 
-/// Chave de série: mesma despesa/receita + frequência.
-String serieRecorrenciaKey(FinLancamento l) =>
-    '${l.tipo.wire}|${l.descricao.trim()}|'
-    '${l.valor}|${l.contaId}|${l.categoriaId}|${l.subcategoriaId ?? ''}|'
-    '${l.frequenciaEfetiva.wire}';
+/// Parcelada também tem “regra” em fin_series (lista Cobranças fixas).
+bool isSerieOuParcelada(RecorrenciaTipo r) =>
+    isRecorrenciaAtiva(r) || r == RecorrenciaTipo.parcelada;
+
+/// Chave de série: mesma despesa/receita + frequência (ou N parcelas).
+String serieRecorrenciaKey(FinLancamento l) {
+  final base =
+      '${l.tipo.wire}|${l.descricao.trim()}|'
+      '${l.valor}|${l.contaId}|${l.categoriaId}|${l.subcategoriaId ?? ''}|';
+  if (l.recorrencia == RecorrenciaTipo.parcelada) {
+    return '${base}parcelada|${l.parcelasTotal ?? 0}';
+  }
+  return '$base${l.frequenciaEfetiva.wire}';
+}
 
 DateTime? parseYmdLocal(String s) {
   if (s.length < 10) return null;
@@ -298,6 +307,11 @@ Map<String, dynamic> bodyOcorrenciaDaSerie(
   String? vencimentoYmd,
 }) {
   final venc = (vencimentoYmd ?? dataYmd).trim();
+  final recWire = switch (serie.recorrencia) {
+    RecorrenciaTipo.recorrente => RecorrenciaTipo.recorrente.wire,
+    RecorrenciaTipo.parcelada => RecorrenciaTipo.parcelada.wire,
+    _ => RecorrenciaTipo.fixa.wire,
+  };
   return <String, dynamic>{
     'tipo': serie.tipo.wire,
     'descricao': serie.descricao,
@@ -308,9 +322,7 @@ Map<String, dynamic> bodyOcorrenciaDaSerie(
     'data': dataYmd,
     'vencimento': venc.isEmpty ? dataYmd : venc,
     'status': LancamentoStatus.previsto.wire,
-    'recorrencia': serie.recorrencia == RecorrenciaTipo.recorrente
-        ? RecorrenciaTipo.recorrente.wire
-        : RecorrenciaTipo.fixa.wire,
+    'recorrencia': recWire,
     'frequencia': serie.frequenciaEfetiva.wire,
     'serie_id': serie.id,
     'origem': OrigemLancamento.manual.wire,
@@ -318,14 +330,19 @@ Map<String, dynamic> bodyOcorrenciaDaSerie(
     'observacao': serie.observacao ?? '',
     'tags': serie.tags,
     'anexos': const <Map<String, dynamic>>[],
+    if (serie.isParcelada && (serie.parcelasTotal ?? 0) > 0)
+      'parcelas_total': serie.parcelasTotal,
   };
 }
 
 /// Body para criar `fin_series` a partir do 1º lançamento da regra.
 Map<String, dynamic> bodySerieFromLancamento(FinLancamento l) {
-  final rec = l.recorrencia == RecorrenciaTipo.recorrente
-      ? RecorrenciaTipo.recorrente
-      : RecorrenciaTipo.fixa;
+  final isParc = l.recorrencia == RecorrenciaTipo.parcelada;
+  final rec = isParc
+      ? RecorrenciaTipo.parcelada
+      : (l.recorrencia == RecorrenciaTipo.recorrente
+          ? RecorrenciaTipo.recorrente
+          : RecorrenciaTipo.fixa);
   return <String, dynamic>{
     'tipo': l.tipo.wire,
     'descricao': l.descricao.trim(),
@@ -341,6 +358,7 @@ Map<String, dynamic> bodySerieFromLancamento(FinLancamento l) {
     'forma_pagamento': l.formaPagamento ?? '',
     'observacao': l.observacao ?? '',
     'tags': l.tags,
+    if (isParc) 'parcelas_total': l.parcelasTotal ?? 0,
   };
 }
 
