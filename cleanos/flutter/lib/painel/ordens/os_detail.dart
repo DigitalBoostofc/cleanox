@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pocketbase/pocketbase.dart' show ClientException;
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
@@ -64,6 +65,30 @@ class OSDetailResult {
   final OrdemServico? os;
 }
 
+/// Payload de reatribuição no detalhe da OS (solo | dupla).
+///
+/// Pure — unit-tested. `null` em relações = limpar no PB (hook normaliza solo).
+@visibleForTesting
+Map<String, dynamic> bodyReatribuicaoOs({
+  required String profissionalId,
+  required String profissional2Id,
+  required ExecucaoModo modo,
+}) {
+  final isDupla = modo == ExecucaoModo.dupla &&
+      profissionalId.isNotEmpty &&
+      profissional2Id.isNotEmpty &&
+      profissional2Id != profissionalId;
+  return {
+    'profissional': profissionalId.isEmpty ? null : profissionalId,
+    'profissional2': isDupla ? profissional2Id : null,
+    'execucao_modo':
+        isDupla ? ExecucaoModo.dupla.wire : ExecucaoModo.solo.wire,
+    'status': profissionalId.isEmpty
+        ? OSStatus.agendada.wire
+        : OSStatus.atribuida.wire,
+  };
+}
+
 Future<OSDetailResult?> showOSDetail(BuildContext context, OrdemServico os) {
   final size = MediaQuery.sizeOf(context);
   // Desktop/tablet: modal largo estilo Trello (detalhes | comentários).
@@ -108,6 +133,8 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   bool _changed = false;
 
   String _selectedProf = '';
+  String _selectedProf2 = '';
+  ExecucaoModo _execucaoModo = ExecucaoModo.solo;
   bool _reatribuindo = false;
   String? _reatribuirError;
 
@@ -116,6 +143,18 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     super.initState();
     _os = widget.os;
     _selectedProf = _os.profissional ?? '';
+    _selectedProf2 = _os.profissional2 ?? '';
+    _execucaoModo = _os.isDupla || _selectedProf2.isNotEmpty
+        ? ExecucaoModo.dupla
+        : ExecucaoModo.solo;
+  }
+
+  void _syncSelecaoFromOs(OrdemServico os) {
+    _selectedProf = os.profissional ?? '';
+    _selectedProf2 = os.profissional2 ?? '';
+    _execucaoModo = os.isDupla || _selectedProf2.isNotEmpty
+        ? ExecucaoModo.dupla
+        : ExecucaoModo.solo;
   }
 
   /// OS ainda em curso (não finalizada). Reatribuição e cancelamento só nestas.
@@ -138,34 +177,60 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     // servidor apaga endereço liberado + GPS ao ver o status sair de
     // `em_andamento` (são efêmeros por design). Consequência legítima, mas o
     // admin tem que saber antes de confirmar (F-228).
+    final removendo = _selectedProf.isEmpty &&
+        (_execucaoModo != ExecucaoModo.dupla || _selectedProf2.isEmpty);
     if (_os.status == OSStatus.emAndamento) {
       final ok = await confirmarRebaixarEmAndamento(
         context,
-        removendo: _selectedProf.isEmpty,
+        removendo: removendo,
       );
       if (ok != true) return;
       if (!mounted) return;
     }
+
+    // Valida dupla antes do request.
+    if (_execucaoModo == ExecucaoModo.dupla) {
+      if (_selectedProf.isEmpty) {
+        setState(() => _reatribuirError = 'Escolha o profissional principal.');
+        return;
+      }
+      if (_selectedProf2.isEmpty) {
+        setState(() => _reatribuirError = 'Escolha o 2º profissional da dupla.');
+        return;
+      }
+      if (_selectedProf2 == _selectedProf) {
+        setState(
+          () => _reatribuirError =
+              'A dupla precisa de dois profissionais diferentes.',
+        );
+        return;
+      }
+    }
+
     setState(() {
       _reatribuindo = true;
       _reatribuirError = null;
     });
     final OrdemServico novo;
     try {
-      // `cliente` no expand junto do `profissional`: o registro que volta daqui
-      // substitui `_os`, e sem o cofre expandido o título do detalhe cairia de
-      // "Carlos Silva" pra "Carlos S." logo depois de reatribuir.
-      novo = await ref.read(ordensRepositoryProvider).update(_os.id, {
-        'profissional': _selectedProf.isEmpty ? null : _selectedProf,
-        'status': _selectedProf.isEmpty
-            ? OSStatus.agendada.wire
-            : OSStatus.atribuida.wire,
-      }, expand: 'profissional,profissional2,cliente');
-    } catch (_) {
+      // expand: cofre cliente + os dois profissionais (título / nomes).
+      novo = await ref.read(ordensRepositoryProvider).update(
+            _os.id,
+            bodyReatribuicaoOs(
+              profissionalId: _selectedProf,
+              profissional2Id: _selectedProf2,
+              modo: _execucaoModo,
+            ),
+            expand: 'profissional,profissional2,cliente',
+          );
+    } catch (e) {
       if (mounted) {
         setState(() {
           _reatribuindo = false;
-          _reatribuirError = 'Não foi possível reatribuir. Tente novamente.';
+          _reatribuirError = e is ClientException
+              ? _msgClientException(e) ??
+                  'Não foi possível reatribuir. Tente novamente.'
+              : 'Não foi possível reatribuir. Tente novamente.';
         });
       }
       return;
@@ -173,23 +238,20 @@ class _OSDetailState extends ConsumerState<OSDetail> {
     if (!mounted) return;
     setState(() {
       _os = novo;
-      _selectedProf = novo.profissional ?? '';
+      _syncSelecaoFromOs(novo);
       _reatribuindo = false;
       _changed = true;
     });
     // Atualiza lista/contadores AQUI, no sucesso da ação — o refresh não pode
     // depender só do resultado do dialog (fechar pelo barrier devolve null).
     ref.invalidate(ordensCountsProvider);
-    showClxToast(
-      context,
-      novo.profissional == null
-          ? 'Profissional removido — OS voltou para Em agendamento.'
-          : 'Profissional atribuído.',
-      type: ToastType.success,
-    );
+    final toast = novo.profissional == null
+        ? 'Profissional removido — OS voltou para Em agendamento.'
+        : (novo.isDupla
+            ? 'Dupla atribuída.'
+            : 'Profissional atribuído.');
+    showClxToast(context, toast, type: ToastType.success);
     // Agenda: recarrega a grade no lugar (mesmo dia/semana/mês aberto).
-    // Antes só o OrdensController era refreshed e `_changed` era zerado —
-    // o card na agenda ficava no profissional antigo até sair da tela.
     await _refreshAgendaAposMutacao();
 
     final notifier = ref.read(ordensControllerProvider.notifier);
@@ -205,6 +267,25 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       // Mantém `_changed = true` para se o usuário fechar o modal a Agenda
       // (e outros callers) ainda revalidem — barato e evita stale.
     }
+  }
+
+  String? _msgClientException(ClientException e) {
+    final data = e.response;
+    final details = data['data'];
+    if (details is Map && details.isNotEmpty) {
+      final parts = <String>[];
+      details.forEach((_, v) {
+        if (v is Map && v['message'] != null) parts.add('${v['message']}');
+      });
+      if (parts.isNotEmpty) return parts.join(' · ');
+    }
+    final msg = (data['message'] as String?)?.trim();
+    if (msg != null &&
+        msg.isNotEmpty &&
+        msg != 'Failed to update record.') {
+      return msg;
+    }
+    return null;
   }
 
   /// Recarrega a agenda se o provider estiver ativo (usuário na tela Agenda).
@@ -590,40 +671,136 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       ),
       if (_aberta) ...[
         const SizedBox(height: ClxSpace.x2),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: _selectedProf.isEmpty ? '' : _selectedProf,
-                isExpanded: true,
-                decoration: const InputDecoration(isDense: true),
-                items: [
-                  const DropdownMenuItem(
-                    value: '',
-                    child: Text('— Remover atribuição —'),
-                  ),
-                  for (final p in profs)
-                    DropdownMenuItem(
-                      value: p.id,
-                      child: Text(
-                        p.displayName,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: _reatribuindo
-                    ? null
-                    : (v) => setState(() => _selectedProf = v ?? ''),
+        Text(
+          'Forma de prestação',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: clx.ink3,
+                fontWeight: FontWeight.w600,
               ),
-            ),
-            const SizedBox(width: ClxSpace.x2),
-            ClxButton(
-              label: 'Atribuir',
-              icon: Icons.check_rounded,
-              loading: _reatribuindo,
-              onPressed: _reatribuindo ? null : _reatribuir,
-            ),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<ExecucaoModo>(
+          key: ValueKey('detail-execucao-$_execucaoModo'),
+          initialValue: _execucaoModo,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: [
+            for (final m in ExecucaoModo.all)
+              DropdownMenuItem(value: m, child: Text(m.label)),
           ],
+          onChanged: _reatribuindo
+              ? null
+              : (v) {
+                  if (v == null) return;
+                  setState(() {
+                    _execucaoModo = v;
+                    if (v == ExecucaoModo.solo) {
+                      _selectedProf2 = '';
+                    }
+                    _reatribuirError = null;
+                  });
+                },
+        ),
+        if (_execucaoModo == ExecucaoModo.dupla)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Em dupla, a comissão de cada um é a metade '
+              '(ex.: 30% → 15% para cada).',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: clx.ink3,
+                  ),
+            ),
+          ),
+        const SizedBox(height: ClxSpace.x2),
+        Text(
+          _execucaoModo == ExecucaoModo.dupla
+              ? 'Profissional principal'
+              : 'Profissional',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: clx.ink3,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          key: ValueKey('detail-prof1-$_selectedProf'),
+          initialValue: _selectedProf.isEmpty ? '' : _selectedProf,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: [
+            const DropdownMenuItem(
+              value: '',
+              child: Text('— Remover atribuição —'),
+            ),
+            for (final p in profs)
+              DropdownMenuItem(
+                value: p.id,
+                child: Text(
+                  p.displayName,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: _reatribuindo
+              ? null
+              : (v) => setState(() {
+                    _selectedProf = v ?? '';
+                    if (_selectedProf2.isNotEmpty &&
+                        _selectedProf2 == _selectedProf) {
+                      _selectedProf2 = '';
+                    }
+                    _reatribuirError = null;
+                  }),
+        ),
+        if (_execucaoModo == ExecucaoModo.dupla) ...[
+          const SizedBox(height: ClxSpace.x2),
+          Text(
+            '2º profissional',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: clx.ink3,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            key: ValueKey('detail-prof2-$_selectedProf2'),
+            initialValue: _selectedProf2.isEmpty ? null : _selectedProf2,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            hint: const Text('— Escolher parceiro —'),
+            items: [
+              const DropdownMenuItem(
+                value: '',
+                child: Text('— Escolher parceiro —'),
+              ),
+              for (final p in profs)
+                if (p.id != _selectedProf)
+                  DropdownMenuItem(
+                    value: p.id,
+                    child: Text(
+                      p.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+            ],
+            onChanged: _reatribuindo
+                ? null
+                : (v) => setState(() {
+                      _selectedProf2 = v ?? '';
+                      _reatribuirError = null;
+                    }),
+          ),
+        ],
+        const SizedBox(height: ClxSpace.x2),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ClxButton(
+            label: 'Atribuir',
+            icon: Icons.check_rounded,
+            loading: _reatribuindo,
+            onPressed: _reatribuindo ? null : _reatribuir,
+          ),
         ),
         if (_reatribuirError != null) ...[
           const SizedBox(height: ClxSpace.x2),
