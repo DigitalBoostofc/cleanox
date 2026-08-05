@@ -207,7 +207,9 @@ final finComissoesProvider =
 
 /// Profissionais (nomes) para descrever comissões sintéticas no relatório.
 final finProfissionaisProvider = FutureProvider.autoDispose<List<User>>((ref) {
-  return ref.watch(comissaoRepositoryProvider).listProfissionais();
+  return ref
+      .watch(comissaoRepositoryProvider)
+      .listProfissionais(incluirInativos: true);
 });
 
 /// Total de comissões PENDENTES (equipe) — obrigação global, não só do mês.

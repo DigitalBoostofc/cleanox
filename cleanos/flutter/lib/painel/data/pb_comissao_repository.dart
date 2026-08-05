@@ -7,6 +7,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/comissao_repository.dart';
+import 'painel_filters.dart';
 
 class PbComissaoRepository implements ComissaoRepository {
   PbComissaoRepository(this._pb);
@@ -14,14 +15,13 @@ class PbComissaoRepository implements ComissaoRepository {
   final PocketBase _pb;
 
   @override
-  Future<List<User>> listProfissionais() async {
+  Future<List<User>> listProfissionais({bool incluirInativos = false}) async {
     final recs = await _pb
         .collection(Collections.users)
         .getFullList(
-          filter: _pb.filter(
-            'role = {:r} && ativo = true',
-            {'r': Role.profissional.wire},
-          ),
+          filter: incluirInativos
+              ? profissionaisTodosFilter()
+              : profissionaisFilter(),
           sort: 'nome',
         );
     return recs.map(User.fromRecord).toList();
