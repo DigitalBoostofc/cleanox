@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -36,9 +37,8 @@ String formatPercent(double v) {
 }
 
 /// Identidade usada em superfícies históricas: inativar nunca apaga o nome.
-String nomeProfissionalNoHistorico(User user) => user.ativo
-    ? user.displayName
-    : '${user.displayName} (inativo)';
+String nomeProfissionalNoHistorico(User user) =>
+    user.ativo ? user.displayName : '${user.displayName} (inativo)';
 
 String nomeCurtoProfissionalNoHistorico(User user) {
   final partes = user.displayName.trim().split(RegExp(r'\s+'));
@@ -50,6 +50,9 @@ String nomeCurtoProfissionalNoHistorico(User user) {
 
 /// O clique no gráfico usa identidade estável, nunca o rótulo abreviado.
 String? profissionalIdDaFatia(FinSlice slice) => slice.id;
+
+/// Gráficos de comissão seguem a mesma cor configurada em Usuários/Agenda.
+Color corGraficoComissaoProfissional(User? user) => corAgendaProfissional(user);
 
 /// Só a identidade fica mais discreta; valores históricos mantêm contraste.
 double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.64;
@@ -73,24 +76,40 @@ final _comissoesExtratoProvider =
     });
 
 /// OS atribuídas / em andamento — base do card **Previsto** até o próximo pagamento.
-final _osAtribuidasProvider =
-    FutureProvider.autoDispose<List<OrdemServico>>((ref) async {
-      final repo = ref.watch(ordensRepositoryProvider);
-      final out = <OrdemServico>[];
-      var page = 1;
-      while (true) {
-        final res = await repo.list(
-          page: page,
-          perPage: 200,
-          filter: "status = 'atribuida' || status = 'em_andamento'",
-          sort: 'data_hora',
-        );
-        out.addAll(res.items);
-        if (page >= res.totalPages || res.items.isEmpty) break;
-        page++;
-      }
-      return out;
-    });
+final _osAtribuidasProvider = FutureProvider.autoDispose<List<OrdemServico>>((
+  ref,
+) async {
+  final repo = ref.watch(ordensRepositoryProvider);
+  final out = <OrdemServico>[];
+  var page = 1;
+  while (true) {
+    final res = await repo.list(
+      page: page,
+      perPage: 200,
+      filter: "status = 'atribuida' || status = 'em_andamento'",
+      sort: 'data_hora',
+    );
+    out.addAll(res.items);
+    if (page >= res.totalPages || res.items.isEmpty) break;
+    page++;
+  }
+  return out;
+});
+
+/// OS concluídas recentes para vincular bonificação manual opcionalmente.
+final _osBonificacaoProvider = FutureProvider.autoDispose<List<OrdemServico>>((
+  ref,
+) async {
+  final repo = ref.watch(ordensRepositoryProvider);
+  final res = await repo.list(
+    page: 1,
+    perPage: 100,
+    filter: "status = 'concluida'",
+    sort: '-data_hora',
+    expand: 'profissional,profissional2,cliente',
+  );
+  return res.items;
+});
 
 /// Filtro do sheet flutuante (null = todos).
 enum _FiltroSheet { abertas, pagas, todas }
@@ -118,10 +137,7 @@ bool _ymdNoPeriodo(String ymd, Periodo p) {
   return ymd.compareTo(p.start) >= 0 && ymd.compareTo(p.end) < 0;
 }
 
-List<ProfComissao> _comissoesDoPeriodo(
-  List<ProfComissao> items,
-  Periodo p,
-) =>
+List<ProfComissao> _comissoesDoPeriodo(List<ProfComissao> items, Periodo p) =>
     items.where((c) => _ymdNoPeriodo(_comissaoYmd(c), p)).toList();
 
 List<OrdemServico> _osDoPeriodo(List<OrdemServico> items, Periodo p) =>
@@ -169,8 +185,8 @@ class FinComissoesScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: ClxSpace.x1),
                     Text(
-                      'Comissões acumulam por profissional (sem despesa a cada OS). '
-                      'Ao marcar como paga (👍) ou fechar o ciclo, gera **uma** despesa '
+                      'Comissões acumulam por profissional e bonificações são lançadas manualmente. '
+                      'Ao marcar como paga (👍) ou fechar o ciclo, gera despesa '
                       'com o total do repasse daquele dia. Reabrir (👎) recalcula o total.',
                       style: Theme.of(
                         context,
@@ -180,6 +196,16 @@ class FinComissoesScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: ClxSpace.x2),
+              IconButton(
+                tooltip: 'Adicionar bonificação',
+                onPressed: () => _openBonificacaoSheet(context, ref),
+                icon: Icon(Icons.card_giftcard_rounded, color: clx.ink2),
+                style: IconButton.styleFrom(
+                  backgroundColor: clx.bg2,
+                  side: BorderSide(color: clx.line),
+                ),
+              ),
+              const SizedBox(width: ClxSpace.x1),
               IconButton(
                 tooltip: 'Fechar ciclo de pagamento',
                 onPressed: () {
@@ -219,8 +245,8 @@ class FinComissoesScreen extends ConsumerWidget {
           Center(
             child: FinMonthBar(
               label: period.label,
-              onPrev: () => ref.read(finPeriodProvider.notifier).state =
-                  period.shift(-1),
+              onPrev: () =>
+                  ref.read(finPeriodProvider.notifier).state = period.shift(-1),
               onNext: () =>
                   ref.read(finPeriodProvider.notifier).state = period.shift(1),
               pill: true,
@@ -279,9 +305,19 @@ class FinComissoesScreen extends ConsumerWidget {
   }
 
   void _openConfigSheet(BuildContext context) {
+    _showCenteredBlurDialog(context: context, child: const _ConfigSheet());
+  }
+
+  void _openBonificacaoSheet(BuildContext context, WidgetRef ref) {
     _showCenteredBlurDialog(
       context: context,
-      child: const _ConfigSheet(),
+      child: _BonificacaoSheet(
+        onSaved: () {
+          ref.invalidate(_comissoesExtratoProvider);
+          ref.invalidate(_comissoesProfissionaisProvider);
+          ref.invalidate(_comissoesProfissionaisAtivosProvider);
+        },
+      ),
     );
   }
 
@@ -368,10 +404,7 @@ Future<T?> _showCenteredBlurDialog<T>({
                   maxHeight: maxH,
                   minWidth: size.width < 400 ? size.width - 32 : 320,
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: child,
-                ),
+                child: Material(color: Colors.transparent, child: child),
               ),
             ),
           ),
@@ -455,8 +488,7 @@ class _Dashboard extends StatelessWidget {
     final byProf = <String, ({double aberto, double pago, String nome})>{};
     for (final c in items) {
       final id = c.profissional;
-      final cur = byProf[id] ??
-          (aberto: 0.0, pago: 0.0, nome: nomeProf(id));
+      final cur = byProf[id] ?? (aberto: 0.0, pago: 0.0, nome: nomeProf(id));
       if (c.status == ComissaoStatus.paga) {
         byProf[id] = (
           aberto: cur.aberto,
@@ -473,21 +505,22 @@ class _Dashboard extends StatelessWidget {
     }
     final profEntries = byProf.entries.toList()
       ..sort(
-        (a, b) =>
-            (b.value.aberto + b.value.pago).compareTo(a.value.aberto + a.value.pago),
+        (a, b) => (b.value.aberto + b.value.pago).compareTo(
+          a.value.aberto + a.value.pago,
+        ),
       );
 
-    // Cores estáveis por profissional (mesmas nos 2 donuts).
-    final sortedProfIds = profEntries.map((e) => e.key).toList()
-      ..sort((a, b) {
-        final na = byProf[a]?.nome ?? nomeProf(a);
-        final nb = byProf[b]?.nome ?? nomeProf(b);
-        return na.toLowerCase().compareTo(nb.toLowerCase());
-      });
-    final series = finSeriesColors(context, sortedProfIds.length);
+    User? findProf(String id) {
+      for (final u in profs) {
+        if (u.id == id) return u;
+      }
+      return null;
+    }
+
+    // Cores por profissional: mesmas escolhidas em Usuários e usadas na Agenda.
     final colorByProf = <String, Color>{
-      for (var i = 0; i < sortedProfIds.length; i++)
-        sortedProfIds[i]: series[i],
+      for (final e in profEntries)
+        e.key: corGraficoComissaoProfissional(findProf(e.key)),
     };
 
     // Dois gráficos separados: em aberto × pagas (não misturar no mesmo donut).
@@ -540,8 +573,10 @@ class _Dashboard extends StatelessWidget {
       ),
     ];
 
-    final cicloLinhas =
-        buildFecharCicloLinhas(profs: profs, comissoes: comissoesCiclo);
+    final cicloLinhas = buildFecharCicloLinhas(
+      profs: profs,
+      comissoes: comissoesCiclo,
+    );
     final totalCiclo = cicloLinhas.fold<double>(0, (s, l) => s + l.total);
 
     return Column(
@@ -583,8 +618,9 @@ class _Dashboard extends StatelessWidget {
                           Text(
                             '${cicloLinhas.length} profissional${cicloLinhas.length == 1 ? '' : 'is'} · '
                             '${formatCurrency(totalCiclo)} pendente',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: clx.ink2),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(color: clx.ink2),
                           ),
                         ],
                       ),
@@ -682,7 +718,6 @@ class _Dashboard extends StatelessWidget {
     );
   }
 
-
   /// Profissionais com comissão ativa OU com lançamentos no extrato.
   List<Widget> _buildProfExtratoList({
     required BuildContext context,
@@ -729,74 +764,75 @@ class _Dashboard extends StatelessWidget {
       return '$dd/$mm';
     }
 
-    final rows = ids.map((id) {
-      final u = findUser(id);
-      final agg = byProf[id];
-      final nome = u != null
-          ? nomeProfissionalNoHistorico(u)
-          : (agg?.nome ?? nomeProf(id));
-      final pago = agg?.pago ?? 0.0;
-      // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
-      final cicloPend = u != null
-          ? comissoesPendentesDoCiclo(u, items)
-          : [
-              for (final c in items)
-                if (c.profissional == id &&
-                    c.status == ComissaoStatus.pendente)
-                  c,
-            ];
-      final cicloDoProf = [
-        for (final c in cicloPend)
-          if (c.profissional == id) c,
-      ];
-      final aberto = cicloDoProf.fold<int>(
-            0,
-            (s, c) => s + (c.valorComissao * 100).round(),
-          ) /
-          100.0;
-      final nAbertas = cicloDoProf.length;
-      final nPagas = items
-          .where(
-            (c) => c.profissional == id && c.status == ComissaoStatus.paga,
-          )
-          .length;
+    final rows =
+        ids.map((id) {
+          final u = findUser(id);
+          final agg = byProf[id];
+          final nome = u != null
+              ? nomeProfissionalNoHistorico(u)
+              : (agg?.nome ?? nomeProf(id));
+          final pago = agg?.pago ?? 0.0;
+          // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
+          final cicloPend = u != null
+              ? comissoesPendentesDoCiclo(u, items)
+              : [
+                  for (final c in items)
+                    if (c.profissional == id &&
+                        c.status == ComissaoStatus.pendente)
+                      c,
+                ];
+          final cicloDoProf = [
+            for (final c in cicloPend)
+              if (c.profissional == id) c,
+          ];
+          final aberto =
+              cicloDoProf.fold<int>(
+                0,
+                (s, c) => s + (c.valorComissao * 100).round(),
+              ) /
+              100.0;
+          final nAbertas = cicloDoProf.length;
+          final nPagas = items
+              .where(
+                (c) => c.profissional == id && c.status == ComissaoStatus.paga,
+              )
+              .length;
 
-      // Previsto: OS abertas com data ≤ próximo pagamento do prof.
-      final nextPay = u != null ? proximaDataPagamento(u) : null;
-      final win = u != null ? cicloCorrente(u) : null;
-      final prev = u != null
-          ? comissaoPrevistaAtribuidas(
-              prof: u,
-              osAbertas: osAtribuidas,
-              ate: nextPay,
-            )
-          : (valor: 0.0, qtdOs: 0);
+          // Previsto: OS abertas com data ≤ próximo pagamento do prof.
+          final nextPay = u != null ? proximaDataPagamento(u) : null;
+          final win = u != null ? cicloCorrente(u) : null;
+          final prev = u != null
+              ? comissaoPrevistaAtribuidas(
+                  prof: u,
+                  osAbertas: osAtribuidas,
+                  ate: nextPay,
+                )
+              : (valor: 0.0, qtdOs: 0);
 
-      return (
-        id: id,
-        nome: nome,
-        email: u?.email ?? '',
-        resumo: u?.comissaoResumo ?? '',
-        comissaoAtiva: u?.hasComissaoAtiva ?? false,
-        identidadeOpacity: u != null
-            ? opacidadeProfissionalNoHistorico(u)
-            : 0.64,
-        aberto: aberto,
-        pago: pago,
-        nAbertas: nAbertas,
-        nPagas: nPagas,
-        previsto: prev.valor,
-        nPrevistas: prev.qtdOs,
-        proximoPagamentoLabel: fmtPayDay(nextPay),
-        periodoCicloLabel: win?.labelBr ?? '',
-        total: aberto + pago + prev.valor,
-      );
-    }).toList()
-      ..sort((a, b) {
-        final t = b.total.compareTo(a.total);
-        if (t != 0) return t;
-        return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
-      });
+          return (
+            id: id,
+            nome: nome,
+            email: u?.email ?? '',
+            resumo: u?.comissaoResumo ?? '',
+            comissaoAtiva: u?.hasComissaoAtiva ?? false,
+            identidadeOpacity: u != null
+                ? opacidadeProfissionalNoHistorico(u)
+                : 0.64,
+            aberto: aberto,
+            pago: pago,
+            nAbertas: nAbertas,
+            nPagas: nPagas,
+            previsto: prev.valor,
+            nPrevistas: prev.qtdOs,
+            proximoPagamentoLabel: fmtPayDay(nextPay),
+            periodoCicloLabel: win?.labelBr ?? '',
+            total: aberto + pago + prev.valor,
+          );
+        }).toList()..sort((a, b) {
+          final t = b.total.compareTo(a.total);
+          if (t != 0) return t;
+          return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+        });
 
     return [
       for (final r in rows) ...[
@@ -1009,15 +1045,13 @@ class _ProfExtratoCard extends StatelessWidget {
     final inicial = nome.trim().isNotEmpty ? nome.trim()[0].toUpperCase() : '?';
     final hintPrevisto = periodoCicloLabel.isNotEmpty
         ? (nPrevistas > 0
-            ? '$nPrevistas OS · ciclo $periodoCicloLabel'
-            : 'Ciclo $periodoCicloLabel')
+              ? '$nPrevistas OS · ciclo $periodoCicloLabel'
+              : 'Ciclo $periodoCicloLabel')
         : proximoPagamentoLabel.isEmpty
-        ? (nPrevistas > 0
-            ? '$nPrevistas OS'
-            : 'Sem OS no ciclo')
+        ? (nPrevistas > 0 ? '$nPrevistas OS' : 'Sem OS no ciclo')
         : (nPrevistas > 0
-            ? '$nPrevistas OS · até $proximoPagamentoLabel'
-            : 'Até $proximoPagamentoLabel');
+              ? '$nPrevistas OS · até $proximoPagamentoLabel'
+              : 'Até $proximoPagamentoLabel');
 
     return Material(
       color: Colors.transparent,
@@ -1071,9 +1105,7 @@ class _ProfExtratoCard extends StatelessWidget {
                                 label: resumo,
                                 color: identidadeOpacity < 1
                                     ? clx.ink3
-                                    : (comissaoAtiva
-                                          ? clx.success
-                                          : clx.ink3),
+                                    : (comissaoAtiva ? clx.success : clx.ink3),
                               ),
                             ],
                           ],
@@ -1083,13 +1115,12 @@ class _ProfExtratoCard extends StatelessWidget {
                             email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall?.copyWith(
-                              color: clx.ink2.withValues(
-                                alpha: identidadeOpacity,
-                              ),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: clx.ink2.withValues(
+                                    alpha: identidadeOpacity,
+                                  ),
+                                ),
                           ),
                       ],
                     ),
@@ -1366,8 +1397,16 @@ class _ComissaoRow extends StatelessWidget {
                   ).textTheme.bodySmall?.copyWith(color: clx.ink2),
                 ),
                 Text(
-                  'OS ${formatCurrency(item.valorOs)} · '
-                  '${item.tipoAplicado == ComissaoTipo.percentual ? formatPercent(item.baseValor) : 'fixo'}',
+                  item.tipoAplicado == ProfComissaoTipo.bonificacao
+                      ? (item.os.isEmpty
+                            ? 'Bonificação avulsa'
+                            : 'Bonificação vinculada à OS')
+                      : 'OS ${formatCurrency(item.valorOs)} · '
+                            '${item.tipoAplicado == ProfComissaoTipo.percentual
+                                ? formatPercent(item.baseValor)
+                                : item.tipoAplicado == ProfComissaoTipo.diaria
+                                ? 'diária'
+                                : 'fixo'}',
                   style: Theme.of(
                     context,
                   ).textTheme.labelSmall?.copyWith(color: clx.ink3),
@@ -1464,11 +1503,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
 
     // Extrato por prof: agrupa por semana/ciclo (dom→sáb se semanal).
     final semanas = prof != null
-        ? agruparComissoesPorCiclo(
-            prof,
-            list,
-            jaFiltradoPorProf: true,
-          )
+        ? agruparComissoesPorCiclo(prof, list, jaFiltradoPorProf: true)
         : const <SemanaComissaoGrupo>[];
 
     final titulo = widget.profId != null
@@ -1526,8 +1561,9 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                       if (subtitulo != null)
                         Text(
                           subtitulo,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: clx.ink3),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: clx.ink3),
                         ),
                     ],
                   ),
@@ -1587,7 +1623,8 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                     itemBuilder: (_, i) {
                       final g = semanas[i];
                       final atual = cicloCorrente(prof);
-                      final isAtual = atual != null &&
+                      final isAtual =
+                          atual != null &&
                           atual.inicioYmd == g.janela.inicioYmd &&
                           atual.fimYmd == g.janela.fimYmd;
                       return _SemanaComissaoSection(
@@ -1734,6 +1771,240 @@ class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
                 ),
               ],
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ─────────────────────── bonificação manual ─────────────────────── */
+
+class _BonificacaoSheet extends ConsumerStatefulWidget {
+  const _BonificacaoSheet({required this.onSaved});
+
+  final VoidCallback onSaved;
+
+  @override
+  ConsumerState<_BonificacaoSheet> createState() => _BonificacaoSheetState();
+}
+
+class _BonificacaoSheetState extends ConsumerState<_BonificacaoSheet> {
+  String _profissionalId = '';
+  String _osId = '';
+  final _valor = TextEditingController();
+  final _descricao = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _valor.dispose();
+    _descricao.dispose();
+    super.dispose();
+  }
+
+  String _osLabel(OrdemServico os) {
+    final data = _osYmdBrt(os);
+    final valor = os.valorPago ?? os.valorServico ?? 0;
+    final nome = os.nomeCurto.trim().isEmpty ? 'OS ${os.id}' : os.nomeCurto;
+    final servico = (os.tipoServicoNome ?? '').trim();
+    final base = servico.isEmpty ? nome : '$nome · $servico';
+    return '$base · $data · ${formatCurrency(valor)}';
+  }
+
+  Future<void> _save() async {
+    final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.')) ?? 0;
+    if (_profissionalId.isEmpty) {
+      showClxToast(context, 'Escolha o profissional.', type: ToastType.warning);
+      return;
+    }
+    if (valor <= 0) {
+      showClxToast(
+        context,
+        'Informe uma bonificação maior que zero.',
+        type: ToastType.warning,
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(comissaoRepositoryProvider)
+          .criarBonificacao(
+            profissionalId: _profissionalId,
+            valor: valor,
+            osId: _osId.isEmpty ? null : _osId,
+            descricao: _descricao.text,
+          );
+      widget.onSaved();
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+      showClxToast(context, 'Bonificação adicionada.', type: ToastType.success);
+    } catch (_) {
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível adicionar a bonificação.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final profs = ref.watch(_comissoesProfissionaisAtivosProvider);
+    final ordens = ref.watch(_osBonificacaoProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: clx.bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: clx.line),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(ClxSpace.x5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Adicionar bonificação',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: clx.ink,
+                            ),
+                      ),
+                      Text(
+                        'Valor manual para qualquer profissional, ligado a uma OS ou avulso.',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: clx.ink2),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Fechar',
+                  icon: const Icon(Icons.close_rounded),
+                  color: clx.ink2,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: ClxSpace.x4),
+            profs.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, __) => ErrorBanner(
+                message: 'Não foi possível carregar profissionais.',
+                onRetry: () =>
+                    ref.invalidate(_comissoesProfissionaisAtivosProvider),
+              ),
+              data: (list) => DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _profissionalId.isEmpty ? null : _profissionalId,
+                decoration: const InputDecoration(
+                  labelText: 'Profissional',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  for (final u in list)
+                    DropdownMenuItem(value: u.id, child: Text(u.displayName)),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) => setState(() => _profissionalId = v ?? ''),
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x3),
+            TextField(
+              controller: _valor,
+              enabled: !_saving,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Valor da bonificação (R\$)',
+                hintText: 'ex: 40',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x3),
+            ordens.when(
+              loading: () => const LinearProgressIndicator(minHeight: 2),
+              error: (_, __) => ErrorBanner(
+                message: 'Não foi possível carregar OS para vínculo opcional.',
+                onRetry: () => ref.invalidate(_osBonificacaoProvider),
+              ),
+              data: (list) => DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _osId,
+                decoration: const InputDecoration(
+                  labelText: 'OS vinculada (opcional)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Sem OS · avulsa'),
+                  ),
+                  for (final os in list)
+                    DropdownMenuItem(value: os.id, child: Text(_osLabel(os))),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) => setState(() => _osId = v ?? ''),
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x3),
+            TextField(
+              controller: _descricao,
+              enabled: !_saving,
+              minLines: 2,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Motivo / observação',
+                hintText: 'ex: apoio em serviço em dupla',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: ClxSpace.x4),
+            FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.card_giftcard_rounded),
+              label: const Text('Adicionar bonificação'),
+            ),
           ],
         ),
       ),
@@ -1909,8 +2180,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
     if (oldWidget.user.id != widget.user.id ||
         oldWidget.user.comissaoTipo != widget.user.comissaoTipo ||
         oldWidget.user.comissaoValor != widget.user.comissaoValor ||
-        oldWidget.user.pagamentoFrequencia !=
-            widget.user.pagamentoFrequencia ||
+        oldWidget.user.pagamentoFrequencia != widget.user.pagamentoFrequencia ||
         oldWidget.user.pagamentoDia != widget.user.pagamentoDia ||
         oldWidget.user.pagamentoDia2 != widget.user.pagamentoDia2) {
       _tipo = widget.user.comissaoTipo;
@@ -1982,8 +2252,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             profissionalId: widget.user.id,
             tipo: _tipo,
             valor: _tipo == ComissaoTipo.nenhuma ? 0 : v,
-            pagamentoFrequencia:
-                _tipo == ComissaoTipo.nenhuma ? null : _freq,
+            pagamentoFrequencia: _tipo == ComissaoTipo.nenhuma ? null : _freq,
             pagamentoDia: _tipo == ComissaoTipo.nenhuma ? 0 : _dia,
             pagamentoDia2: _tipo == ComissaoTipo.nenhuma ? 0 : _dia2,
           );

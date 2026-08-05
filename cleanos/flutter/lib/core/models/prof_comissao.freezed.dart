@@ -28,8 +28,8 @@ mixin _$ProfComissao {
   double get valorOs => throw _privateConstructorUsedError;
   @JsonKey(name: 'valor_comissao')
   double get valorComissao => throw _privateConstructorUsedError;
-  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-  ComissaoTipo get tipoAplicado => throw _privateConstructorUsedError;
+  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ProfComissaoTipo.percentual)
+  ProfComissaoTipo get tipoAplicado => throw _privateConstructorUsedError;
   @JsonKey(name: 'base_valor')
   double get baseValor => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: ComissaoStatus.pendente)
@@ -62,8 +62,11 @@ abstract class $ProfComissaoCopyWith<$Res> {
     String os,
     @JsonKey(name: 'valor_os') double valorOs,
     @JsonKey(name: 'valor_comissao') double valorComissao,
-    @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-    ComissaoTipo tipoAplicado,
+    @JsonKey(
+      name: 'tipo_aplicado',
+      unknownEnumValue: ProfComissaoTipo.percentual,
+    )
+    ProfComissaoTipo tipoAplicado,
     @JsonKey(name: 'base_valor') double baseValor,
     @JsonKey(unknownEnumValue: ComissaoStatus.pendente) ComissaoStatus status,
     String? data,
@@ -126,7 +129,7 @@ class _$ProfComissaoCopyWithImpl<$Res, $Val extends ProfComissao>
             tipoAplicado: null == tipoAplicado
                 ? _value.tipoAplicado
                 : tipoAplicado // ignore: cast_nullable_to_non_nullable
-                      as ComissaoTipo,
+                      as ProfComissaoTipo,
             baseValor: null == baseValor
                 ? _value.baseValor
                 : baseValor // ignore: cast_nullable_to_non_nullable
@@ -172,8 +175,11 @@ abstract class _$$ProfComissaoImplCopyWith<$Res>
     String os,
     @JsonKey(name: 'valor_os') double valorOs,
     @JsonKey(name: 'valor_comissao') double valorComissao,
-    @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-    ComissaoTipo tipoAplicado,
+    @JsonKey(
+      name: 'tipo_aplicado',
+      unknownEnumValue: ProfComissaoTipo.percentual,
+    )
+    ProfComissaoTipo tipoAplicado,
     @JsonKey(name: 'base_valor') double baseValor,
     @JsonKey(unknownEnumValue: ComissaoStatus.pendente) ComissaoStatus status,
     String? data,
@@ -235,7 +241,7 @@ class __$$ProfComissaoImplCopyWithImpl<$Res>
         tipoAplicado: null == tipoAplicado
             ? _value.tipoAplicado
             : tipoAplicado // ignore: cast_nullable_to_non_nullable
-                  as ComissaoTipo,
+                  as ProfComissaoTipo,
         baseValor: null == baseValor
             ? _value.baseValor
             : baseValor // ignore: cast_nullable_to_non_nullable
@@ -274,8 +280,11 @@ class _$ProfComissaoImpl extends _ProfComissao {
     required this.os,
     @JsonKey(name: 'valor_os') this.valorOs = 0,
     @JsonKey(name: 'valor_comissao') this.valorComissao = 0,
-    @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-    this.tipoAplicado = ComissaoTipo.percentual,
+    @JsonKey(
+      name: 'tipo_aplicado',
+      unknownEnumValue: ProfComissaoTipo.percentual,
+    )
+    this.tipoAplicado = ProfComissaoTipo.percentual,
     @JsonKey(name: 'base_valor') this.baseValor = 0,
     @JsonKey(unknownEnumValue: ComissaoStatus.pendente)
     this.status = ComissaoStatus.pendente,
@@ -301,8 +310,8 @@ class _$ProfComissaoImpl extends _ProfComissao {
   @JsonKey(name: 'valor_comissao')
   final double valorComissao;
   @override
-  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-  final ComissaoTipo tipoAplicado;
+  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ProfComissaoTipo.percentual)
+  final ProfComissaoTipo tipoAplicado;
   @override
   @JsonKey(name: 'base_valor')
   final double baseValor;
@@ -387,8 +396,11 @@ abstract class _ProfComissao extends ProfComissao {
     required final String os,
     @JsonKey(name: 'valor_os') final double valorOs,
     @JsonKey(name: 'valor_comissao') final double valorComissao,
-    @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-    final ComissaoTipo tipoAplicado,
+    @JsonKey(
+      name: 'tipo_aplicado',
+      unknownEnumValue: ProfComissaoTipo.percentual,
+    )
+    final ProfComissaoTipo tipoAplicado,
     @JsonKey(name: 'base_valor') final double baseValor,
     @JsonKey(unknownEnumValue: ComissaoStatus.pendente)
     final ComissaoStatus status,
@@ -415,8 +427,8 @@ abstract class _ProfComissao extends ProfComissao {
   @JsonKey(name: 'valor_comissao')
   double get valorComissao;
   @override
-  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-  ComissaoTipo get tipoAplicado;
+  @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ProfComissaoTipo.percentual)
+  ProfComissaoTipo get tipoAplicado;
   @override
   @JsonKey(name: 'base_valor')
   double get baseValor;

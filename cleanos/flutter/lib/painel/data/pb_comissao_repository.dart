@@ -7,6 +7,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/comissao_repository.dart';
+import '../../core/formatters/formatters.dart';
 import 'painel_filters.dart';
 
 class PbComissaoRepository implements ComissaoRepository {
@@ -65,6 +66,35 @@ class PbComissaoRepository implements ComissaoRepository {
         .collection(Collections.profComissoes)
         .getFullList(filter: filter, sort: sort);
     return recs.map(ProfComissao.fromRecord).toList();
+  }
+
+  @override
+  Future<ProfComissao> criarBonificacao({
+    required String profissionalId,
+    required double valor,
+    String? osId,
+    String descricao = '',
+  }) async {
+    final cleanOs = (osId ?? '').trim();
+    final cleanDesc = descricao.trim();
+    final body = <String, dynamic>{
+      'profissional': profissionalId,
+      // R2: relation opcional sem OS fica vazia.
+      'os': cleanOs,
+      'valor_os': 0,
+      'valor_comissao': valor,
+      'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
+      'base_valor': valor,
+      'status': ComissaoStatus.pendente.wire,
+      'data': todayLocalDate(),
+      'descricao': cleanDesc.isEmpty
+          ? 'Bonificação'
+          : 'Bonificação · $cleanDesc',
+    };
+    final rec = await _pb
+        .collection(Collections.profComissoes)
+        .create(body: body);
+    return ProfComissao.fromRecord(rec);
   }
 
   @override

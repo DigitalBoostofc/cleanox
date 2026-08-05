@@ -331,6 +331,32 @@ describe('atualizarComissaoDaOs — diaria', () => {
   })
 })
 
+describe('atualizarComissaoDaOs — bonificação manual', () => {
+  it('não recalcula nem salva bonificação vinculada à OS', () => {
+    const bonus = rec(
+      {
+        os: 'os1',
+        profissional: 'prof1',
+        valor_os: 0,
+        valor_comissao: 40,
+        tipo_aplicado: 'bonificacao',
+        base_valor: 40,
+        status: 'pendente',
+        data: '2026-07-20 00:00:00.000Z',
+        descricao: 'Bonificação · apoio em dupla',
+      },
+      'bonus1',
+    )
+    const app = mockApp({ comissoes: [bonus] })
+
+    lib.atualizarComissaoDaOs(app, osRec({ valor_pago: 350 }))
+
+    assert.equal(bonus.get('valor_os'), 0)
+    assert.equal(bonus.get('valor_comissao'), 40)
+    assert.equal(app._saved.length, 0)
+  })
+})
+
 describe('criarComissaoProfissional — regravação concluída', () => {
   it('prevStatus=concluida chama update (não recria)', () => {
     const com = rec(

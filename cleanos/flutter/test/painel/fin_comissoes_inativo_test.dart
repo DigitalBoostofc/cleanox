@@ -1,4 +1,6 @@
+import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/user.dart';
+import 'package:cleanos/core/models/prof_comissao.dart';
 import 'package:cleanos/painel/financeiro/charts/fin_charts.dart';
 import 'package:cleanos/painel/financeiro/fin_comissoes_screen.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +54,37 @@ void main() {
 
       expect(profissionalIdDaFatia(joaoPedro), 'prof-joao-pedro');
       expect(profissionalIdDaFatia(joaoPaulo), 'prof-joao-paulo');
+    });
+
+    test('gráfico usa a mesma cor configurada no usuário/agenda', () {
+      const prof = User(
+        id: 'prof-cor',
+        nome: 'Breno Fixo',
+        role: Role.profissional,
+        corAgenda: '#EF4444',
+      );
+
+      expect(corGraficoComissaoProfissional(prof), const Color(0xFFEF4444));
+    });
+  });
+
+  group('bonificação manual em comissões', () {
+    test('modelo aceita tipo aplicado bonificacao', () {
+      final c = ProfComissao.fromJson(const {
+        'id': 'bonus-1',
+        'profissional': 'prof-breno',
+        'os': '',
+        'valor_os': 0,
+        'valor_comissao': 40,
+        'tipo_aplicado': 'bonificacao',
+        'base_valor': 40,
+        'status': 'pendente',
+        'descricao': 'Bonificação · meta do dia',
+      });
+
+      expect(c.tipoAplicado, ProfComissaoTipo.bonificacao);
+      expect(c.os, isEmpty);
+      expect(c.valorComissao, 40);
     });
   });
 }

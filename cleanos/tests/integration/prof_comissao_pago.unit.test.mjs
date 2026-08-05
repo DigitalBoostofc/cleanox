@@ -246,6 +246,21 @@ describe('individual 👍', () => {
     assert.equal(ones(lancamentos).length, 2)
     assert.equal(lotes(lancamentos).length, 0)
   })
+
+  it('bonificação paga gera despesa 1:1 descrita como bonificação', () => {
+    const c = comPaga({
+      tipo_aplicado: 'bonificacao',
+      descricao: 'Bonificação · apoio em dupla',
+      valor_comissao: 40,
+      os: '',
+    })
+    const { app, lancamentos } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, 'pendente')
+    const o = ones(lancamentos)
+    assert.equal(o.length, 1)
+    assert.equal(o[0].get('descricao'), 'Bonificação - João Pedro - apoio em dupla')
+    assert.equal(o[0].get('valor'), 40)
+  })
 })
 
 describe('lote (sem 1:1 prévia)', () => {
@@ -294,6 +309,33 @@ describe('lote (sem 1:1 prévia)', () => {
     assert.equal(L.length, 1)
     assert.equal(L[0].get('valor'), 120)
     assert.equal(L[0].get('descricao'), 'Comissão - João Pedro - 2 OS')
+  })
+
+  it('lote com bonificação descreve repasse misto, não só OS', () => {
+    const coms = [
+      comPaga({ descricao: 'S · A - X', pago_em: '2026-07-27' }, 'a'),
+      comPaga(
+        {
+          tipo_aplicado: 'bonificacao',
+          valor_comissao: 40,
+          descricao: 'Bonificação · apoio em dupla',
+          data: '2026-07-22',
+          pago_em: '2026-07-27',
+        },
+        'bonus',
+      ),
+    ]
+    const { app, lancamentos } = mockApp({ comissoes: coms })
+
+    pago.sincronizarCiclosDoProf(app, 'prof1')
+
+    const L = lotes(lancamentos)
+    assert.equal(L.length, 1)
+    assert.equal(L[0].get('valor'), 100)
+    assert.equal(
+      L[0].get('descricao'),
+      'Repasse - João Pedro - 1 OS + 1 bonificação',
+    )
   })
 })
 

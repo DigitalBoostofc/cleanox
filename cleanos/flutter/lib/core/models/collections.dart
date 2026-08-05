@@ -21,8 +21,10 @@ class Collections {
   static const String disponibilidade = 'disponibilidade';
   static const String osEvidencias = 'os_evidencias';
   static const String profComissoes = 'prof_comissoes';
+
   /// Feed interno da OS (comentários + log) — admin/gerente only.
   static const String osAtividade = 'os_atividade';
+
   /// Notificações in-app (menções @) — dono da notificação.
   static const String notificacoes = 'notificacoes';
 }
@@ -36,6 +38,7 @@ class FinCollections {
   static const String lancamentos = 'fin_lancamentos';
   static const String limites = 'fin_limites';
   static const String objetivos = 'fin_objetivos';
+
   /// Regras de despesa/receita fixa (ativa | pausada | encerrada).
   static const String series = 'fin_series';
   static const String profComissoes = 'prof_comissoes';
@@ -49,6 +52,7 @@ enum ComissaoTipo {
   percentual,
   @JsonValue('fixo')
   fixo,
+
   /// R$ fixo por dia civil BRT com ≥1 OS concluída (ex.: Hendrio).
   @JsonValue('diaria')
   diaria;
@@ -72,6 +76,35 @@ enum ComissaoTipo {
       this == ComissaoTipo.percentual ||
       this == ComissaoTipo.fixo ||
       this == ComissaoTipo.diaria;
+}
+
+/// Tipo gravado em `prof_comissoes.tipo_aplicado`.
+///
+/// Separado de [ComissaoTipo] porque `bonificacao` é lançamento manual, não
+/// configuração automática em `users.comissao_tipo`.
+enum ProfComissaoTipo {
+  @JsonValue('percentual')
+  percentual,
+  @JsonValue('fixo')
+  fixo,
+  @JsonValue('diaria')
+  diaria,
+  @JsonValue('bonificacao')
+  bonificacao;
+
+  String get wire => switch (this) {
+    ProfComissaoTipo.percentual => 'percentual',
+    ProfComissaoTipo.fixo => 'fixo',
+    ProfComissaoTipo.diaria => 'diaria',
+    ProfComissaoTipo.bonificacao => 'bonificacao',
+  };
+
+  String get label => switch (this) {
+    ProfComissaoTipo.percentual => 'Percentual (%)',
+    ProfComissaoTipo.fixo => 'Valor fixo (R\$ por OS)',
+    ProfComissaoTipo.diaria => 'Diária (R\$ por dia trabalhado)',
+    ProfComissaoTipo.bonificacao => 'Bonificação manual',
+  };
 }
 
 /// Frequência de repasse ao profissional (config em Financeiro → Equipe).
