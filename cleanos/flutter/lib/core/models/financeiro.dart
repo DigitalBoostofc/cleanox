@@ -284,11 +284,29 @@ class FinLancamento with _$FinLancamento {
   /// Valor COM sinal (receita +, despesa −).
   double get valorComSinal => tipo == TipoLancamento.receita ? valor : -valor;
 
-  /// Pertence a uma regra fixa/recorrente (tem série ou tipo fixa/recorrente).
+  /// Pertence a uma regra fixa/recorrente/parcelada (série ou tipo de ciclo).
   bool get isDaSerie =>
       (serieId != null && serieId!.isNotEmpty) ||
       recorrencia == RecorrenciaTipo.fixa ||
-      recorrencia == RecorrenciaTipo.recorrente;
+      recorrencia == RecorrenciaTipo.recorrente ||
+      recorrencia == RecorrenciaTipo.parcelada;
+
+  /// Ciclo visual (ícone ⟳): fixa, recorrente ou parcelada N×.
+  bool get isCiclico =>
+      isDaSerie ||
+      (parcelasTotal != null && parcelasTotal! >= 2);
+
+  /// Rótulo curto da parcela, ex. `1/10`. Null se não for parcelada.
+  String? get parcelaRotulo {
+    if (recorrencia != RecorrenciaTipo.parcelada &&
+        (parcelasTotal == null || parcelasTotal! < 2)) {
+      return null;
+    }
+    final total = parcelasTotal;
+    if (total == null || total < 1) return null;
+    final atual = parcelaAtual ?? 1;
+    return '$atual/$total';
+  }
 }
 
 /* ---- Série (regra de despesa/receita fixa) ---- */
@@ -314,6 +332,8 @@ class FinSerie with _$FinSerie {
     FinSerieStatus status,
     @JsonKey(name: 'data_inicio') @Default('') String dataInicio,
     @JsonKey(name: 'data_fim') String? dataFim,
+    /// Total de parcelas quando [recorrencia] == parcelada (mig ≥ 54).
+    @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     @Default(<String>[]) List<String> tags,
@@ -340,6 +360,8 @@ class FinSerie with _$FinSerie {
 
   FrequenciaRecorrencia get frequenciaEfetiva =>
       frequencia ?? FrequenciaRecorrencia.mensal;
+
+  bool get isParcelada => recorrencia == RecorrenciaTipo.parcelada;
 
   bool get isAtiva => status == FinSerieStatus.ativa;
   bool get isPausada => status == FinSerieStatus.pausada;

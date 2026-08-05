@@ -846,12 +846,13 @@ String _txTitle(FinLancamento l) {
 /// Meta sob o título: serviço prestado (via_os) | conta | fixa/parcela.
 String _txMeta(FinLancamento l, FinCategoria? cat, FinConta? conta) {
   final servico = (l.servicoNome ?? '').trim();
+  final parcela = l.parcelaRotulo;
   return [
     if (servico.isNotEmpty) servico,
     if (conta != null && conta.nome.trim().isNotEmpty) conta.nome.trim(),
     if (l.recorrencia == RecorrenciaTipo.fixa) 'Fixa',
-    if (l.recorrencia == RecorrenciaTipo.parcelada && l.parcelasTotal != null)
-      '${l.parcelaAtual ?? 1}/${l.parcelasTotal}',
+    if (l.recorrencia == RecorrenciaTipo.recorrente) 'Recorrente',
+    if (parcela != null) parcela,
   ].join(' | ');
 }
 
@@ -943,16 +944,32 @@ class _TxTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: atrasado ? clx.error : clx.ink,
-                        fontWeight: FontWeight.w600,
-                        fontSize: titleSize,
-                        height: 1.15,
-                      ),
+                    Row(
+                      children: [
+                        if (l.isCiclico) ...[
+                          Icon(
+                            Icons.autorenew_rounded,
+                            size: titleSize + 1,
+                            color: atrasado ? clx.error : clx.ink3,
+                          ),
+                          SizedBox(width: r.s(4)),
+                        ],
+                        Expanded(
+                          child: Text(
+                            l.parcelaRotulo == null
+                                ? title
+                                : '$title · ${l.parcelaRotulo}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: atrasado ? clx.error : clx.ink,
+                              fontWeight: FontWeight.w600,
+                              fontSize: titleSize,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (meta.isNotEmpty) ...[
                       SizedBox(height: r.s(1)),
@@ -1314,18 +1331,60 @@ class _TableRow extends StatelessWidget {
                   ),
                 ),
               ),
-              // 4) Descrição — única coluna de texto alinhada à esquerda
+              // 4) Descrição — única coluna de texto alinhada à esquerda (+ ciclo / parcela)
               Expanded(
                 flex: 3,
-                child: Text(
-                  isComissao ? l.descricao : _txTitleWithServico(l),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: atrasado ? clx.error : null,
-                  ),
+                child: Row(
+                  children: [
+                    if (l.isCiclico) ...[
+                      Tooltip(
+                        message: l.recorrencia == RecorrenciaTipo.parcelada
+                            ? (l.parcelaRotulo != null
+                                ? 'Parcelada ${l.parcelaRotulo}'
+                                : 'Parcelada')
+                            : l.recorrencia == RecorrenciaTipo.fixa
+                                ? 'Cobrança fixa'
+                                : 'Recorrente',
+                        child: Icon(
+                          Icons.autorenew_rounded,
+                          size: 16,
+                          color: atrasado ? clx.error : clx.ink3,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: isComissao
+                                  ? l.descricao
+                                  : _txTitleWithServico(l),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: atrasado ? clx.error : null,
+                              ),
+                            ),
+                            if (l.parcelaRotulo != null)
+                              TextSpan(
+                                text: '  ·  ${l.parcelaRotulo}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                  color: atrasado
+                                      ? clx.error.withValues(alpha: 0.9)
+                                      : clx.ink3,
+                                ),
+                              ),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.left,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               // 5) Conta

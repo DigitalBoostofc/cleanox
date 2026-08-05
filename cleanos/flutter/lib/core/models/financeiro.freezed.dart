@@ -1807,6 +1807,10 @@ mixin _$FinSerie {
   String get dataInicio => throw _privateConstructorUsedError;
   @JsonKey(name: 'data_fim')
   String? get dataFim => throw _privateConstructorUsedError;
+
+  /// Total de parcelas quando [recorrencia] == parcelada (mig ≥ 54).
+  @JsonKey(name: 'parcelas_total')
+  int? get parcelasTotal => throw _privateConstructorUsedError;
   @JsonKey(name: 'forma_pagamento')
   String? get formaPagamento => throw _privateConstructorUsedError;
   String? get observacao => throw _privateConstructorUsedError;
@@ -1844,6 +1848,7 @@ abstract class $FinSerieCopyWith<$Res> {
     @JsonKey(unknownEnumValue: FinSerieStatus.ativa) FinSerieStatus status,
     @JsonKey(name: 'data_inicio') String dataInicio,
     @JsonKey(name: 'data_fim') String? dataFim,
+    @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     List<String> tags,
@@ -1879,6 +1884,7 @@ class _$FinSerieCopyWithImpl<$Res, $Val extends FinSerie>
     Object? status = null,
     Object? dataInicio = null,
     Object? dataFim = freezed,
+    Object? parcelasTotal = freezed,
     Object? formaPagamento = freezed,
     Object? observacao = freezed,
     Object? tags = null,
@@ -1935,6 +1941,10 @@ class _$FinSerieCopyWithImpl<$Res, $Val extends FinSerie>
                 ? _value.dataFim
                 : dataFim // ignore: cast_nullable_to_non_nullable
                       as String?,
+            parcelasTotal: freezed == parcelasTotal
+                ? _value.parcelasTotal
+                : parcelasTotal // ignore: cast_nullable_to_non_nullable
+                      as int?,
             formaPagamento: freezed == formaPagamento
                 ? _value.formaPagamento
                 : formaPagamento // ignore: cast_nullable_to_non_nullable
@@ -1985,6 +1995,7 @@ abstract class _$$FinSerieImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: FinSerieStatus.ativa) FinSerieStatus status,
     @JsonKey(name: 'data_inicio') String dataInicio,
     @JsonKey(name: 'data_fim') String? dataFim,
+    @JsonKey(name: 'parcelas_total') int? parcelasTotal,
     @JsonKey(name: 'forma_pagamento') String? formaPagamento,
     String? observacao,
     List<String> tags,
@@ -2019,6 +2030,7 @@ class __$$FinSerieImplCopyWithImpl<$Res>
     Object? status = null,
     Object? dataInicio = null,
     Object? dataFim = freezed,
+    Object? parcelasTotal = freezed,
     Object? formaPagamento = freezed,
     Object? observacao = freezed,
     Object? tags = null,
@@ -2075,6 +2087,10 @@ class __$$FinSerieImplCopyWithImpl<$Res>
             ? _value.dataFim
             : dataFim // ignore: cast_nullable_to_non_nullable
                   as String?,
+        parcelasTotal: freezed == parcelasTotal
+            ? _value.parcelasTotal
+            : parcelasTotal // ignore: cast_nullable_to_non_nullable
+                  as int?,
         formaPagamento: freezed == formaPagamento
             ? _value.formaPagamento
             : formaPagamento // ignore: cast_nullable_to_non_nullable
@@ -2119,6 +2135,7 @@ class _$FinSerieImpl extends _FinSerie {
     this.status = FinSerieStatus.ativa,
     @JsonKey(name: 'data_inicio') this.dataInicio = '',
     @JsonKey(name: 'data_fim') this.dataFim,
+    @JsonKey(name: 'parcelas_total') this.parcelasTotal,
     @JsonKey(name: 'forma_pagamento') this.formaPagamento,
     this.observacao,
     final List<String> tags = const <String>[],
@@ -2165,6 +2182,11 @@ class _$FinSerieImpl extends _FinSerie {
   @override
   @JsonKey(name: 'data_fim')
   final String? dataFim;
+
+  /// Total de parcelas quando [recorrencia] == parcelada (mig ≥ 54).
+  @override
+  @JsonKey(name: 'parcelas_total')
+  final int? parcelasTotal;
   @override
   @JsonKey(name: 'forma_pagamento')
   final String? formaPagamento;
@@ -2186,7 +2208,7 @@ class _$FinSerieImpl extends _FinSerie {
 
   @override
   String toString() {
-    return 'FinSerie(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, recorrencia: $recorrencia, frequencia: $frequencia, status: $status, dataInicio: $dataInicio, dataFim: $dataFim, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, created: $created, updated: $updated)';
+    return 'FinSerie(id: $id, tipo: $tipo, descricao: $descricao, categoriaId: $categoriaId, subcategoriaId: $subcategoriaId, valor: $valor, contaId: $contaId, recorrencia: $recorrencia, frequencia: $frequencia, status: $status, dataInicio: $dataInicio, dataFim: $dataFim, parcelasTotal: $parcelasTotal, formaPagamento: $formaPagamento, observacao: $observacao, tags: $tags, created: $created, updated: $updated)';
   }
 
   @override
@@ -2212,6 +2234,8 @@ class _$FinSerieImpl extends _FinSerie {
             (identical(other.dataInicio, dataInicio) ||
                 other.dataInicio == dataInicio) &&
             (identical(other.dataFim, dataFim) || other.dataFim == dataFim) &&
+            (identical(other.parcelasTotal, parcelasTotal) ||
+                other.parcelasTotal == parcelasTotal) &&
             (identical(other.formaPagamento, formaPagamento) ||
                 other.formaPagamento == formaPagamento) &&
             (identical(other.observacao, observacao) ||
@@ -2237,6 +2261,7 @@ class _$FinSerieImpl extends _FinSerie {
     status,
     dataInicio,
     dataFim,
+    parcelasTotal,
     formaPagamento,
     observacao,
     const DeepCollectionEquality().hash(_tags),
@@ -2276,6 +2301,7 @@ abstract class _FinSerie extends FinSerie {
     final FinSerieStatus status,
     @JsonKey(name: 'data_inicio') final String dataInicio,
     @JsonKey(name: 'data_fim') final String? dataFim,
+    @JsonKey(name: 'parcelas_total') final int? parcelasTotal,
     @JsonKey(name: 'forma_pagamento') final String? formaPagamento,
     final String? observacao,
     final List<String> tags,
@@ -2320,6 +2346,11 @@ abstract class _FinSerie extends FinSerie {
   @override
   @JsonKey(name: 'data_fim')
   String? get dataFim;
+
+  /// Total de parcelas quando [recorrencia] == parcelada (mig ≥ 54).
+  @override
+  @JsonKey(name: 'parcelas_total')
+  int? get parcelasTotal;
   @override
   @JsonKey(name: 'forma_pagamento')
   String? get formaPagamento;

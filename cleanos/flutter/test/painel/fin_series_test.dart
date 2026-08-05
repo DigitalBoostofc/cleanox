@@ -93,6 +93,24 @@ void main() {
         isFalse,
       );
     });
+
+    test('parcelada é da série e mostra 1/10', () {
+      const l = FinLancamento(
+        id: 'p1',
+        descricao: 'Máquina Geradora de Ozônio',
+        valor: 279,
+        recorrencia: RecorrenciaTipo.parcelada,
+        parcelaAtual: 1,
+        parcelasTotal: 10,
+      );
+      expect(l.isDaSerie, isTrue);
+      expect(l.isCiclico, isTrue);
+      expect(l.parcelaRotulo, '1/10');
+      final body = bodySerieFromLancamento(l);
+      expect(body['recorrencia'], 'parcelada');
+      expect(body['parcelas_total'], 10);
+      expect(serieRecorrenciaKey(l), contains('parcelada|10'));
+    });
   });
 
   group('cutoff data_fim', () {
