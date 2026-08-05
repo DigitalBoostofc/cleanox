@@ -28,6 +28,16 @@ abstract class ComissaoRepository {
     String sort,
   });
 
+  /// Cria bonificação manual para um profissional.
+  ///
+  /// [osId] é opcional: vazio/null = bonificação avulsa, sem OS vinculada.
+  Future<ProfComissao> criarBonificacao({
+    required String profissionalId,
+    required double valor,
+    String? osId,
+    String descricao = '',
+  });
+
   /// Marca comissão como paga (admin/gerente).
   Future<ProfComissao> marcarPaga(String id);
 

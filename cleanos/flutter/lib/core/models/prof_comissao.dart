@@ -17,9 +17,12 @@ class ProfComissao with _$ProfComissao {
     required String os,
     @JsonKey(name: 'valor_os') @Default(0) double valorOs,
     @JsonKey(name: 'valor_comissao') @Default(0) double valorComissao,
-    @JsonKey(name: 'tipo_aplicado', unknownEnumValue: ComissaoTipo.percentual)
-    @Default(ComissaoTipo.percentual)
-    ComissaoTipo tipoAplicado,
+    @JsonKey(
+      name: 'tipo_aplicado',
+      unknownEnumValue: ProfComissaoTipo.percentual,
+    )
+    @Default(ProfComissaoTipo.percentual)
+    ProfComissaoTipo tipoAplicado,
     @JsonKey(name: 'base_valor') @Default(0) double baseValor,
     @JsonKey(unknownEnumValue: ComissaoStatus.pendente)
     @Default(ComissaoStatus.pendente)
@@ -42,6 +45,7 @@ class ProfComissao with _$ProfComissao {
     if (p is Map) j['profissional'] = p['id'] ?? '';
     final o = j['os'];
     if (o is Map) j['os'] = o['id'] ?? '';
+    if (o == null) j['os'] = '';
     return ProfComissao.fromJson(j);
   }
 }

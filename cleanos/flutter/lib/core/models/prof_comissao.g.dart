@@ -15,11 +15,11 @@ _$ProfComissaoImpl _$$ProfComissaoImplFromJson(Map<String, dynamic> json) =>
       valorComissao: (json['valor_comissao'] as num?)?.toDouble() ?? 0,
       tipoAplicado:
           $enumDecodeNullable(
-            _$ComissaoTipoEnumMap,
+            _$ProfComissaoTipoEnumMap,
             json['tipo_aplicado'],
-            unknownValue: ComissaoTipo.percentual,
+            unknownValue: ProfComissaoTipo.percentual,
           ) ??
-          ComissaoTipo.percentual,
+          ProfComissaoTipo.percentual,
       baseValor: (json['base_valor'] as num?)?.toDouble() ?? 0,
       status:
           $enumDecodeNullable(
@@ -41,7 +41,7 @@ Map<String, dynamic> _$$ProfComissaoImplToJson(_$ProfComissaoImpl instance) =>
       'os': instance.os,
       'valor_os': instance.valorOs,
       'valor_comissao': instance.valorComissao,
-      'tipo_aplicado': _$ComissaoTipoEnumMap[instance.tipoAplicado]!,
+      'tipo_aplicado': _$ProfComissaoTipoEnumMap[instance.tipoAplicado]!,
       'base_valor': instance.baseValor,
       'status': _$ComissaoStatusEnumMap[instance.status]!,
       'data': instance.data,
@@ -50,11 +50,11 @@ Map<String, dynamic> _$$ProfComissaoImplToJson(_$ProfComissaoImpl instance) =>
       'updated': instance.updated,
     };
 
-const _$ComissaoTipoEnumMap = {
-  ComissaoTipo.nenhuma: 'nenhuma',
-  ComissaoTipo.percentual: 'percentual',
-  ComissaoTipo.fixo: 'fixo',
-  ComissaoTipo.diaria: 'diaria',
+const _$ProfComissaoTipoEnumMap = {
+  ProfComissaoTipo.percentual: 'percentual',
+  ProfComissaoTipo.fixo: 'fixo',
+  ProfComissaoTipo.diaria: 'diaria',
+  ProfComissaoTipo.bonificacao: 'bonificacao',
 };
 
 const _$ComissaoStatusEnumMap = {

@@ -907,11 +907,32 @@ function _nomeClienteDaComissao(comissao) {
   return rest || "OS";
 }
 
+function _isBonificacao(comissao) {
+  return String(comissao.get("tipo_aplicado") || "").toLowerCase() === "bonificacao";
+}
+
+function _motivoBonificacao(comissao) {
+  var desc = String(comissao.get("descricao") || "").trim();
+  if (!desc) return "Bonificação";
+  if (desc.toLowerCase().indexOf("bonificação") === 0) {
+    var idx = desc.indexOf("·");
+    if (idx >= 0) {
+      var rest = desc.slice(idx + 1).trim();
+      if (rest) return rest;
+    }
+    return "Bonificação";
+  }
+  return desc;
+}
+
 /**
  * Padrão dono: "Comissão - {prof} - OS - {cliente}"
  */
 function _descricaoComissaoOsPaga(profNome, comissao) {
   var nome = String(profNome || "").trim() || "Profissional";
+  if (_isBonificacao(comissao)) {
+    return "Bonificação - " + nome + " - " + _motivoBonificacao(comissao);
+  }
   var cliente = _nomeClienteDaComissao(comissao);
   return "Comissão - " + nome + " - OS - " + cliente;
 }
@@ -1178,6 +1199,7 @@ function sincronizarCiclosDoProf(app, profId) {
         win: win,
         pendCents: 0,
         pendN: 0,
+        pendBonusN: 0,
         profNome: String(c.get("profissional_nome") || "").trim(),
       };
     }
@@ -1186,6 +1208,7 @@ function sincronizarCiclosDoProf(app, profId) {
     } else if (st === "pendente") {
       grupos[gkey].pendCents += Math.round(v * 100);
       grupos[gkey].pendN++;
+      if (_isBonificacao(c)) grupos[gkey].pendBonusN++;
     }
     if (!grupos[gkey].profNome) {
       grupos[gkey].profNome = String(c.get("profissional_nome") || "").trim();
@@ -1205,7 +1228,7 @@ function sincronizarCiclosDoProf(app, profId) {
 
   // Classifica pagas: individual (tem 1:1) vs lote (sem 1:1)
   var idsIndividuais = {}; // comissao_id → true
-  var loteGrupos = {}; // key ini_fim_pagoEm → { win, pe, cents, n, nome, ids:[] }
+  var loteGrupos = {}; // key ini_fim_pagoEm → { win, pe, cents, n, bonusN, nome, ids:[] }
   for (var pi = 0; pi < pagas.length; pi++) {
     var pc = pagas[pi].c;
     var pwin = pagas[pi].win;
@@ -1232,6 +1255,7 @@ function sincronizarCiclosDoProf(app, profId) {
         pe: pe,
         cents: 0,
         n: 0,
+        bonusN: 0,
         nome: String(pc.get("profissional_nome") || "").trim(),
         ids: [],
       };
@@ -1240,6 +1264,7 @@ function sincronizarCiclosDoProf(app, profId) {
       Number(pc.get("valor_comissao") || 0) * 100,
     );
     loteGrupos[lkey].n++;
+    if (_isBonificacao(pc)) loteGrupos[lkey].bonusN++;
     loteGrupos[lkey].ids.push(pcid);
     if (!loteGrupos[lkey].nome) {
       loteGrupos[lkey].nome = String(pc.get("profissional_nome") || "").trim();
@@ -1361,7 +1386,32 @@ function sincronizarCiclosDoProf(app, profId) {
   var contaId = acharConta(app);
   if (!contaId) return null;
 
-  function _upsertAgg(obsKey, status, total, n, dataYmd, nome, isPendente) {
+  function _resumoItens(n, bonusN) {
+    var totalN = Number(n || 0);
+    var bonus = Number(bonusN || 0);
+    if (bonus < 0) bonus = 0;
+    if (bonus > totalN) bonus = totalN;
+    var osN = totalN - bonus;
+    if (bonus === 0) return totalN + " OS";
+    if (osN === 0) return bonus + (bonus === 1 ? " bonificação" : " bonificações");
+    return (
+      osN +
+      " OS + " +
+      bonus +
+      (bonus === 1 ? " bonificação" : " bonificações")
+    );
+  }
+
+  function _upsertAgg(
+    obsKey,
+    status,
+    total,
+    n,
+    bonusN,
+    dataYmd,
+    nome,
+    isPendente,
+  ) {
     if (!(total > 0) || n === 0) return null;
     var descricao;
     if (isPendente) {
@@ -1370,10 +1420,22 @@ function sincronizarCiclosDoProf(app, profId) {
       var periodo =
         parts.length >= 3 ? _labelPeriodoBr(parts[1], parts[2]) : dataYmd;
       descricao =
-        "Comissão · " + nome + " · " + periodo + " (" + n + " OS)";
+        (bonusN > 0 ? "Repasse" : "Comissão") +
+        " · " +
+        nome +
+        " · " +
+        periodo +
+        " (" +
+        _resumoItens(n, bonusN) +
+        ")";
     } else {
-      // lote pago: "Comissão - Prof - N OS"
-      descricao = "Comissão - " + nome + " - " + n + " OS";
+      // lote pago: "Comissão - Prof - N OS" ou repasse misto com bonificação.
+      descricao =
+        (bonusN > 0 ? "Repasse" : "Comissão") +
+        " - " +
+        nome +
+        " - " +
+        _resumoItens(n, bonusN);
     }
     var existente = null;
     for (var j = 0; j < cands.length; j++) {
@@ -1450,6 +1512,7 @@ function sincronizarCiclosDoProf(app, profId) {
       "pendente",
       g.pendCents / 100.0,
       g.pendN,
+      g.pendBonusN,
       g.win.fim,
       nome,
       true,
@@ -1480,6 +1543,7 @@ function sincronizarCiclosDoProf(app, profId) {
       "pago",
       L.cents / 100.0,
       L.n,
+      L.bonusN,
       L.pe,
       nomeL,
       false,
