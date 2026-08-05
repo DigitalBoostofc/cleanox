@@ -1049,4 +1049,95 @@ void main() {
       expect(g.first.itens.first.valor, 400);
     });
   });
+
+  group('finBaseKpiExtrato — base dos KPIs do Extrato', () {
+    final julho = mesPeriodo(2026, 7);
+
+    test('usa o MÊS COMPLETO, não a 1ª página (bug do Balanço mensal)', () {
+      // Página 1 do Extrato (ordenada por -data) só pegou despesas; as receitas
+      // do mês ficaram na página 2. Antes, o KPI usava só a página → sinal
+      // invertido no "Balanço mensal".
+      final pagina1 = [
+        fakeLanc(
+          id: 'd1',
+          tipo: TipoLancamento.despesa,
+          valor: 300,
+          data: '2026-07-28',
+        ),
+      ];
+      final mes = [
+        ...pagina1,
+        fakeLanc(
+          id: 'r1',
+          tipo: TipoLancamento.receita,
+          valor: 5000,
+          data: '2026-07-05',
+        ),
+      ];
+
+      final base = finBaseKpiExtrato(
+        mes: mes,
+        comissaoCiclo: const [],
+        periodo: julho,
+        paginaAtual: pagina1,
+      );
+      expect(base, hasLength(2));
+      expect(resumoPeriodoCompetencia(base).saldoMes, closeTo(4700, 1e-9));
+      // Regressão: com a página 1 o balanço saía negativo.
+      expect(resumoPeriodoCompetencia(pagina1).saldoMes, closeTo(-300, 1e-9));
+    });
+
+    test('soma comissão do ciclo dentro do período e ignora fora / duplicada', () {
+      final mes = [
+        fakeLanc(
+          id: 'r1',
+          tipo: TipoLancamento.receita,
+          valor: 1000,
+          data: '2026-07-05',
+        ),
+      ];
+      final comissaoCiclo = [
+        fakeLanc(
+          id: 'sint-julho',
+          tipo: TipoLancamento.despesa,
+          valor: 174,
+          data: '2026-07-31',
+          status: LancamentoStatus.previsto,
+        ),
+        fakeLanc(
+          id: 'sint-agosto',
+          tipo: TipoLancamento.despesa,
+          valor: 500,
+          data: '2026-08-31',
+          status: LancamentoStatus.previsto,
+        ),
+        // Mesmo id de um lançamento real do mês: não pode entrar duas vezes.
+        fakeLanc(
+          id: 'r1',
+          tipo: TipoLancamento.despesa,
+          valor: 999,
+          data: '2026-07-05',
+        ),
+      ];
+
+      final base = finBaseKpiExtrato(
+        mes: mes,
+        comissaoCiclo: comissaoCiclo,
+        periodo: julho,
+      );
+      expect(base.map((l) => l.id), ['r1', 'sint-julho']);
+      expect(resumoPeriodoCompetencia(base).saldoMes, closeTo(826, 1e-9));
+    });
+
+    test('cai para a página atual enquanto o mês não carregou', () {
+      final pagina1 = [fakeLanc(id: 'd1', data: '2026-07-10')];
+      final base = finBaseKpiExtrato(
+        mes: const [],
+        comissaoCiclo: const [],
+        periodo: julho,
+        paginaAtual: pagina1,
+      );
+      expect(base, same(pagina1));
+    });
+  });
 }

@@ -174,6 +174,18 @@ class FinLancController extends StateNotifier<FinLancState> {
         }
       }
 
+      // Dedupe do ciclo real precisa do MÊS INTEIRO: se a despesa de "Fechar
+      // ciclo" cair fora da 1ª página, o sintético não seria abatido e a
+      // comissão apareceria dobrada no Extrato.
+      var existentes = base;
+      try {
+        final mes = await _ref.read(finPeriodLancamentosProvider.future);
+        final ids = {for (final l in base) l.id};
+        existentes = [...base, ...mes.where((l) => !ids.contains(l.id))];
+      } catch (_) {
+        // Best-effort: sem o mês completo, dedupe segue com a página atual.
+      }
+
       // Só comissões de OS **concluídas** (status pendente em prof_comissoes).
       // Não mistura “previsto” de OS ainda abertas na movimentação.
       final previstos = finComissoesPendentesComoLancamentos(
@@ -183,7 +195,7 @@ class FinLancController extends StateNotifier<FinLancState> {
         nomePorProfId: nomePorProf,
         previstoOsByProf: const {},
         contaId: contaPadrao,
-        lancamentosExistentes: base,
+        lancamentosExistentes: existentes,
       );
       if (previstos.isEmpty) return base;
 
