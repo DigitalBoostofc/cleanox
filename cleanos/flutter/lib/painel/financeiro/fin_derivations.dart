@@ -890,6 +890,32 @@ bool _repasseCobreSintetico(FinLancamento real, FinLancamento sintetico) {
   return false;
 }
 
+/// Base dos KPIs/projeção do Extrato (Movimentação).
+///
+/// **Sempre o mês COMPLETO** (`mes` = [finPeriodLancamentosProvider], que pagina
+/// o período inteiro) somado às comissões sintéticas do ciclo que caem dentro do
+/// período. A página atual do Extrato (`paginaAtual`, 40 itens) é só **fallback**
+/// enquanto o mês não chegou.
+///
+/// Regressão que isto corrige: usar a 1ª página como base fazia o "Balanço
+/// mensal" (filtro Todos) sair errado — e até com o sinal invertido — em meses
+/// com mais de uma página de lançamentos.
+List<FinLancamento> finBaseKpiExtrato({
+  required List<FinLancamento> mes,
+  required List<FinLancamento> comissaoCiclo,
+  required Periodo periodo,
+  List<FinLancamento> paginaAtual = const [],
+}) {
+  final ids = {for (final l in mes) l.id};
+  final base = [
+    ...mes,
+    ...comissaoCiclo.where(
+      (l) => dentroDoPeriodo(l, periodo) && !ids.contains(l.id),
+    ),
+  ];
+  return base.isNotEmpty ? base : paginaAtual;
+}
+
 /* ─────────────────────── gasto / limites ─────────────────────── */
 
 /// Total PAGO por `categoriaId` de um dado tipo (receita ou despesa).

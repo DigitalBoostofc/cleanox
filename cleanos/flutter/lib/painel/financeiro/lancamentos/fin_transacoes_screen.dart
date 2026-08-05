@@ -367,13 +367,6 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
         break;
       }
     }
-    // Preferir a lista do Extrato (já com comissões) para saldo do dia e balanço.
-    // Assim o chip "Saldo previsto final do dia" sai **após o 31** (despesas de
-    // comissão) e **antes do 25**, com caixa projetado descontando essas saídas.
-    final lancsParaProjecao = state.items.isNotEmpty
-        ? state.items
-        : periodLancs;
-    final idsPeriodo = {for (final l in periodLancs) l.id};
     final comissaoCiclo = finComissoesPendentesComoLancamentos(
       comissoes: comissoes,
       categorias: categorias,
@@ -382,16 +375,17 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
       contaId: contaPadrao,
       lancamentosExistentes: periodLancs,
     );
-    final baseBalanco = [
-      ...periodLancs,
-      ...comissaoCiclo.where(
-        (l) => dentroDoPeriodo(l, period.periodo) && !idsPeriodo.contains(l.id),
-      ),
-    ];
-    final resumoMes = resumoPeriodoCompetencia(
-      lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
+    // Base de KPI/projeção = MÊS COMPLETO + comissões do ciclo. `state.items` é
+    // só a 1ª página (40) do Extrato: usá-la aqui errava o "Balanço mensal"
+    // (chegava a inverter o sinal) e o "Saldo previsto do dia" em meses grandes.
+    // Fica apenas como fallback enquanto o mês não carregou.
+    final baseKpi = finBaseKpiExtrato(
+      mes: periodLancs,
+      comissaoCiclo: comissaoCiclo,
+      periodo: period.periodo,
+      paginaAtual: state.items,
     );
-    final baseKpi = lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco;
+    final resumoMes = resumoPeriodoCompetencia(baseKpi);
     final despTotais = totaisDespesasPeriodo(baseKpi);
     final recTotais = totaisReceitasPeriodo(baseKpi);
     // Rótulo/KPI do card direito muda com o filtro de tipo:
@@ -411,7 +405,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
     }
     final prevPorDia = saldoPrevistoPorDia(
       saldoAtual: saldo,
-      lancs: lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
+      lancs: baseKpi,
     );
 
     final catById = {for (final c in categorias) c.id: c};
