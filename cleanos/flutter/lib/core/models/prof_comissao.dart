@@ -45,6 +45,7 @@ class ProfComissao with _$ProfComissao {
     if (p is Map) j['profissional'] = p['id'] ?? '';
     final o = j['os'];
     if (o is Map) j['os'] = o['id'] ?? '';
+    if (o == null) j['os'] = '';
     return ProfComissao.fromJson(j);
   }
 }

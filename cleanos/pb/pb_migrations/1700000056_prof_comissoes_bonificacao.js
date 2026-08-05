@@ -28,6 +28,23 @@ migrate(
   },
   (app) => {
     const col = app.findCollectionByNameOrId("prof_comissoes");
+    try {
+      app.findFirstRecordByFilter(
+        "prof_comissoes",
+        "tipo_aplicado = 'bonificacao'",
+      );
+      throw new Error(
+        "rollback bloqueado: existem prof_comissoes.tipo_aplicado=bonificacao",
+      );
+    } catch (err) {
+      if (
+        err &&
+        String(err.message || err).indexOf("rollback bloqueado") !== -1
+      ) {
+        throw err;
+      }
+      // Sem bonificações: seguro remover o valor do enum.
+    }
     const tipo = col.fields.getByName("tipo_aplicado");
     if (tipo && tipo.values) {
       tipo.values = tipo.values.filter((v) => v !== "bonificacao");
