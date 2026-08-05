@@ -25,6 +25,28 @@ migrate(
     }
 
     app.save(col);
+
+    try {
+      app
+        .db()
+        .newQuery("DROP INDEX IF EXISTS idx_prof_comissoes_os_prof")
+        .execute();
+    } catch (err) {
+      console.log("[mig 56] drop idx_prof_comissoes_os_prof: " + err);
+    }
+    try {
+      app
+        .db()
+        .newQuery(
+          "CREATE UNIQUE INDEX IF NOT EXISTS idx_prof_comissoes_os_prof " +
+            "ON prof_comissoes (os, profissional) " +
+            "WHERE os != '' AND profissional != '' " +
+            "AND tipo_aplicado != 'bonificacao'",
+        )
+        .execute();
+    } catch (err) {
+      console.log("[mig 56] idx_prof_comissoes_os_prof: " + err);
+    }
   },
   (app) => {
     const col = app.findCollectionByNameOrId("prof_comissoes");
@@ -51,5 +73,26 @@ migrate(
     }
     // DOWN não volta `os.required=true`: podem existir bonificações avulsas.
     app.save(col);
+
+    try {
+      app
+        .db()
+        .newQuery("DROP INDEX IF EXISTS idx_prof_comissoes_os_prof")
+        .execute();
+    } catch (err) {
+      console.log("[mig 56 down] drop idx_prof_comissoes_os_prof: " + err);
+    }
+    try {
+      app
+        .db()
+        .newQuery(
+          "CREATE UNIQUE INDEX IF NOT EXISTS idx_prof_comissoes_os_prof " +
+            "ON prof_comissoes (os, profissional) " +
+            "WHERE os != '' AND profissional != ''",
+        )
+        .execute();
+    } catch (err) {
+      console.log("[mig 56 down] restore idx_prof_comissoes_os_prof: " + err);
+    }
   },
 );
