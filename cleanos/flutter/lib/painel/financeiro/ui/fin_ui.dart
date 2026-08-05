@@ -264,27 +264,31 @@ class FinMoneyText extends StatelessWidget {
     super.key,
     this.style,
     this.signed = false,
+    /// Força cor (ex.: despesa sempre vermelha mesmo com valor > 0).
+    this.color,
   });
 
   final double amount;
   final TextStyle? style;
   final bool signed;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final color = amount > 0
-        ? clx.finIncome
-        : amount < 0
-            ? clx.finExpense
-            : clx.ink;
+    final resolved = color ??
+        (amount > 0
+            ? clx.finIncome
+            : amount < 0
+                ? clx.finExpense
+                : clx.ink);
     final text = signed && amount > 0
         ? '+${formatCurrency(amount)}'
         : formatCurrency(amount);
     return Text(
       text,
       style: (style ?? Theme.of(context).textTheme.titleMedium)?.copyWith(
-        color: color,
+        color: resolved,
         fontWeight: FontWeight.w700,
       ),
     );

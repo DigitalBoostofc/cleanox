@@ -391,17 +391,20 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
     final resumoMes = resumoPeriodoCompetencia(
       lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco,
     );
+    final baseKpi = lancsParaProjecao.isNotEmpty ? lancsParaProjecao : baseBalanco;
+    final despTotais = totaisDespesasPeriodo(baseKpi);
+    final recTotais = totaisReceitasPeriodo(baseKpi);
     // Rótulo/KPI do card direito muda com o filtro de tipo:
-    // Todos → Balanço; Receitas → Receita mensal; Despesas → Despesa mensal.
+    // Todos → Balanço; Receitas → 3 verdes; Despesas → 3 vermelhos.
     final tipoFiltro = state.filters.tipo;
     final String kpiMensalLabel;
     final double kpiMensalValor;
     if (tipoFiltro == TipoLancamento.receita) {
       kpiMensalLabel = 'Receita mensal';
-      kpiMensalValor = resumoMes.entradas;
+      kpiMensalValor = recTotais.total;
     } else if (tipoFiltro == TipoLancamento.despesa) {
       kpiMensalLabel = 'Despesa mensal';
-      kpiMensalValor = resumoMes.saidas;
+      kpiMensalValor = despTotais.total;
     } else {
       kpiMensalLabel = 'Balanço mensal';
       kpiMensalValor = resumoMes.saldoMes;
@@ -428,6 +431,9 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
             saldo: saldo,
             kpiMensalLabel: kpiMensalLabel,
             kpiMensalValor: kpiMensalValor,
+            tipoFiltro: tipoFiltro,
+            despTotais: despTotais,
+            recTotais: recTotais,
             searchCtrl: _searchCtrl,
             onSearch: _onSearch,
             onNovo: () => _openForm(),
@@ -512,6 +518,9 @@ class _HeaderKpis extends StatelessWidget {
     required this.saldo,
     required this.kpiMensalLabel,
     required this.kpiMensalValor,
+    required this.tipoFiltro,
+    required this.despTotais,
+    required this.recTotais,
     required this.searchCtrl,
     required this.onSearch,
     required this.onNovo,
@@ -528,6 +537,9 @@ class _HeaderKpis extends StatelessWidget {
   /// "Balanço mensal" | "Receita mensal" | "Despesa mensal" (filtro de tipo).
   final String kpiMensalLabel;
   final double kpiMensalValor;
+  final TipoLancamento? tipoFiltro;
+  final DespesasPeriodoTotais despTotais;
+  final ReceitasPeriodoTotais recTotais;
   final TextEditingController searchCtrl;
   final ValueChanged<String> onSearch;
   final VoidCallback onNovo;
@@ -540,6 +552,91 @@ class _HeaderKpis extends StatelessWidget {
     final clx = context.clx;
     final r = context.clxR;
     final gap = fintech ? r.s(8) : 12.0;
+    Widget divider() => Container(
+          width: 1,
+          height: fintech ? 32 : 40,
+          color: clx.line,
+        );
+
+    final List<Widget> kpiRight;
+    if (tipoFiltro == TipoLancamento.despesa) {
+      // Paga + em aberto + total — os 3 em vermelho.
+      kpiRight = [
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Paga',
+            value: despTotais.paga,
+            compact: fintech,
+            valueColor: clx.finExpense,
+          ),
+        ),
+        divider(),
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.schedule_rounded,
+            label: 'Pendente',
+            value: despTotais.emAberto,
+            compact: fintech,
+            valueColor: clx.finExpense,
+          ),
+        ),
+        divider(),
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Total',
+            value: despTotais.total,
+            compact: fintech,
+            valueColor: clx.finExpense,
+          ),
+        ),
+      ];
+    } else if (tipoFiltro == TipoLancamento.receita) {
+      kpiRight = [
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Recebida',
+            value: recTotais.recebida,
+            compact: fintech,
+            valueColor: clx.finIncome,
+          ),
+        ),
+        divider(),
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.schedule_rounded,
+            label: 'Prevista',
+            value: recTotais.prevista,
+            compact: fintech,
+            valueColor: clx.finIncome,
+          ),
+        ),
+        divider(),
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Total',
+            value: recTotais.total,
+            compact: fintech,
+            valueColor: clx.finIncome,
+          ),
+        ),
+      ];
+    } else {
+      kpiRight = [
+        Expanded(
+          child: _KpiMini(
+            icon: Icons.account_balance_wallet_outlined,
+            label: kpiMensalLabel,
+            value: kpiMensalValor,
+            compact: fintech,
+          ),
+        ),
+      ];
+    }
+
     return Container(
       color: clx.bg2,
       padding: EdgeInsets.fromLTRB(
@@ -573,19 +670,8 @@ class _HeaderKpis extends StatelessWidget {
                     compact: fintech,
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: fintech ? 32 : 40,
-                  color: clx.line,
-                ),
-                Expanded(
-                  child: _KpiMini(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: kpiMensalLabel,
-                    value: kpiMensalValor,
-                    compact: fintech,
-                  ),
-                ),
+                divider(),
+                ...kpiRight,
               ],
             ),
           ),
@@ -660,11 +746,13 @@ class _KpiMini extends StatelessWidget {
     required this.label,
     required this.value,
     this.compact = false,
+    this.valueColor,
   });
   final IconData icon;
   final String label;
   final double value;
   final bool compact;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -677,17 +765,20 @@ class _KpiMini extends StatelessWidget {
           children: [
             Icon(icon, size: compact ? 14 : 16, color: clx.ink3),
             SizedBox(width: compact ? 4 : 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: clx.ink3,
-                fontSize: compact ? r.sp(11) : 12,
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: clx.ink3,
+                  fontSize: compact ? r.sp(11) : 12,
+                ),
               ),
             ),
           ],
         ),
         SizedBox(height: compact ? 2 : 4),
-        FinMoneyText(value),
+        FinMoneyText(value, color: valueColor),
       ],
     );
   }
