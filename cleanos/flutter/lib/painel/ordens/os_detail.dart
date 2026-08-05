@@ -23,6 +23,7 @@ import '../../shared_widgets_os/os_financeiro_resumo.dart';
 import 'ordens_controller.dart';
 import 'os_atividade_panel.dart';
 import 'os_rebaixar_confirm.dart';
+import '../agenda/agenda_controller.dart';
 
 enum OSDetailIntent { editar, execucao }
 
@@ -159,7 +160,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         'status': _selectedProf.isEmpty
             ? OSStatus.agendada.wire
             : OSStatus.atribuida.wire,
-      }, expand: 'profissional,cliente');
+      }, expand: 'profissional,profissional2,cliente');
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -177,7 +178,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       _changed = true;
     });
     // Atualiza lista/contadores AQUI, no sucesso da ação — o refresh não pode
-    // depender do resultado do dialog, porque fechar pelo barrier devolve null.
+    // depender só do resultado do dialog (fechar pelo barrier devolve null).
     ref.invalidate(ordensCountsProvider);
     showClxToast(
       context,
@@ -186,6 +187,11 @@ class _OSDetailState extends ConsumerState<OSDetail> {
           : 'Profissional atribuído.',
       type: ToastType.success,
     );
+    // Agenda: recarrega a grade no lugar (mesmo dia/semana/mês aberto).
+    // Antes só o OrdensController era refreshed e `_changed` era zerado —
+    // o card na agenda ficava no profissional antigo até sair da tela.
+    await _refreshAgendaAposMutacao();
+
     final notifier = ref.read(ordensControllerProvider.notifier);
     final filtroAtivo = ref.read(ordensControllerProvider).filter.status;
     if (filtroAtivo != null && filtroAtivo != novo.status) {
@@ -193,10 +199,21 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       // a aba onde ela está agora e fecha o detalhe.
       await notifier.setStatus(novo.status);
       if (!mounted) return;
-      Navigator.of(context).pop(OSDetailResult(os: novo));
+      Navigator.of(context).pop(OSDetailResult(changed: true, os: novo));
     } else {
       await notifier.refresh();
-      _changed = false; // lista já recarregada; sem refresh duplicado no fechar
+      // Mantém `_changed = true` para se o usuário fechar o modal a Agenda
+      // (e outros callers) ainda revalidem — barato e evita stale.
+    }
+  }
+
+  /// Recarrega a agenda se o provider estiver ativo (usuário na tela Agenda).
+  Future<void> _refreshAgendaAposMutacao() async {
+    try {
+      if (!ref.exists(agendaControllerProvider)) return;
+      await ref.read(agendaControllerProvider.notifier).load();
+    } catch (_) {
+      /* agenda pode não estar montada / falha de rede — UI de Ordens ok */
     }
   }
 

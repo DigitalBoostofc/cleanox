@@ -431,10 +431,14 @@ class _Body extends ConsumerWidget {
       final result = await showOSDetail(context, os);
       if (result == null) return;
       final notifier = ref.read(agendaControllerProvider.notifier);
-      if (result.changed) await notifier.load();
-      if (!context.mounted) return;
-      // `result.os` é o registro ATUAL (pode ter sido reatribuído no detalhe).
       final atual = result.os ?? os;
+      // Reatribuição / cancelamento / etc. — inclusive se o detalhe já
+      // tentou refresh interno (duplo load é barato; stale não).
+      final profMudou = atual.profissional != os.profissional ||
+          atual.profissional2 != os.profissional2 ||
+          atual.status != os.status;
+      if (result.changed || profMudou) await notifier.load();
+      if (!context.mounted) return;
       switch (result.intent) {
         case OSDetailIntent.editar:
           final salva = await showOSForm(context, editing: atual);
