@@ -238,8 +238,12 @@ void main() {
       await tester.enterText(osFormFieldAt(3), '150');
       await tester.pump();
 
-      // Data: abre o date picker e confirma (hoje).
-      await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+      // Data: o campo está abaixo do conteúdo já preenchido. Rolamos antes
+      // de tocar para que o teste represente uma interação realmente visível.
+      final datePicker = find.byIcon(Icons.calendar_month_outlined);
+      await tester.ensureVisible(datePicker);
+      await tester.pumpAndSettle();
+      await tester.tap(datePicker);
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();

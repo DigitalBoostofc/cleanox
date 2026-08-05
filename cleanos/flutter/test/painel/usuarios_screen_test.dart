@@ -80,7 +80,7 @@ void main() {
     });
 
     testWidgets(
-      'excluir profissional: diálogo avisa que agenda será excluída',
+      'excluir profissional: diálogo confirma ação irreversível',
       (tester) async {
         final prof = fakeUser(id: 'p1', name: 'Bia Prof', role: Role.profissional);
         final repo = FakeUsuariosFull(seed: [prof]);
@@ -99,9 +99,10 @@ void main() {
         await tester.tap(find.byIcon(Icons.delete_outline_rounded));
         await tester.pumpAndSettle();
 
-        // O diálogo deve mencionar a exclusão da agenda de disponibilidade.
+        // A agenda livre não possui mais disponibilidade semanal; o diálogo
+        // confirma somente a exclusão irreversível do profissional.
         expect(
-          find.textContaining('agenda de disponibilidade'),
+          find.textContaining('Esta ação não pode ser desfeita.'),
           findsOneWidget,
         );
 
