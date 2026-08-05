@@ -15,6 +15,8 @@
 /// `formatDate` do core (que aplicariam −3h e jogariam a data pro dia anterior).
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../../core/formatters/formatters.dart' show kBrtOffset, parsePbUtc;
 import '../../core/models/collections.dart';
 import '../../core/models/financeiro.dart';
@@ -655,6 +657,10 @@ String _ymdBrtOs(String dataHora) {
 /// - Valor = Σ comissões pendentes (OS concluídas) + estimado das OS abertas
 /// - Descrição: `Comissão · João Pedro`
 /// - Pagas não entram (viram repasse real no caixa ao marcar paga).
+///
+/// Se já existir despesa real de ciclo em aberto (`via_comissao` / `repasse_ciclo:…:…`)
+/// para o mesmo profissional, o valor dela é **abatido** da linha sintética —
+/// evita duplicar no Extrato (ex.: ciclo 174 + sintético 174).
 List<FinLancamento> finComissoesPendentesComoLancamentos({
   required List<ProfComissao> comissoes,
   required List<FinCategoria> categorias,
@@ -662,6 +668,8 @@ List<FinLancamento> finComissoesPendentesComoLancamentos({
   Map<String, String> nomePorProfId = const {},
   /// Extra em centavos reais por profissional (OS atribuídas/em andamento).
   Map<String, double> previstoOsByProf = const {},
+  /// Lançamentos já no caixa/extrato (para abater repasses de ciclo abertos).
+  List<FinLancamento> lancamentosExistentes = const [],
   String contaId = '',
   DateTime? now,
 }) {
@@ -729,7 +737,91 @@ List<FinLancamento> finComissoesPendentesComoLancamentos({
     if (byDate != 0) return byDate;
     return a.descricao.compareTo(b.descricao);
   });
+  return finAjustarSinteticosComRepasseAberto(out, lancamentosExistentes);
+}
+
+/// Despesa real de ciclo (Fechar ciclo) ainda em aberto no extrato.
+///
+/// Observação canônica: `repasse_ciclo:YYYY-MM-DD:YYYY-MM-DD`.
+/// Descrição típica: `Comissão · Nome · dd/mm a dd/mm/aaaa (N OS)`.
+@visibleForTesting
+bool finIsRepasseCicloAberto(FinLancamento l) {
+  if (l.tipo != TipoLancamento.despesa) return false;
+  if (l.status == LancamentoStatus.pago) return false;
+  // Sintético do extrato usa `repasse_ciclo:<profId>` (sem datas) — não conta.
+  final obs = (l.observacao ?? '').trim();
+  if (obs.startsWith('repasse_ciclo:')) {
+    final rest = obs.substring('repasse_ciclo:'.length);
+    // Janela real tem dois YMD separados por ':'.
+    final parts = rest.split(':');
+    if (parts.length >= 2 &&
+        parts[0].contains('-') &&
+        parts[1].contains('-')) {
+      return true;
+    }
+  }
+  final d = l.descricao.trim();
+  // Legado / UI: "Comissão · Nome · 02/08 a 08/08/2026 (4 OS)"
+  if (d.startsWith('Comissão ·') &&
+      d.contains(' · ') &&
+      (d.contains(' OS)') || d.contains(' OS'))) {
+    // Precisa de 2+ " · " (nome + período).
+    if (' · '.allMatches(d).length >= 2) return true;
+  }
+  return false;
+}
+
+/// Abate repasses de ciclo em aberto do total sintético por profissional.
+///
+/// Se o ciclo já cobre 100% do pendente, a linha sintética some (sem duplicar).
+@visibleForTesting
+List<FinLancamento> finAjustarSinteticosComRepasseAberto(
+  List<FinLancamento> sinteticos,
+  List<FinLancamento> existentes,
+) {
+  if (sinteticos.isEmpty || existentes.isEmpty) return sinteticos;
+  final abertos = existentes.where(finIsRepasseCicloAberto).toList();
+  if (abertos.isEmpty) return sinteticos;
+
+  final out = <FinLancamento>[];
+  for (final s in sinteticos) {
+    var coveredCents = 0;
+    for (final r in abertos) {
+      if (!_repasseCobreSintetico(r, s)) continue;
+      coveredCents += (r.valor * 100).round();
+    }
+    final restCents = (s.valor * 100).round() - coveredCents;
+    if (restCents <= 0) continue;
+    if (restCents == (s.valor * 100).round()) {
+      out.add(s);
+    } else {
+      out.add(s.copyWith(valor: restCents / 100.0));
+    }
+  }
   return out;
+}
+
+bool _repasseCobreSintetico(FinLancamento real, FinLancamento sintetico) {
+  final nome = sintetico.descricao.trim(); // "Comissão · Nome" ou "Comissão"
+  if (nome.isEmpty) return false;
+  final d = real.descricao.trim();
+  if (d == nome) return true;
+  if (d.startsWith('$nome ·')) return true;
+  if (d.startsWith('$nome -')) return true;
+  // Observação sintética `repasse_ciclo:<profId>` vs real com mesmo prof no id sintético.
+  final synthObs = (sintetico.observacao ?? '').trim();
+  final realObs = (real.observacao ?? '').trim();
+  if (synthObs.startsWith('repasse_ciclo:') &&
+      realObs.startsWith('repasse_ciclo:') &&
+      realObs.contains(':')) {
+    final pid = synthObs.substring('repasse_ciclo:'.length);
+    // real não carrega profissional_id no model — não dá para cruzar por id aqui.
+    // Nome na descrição já cobre o caso prod.
+    if (pid.isNotEmpty && d.toLowerCase().contains(pid.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /* ─────────────────────── gasto / limites ─────────────────────── */
