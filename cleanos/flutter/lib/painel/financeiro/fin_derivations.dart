@@ -89,13 +89,8 @@ bool dentroDoPeriodoPorRef(FinLancamento l, Periodo p) {
 }
 
 /// Pendências do mês: em aberto com vencimento/`data` no período.
-List<FinLancamento> pendentesDoPeriodo(
-  List<FinLancamento> lancs,
-  Periodo p,
-) =>
-    lancs
-        .where((l) => emAberto(l) && dentroDoPeriodoPorRef(l, p))
-        .toList();
+List<FinLancamento> pendentesDoPeriodo(List<FinLancamento> lancs, Periodo p) =>
+    lancs.where((l) => emAberto(l) && dentroDoPeriodoPorRef(l, p)).toList();
 
 /* ─────────────────────── resumo do período ─────────────────────── */
 
@@ -127,8 +122,7 @@ bool isLancamentoRealizado(FinLancamento l) =>
 /// Receita ainda não realizada (previsto/pendente/em atraso) — OS aberta ou
 /// conta a receber manual.
 bool isReceitaPrevista(FinLancamento l) =>
-    l.tipo == TipoLancamento.receita &&
-    l.status != LancamentoStatus.pago;
+    l.tipo == TipoLancamento.receita && l.status != LancamentoStatus.pago;
 
 /// Σ receitas **pagas** / Σ despesas **pagas** / saldo do período.
 ///
@@ -281,8 +275,7 @@ class CompromissosResumo {
   double get totalAPagar => comissoesAPagar + contasAPagar;
 
   /// Se tudo se confirmar: realizado + a receber − obrigações.
-  double get resultadoProjetado =>
-      resultadoRealizado + aReceber - totalAPagar;
+  double get resultadoProjetado => resultadoRealizado + aReceber - totalAPagar;
 
   static const zero = CompromissosResumo(
     aReceber: 0,
@@ -344,7 +337,8 @@ List<FinLancamento> consolidarViaOsPorOs(List<FinLancamento> lancs) {
   final order = <String>[];
   for (final l in lancs) {
     final oid = (l.osId ?? '').trim();
-    final viaOsMulti = !isLancamentoComissao(l) &&
+    final viaOsMulti =
+        !isLancamentoComissao(l) &&
         (l.origem == OrigemLancamento.viaOs || oid.isNotEmpty) &&
         oid.isNotEmpty;
     final key = viaOsMulti ? 'os:$oid' : 'one:${l.id}';
@@ -504,8 +498,7 @@ ContaPendente _toPendente(FinLancamento l, String ref) {
   return ContaPendente(
     lancamento: l,
     vencendoHoje: venc == hoje,
-    emAtraso:
-        l.status == LancamentoStatus.emAtraso || venc.compareTo(hoje) < 0,
+    emAtraso: l.status == LancamentoStatus.emAtraso || venc.compareTo(hoje) < 0,
   );
 }
 
@@ -543,6 +536,20 @@ List<ContaPendente> contasAReceber(List<FinLancamento> lancs, String ref) {
 
 /* ─────────────────────── comissões no relatório ─────────────────────── */
 
+/// Total de bonificações manuais agrupado pelo profissional.
+Map<String, double> totalBonificacoesPorProfissional(
+  Iterable<ProfComissao> comissoes,
+) {
+  final cents = <String, int>{};
+  for (final c in comissoes) {
+    if (c.tipoAplicado != ProfComissaoTipo.bonificacao) continue;
+    final id = c.profissional.trim();
+    if (id.isEmpty) continue;
+    cents[id] = (cents[id] ?? 0) + _cents(c.valorComissao);
+  }
+  return cents.map((id, value) => MapEntry(id, _reais(value)));
+}
+
 /// IDs da categoria canônica de comissão da equipe.
 ///
 /// Preferência (igual ao hook `acharCategoriaComissao`):
@@ -557,7 +564,9 @@ class FinCatComissaoIds {
 
 /// Resolve Equipe/Profissionais a partir do catálogo de categorias.
 FinCatComissaoIds? finCategoriaComissaoIds(List<FinCategoria> cats) {
-  final despesas = cats.where((c) => !c.arquivada && c.tipo == TipoLancamento.despesa);
+  final despesas = cats.where(
+    (c) => !c.arquivada && c.tipo == TipoLancamento.despesa,
+  );
   FinCategoria? equipe;
   for (final c in despesas) {
     if (c.parentId == null && c.nome.trim().toLowerCase() == 'equipe') {
@@ -572,15 +581,15 @@ FinCatComissaoIds? finCategoriaComissaoIds(List<FinCategoria> cats) {
       if (c.parentId != equipe.id) continue;
       final n = c.nome.trim().toLowerCase();
       if (n == 'profissionais') prof = c;
-      if (n == 'comissões' || n == 'comissão' || n == 'comissoes' || n == 'comissao') {
+      if (n == 'comissões' ||
+          n == 'comissão' ||
+          n == 'comissoes' ||
+          n == 'comissao') {
         comiss = c;
       }
     }
     final sub = prof ?? comiss;
-    return FinCatComissaoIds(
-      categoriaId: equipe.id,
-      subcategoriaId: sub?.id,
-    );
+    return FinCatComissaoIds(categoriaId: equipe.id, subcategoriaId: sub?.id);
   }
   // Fallback: sub "Profissionais" com qualquer parent.
   for (final c in despesas) {
@@ -732,8 +741,10 @@ List<FinLancamento> finComissoesPendentesComoLancamentos({
   required List<FinCategoria> categorias,
   List<User> profissionais = const [],
   Map<String, String> nomePorProfId = const {},
+
   /// Extra em centavos reais por profissional (OS atribuídas/em andamento).
   Map<String, double> previstoOsByProf = const {},
+
   /// Lançamentos já no caixa/extrato (para abater repasses de ciclo abertos).
   List<FinLancamento> lancamentosExistentes = const [],
   String contaId = '',
@@ -777,8 +788,7 @@ List<FinLancamento> finComissoesPendentesComoLancamentos({
 
     final profNome = (nomePorProfId[pid] ?? user?.displayName ?? '').trim();
     // "Comissão · Nome"
-    final descricao =
-        profNome.isEmpty ? 'Comissão' : 'Comissão · $profNome';
+    final descricao = profNome.isEmpty ? 'Comissão' : 'Comissão · $profNome';
 
     out.add(
       FinLancamento(
@@ -820,9 +830,7 @@ bool finIsRepasseCicloAberto(FinLancamento l) {
     final rest = obs.substring('repasse_ciclo:'.length);
     // Janela real tem dois YMD separados por ':'.
     final parts = rest.split(':');
-    if (parts.length >= 2 &&
-        parts[0].contains('-') &&
-        parts[1].contains('-')) {
+    if (parts.length >= 2 && parts[0].contains('-') && parts[1].contains('-')) {
       return true;
     }
   }

@@ -78,35 +78,6 @@ enum ComissaoTipo {
       this == ComissaoTipo.diaria;
 }
 
-/// Tipo gravado em `prof_comissoes.tipo_aplicado`.
-///
-/// Separado de [ComissaoTipo] porque `bonificacao` é lançamento manual, não
-/// configuração automática em `users.comissao_tipo`.
-enum ProfComissaoTipo {
-  @JsonValue('percentual')
-  percentual,
-  @JsonValue('fixo')
-  fixo,
-  @JsonValue('diaria')
-  diaria,
-  @JsonValue('bonificacao')
-  bonificacao;
-
-  String get wire => switch (this) {
-    ProfComissaoTipo.percentual => 'percentual',
-    ProfComissaoTipo.fixo => 'fixo',
-    ProfComissaoTipo.diaria => 'diaria',
-    ProfComissaoTipo.bonificacao => 'bonificacao',
-  };
-
-  String get label => switch (this) {
-    ProfComissaoTipo.percentual => 'Percentual (%)',
-    ProfComissaoTipo.fixo => 'Valor fixo (R\$ por OS)',
-    ProfComissaoTipo.diaria => 'Diária (R\$ por dia trabalhado)',
-    ProfComissaoTipo.bonificacao => 'Bonificação manual',
-  };
-}
-
 /// Frequência de repasse ao profissional (config em Financeiro → Equipe).
 enum PagamentoFrequencia {
   @JsonValue('diario')
@@ -147,6 +118,33 @@ enum ComissaoStatus {
   String get label => switch (this) {
     ComissaoStatus.pendente => 'Pendente',
     ComissaoStatus.paga => 'Paga',
+  };
+}
+
+/// Tipo congelado na linha de `prof_comissoes`.
+/// Bonificação é manual e não é uma configuração de `users.comissao_tipo`.
+enum ProfComissaoTipo {
+  @JsonValue('percentual')
+  percentual,
+  @JsonValue('fixo')
+  fixo,
+  @JsonValue('diaria')
+  diaria,
+  @JsonValue('bonificacao')
+  bonificacao;
+
+  String get wire => switch (this) {
+    ProfComissaoTipo.percentual => 'percentual',
+    ProfComissaoTipo.fixo => 'fixo',
+    ProfComissaoTipo.diaria => 'diaria',
+    ProfComissaoTipo.bonificacao => 'bonificacao',
+  };
+
+  String get label => switch (this) {
+    ProfComissaoTipo.percentual => 'percentual',
+    ProfComissaoTipo.fixo => 'fixo',
+    ProfComissaoTipo.diaria => 'diária',
+    ProfComissaoTipo.bonificacao => 'bonificação',
   };
 }
 
