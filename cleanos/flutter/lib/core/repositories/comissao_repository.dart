@@ -7,7 +7,10 @@ import '../models/user.dart';
 
 abstract class ComissaoRepository {
   /// Lista profissionais (users role=profissional) com config de comissão.
-  Future<List<User>> listProfissionais();
+  ///
+  /// Por padrão retorna somente ativos para telas de configuração/seleção.
+  /// Superfícies históricas usam [incluirInativos] para preservar os nomes.
+  Future<List<User>> listProfissionais({bool incluirInativos = false});
 
   /// Atualiza comissão + frequência + dia(s) de pagamento no user.
   Future<User> setComissao({

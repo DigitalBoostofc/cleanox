@@ -120,11 +120,19 @@ void main() {
       await _settle(tester);
 
       // Escolhe hoje e o profissional → a Duração é prefilada com a dele (1h30).
-      await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+      // O formulário é rolável: tornar o campo visível evita tocar atrás do
+      // rodapé fixo do modal em ambientes de CI.
+      final datePicker = find.byIcon(Icons.calendar_month_outlined);
+      await tester.ensureVisible(datePicker);
+      await tester.pumpAndSettle();
+      await tester.tap(datePicker);
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('os-profissional')));
+      final profissional = find.byKey(const ValueKey('os-profissional'));
+      await tester.ensureVisible(profissional);
+      await tester.pumpAndSettle();
+      await tester.tap(profissional);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Pedro').last);
       await _settle(tester);

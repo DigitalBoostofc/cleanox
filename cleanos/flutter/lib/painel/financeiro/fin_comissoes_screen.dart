@@ -35,11 +35,37 @@ String formatPercent(double v) {
   return '$texto%';
 }
 
+/// Identidade usada em superfícies históricas: inativar nunca apaga o nome.
+String nomeProfissionalNoHistorico(User user) => user.ativo
+    ? user.displayName
+    : '${user.displayName} (inativo)';
+
+String nomeCurtoProfissionalNoHistorico(User user) {
+  final partes = user.displayName.trim().split(RegExp(r'\s+'));
+  final curto = partes.length <= 1
+      ? partes.first
+      : '${partes.first} ${partes.last[0]}.';
+  return user.ativo ? curto : '$curto (inativo)';
+}
+
+/// O clique no gráfico usa identidade estável, nunca o rótulo abreviado.
+String? profissionalIdDaFatia(FinSlice slice) => slice.id;
+
+/// Só a identidade fica mais discreta; valores históricos mantêm contraste.
+double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.64;
+
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
-  return ref.watch(comissaoRepositoryProvider).listProfissionais();
+  return ref
+      .watch(comissaoRepositoryProvider)
+      .listProfissionais(incluirInativos: true);
 });
+
+final _comissoesProfissionaisAtivosProvider =
+    FutureProvider.autoDispose<List<User>>((ref) {
+      return ref.watch(comissaoRepositoryProvider).listProfissionais();
+    });
 
 final _comissoesExtratoProvider =
     FutureProvider.autoDispose<List<ProfComissao>>((ref) {
@@ -395,7 +421,7 @@ class _Dashboard extends StatelessWidget {
 
   String nomeProf(String id) {
     for (final u in profs) {
-      if (u.id == id) return u.displayName;
+      if (u.id == id) return nomeProfissionalNoHistorico(u);
     }
     return id.length > 8 ? id.substring(0, 8) : id;
   }
@@ -405,6 +431,13 @@ class _Dashboard extends StatelessWidget {
     if (p.isEmpty) return '—';
     if (p.length == 1) return p.first;
     return '${p.first} ${p.last[0]}.';
+  }
+
+  String nomeCurtoProf(String id) {
+    for (final u in profs) {
+      if (u.id == id) return nomeCurtoProfissionalNoHistorico(u);
+    }
+    return shortName(nomeProf(id));
   }
 
   @override
@@ -462,7 +495,8 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.aberto > 0)
           FinSlice(
-            label: shortName(e.value.nome),
+            id: e.key,
+            label: nomeCurtoProf(e.key),
             value: e.value.aberto,
             color: colorByProf[e.key] ?? clx.warning,
           ),
@@ -472,7 +506,8 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.pago > 0)
           FinSlice(
-            label: shortName(e.value.nome),
+            id: e.key,
+            label: nomeCurtoProf(e.key),
             value: e.value.pago,
             color: colorByProf[e.key] ?? clx.success,
           ),
@@ -605,13 +640,13 @@ class _Dashboard extends StatelessWidget {
             totalAberto: totalAberto,
             totalPago: totalPago,
             onTapAberto: (slice) {
-              final id = _profIdByShortName(slice.label, byProf);
+              final id = profissionalIdDaFatia(slice);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.abertas, profId: id);
               }
             },
             onTapPago: (slice) {
-              final id = _profIdByShortName(slice.label, byProf);
+              final id = profissionalIdDaFatia(slice);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.pagas, profId: id);
               }
@@ -647,16 +682,6 @@ class _Dashboard extends StatelessWidget {
     );
   }
 
-  /// Resolve id do profissional a partir do shortName da legenda do donut.
-  String? _profIdByShortName(
-    String label,
-    Map<String, ({double aberto, double pago, String nome})> byProf,
-  ) {
-    for (final e in byProf.entries) {
-      if (shortName(e.value.nome) == label) return e.key;
-    }
-    return null;
-  }
 
   /// Profissionais com comissão ativa OU com lançamentos no extrato.
   List<Widget> _buildProfExtratoList({
@@ -670,7 +695,7 @@ class _Dashboard extends StatelessWidget {
   }) {
     final ids = <String>{};
     for (final u in profs) {
-      if (u.hasComissaoAtiva) ids.add(u.id);
+      if (u.ativo && u.hasComissaoAtiva) ids.add(u.id);
     }
     for (final c in items) {
       if (c.profissional.isNotEmpty) ids.add(c.profissional);
@@ -707,7 +732,9 @@ class _Dashboard extends StatelessWidget {
     final rows = ids.map((id) {
       final u = findUser(id);
       final agg = byProf[id];
-      final nome = u?.displayName ?? agg?.nome ?? nomeProf(id);
+      final nome = u != null
+          ? nomeProfissionalNoHistorico(u)
+          : (agg?.nome ?? nomeProf(id));
       final pago = agg?.pago ?? 0.0;
       // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
       final cicloPend = u != null
@@ -750,7 +777,10 @@ class _Dashboard extends StatelessWidget {
         nome: nome,
         email: u?.email ?? '',
         resumo: u?.comissaoResumo ?? '',
-        ativo: u?.hasComissaoAtiva ?? false,
+        comissaoAtiva: u?.hasComissaoAtiva ?? false,
+        identidadeOpacity: u != null
+            ? opacidadeProfissionalNoHistorico(u)
+            : 0.64,
         aberto: aberto,
         pago: pago,
         nAbertas: nAbertas,
@@ -774,7 +804,8 @@ class _Dashboard extends StatelessWidget {
           nome: r.nome,
           email: r.email,
           resumo: r.resumo,
-          ativo: r.ativo,
+          comissaoAtiva: r.comissaoAtiva,
+          identidadeOpacity: r.identidadeOpacity,
           aberto: r.aberto,
           pago: r.pago,
           nAbertas: r.nAbertas,
@@ -944,7 +975,8 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.nome,
     required this.email,
     required this.resumo,
-    required this.ativo,
+    required this.comissaoAtiva,
+    required this.identidadeOpacity,
     required this.aberto,
     required this.pago,
     required this.nAbertas,
@@ -959,7 +991,8 @@ class _ProfExtratoCard extends StatelessWidget {
   final String nome;
   final String email;
   final String resumo;
-  final bool ativo;
+  final bool comissaoAtiva;
+  final double identidadeOpacity;
   final double aberto;
   final double pago;
   final int nAbertas;
@@ -999,11 +1032,13 @@ class _ProfExtratoCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: clx.primary.withValues(alpha: 0.14),
+                    backgroundColor: clx.primary.withValues(
+                      alpha: 0.14 * identidadeOpacity,
+                    ),
                     child: Text(
                       inicial,
                       style: TextStyle(
-                        color: clx.primary,
+                        color: clx.primary.withValues(alpha: identidadeOpacity),
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
                       ),
@@ -1024,7 +1059,9 @@ class _ProfExtratoCard extends StatelessWidget {
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       fontWeight: FontWeight.w700,
-                                      color: clx.ink,
+                                      color: clx.ink.withValues(
+                                        alpha: identidadeOpacity,
+                                      ),
                                     ),
                               ),
                             ),
@@ -1032,7 +1069,11 @@ class _ProfExtratoCard extends StatelessWidget {
                               const SizedBox(width: ClxSpace.x2),
                               ClxChip(
                                 label: resumo,
-                                color: ativo ? clx.success : clx.ink3,
+                                color: identidadeOpacity < 1
+                                    ? clx.ink3
+                                    : (comissaoAtiva
+                                          ? clx.success
+                                          : clx.ink3),
                               ),
                             ],
                           ],
@@ -1044,7 +1085,11 @@ class _ProfExtratoCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(
                               context,
-                            ).textTheme.bodySmall?.copyWith(color: clx.ink2),
+                            ).textTheme.bodySmall?.copyWith(
+                              color: clx.ink2.withValues(
+                                alpha: identidadeOpacity,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -1384,7 +1429,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
 
   String _nome(List<User> profs, String id) {
     for (final u in profs) {
-      if (u.id == id) return u.displayName;
+      if (u.id == id) return nomeProfissionalNoHistorico(u);
     }
     return id;
   }
@@ -1475,7 +1520,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: clx.ink,
+                              color: prof?.ativo == false ? clx.ink3 : clx.ink,
                             ),
                       ),
                       if (subtitulo != null)
@@ -1547,7 +1592,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                           atual.fimYmd == g.janela.fimYmd;
                       return _SemanaComissaoSection(
                         grupo: g,
-                        profNome: prof.displayName,
+                        profNome: nomeProfissionalNoHistorico(prof),
                         isAtual: isAtual,
                         onToggle: widget.onToggle,
                       );
@@ -1704,7 +1749,7 @@ class _ConfigSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clx = context.clx;
-    final profsAsync = ref.watch(_comissoesProfissionaisProvider);
+    final profsAsync = ref.watch(_comissoesProfissionaisAtivosProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -1776,7 +1821,7 @@ class _ConfigSheet extends ConsumerWidget {
                 child: ErrorBanner(
                   message: 'Não foi possível carregar profissionais.',
                   onRetry: () =>
-                      ref.invalidate(_comissoesProfissionaisProvider),
+                      ref.invalidate(_comissoesProfissionaisAtivosProvider),
                 ),
               ),
               data: (list) {
@@ -1803,6 +1848,7 @@ class _ConfigSheet extends ConsumerWidget {
                     return _ProfComissaoCard(
                       user: u,
                       onSaved: () {
+                        ref.invalidate(_comissoesProfissionaisAtivosProvider);
                         ref.invalidate(_comissoesProfissionaisProvider);
                         showClxToast(
                           context,
