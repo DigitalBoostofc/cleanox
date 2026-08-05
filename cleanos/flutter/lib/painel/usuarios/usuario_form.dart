@@ -176,6 +176,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
           widget.editing!.id,
           {
             'name': _nome.text.trim(),
+            'nome': _nome.text.trim(),
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
             'cor_agenda': corWire,
@@ -187,6 +188,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
         await repo.create(
           {
             'name': _nome.text.trim(),
+            'nome': _nome.text.trim(),
             'email': _email.text.trim(),
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
@@ -200,16 +202,50 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
         );
       }
       if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _saving = false;
-          _saveError = _isEdit
-              ? 'Não foi possível salvar as alterações.'
-              : 'Não foi possível criar o usuário.';
+          _saveError = _formatSaveError(e);
         });
       }
     }
+  }
+
+  /// Extrai mensagem útil do PocketBase (createRule/manageRule/senha/e-mail).
+  String _formatSaveError(Object e) {
+    if (e is! ClientException) {
+      return _isEdit
+          ? 'Não foi possível salvar as alterações.'
+          : 'Não foi possível criar o usuário.';
+    }
+    final data = e.response;
+    final msg = (data['message'] as String?)?.trim() ?? '';
+    final details = data['data'];
+    if (details is Map && details.isNotEmpty) {
+      final parts = <String>[];
+      details.forEach((k, v) {
+        if (v is Map && v['message'] != null) {
+          parts.add('${v['message']}');
+        } else if (v != null) {
+          parts.add('$k: $v');
+        }
+      });
+      if (parts.isNotEmpty) {
+        return parts.join(' · ');
+      }
+    }
+    if (msg.isNotEmpty &&
+        msg != 'Failed to create record.' &&
+        msg != 'Failed to update record.') {
+      return msg;
+    }
+    // 400 genérico do PB com manageRule vazio / validação opaca.
+    if (!_isEdit) {
+      return 'Não foi possível criar o usuário. '
+          'Confira e-mail (único), senha (mín. 4) e se você é admin/gerente.';
+    }
+    return 'Não foi possível salvar as alterações.';
   }
 
   Future<void> _openResetSenha() async {
