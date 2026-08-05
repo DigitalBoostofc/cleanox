@@ -111,6 +111,15 @@ void main() {
       expect(body['parcelas_total'], 10);
       expect(serieRecorrenciaKey(l), contains('parcelada|10'));
     });
+
+    test('SerieParcelasProgresso rotulo pagas/total', () {
+      const p = SerieParcelasProgresso(pagas: 2, ocorrencias: 10);
+      expect(p.rotulo(10), '2/10');
+      expect(p.rotulo(null), '2/10');
+      expect(p.totalEfetivo(12), 12);
+      expect(const SerieParcelasProgresso(pagas: 0, ocorrencias: 0).rotulo(10),
+          '0/10');
+    });
   });
 
   group('cutoff data_fim', () {

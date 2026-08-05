@@ -117,6 +117,14 @@ abstract class FinanceiroPanelRepository implements FinanceiroRepository {
   /// Garante que um lançamento fixo legado tenha `serie_id` (cria série se preciso).
   Future<FinSerie> ensureSerieForLancamento(FinLancamento l);
 
+  /// Progresso de parcelas por `serie_id` (pagas / total de ocorrências).
+  ///
+  /// Usado na lista Cobranças fixas. [total] = ocorrências ligadas à série;
+  /// a UI pode preferir `FinSerie.parcelasTotal` quando preenchido.
+  Future<Map<String, SerieParcelasProgresso>> progressoParcelasSeries(
+    Iterable<String> serieIds,
+  );
+
   /// Metas de caixa (`fin_objetivos`).
   Future<List<FinObjetivo>> listObjetivos();
   Future<FinObjetivo> createObjetivo(Map<String, dynamic> data);
@@ -908,6 +916,40 @@ class PbFinanceiroRepository implements FinanceiroPanelRepository {
     final created = await createSerie(bodySerieFromLancamento(l));
     await _linkSoftKeySiblings(key, created.id, preferId: l.id);
     return created;
+  }
+
+  @override
+  Future<Map<String, SerieParcelasProgresso>> progressoParcelasSeries(
+    Iterable<String> serieIds,
+  ) async {
+    final ids = serieIds
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return const {};
+
+    // PB filter: serie_id = "a" || serie_id = "b" …
+    final filter = ids.map((id) => 'serie_id = ${pbStringLiteral(id)}').join(' || ');
+    final rows = await _listLancamentosAll(filter: filter, sort: 'data');
+    final bySerie = <String, List<FinLancamento>>{};
+    for (final l in rows) {
+      final sid = (l.serieId ?? '').trim();
+      if (sid.isEmpty) continue;
+      bySerie.putIfAbsent(sid, () => []).add(l);
+    }
+
+    final out = <String, SerieParcelasProgresso>{};
+    for (final id in ids) {
+      final list = bySerie[id] ?? const <FinLancamento>[];
+      final pagas =
+          list.where((l) => l.status == LancamentoStatus.pago).length;
+      out[id] = SerieParcelasProgresso(
+        pagas: pagas,
+        ocorrencias: list.length,
+      );
+    }
+    return out;
   }
 
   /// Liga lançamentos da soft-key sem serie_id à série [serieId].

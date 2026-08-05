@@ -386,6 +386,21 @@ class FakeFinanceiro implements FinanceiroPanelRepository {
   }
 
   @override
+  Future<Map<String, SerieParcelasProgresso>> progressoParcelasSeries(
+    Iterable<String> serieIds,
+  ) async {
+    final out = <String, SerieParcelasProgresso>{};
+    for (final id in serieIds) {
+      final rows = lancamentos.where((l) => (l.serieId ?? '') == id).toList();
+      out[id] = SerieParcelasProgresso(
+        pagas: rows.where((l) => l.status == LancamentoStatus.pago).length,
+        ocorrencias: rows.length,
+      );
+    }
+    return out;
+  }
+
+  @override
   Future<List<FinLimite>> listLimites() async {
     if (fail) throw Exception('falha');
     return limites;
