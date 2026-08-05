@@ -193,6 +193,72 @@ double totalDespesasEmAberto(List<FinLancamento> lancs) {
   return _reais(cents);
 }
 
+/// Quebra de despesas do período: paga + em aberto (pendente/previsto/atraso) = total.
+///
+/// Extrato (filtro Despesas): KPI mostra os 3 em vermelho.
+class DespesasPeriodoTotais {
+  const DespesasPeriodoTotais({
+    required this.paga,
+    required this.emAberto,
+    required this.total,
+  });
+  final double paga;
+  final double emAberto;
+  final double total;
+
+  static const zero = DespesasPeriodoTotais(paga: 0, emAberto: 0, total: 0);
+}
+
+DespesasPeriodoTotais totaisDespesasPeriodo(List<FinLancamento> lancs) {
+  var paga = 0, aberto = 0;
+  for (final l in lancs) {
+    if (l.tipo != TipoLancamento.despesa) continue;
+    final c = _cents(l.valor);
+    if (l.status == LancamentoStatus.pago) {
+      paga += c;
+    } else {
+      aberto += c;
+    }
+  }
+  return DespesasPeriodoTotais(
+    paga: _reais(paga),
+    emAberto: _reais(aberto),
+    total: _reais(paga + aberto),
+  );
+}
+
+/// Quebra de receitas: recebida (paga) + prevista (não paga) = total.
+class ReceitasPeriodoTotais {
+  const ReceitasPeriodoTotais({
+    required this.recebida,
+    required this.prevista,
+    required this.total,
+  });
+  final double recebida;
+  final double prevista;
+  final double total;
+
+  static const zero = ReceitasPeriodoTotais(recebida: 0, prevista: 0, total: 0);
+}
+
+ReceitasPeriodoTotais totaisReceitasPeriodo(List<FinLancamento> lancs) {
+  var rec = 0, prev = 0;
+  for (final l in lancs) {
+    if (l.tipo != TipoLancamento.receita) continue;
+    final c = _cents(l.valor);
+    if (l.status == LancamentoStatus.pago) {
+      rec += c;
+    } else {
+      prev += c;
+    }
+  }
+  return ReceitasPeriodoTotais(
+    recebida: _reais(rec),
+    prevista: _reais(prev),
+    total: _reais(rec + prev),
+  );
+}
+
 /// Compromissos (ainda não são caixa) + projeção simples.
 ///
 /// - [aReceber]: receitas previstas (OS futuras + a receber manual)

@@ -71,6 +71,40 @@ void main() {
       expect(totalDespesasEmAberto(mes), closeTo(279, 1e-9));
     });
 
+    test('totaisDespesasPeriodo: paga + em aberto = total', () {
+      final list = [
+        fakeLanc(
+          id: 'p',
+          tipo: TipoLancamento.despesa,
+          valor: 100,
+          status: LancamentoStatus.pago,
+        ),
+        fakeLanc(
+          id: 'pe',
+          tipo: TipoLancamento.despesa,
+          valor: 50,
+          status: LancamentoStatus.pendente,
+        ),
+        fakeLanc(
+          id: 'pr',
+          tipo: TipoLancamento.despesa,
+          valor: 25,
+          status: LancamentoStatus.previsto,
+        ),
+        fakeLanc(
+          id: 'r',
+          tipo: TipoLancamento.receita,
+          valor: 999,
+          status: LancamentoStatus.pago,
+        ),
+      ];
+      final t = totaisDespesasPeriodo(list);
+      expect(t.paga, closeTo(100, 1e-9));
+      expect(t.emAberto, closeTo(75, 1e-9));
+      expect(t.total, closeTo(175, 1e-9));
+      expect(t.paga + t.emAberto, closeTo(t.total, 1e-9));
+    });
+
     test('usa vencimento quando presente (não a data de competência)', () {
       final list = [
         fakeLanc(
