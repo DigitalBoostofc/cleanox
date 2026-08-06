@@ -311,7 +311,7 @@ describe('lote (sem 1:1 prévia)', () => {
     assert.equal(L[0].get('descricao'), 'Comissão - João Pedro - 2 OS')
   })
 
-  it('lote com bonificação descreve repasse misto, não só OS', () => {
+  it('bonificação avulsa não entra no lote de OS', () => {
     const coms = [
       comPaga({ descricao: 'S · A - X', pago_em: '2026-07-27' }, 'a'),
       comPaga(
@@ -331,10 +331,10 @@ describe('lote (sem 1:1 prévia)', () => {
 
     const L = lotes(lancamentos)
     assert.equal(L.length, 1)
-    assert.equal(L[0].get('valor'), 100)
+    assert.equal(L[0].get('valor'), 60)
     assert.equal(
       L[0].get('descricao'),
-      'Repasse - João Pedro - 1 OS + 1 bonificação',
+      'Comissão - João Pedro - 1 OS',
     )
   })
 })
