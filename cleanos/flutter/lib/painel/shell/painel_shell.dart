@@ -334,6 +334,7 @@ class _IconRailState extends ConsumerState<_IconRail> {
                     ],
                   ),
                 ),
+                _RoleSwitcher(compact: !_expanded),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Column(
@@ -867,6 +868,7 @@ class _Sidebar extends ConsumerWidget {
             Divider(height: 1, color: clx.line),
 
             // Rodapé: usuário (→ Minha Conta) + logout.
+            _RoleSwitcher(),
             Padding(
               padding: const EdgeInsets.all(ClxSpace.x3),
               child: Row(
@@ -921,6 +923,96 @@ class _Sidebar extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleSwitcher extends ConsumerWidget {
+  const _RoleSwitcher({this.compact = false});
+
+  final bool compact;
+
+  String _label(Role role) => switch (role) {
+    Role.admin => 'Admin',
+    Role.gerente => 'Gerente',
+    Role.profissional => 'Profissional',
+  };
+
+  Future<void> _switch(BuildContext context, WidgetRef ref, Role role) async {
+    final current = ref.read(currentRoleProvider);
+    if (current == role) return;
+    try {
+      await ref.read(authServiceProvider).switchRole(role);
+      if (!context.mounted) return;
+      context.go(role.isProfissional ? '/app' : '/painel/dashboard');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível trocar de perfil: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final roles = user?.roles.isNotEmpty == true
+        ? user!.roles
+        : [if (user != null) user.role];
+    if (roles.length < 2) return const SizedBox.shrink();
+    final clx = context.clx;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: compact ? 0 : ClxSpace.x3),
+      child: PopupMenuButton<Role>(
+        tooltip: 'Trocar perfil',
+        onSelected: (role) => _switch(context, ref, role),
+        itemBuilder: (context) => [
+          for (final role in roles)
+            PopupMenuItem(
+              value: role,
+              child: Row(
+                children: [
+                  Icon(
+                    role.isProfissional
+                        ? Icons.engineering_outlined
+                        : Icons.dashboard_outlined,
+                    size: 18,
+                  ),
+                  const SizedBox(width: ClxSpace.x2),
+                  Text('${_label(role)}${role == user?.role ? ' (ativo)' : ''}'),
+                ],
+              ),
+            ),
+        ],
+        child: Material(
+          color: clx.primary.withValues(alpha: 0.10),
+          borderRadius: ClxRadii.rMd,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : ClxSpace.x3,
+              vertical: 8,
+            ),
+            child: Row(
+              mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                Icon(Icons.swap_horiz_rounded, size: 18, color: clx.primary),
+                if (!compact) ...[
+                  const SizedBox(width: ClxSpace.x2),
+                  Expanded(
+                    child: Text(
+                      'Trocar perfil',
+                      style: TextStyle(
+                        color: clx.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -75,6 +75,22 @@ class _ProfShellState extends ConsumerState<ProfShell> {
     );
   }
 
+  Future<void> _switchRole(BuildContext context, Role role) async {
+    if (ref.read(currentRoleProvider) == role) return;
+    try {
+      await ref.read(authServiceProvider).switchRole(role);
+      if (context.mounted) {
+        context.go(role.isProfissional ? '/app' : '/painel/dashboard');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível trocar de perfil: $e')),
+        );
+      }
+    }
+  }
+
   String _headerTitle(User? user) {
     final branch = widget.navigationShell.currentIndex;
     if (branch == 0) {
@@ -158,6 +174,7 @@ class _ProfShellState extends ConsumerState<ProfShell> {
               subtitle: _headerSubtitle(),
               user: me,
               onAvatarTap: _openPerfil,
+              onRoleSwitch: (role) => _switchRole(context, role),
             ),
             Expanded(child: widget.navigationShell),
           ],
@@ -199,12 +216,14 @@ class _ProfTopBar extends StatelessWidget {
     required this.subtitle,
     required this.user,
     required this.onAvatarTap,
+    required this.onRoleSwitch,
   });
 
   final String title;
   final String subtitle;
   final User? user;
   final VoidCallback onAvatarTap;
+  final ValueChanged<Role> onRoleSwitch;
 
   @override
   Widget build(BuildContext context) {
@@ -245,6 +264,23 @@ class _ProfTopBar extends StatelessWidget {
                 ],
               ),
             ),
+            if (user?.roles.length == 2 || user?.roles.length == 3)
+              PopupMenuButton<Role>(
+                tooltip: 'Trocar perfil',
+                onSelected: onRoleSwitch,
+                itemBuilder: (context) => [
+                  for (final role in user!.roles)
+                    PopupMenuItem(
+                      value: role,
+                      child: Text(role == Role.profissional
+                          ? 'Profissional'
+                          : role == Role.admin
+                              ? 'Admin'
+                              : 'Gerente'),
+                    ),
+                ],
+                icon: const Icon(Icons.swap_horiz_rounded),
+              ),
             Semantics(
               button: true,
               label: 'Perfil',

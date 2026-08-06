@@ -77,7 +77,7 @@ class _UsuariosScreenState extends ConsumerState<UsuariosScreen> {
       context: context,
       builder: (_) => _ConfirmDeleteDialog(
         nome: u.displayName,
-        isProfissional: u.role == Role.profissional,
+        isProfissional: u.hasRole(Role.profissional),
       ),
     );
     if (confirm != true) return;
@@ -410,7 +410,7 @@ class _UsuarioRow extends StatelessWidget {
               child: Row(
                 children: [
                   Flexible(child: _RoleChip(role: user.role)),
-                  if (user.role == Role.profissional) ...[
+                  if (user.hasRole(Role.profissional)) ...[
                     const SizedBox(width: ClxSpace.x2),
                     Text(
                       '(app)',

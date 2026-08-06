@@ -27,6 +27,10 @@ mixin _$User {
   @JsonKey(unknownEnumValue: Role.profissional)
   Role get role => throw _privateConstructorUsedError;
 
+  /// Papéis permitidos para a conta. [role] é o papel atualmente ativo.
+  @JsonKey()
+  List<Role> get roles => throw _privateConstructorUsedError;
+
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   String? get nome => throw _privateConstructorUsedError;
 
@@ -107,6 +111,7 @@ abstract class $UserCopyWith<$Res> {
     String name,
     String email,
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
+    @JsonKey() List<Role> roles,
     String? nome,
     String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
@@ -155,6 +160,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? name = null,
     Object? email = null,
     Object? role = null,
+    Object? roles = null,
     Object? nome = freezed,
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
@@ -191,6 +197,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.role
                 : role // ignore: cast_nullable_to_non_nullable
                       as Role,
+            roles: null == roles
+                ? _value.roles
+                : roles // ignore: cast_nullable_to_non_nullable
+                      as List<Role>,
             nome: freezed == nome
                 ? _value.nome
                 : nome // ignore: cast_nullable_to_non_nullable
@@ -278,6 +288,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     String name,
     String email,
     @JsonKey(unknownEnumValue: Role.profissional) Role role,
+    @JsonKey() List<Role> roles,
     String? nome,
     String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
@@ -323,6 +334,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? name = null,
     Object? email = null,
     Object? role = null,
+    Object? roles = null,
     Object? nome = freezed,
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
@@ -359,6 +371,10 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.role
             : role // ignore: cast_nullable_to_non_nullable
                   as Role,
+        roles: null == roles
+            ? _value._roles
+            : roles // ignore: cast_nullable_to_non_nullable
+                  as List<Role>,
         nome: freezed == nome
             ? _value.nome
             : nome // ignore: cast_nullable_to_non_nullable
@@ -440,6 +456,7 @@ class _$UserImpl extends _User {
     this.name = '',
     this.email = '',
     @JsonKey(unknownEnumValue: Role.profissional) this.role = Role.profissional,
+    @JsonKey() final List<Role> roles = const <Role>[],
     this.nome,
     this.whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
@@ -466,7 +483,8 @@ class _$UserImpl extends _User {
     @JsonKey(name: 'emailVisibility') this.emailVisibility = false,
     this.created,
     this.updated,
-  }) : super._();
+  }) : _roles = roles,
+       super._();
 
   factory _$UserImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserImplFromJson(json);
@@ -482,6 +500,18 @@ class _$UserImpl extends _User {
   @override
   @JsonKey(unknownEnumValue: Role.profissional)
   final Role role;
+
+  /// Papéis permitidos para a conta. [role] é o papel atualmente ativo.
+  final List<Role> _roles;
+
+  /// Papéis permitidos para a conta. [role] é o papel atualmente ativo.
+  @override
+  @JsonKey()
+  List<Role> get roles {
+    if (_roles is EqualUnmodifiableListView) return _roles;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_roles);
+  }
 
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   @override
@@ -565,7 +595,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, remuneracaoTipo: $remuneracaoTipo, remuneracaoValor: $remuneracaoValor, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, categoriaComissaoId: $categoriaComissaoId, ativo: $ativo, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, roles: $roles, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, remuneracaoTipo: $remuneracaoTipo, remuneracaoValor: $remuneracaoValor, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, categoriaComissaoId: $categoriaComissaoId, ativo: $ativo, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -577,6 +607,7 @@ class _$UserImpl extends _User {
             (identical(other.name, name) || other.name == name) &&
             (identical(other.email, email) || other.email == email) &&
             (identical(other.role, role) || other.role == role) &&
+            const DeepCollectionEquality().equals(other._roles, _roles) &&
             (identical(other.nome, nome) || other.nome == nome) &&
             (identical(other.whatsapp, whatsapp) ||
                 other.whatsapp == whatsapp) &&
@@ -616,6 +647,7 @@ class _$UserImpl extends _User {
     name,
     email,
     role,
+    const DeepCollectionEquality().hash(_roles),
     nome,
     whatsapp,
     comissaoTipo,
@@ -655,6 +687,7 @@ abstract class _User extends User {
     final String name,
     final String email,
     @JsonKey(unknownEnumValue: Role.profissional) final Role role,
+    @JsonKey() final List<Role> roles,
     final String? nome,
     final String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
@@ -695,6 +728,11 @@ abstract class _User extends User {
   @override
   @JsonKey(unknownEnumValue: Role.profissional)
   Role get role;
+
+  /// Papéis permitidos para a conta. [role] é o papel atualmente ativo.
+  @override
+  @JsonKey()
+  List<Role> get roles;
 
   /// Nome de exibição do colaborador (campo extra do CleanOS).
   @override

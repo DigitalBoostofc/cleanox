@@ -17,6 +17,11 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
         unknownValue: Role.profissional,
       ) ??
       Role.profissional,
+  roles:
+      (json['roles'] as List<dynamic>?)
+          ?.map((e) => $enumDecode(_$RoleEnumMap, e))
+          .toList() ??
+      const <Role>[],
   nome: json['nome'] as String?,
   whatsapp: json['whatsapp'] as String?,
   comissaoTipo:
@@ -58,6 +63,7 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'name': instance.name,
       'email': instance.email,
       'role': _$RoleEnumMap[instance.role]!,
+      'roles': instance.roles.map((e) => _$RoleEnumMap[e]!).toList(),
       'nome': instance.nome,
       'whatsapp': instance.whatsapp,
       'comissao_tipo': _$ComissaoTipoEnumMap[instance.comissaoTipo]!,

@@ -200,6 +200,11 @@ onRecordUpdateRequest((e) => {
     if (String(orig.get("role")) !== String(e.record.get("role"))) {
       throw new ForbiddenError("Você não pode alterar seu próprio papel (role).");
     }
+    const origRoles = JSON.stringify(orig.get("roles") || []);
+    const nextRoles = JSON.stringify(e.record.get("roles") || []);
+    if (origRoles !== nextRoles) {
+      throw new ForbiddenError("Você não pode alterar seus próprios papéis.");
+    }
     if (String(orig.get("email")) !== String(e.record.get("email"))) {
       throw new ForbiddenError("Alteração de e-mail requer admin/gerente.");
     }
@@ -211,6 +216,11 @@ onRecordUpdateRequest((e) => {
 // (O migrate CLI não garante hooks, por isso o seed também seta diretamente.)
 onRecordCreate((e) => {
   e.record.set("emailVisibility", true);
+  const role = String(e.record.get("role") || "profissional");
+  const roles = e.record.get("roles");
+  if (!Array.isArray(roles) || roles.length === 0) {
+    e.record.set("roles", [role]);
+  }
   e.next();
 }, "users");
 

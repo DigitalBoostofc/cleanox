@@ -25,6 +25,11 @@ class User with _$User {
     @Default(Role.profissional)
     Role role,
 
+    /// Papéis permitidos para a conta. [role] é o papel atualmente ativo.
+    @JsonKey()
+    @Default(<Role>[])
+    List<Role> roles,
+
     /// Nome de exibição do colaborador (campo extra do CleanOS).
     String? nome,
 
@@ -109,6 +114,10 @@ class User with _$User {
     if (j['cor_agenda'] == null) j['cor_agenda'] = '';
     // Campo novo: ausência → ativo (não some da lista por default).
     if (j['ativo'] == null) j['ativo'] = true;
+    final rawRoles = j['roles'];
+    if (rawRoles is! List || rawRoles.isEmpty) {
+      j['roles'] = [j['role'] ?? 'profissional'];
+    }
     return User.fromJson(j);
   }
 
@@ -142,12 +151,12 @@ class User with _$User {
 
   /// Profissional com comissão ativa (aba Financeiro no APK).
   bool get hasComissaoAtiva =>
-      role == Role.profissional &&
+      hasRole(Role.profissional) &&
       comissaoTipo.isAtiva &&
       comissaoValor > 0;
 
   bool get hasRemuneracaoAtiva =>
-      role == Role.profissional &&
+      hasRole(Role.profissional) &&
       remuneracaoTipo == RemuneracaoTipo.salarioFixo &&
       remuneracaoValor > 0;
 
@@ -172,6 +181,8 @@ class User with _$User {
   /// Resumo curto do ciclo de pagamento (ex.: "Quinzenal").
   String get pagamentoFrequenciaResumo =>
       pagamentoFrequencia?.label ?? 'Sem ciclo';
+
+  bool hasRole(Role candidate) => roles.contains(candidate) || role == candidate;
 }
 
 /// Nome de exibição a partir de campos soltos (espelha `userDisplayName`).
