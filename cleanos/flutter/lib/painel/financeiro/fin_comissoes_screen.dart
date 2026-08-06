@@ -750,7 +750,9 @@ class _Dashboard extends StatelessWidget {
         ids.map((id) {
           final u = findUser(id);
           final agg = byProf[id];
-          final nome = u?.displayName ?? agg?.nome ?? nomeProf(id);
+          final nome = u != null
+              ? nomeProfissionalNoHistorico(u)
+              : agg?.nome ?? nomeProf(id);
           final pago = agg?.pago ?? 0.0;
           // Em aberto do CICLO corrente (dom→sáb se semanal/sábado).
           final cicloPend = u != null
@@ -794,7 +796,7 @@ class _Dashboard extends StatelessWidget {
             nome: nome,
             email: u?.email ?? '',
             resumo: u?.comissaoResumo ?? '',
-            ativo: u?.hasComissaoAtiva ?? false,
+            ativo: u?.ativo ?? true,
             aberto: aberto,
             pago: pago,
             nAbertas: nAbertas,
