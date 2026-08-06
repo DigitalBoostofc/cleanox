@@ -17,9 +17,12 @@ import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
+import '../../core/models/financeiro.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/usuarios_repository.dart';
 import '../data/painel_providers.dart';
+import '../financeiro/fin_categoria_picker.dart';
+import '../financeiro/fin_providers.dart';
 
 String roleLabel(Role r) => switch (r) {
   Role.admin => 'Admin',
@@ -77,6 +80,9 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   /// Cor na agenda (`#RRGGBB`). Só relevante para profissional.
   Color? _corAgenda;
 
+  /// Categoria compartilhada por comissão e bonificação.
+  String? _categoriaComissaoId;
+
   bool get _isEdit => widget.editing != null;
 
   @override
@@ -90,6 +96,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       _role = u.role;
       _ativo = u.ativo;
       _corAgenda = parseHexCorAgenda(u.corAgenda);
+      _categoriaComissaoId = u.categoriaComissaoId;
     }
   }
 
@@ -180,6 +187,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'role': _role.wire,
             'whatsapp': _whatsapp.text.trim(),
             'cor_agenda': corWire,
+            'categoria_comissao':
+                _role == Role.profissional ? (_categoriaComissaoId ?? '') : '',
             'ativo': _ativo,
           },
           avatar: avatar,
@@ -194,6 +203,8 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'whatsapp': _whatsapp.text.trim(),
             'ativo': _ativo,
             'cor_agenda': corWire,
+            'categoria_comissao':
+                _role == Role.profissional ? (_categoriaComissaoId ?? '') : '',
             'password': _senha.text,
             'passwordConfirm': _senhaConfirm.text,
             'emailVisibility': true,
@@ -422,6 +433,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                   onChanged: (v) => setState(() => _ativo = v),
                 ),
                 if (_role == Role.profissional) _corAgendaField(clx),
+                if (_role == Role.profissional) _categoriaComissaoField(clx),
                 _field(
                   label: 'WhatsApp',
                   controller: _whatsapp,
@@ -516,6 +528,59 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _categoriaComissaoField(CleanoxColors clx) {
+    final state = ref.watch(finCategoriasProvider);
+    return state.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.only(bottom: ClxSpace.x4),
+        child: LinearProgressIndicator(minHeight: 2),
+      ),
+      error: (_, __) => Padding(
+        padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+        child: Text(
+          'Não foi possível carregar as categorias financeiras.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: clx.warning,
+              ),
+        ),
+      ),
+      data: (categorias) {
+        final despesas = categorias
+            .where((c) => c.tipo == TipoLancamento.despesa && !c.arquivada)
+            .toList();
+        final selected = _categoriaComissaoId == null
+            ? null
+            : despesas.where((c) => c.id == _categoriaComissaoId).firstOrNull;
+        final selectedIsSub = selected?.parentId != null;
+        return Column(
+          children: [
+            FinCategoriaTreePicker(
+              categorias: despesas,
+              categoriaId: selectedIsSub
+                  ? selected!.parentId
+                  : _categoriaComissaoId,
+              subcategoriaId: selectedIsSub ? _categoriaComissaoId : null,
+              label: 'Categoria de comissão e bonificação',
+              onChanged: (categoriaId, subcategoriaId) => setState(
+                () => _categoriaComissaoId = subcategoriaId ?? categoriaId,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Usada para novas comissões e bonificações deste profissional. '
+                'Em branco, mantém o padrão Equipe → profissional.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: clx.ink3,
+                    ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

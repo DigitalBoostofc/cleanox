@@ -155,7 +155,9 @@ function _sqlUpdateLancMeta(app, id, fields) {
  * Comissões/Profissionais). Subs legadas, se ainda existirem, são ignoradas
  * (migração 1700000047 remove e re-aponta lançamentos).
  */
-function acharCategoriaComissao(app, profNome) {
+function acharCategoriaComissao(app, profNome, profId) {
+  const configurada = _categoriaConfiguradaProf(app, profId);
+  if (configurada) return configurada;
   // 1) Raiz Equipe
   try {
     const equipe = app.findFirstRecordByFilter(
@@ -188,6 +190,23 @@ function acharCategoriaComissao(app, profNome) {
     }
   } catch (_) {}
   return null;
+}
+
+function _categoriaConfiguradaProf(app, profId) {
+  const id = String(profId || "").trim();
+  if (!id) return null;
+  try {
+    const user = app.findRecordById("users", id);
+    const selectedId = String(user.get("categoria_comissao") || "").trim();
+    if (!selectedId) return null;
+    const selected = app.findRecordById("fin_categorias", selectedId);
+    if (String(selected.get("tipo") || "") !== "despesa") return null;
+    const parentId = String(selected.get("parent_id") || "").trim();
+    if (!parentId) return { categoriaId: selected.id, subcategoriaId: null };
+    return { categoriaId: parentId, subcategoriaId: selected.id };
+  } catch (_) {
+    return null;
+  }
 }
 
 function _acharOuCriarSubcategoriaProf(app, equipeId, profNome) {
@@ -491,7 +510,7 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     } catch (_) {}
   }
 
-  var cats = acharCategoriaComissao(app, profNome);
+  var cats = acharCategoriaComissao(app, profNome, p);
   if (!cats || !cats.categoriaId) {
     console.log("[comissao-pago] nenhuma categoria de despesa; skip repasse.");
     return null;
@@ -649,10 +668,10 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     return null;
   }
 
+  const profId = String(comissao.get("profissional") || "").trim();
   let profNome = String(comissao.get("profissional_nome") || "").trim();
   if (!profNome) {
     try {
-      const profId = String(comissao.get("profissional") || "");
       if (profId) {
         const p = app.findRecordById("users", profId);
         profNome = String(p.get("name") || "");
@@ -660,7 +679,7 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     } catch (_) {}
   }
 
-  const cats = acharCategoriaComissao(app, profNome);
+  const cats = acharCategoriaComissao(app, profNome, profId);
   if (!cats || !cats.categoriaId) {
     console.log("[comissao-pago] nenhuma categoria de despesa; skip.");
     return null;
@@ -721,17 +740,17 @@ function garantirLancamentoStatus(app, comissao, statusLanc) {
     return criarLancamentoDaComissao(app, comissao, status);
   }
   const atual = String(lanc.get("status") || "");
+  const profId = String(comissao.get("profissional") || "").trim();
   let profNome = String(comissao.get("profissional_nome") || "").trim();
   if (!profNome) {
     try {
-      const profId = String(comissao.get("profissional") || "");
       if (profId) {
         const p = app.findRecordById("users", profId);
         profNome = String(p.get("name") || p.get("nome") || "");
       }
     } catch (_) {}
   }
-  const cats = acharCategoriaComissao(app, profNome);
+  const cats = acharCategoriaComissao(app, profNome, profId);
   var mudou = false;
   if (atual !== status) {
     lanc.set("status", status);
@@ -855,7 +874,7 @@ function _upsertDespesaOsPaga(app, comissao, profId) {
   }
   var descricao = _descricaoComissaoOsPaga(profNome || p.slice(0, 8), comissao);
 
-  var cats = acharCategoriaComissao(app, profNome);
+  var cats = acharCategoriaComissao(app, profNome, p);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
@@ -1423,7 +1442,7 @@ function sincronizarCiclosDoProf(app, profId) {
     profNome = String(u.get("name") || u.get("nome") || "");
   } catch (_) {}
 
-  var cats = acharCategoriaComissao(app, profNome);
+  var cats = acharCategoriaComissao(app, profNome, p);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
@@ -2096,21 +2115,20 @@ function realinharCategoriasComissao(app) {
   for (var i = 0; i < list.length; i++) {
     var lanc = list[i];
     var profNome = "";
+    var profId = "";
     try {
       var comissaoId = String(lanc.get("comissao_id") || "");
       if (comissaoId) {
         var comissao = app.findRecordById("prof_comissoes", comissaoId);
+        profId = String(comissao.get("profissional") || "");
         profNome = String(comissao.get("profissional_nome") || "").trim();
-        if (!profNome) {
-          var profId = String(comissao.get("profissional") || "");
-          if (profId) {
-            var user = app.findRecordById("users", profId);
-            profNome = String(user.get("name") || user.get("nome") || "");
-          }
+        if (!profNome && profId) {
+          var user = app.findRecordById("users", profId);
+          profNome = String(user.get("name") || user.get("nome") || "");
         }
       }
     } catch (_) {}
-    var cats = acharCategoriaComissao(app, profNome);
+    var cats = acharCategoriaComissao(app, profNome, profId);
     if (!cats || !cats.categoriaId) continue;
     var wantSub = cats.subcategoriaId || "";
     var mudou = false;
@@ -2135,7 +2153,7 @@ function realinharCategoriasComissao(app) {
   console.log(
     "[comissao-pago] realinhar categorias: " +
       n +
-      " despesa(s) → Equipe (raiz).",
+      " despesa(s) → categoria configurada/profissional.",
   );
   return n;
 }

@@ -61,6 +61,9 @@ class User with _$User {
     /// Cor na agenda (`#RRGGBB`, migration 33). `""` = paleta automática.
     @JsonKey(name: 'cor_agenda') @Default('') String corAgenda,
 
+    /// Categoria financeira compartilhada por comissão e bonificação.
+    @JsonKey(name: 'categoria_comissao') String? categoriaComissaoId,
+
     /// Colaborador ativo na operação (migration 52). Inativo some das listas
     /// de atribuição (OS/agenda), mas mantém histórico e login.
     @Default(true) bool ativo,

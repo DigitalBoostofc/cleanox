@@ -89,4 +89,27 @@ describe('categoria de comissão por profissional', () => {
     assert.equal(saved.get('tipo'), 'despesa')
     assert.equal(saved.get('parent_id'), 'cat_equipe')
   })
+
+  it('prioriza a categoria configurada no usuário', () => {
+    const app = {
+      findRecordById(collection, id) {
+        if (collection === 'users' && id === 'prof1') {
+          return category(id, { categoria_comissao: 'cat_marketing' })
+        }
+        if (collection === 'fin_categorias' && id === 'cat_marketing') {
+          return category(id, {
+            tipo: 'despesa',
+            nome: 'Marketing',
+            parent_id: 'cat_despesas',
+          })
+        }
+        throw new Error('not found')
+      },
+    }
+
+    assert.deepEqual(acharCategoriaComissao(app, 'João Pedro', 'prof1'), {
+      categoriaId: 'cat_despesas',
+      subcategoriaId: 'cat_marketing',
+    })
+  })
 })
