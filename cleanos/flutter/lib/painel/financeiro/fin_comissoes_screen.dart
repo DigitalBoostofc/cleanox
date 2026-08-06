@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
@@ -35,34 +36,30 @@ String formatPercent(double v) {
   return '$texto%';
 }
 
-String nomeProfissionalNoHistorico(User user) {
-  final nome = user.displayName.trim();
-  return user.ativo ? nome : '$nome (inativo)';
-}
+/// Identidade usada em superfícies históricas: inativar nunca apaga o nome.
+String nomeProfissionalNoHistorico(User user) =>
+    user.ativo ? user.displayName : '${user.displayName} (inativo)';
 
 String nomeCurtoProfissionalNoHistorico(User user) {
-  final nome = user.displayName.trim();
-  final partes = nome.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (partes.length < 2) return nomeProfissionalNoHistorico(user);
-  final curto = '${partes.first} ${partes[1][0]}.';
+  final partes = user.displayName.trim().split(RegExp(r'\s+'));
+  final curto = partes.length <= 1
+      ? partes.first
+      : '${partes.first} ${partes.last[0]}.';
   return user.ativo ? curto : '$curto (inativo)';
 }
 
-double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.75;
+double opacidadeProfissionalNoHistorico(User user) => user.ativo ? 1 : 0.64;
 
-String profissionalIdDaFatia(FinSlice slice) => slice.id ?? '';
+String? profissionalIdDaFatia(FinSlice slice) => slice.id;
 
-Color corGraficoComissaoProfissional(User user) {
-  final raw = user.corAgenda.trim().replaceFirst('#', '');
-  final hex = raw.length == 6 ? 'FF$raw' : raw;
-  final value = int.tryParse(hex, radix: 16);
-  return value == null ? Colors.blue : Color(value);
-}
+Color corGraficoComissaoProfissional(User? user) => corAgendaProfissional(user);
 
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
-  return ref.watch(comissaoRepositoryProvider).listProfissionais();
+  return ref
+      .watch(comissaoRepositoryProvider)
+      .listProfissionais(incluirInativos: true);
 });
 
 final _comissoesExtratoProvider =
@@ -89,6 +86,21 @@ final _osAtribuidasProvider = FutureProvider.autoDispose<List<OrdemServico>>((
     page++;
   }
   return out;
+});
+
+/// OS concluídas recentes para vincular bonificação manual opcionalmente.
+final _osBonificacaoProvider = FutureProvider.autoDispose<List<OrdemServico>>((
+  ref,
+) async {
+  final repo = ref.watch(ordensRepositoryProvider);
+  final res = await repo.list(
+    page: 1,
+    perPage: 100,
+    filter: "status = 'concluida'",
+    sort: '-data_hora',
+    expand: 'profissional,profissional2,cliente',
+  );
+  return res.items;
 });
 
 /// Filtro do sheet flutuante (null = todos).
@@ -132,6 +144,7 @@ class FinComissoesScreen extends ConsumerWidget {
     final profs = ref.watch(_comissoesProfissionaisProvider);
     final extrato = ref.watch(_comissoesExtratoProvider);
     final osAtribuidas = ref.watch(_osAtribuidasProvider);
+    final osBonificacao = ref.watch(_osBonificacaoProvider);
     final period = ref.watch(finPeriodProvider);
     final narrow = MediaQuery.sizeOf(context).width < 600;
 
@@ -217,6 +230,8 @@ class FinComissoesScreen extends ConsumerWidget {
                     context: context,
                     child: _BonificacaoForm(
                       profissionais: list,
+                      ordens:
+                          osBonificacao.asData?.value ?? const <OrdemServico>[],
                       onSaved: () {
                         ref.invalidate(_comissoesExtratoProvider);
                         ref.invalidate(_comissoesProfissionaisProvider);
@@ -439,7 +454,7 @@ class _Dashboard extends StatelessWidget {
 
   String nomeProf(String id) {
     for (final u in profs) {
-      if (u.id == id) return u.displayName;
+      if (u.id == id) return nomeProfissionalNoHistorico(u);
     }
     return id.length > 8 ? id.substring(0, 8) : id;
   }
@@ -510,6 +525,7 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.aberto > 0)
           FinSlice(
+            id: e.key,
             label: shortName(e.value.nome),
             value: e.value.aberto,
             color: colorByProf[e.key] ?? clx.warning,
@@ -520,6 +536,7 @@ class _Dashboard extends StatelessWidget {
       for (final e in profEntries)
         if (e.value.pago > 0)
           FinSlice(
+            id: e.key,
             label: shortName(e.value.nome),
             value: e.value.pago,
             color: colorByProf[e.key] ?? clx.success,
@@ -664,13 +681,13 @@ class _Dashboard extends StatelessWidget {
             totalAberto: totalAberto,
             totalPago: totalPago,
             onTapAberto: (slice) {
-              final id = _profIdByShortName(slice.label, byProf);
+              final id = profissionalIdDaFatia(slice);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.abertas, profId: id);
               }
             },
             onTapPago: (slice) {
-              final id = _profIdByShortName(slice.label, byProf);
+              final id = profissionalIdDaFatia(slice);
               if (id != null) {
                 onOpenSheet(_FiltroSheet.pagas, profId: id);
               }
@@ -704,17 +721,6 @@ class _Dashboard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  /// Resolve id do profissional a partir do shortName da legenda do donut.
-  String? _profIdByShortName(
-    String label,
-    Map<String, ({double aberto, double pago, String nome})> byProf,
-  ) {
-    for (final e in byProf.entries) {
-      if (shortName(e.value.nome) == label) return e.key;
-    }
-    return null;
   }
 
   /// Profissionais com comissão ativa OU com lançamentos no extrato.
@@ -1120,6 +1126,7 @@ class _ProfExtratoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final identidadeOpacity = ativo ? 1.0 : 0.64;
     final inicial = nome.trim().isNotEmpty ? nome.trim()[0].toUpperCase() : '?';
     final hintPrevisto = periodoCicloLabel.isNotEmpty
         ? (nPrevistas > 0
@@ -1144,7 +1151,9 @@ class _ProfExtratoCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: clx.primary.withValues(alpha: 0.14),
+                    backgroundColor: clx.primary.withValues(
+                      alpha: 0.14 * identidadeOpacity,
+                    ),
                     child: Text(
                       inicial,
                       style: TextStyle(
@@ -1169,7 +1178,9 @@ class _ProfExtratoCard extends StatelessWidget {
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       fontWeight: FontWeight.w700,
-                                      color: clx.ink,
+                                      color: clx.ink.withValues(
+                                        alpha: identidadeOpacity,
+                                      ),
                                     ),
                               ),
                             ),
@@ -1187,9 +1198,12 @@ class _ProfExtratoCard extends StatelessWidget {
                             email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall?.copyWith(color: clx.ink2),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: clx.ink2.withValues(
+                                    alpha: identidadeOpacity,
+                                  ),
+                                ),
                           ),
                       ],
                     ),
@@ -1534,7 +1548,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
 
   String _nome(List<User> profs, String id) {
     for (final u in profs) {
-      if (u.id == id) return u.displayName;
+      if (u.id == id) return nomeProfissionalNoHistorico(u);
     }
     return id;
   }
@@ -1854,9 +1868,14 @@ class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
 }
 
 class _BonificacaoForm extends ConsumerStatefulWidget {
-  const _BonificacaoForm({required this.profissionais, required this.onSaved});
+  const _BonificacaoForm({
+    required this.profissionais,
+    required this.ordens,
+    required this.onSaved,
+  });
 
   final List<User> profissionais;
+  final List<OrdemServico> ordens;
   final VoidCallback onSaved;
 
   @override
@@ -1865,6 +1884,7 @@ class _BonificacaoForm extends ConsumerStatefulWidget {
 
 class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
   late User? _profissional;
+  String _osId = '';
   final _valor = TextEditingController();
   final _motivo = TextEditingController();
   bool _saving = false;
@@ -1900,6 +1920,7 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
           .read(comissaoRepositoryProvider)
           .criarBonificacao(
             profissionalId: _profissional!.id,
+            osId: _osId.isEmpty ? null : _osId,
             valor: valor,
             descricao: _motivo.text.trim(),
           );
@@ -1969,6 +1990,31 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
             onChanged: _saving
                 ? null
                 : (u) => setState(() => _profissional = u),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          DropdownButtonFormField<String>(
+            initialValue: _osId,
+            decoration: const InputDecoration(
+              labelText: 'OS vinculada (opcional)',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(
+                value: '',
+                child: Text('Bonificação avulsa'),
+              ),
+              for (final os in widget.ordens)
+                DropdownMenuItem(
+                  value: os.id,
+                  child: Text(
+                    '${os.nomeCurto.isEmpty ? os.id : os.nomeCurto} · ${_osYmdBrt(os)}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: _saving
+                ? null
+                : (id) => setState(() => _osId = id ?? ''),
           ),
           const SizedBox(height: ClxSpace.x3),
           TextField(
