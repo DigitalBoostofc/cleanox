@@ -52,6 +52,8 @@ class FakeAuthService implements AuthService {
   @override
   Future<User?> refresh() async => _user;
   @override
+  Future<User> switchRole(Role target) async => _user!;
+  @override
   void logout() {}
 }
 

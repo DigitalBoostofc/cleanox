@@ -70,6 +70,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   final TextEditingController _senhaConfirm = TextEditingController();
 
   Role _role = Role.profissional;
+  final Set<Role> _roles = {Role.profissional};
   bool _ativo = true;
   bool _saving = false;
   String? _saveError;
@@ -94,6 +95,9 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       _email.text = u.email;
       _whatsapp.text = u.whatsapp ?? '';
       _role = u.role;
+      _roles
+        ..clear()
+        ..addAll(u.roles.isEmpty ? [u.role] : u.roles);
       _ativo = u.ativo;
       _corAgenda = parseHexCorAgenda(u.corAgenda);
       _categoriaComissaoId = u.categoriaComissaoId;
@@ -175,7 +179,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       final avatar = (_avatarBytes != null && _avatarFilename != null)
           ? AvatarUpload(bytes: _avatarBytes!, filename: _avatarFilename!)
           : null;
-      final corWire = _role == Role.profissional
+      final corWire = _roles.contains(Role.profissional)
           ? (_corAgenda != null ? hexCorAgenda(_corAgenda!) : '')
           : '';
       if (_isEdit) {
@@ -185,10 +189,13 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'name': _nome.text.trim(),
             'nome': _nome.text.trim(),
             'role': _role.wire,
+            'roles': _roles.map((r) => r.wire).toList(),
             'whatsapp': _whatsapp.text.trim(),
             'cor_agenda': corWire,
             'categoria_comissao':
-                _role == Role.profissional ? (_categoriaComissaoId ?? '') : '',
+                _roles.contains(Role.profissional)
+                    ? (_categoriaComissaoId ?? '')
+                    : '',
             'ativo': _ativo,
           },
           avatar: avatar,
@@ -200,11 +207,14 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'nome': _nome.text.trim(),
             'email': _email.text.trim(),
             'role': _role.wire,
+            'roles': _roles.map((r) => r.wire).toList(),
             'whatsapp': _whatsapp.text.trim(),
             'ativo': _ativo,
             'cor_agenda': corWire,
             'categoria_comissao':
-                _role == Role.profissional ? (_categoriaComissaoId ?? '') : '',
+                _roles.contains(Role.profissional)
+                    ? (_categoriaComissaoId ?? '')
+                    : '',
             'password': _senha.text,
             'passwordConfirm': _senhaConfirm.text,
             'emailVisibility': true,
@@ -432,8 +442,9 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                   value: _ativo,
                   onChanged: (v) => setState(() => _ativo = v),
                 ),
-                if (_role == Role.profissional) _corAgendaField(clx),
-                if (_role == Role.profissional) _categoriaComissaoField(clx),
+                if (_roles.contains(Role.profissional)) _corAgendaField(clx),
+                if (_roles.contains(Role.profissional))
+                  _categoriaComissaoField(clx),
                 _field(
                   label: 'WhatsApp',
                   controller: _whatsapp,
@@ -499,30 +510,63 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label('Papel', required: true),
-          DropdownButtonFormField<Role>(
-            initialValue: _role,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
+          _label('Papéis', required: true),
+          Wrap(
+            spacing: ClxSpace.x2,
+            runSpacing: ClxSpace.x1,
+            children: [
               for (final r in Role.values)
-                DropdownMenuItem(
-                  value: r,
-                  child: Text(
-                    roleDescription(r),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                FilterChip(
+                  label: Text(roleLabel(r)),
+                  selected: _roles.contains(r),
+                  onSelected: (_saving || self)
+                      ? null
+                      : (selected) {
+                          if (!selected && _roles.length == 1) return;
+                          setState(() {
+                            if (selected) {
+                              _roles.add(r);
+                            } else {
+                              _roles.remove(r);
+                              if (_role == r) _role = _roles.first;
+                            }
+                          });
+                        },
                 ),
             ],
-            onChanged: (_saving || self)
-                ? null
-                : (v) => setState(() => _role = v ?? Role.profissional),
           ),
+          if (_roles.length > 1)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: ClxSpace.x2),
+                DropdownButtonFormField<Role>(
+                  initialValue: _roles.contains(_role) ? _role : _roles.first,
+                  decoration: const InputDecoration(
+                    labelText: 'Perfil ativo no próximo login',
+                  ),
+                  items: [
+                    for (final r in _roles)
+                      DropdownMenuItem(value: r, child: Text(roleLabel(r))),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) {
+                          if (value != null) setState(() => _role = value);
+                        },
+                ),
+                const SizedBox(height: ClxSpace.x1),
+                Text(
+                  'O usuário poderá alternar entre esses papéis no menu lateral.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
+                ),
+              ],
+            ),
           if (self)
             Padding(
               padding: const EdgeInsets.only(top: ClxSpace.x1),
               child: Text(
-                'Não é possível alterar o próprio papel.',
+                'Não é possível alterar os próprios papéis.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.warning),
               ),
             ),

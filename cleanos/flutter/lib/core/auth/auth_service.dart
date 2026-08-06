@@ -124,6 +124,28 @@ class AuthService {
     }
   }
 
+  /// Troca o papel ativo da conta entre os papéis autorizados em `users.roles`.
+  /// O servidor atualiza `users.role`; o refresh reescreve o authStore para o
+  /// router e as regras de menor privilégio entrarem em vigor imediatamente.
+  Future<User> switchRole(Role target) async {
+    try {
+      await _pb.send<dynamic>(
+        '/api/cleanos/users/switch-role',
+        method: 'POST',
+        body: {'role': target.wire},
+      );
+      final user = await refresh();
+      if (user == null) throw const AuthException('Sessão expirada.');
+      return user;
+    } on ClientException catch (err) {
+      final message = err.response['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        throw AuthException(message.trim());
+      }
+      rethrow;
+    }
+  }
+
   /// Encerra a sessão. Além de limpar o token do secure storage (via authStore),
   /// PURGA os caches locais sensíveis do dispositivo — imagens de evidência do
   /// cliente ficam em cache em disco/memória (LGPD). Espelha o React, que apaga
