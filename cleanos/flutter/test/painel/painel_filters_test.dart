@@ -90,10 +90,17 @@ void main() {
   });
 
   group('profissionaisFilter', () {
-    test('fixa o papel profissional e só ativos', () {
+    test('aceita papel profissional em roles e só ativos', () {
       expect(
         profissionaisFilter(),
-        "role = 'profissional' && ativo = true",
+        "(roles ?= 'profissional' || role = 'profissional') && ativo = true",
+      );
+    });
+
+    test('todos aceita papel profissional em roles ou legado', () {
+      expect(
+        profissionaisTodosFilter(),
+        "(roles ?= 'profissional' || role = 'profissional')",
       );
     });
   });

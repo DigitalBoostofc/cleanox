@@ -41,12 +41,18 @@ String? clienteSearchFilter(String query) {
 
 /// Filtro fixo de profissionais **ativos** (atribuição OS/agenda/comissões).
 /// Inativos ficam fora das listas de escolha.
+///
+/// `role` é o papel ativo; `roles` é o conjunto de papéis autorizados. O
+/// fallback mantém usuários legados operacionais mesmo se ainda não tiverem
+/// sido backfillados.
 String profissionaisFilter() =>
-    'role = ${pbStringLiteral(Role.profissional.wire)} && ativo = true';
+    '(roles ?= ${pbStringLiteral(Role.profissional.wire)} '
+    '|| role = ${pbStringLiteral(Role.profissional.wire)}) && ativo = true';
 
 /// Todos os profissionais (inclui inativos) — tela Usuários / admin.
 String profissionaisTodosFilter() =>
-    'role = ${pbStringLiteral(Role.profissional.wire)}';
+    '(roles ?= ${pbStringLiteral(Role.profissional.wire)} '
+    '|| role = ${pbStringLiteral(Role.profissional.wire)})';
 
 /// Filtro do catálogo de Serviços: busca por nome (`~`) + categoria/grupo (`=`).
 /// Retorna `null` quando não há nenhum critério (lista tudo). Valores escapados
