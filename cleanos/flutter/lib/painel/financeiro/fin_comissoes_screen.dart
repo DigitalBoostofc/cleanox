@@ -88,21 +88,6 @@ final _osAtribuidasProvider = FutureProvider.autoDispose<List<OrdemServico>>((
   return out;
 });
 
-/// OS concluídas recentes para vincular bonificação manual opcionalmente.
-final _osBonificacaoProvider = FutureProvider.autoDispose<List<OrdemServico>>((
-  ref,
-) async {
-  final repo = ref.watch(ordensRepositoryProvider);
-  final res = await repo.list(
-    page: 1,
-    perPage: 100,
-    filter: "status = 'concluida'",
-    sort: '-data_hora',
-    expand: 'profissional,profissional2,cliente',
-  );
-  return res.items;
-});
-
 /// Filtro do sheet flutuante (null = todos).
 enum _FiltroSheet { abertas, pagas, bonificacoes, todas }
 
@@ -144,7 +129,7 @@ class FinComissoesScreen extends ConsumerWidget {
     final profs = ref.watch(_comissoesProfissionaisProvider);
     final extrato = ref.watch(_comissoesExtratoProvider);
     final osAtribuidas = ref.watch(_osAtribuidasProvider);
-    final osBonificacao = ref.watch(_osBonificacaoProvider);
+
     final period = ref.watch(finPeriodProvider);
     final narrow = MediaQuery.sizeOf(context).width < 600;
 
@@ -230,8 +215,6 @@ class FinComissoesScreen extends ConsumerWidget {
                     context: context,
                     child: _BonificacaoForm(
                       profissionais: list,
-                      ordens:
-                          osBonificacao.asData?.value ?? const <OrdemServico>[],
                       onSaved: () {
                         ref.invalidate(_comissoesExtratoProvider);
                         ref.invalidate(_comissoesProfissionaisProvider);
@@ -1864,12 +1847,10 @@ class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
 class _BonificacaoForm extends ConsumerStatefulWidget {
   const _BonificacaoForm({
     required this.profissionais,
-    required this.ordens,
     required this.onSaved,
   });
 
   final List<User> profissionais;
-  final List<OrdemServico> ordens;
   final VoidCallback onSaved;
 
   @override
@@ -1878,7 +1859,6 @@ class _BonificacaoForm extends ConsumerStatefulWidget {
 
 class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
   late User? _profissional;
-  String _osId = '';
   final _valor = TextEditingController();
   final _motivo = TextEditingController();
   bool _saving = false;
@@ -1914,7 +1894,6 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
           .read(comissaoRepositoryProvider)
           .criarBonificacao(
             profissionalId: _profissional!.id,
-            osId: _osId.isEmpty ? null : _osId,
             valor: valor,
             descricao: _motivo.text.trim(),
           );
@@ -1984,31 +1963,6 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
             onChanged: _saving
                 ? null
                 : (u) => setState(() => _profissional = u),
-          ),
-          const SizedBox(height: ClxSpace.x3),
-          DropdownButtonFormField<String>(
-            initialValue: _osId,
-            decoration: const InputDecoration(
-              labelText: 'OS vinculada (opcional)',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              const DropdownMenuItem(
-                value: '',
-                child: Text('Bonificação avulsa'),
-              ),
-              for (final os in widget.ordens)
-                DropdownMenuItem(
-                  value: os.id,
-                  child: Text(
-                    '${os.nomeCurto.isEmpty ? os.id : os.nomeCurto} · ${_osYmdBrt(os)}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-            onChanged: _saving
-                ? null
-                : (id) => setState(() => _osId = id ?? ''),
           ),
           const SizedBox(height: ClxSpace.x3),
           TextField(
