@@ -22,7 +22,8 @@ String finPeriodoFilter(Periodo p) =>
 /// Lançamentos legados `via_comissao` + `comissao_id` não devem poluir
 /// Movimentações, KPIs do período nem Contas a pagar.
 String finExcludeComissaoPorOsFilter() =>
-    "(origem != 'via_comissao' || comissao_id = '' || comissao_id = null)";
+    "(origem != 'via_comissao' || comissao_id = '' || comissao_id = null "
+    "|| descricao ~ 'Bonificação')";
 
 /// Filtro da lista de Lançamentos: período + busca (descrição) + tipo + status +
 /// conta + categoria. Fragmentos nulos são ignorados; `null` = sem filtro.
