@@ -14,6 +14,8 @@ abstract class ComissaoRepository {
     required String profissionalId,
     required ComissaoTipo tipo,
     required double valor,
+    RemuneracaoTipo remuneracaoTipo = RemuneracaoTipo.nenhuma,
+    double remuneracaoValor = 0,
     PagamentoFrequencia? pagamentoFrequencia,
     int pagamentoDia = 0,
     int pagamentoDia2 = 0,

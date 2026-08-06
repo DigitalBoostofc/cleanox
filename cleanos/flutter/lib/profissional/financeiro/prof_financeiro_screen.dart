@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
@@ -97,12 +98,12 @@ class ProfFinanceiroScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: clx.bg2,
-      body: me == null || !me.hasComissaoAtiva
+      body: me == null || (!me.hasComissaoAtiva && !me.hasRemuneracaoAtiva)
           ? const EmptyState(
               icon: Icons.account_balance_wallet_outlined,
-              title: 'Sem comissão configurada',
+              title: 'Sem remuneração configurada',
               message:
-                  'Quando o admin definir sua comissão e o ciclo de pagamento, '
+                  'Quando o admin definir sua remuneração e o ciclo de pagamento, '
                   'a carteira aparece aqui.',
             )
           : RefreshIndicator(
@@ -139,6 +140,11 @@ class ProfFinanceiroScreen extends ConsumerWidget {
                           const SizedBox(height: ClxSpace.x5),
                           ClxFadeSlide(
                             delay: const Duration(milliseconds: 80),
+                            child: _BonificacoesSection(snap: snap),
+                          ),
+                          const SizedBox(height: ClxSpace.x5),
+                          ClxFadeSlide(
+                            delay: const Duration(milliseconds: 100),
                             child: _MeusPagamentosSection(snap: snap),
                           ),
                           const SizedBox(height: ClxSpace.x8),
@@ -282,11 +288,12 @@ class _CarteiraCicloCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            snap.qtdPendentes == 0
+                            me.hasRemuneracaoAtiva
+                                ? 'Salário do próximo ciclo${snap.qtdPendentes > 0 ? ' + bonificações pendentes' : ''}'
+                                : snap.qtdPendentes == 0
                                 ? 'Nenhuma comissão pendente'
                                 : '${snap.qtdPendentes} serviço${snap.qtdPendentes == 1 ? '' : 's'} '
-                                    'concluído${snap.qtdPendentes == 1 ? '' : 's'} aguardando repasse'
-                                    ' · toque para ver',
+                                    'concluído${snap.qtdPendentes == 1 ? '' : 's'} aguardando repasse · toque para ver',
                             style: tt.bodySmall?.copyWith(color: clx.ink2),
                           ),
                         ],
@@ -334,7 +341,9 @@ class _CarteiraCicloCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  snap.qtdAbertasCiclo == 0
+                  me.hasRemuneracaoAtiva
+                      ? 'Sem cálculo por OS ou dias trabalhados'
+                      : snap.qtdAbertasCiclo == 0
                       ? 'Sem serviços em aberto no ciclo'
                       : '${snap.qtdAbertasCiclo} em aberto até $dataLabel · estimativa',
                   style: tt.bodySmall?.copyWith(color: clx.ink2),
@@ -563,6 +572,76 @@ void _openAReceberDetalhe(BuildContext context, ProfPagamentoSnapshot snap) {
       );
     },
   );
+}
+
+class _BonificacoesSection extends StatelessWidget {
+  const _BonificacoesSection({required this.snap});
+
+  final ProfPagamentoSnapshot snap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (snap.bonificacoes.isEmpty) return const SizedBox.shrink();
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Bonificações',
+          style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        Text(
+          'Valores avulsos definidos pela empresa.',
+          style: tt.bodySmall?.copyWith(color: clx.ink2),
+        ),
+        const SizedBox(height: ClxSpace.x3),
+        for (final b in snap.bonificacoes) ...[
+          ClxCard(
+            child: Row(
+              children: [
+                Icon(
+                  b.status == ComissaoStatus.paga
+                      ? Icons.check_circle_rounded
+                      : Icons.schedule_rounded,
+                  color: b.status == ComissaoStatus.paga
+                      ? clx.success
+                      : clx.warning,
+                ),
+                const SizedBox(width: ClxSpace.x3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        b.descricao.isNotEmpty ? b.descricao : 'Bonificação',
+                        style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        b.status == ComissaoStatus.paga ? 'Paga' : 'Não paga',
+                        style: tt.bodySmall?.copyWith(color: clx.ink2),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  formatCurrency(b.valorComissao),
+                  style: tt.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: b.status == ComissaoStatus.paga
+                        ? clx.success
+                        : clx.warning,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x2),
+        ],
+      ],
+    );
+  }
 }
 
 class _MeusPagamentosSection extends StatelessWidget {

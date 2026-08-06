@@ -18,12 +18,16 @@ void main() {
     int dia2 = 0,
     ComissaoTipo tipo = ComissaoTipo.percentual,
     double valor = 30,
+    RemuneracaoTipo remuneracao = RemuneracaoTipo.nenhuma,
+    double remuneracaoValor = 0,
   }) =>
       User(
         id: 'p1',
         role: Role.profissional,
         comissaoTipo: tipo,
         comissaoValor: valor,
+        remuneracaoTipo: remuneracao,
+        remuneracaoValor: remuneracaoValor,
         pagamentoFrequencia: freq,
         pagamentoDia: dia,
         pagamentoDia2: dia2,
@@ -135,6 +139,74 @@ void main() {
       expect(snap.historico, hasLength(1));
       expect(snap.historico.first.total, 90);
       expect(snap.proximoPagamento?.day, 31);
+    });
+
+    test('salário fixo usa o valor acordado e não calcula por OS', () {
+      final me = prof(
+        tipo: ComissaoTipo.nenhuma,
+        valor: 0,
+        remuneracao: RemuneracaoTipo.salarioFixo,
+        remuneracaoValor: 1500,
+        freq: PagamentoFrequencia.mensal,
+        dia: 20,
+      );
+      final snap = buildPagamentoSnapshot(
+        me: me,
+        now: now,
+        comissoes: const [],
+        ordensAbertasCiclo: [
+          const OrdemServico(
+            id: 'x',
+            status: OSStatus.atribuida,
+            valorServico: 500,
+            dataHora: '2026-07-19 11:00:00.000Z',
+          ),
+        ],
+      );
+      expect(snap.aReceber, 1500);
+      expect(snap.perspectiva, 0);
+      expect(snap.qtdAbertasCiclo, 0);
+      expect(snap.proximoPagamento?.day, 20);
+    });
+
+    test('bonificações ficam disponíveis com status pago e não pago', () {
+      final snap = buildPagamentoSnapshot(
+        me: prof(
+          tipo: ComissaoTipo.nenhuma,
+          valor: 0,
+          remuneracao: RemuneracaoTipo.salarioFixo,
+          remuneracaoValor: 1000,
+        ),
+        now: now,
+        comissoes: const [
+          ProfComissao(
+            id: 'b1',
+            profissional: 'p1',
+            os: '',
+            valorComissao: 100,
+            tipoAplicado: ProfComissaoTipo.bonificacao,
+            status: ComissaoStatus.pendente,
+          ),
+          ProfComissao(
+            id: 'b2',
+            profissional: 'p1',
+            os: '',
+            valorComissao: 50,
+            tipoAplicado: ProfComissaoTipo.bonificacao,
+            status: ComissaoStatus.paga,
+          ),
+        ],
+      );
+      expect(snap.bonificacoes, hasLength(2));
+      expect(
+        snap.bonificacoes.where((b) => b.status == ComissaoStatus.pendente),
+        hasLength(1),
+      );
+      expect(
+        snap.bonificacoes.where((b) => b.status == ComissaoStatus.paga),
+        hasLength(1),
+      );
+      expect(snap.aReceber, 1100);
     });
   });
 

@@ -34,9 +34,17 @@ mixin _$User {
   /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
   String? get whatsapp => throw _privateConstructorUsedError;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria`.
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   ComissaoTipo get comissaoTipo => throw _privateConstructorUsedError;
+
+  /// Remuneração alternativa para quem não recebe comissão.
+  @JsonKey(name: 'remuneracao_tipo', unknownEnumValue: RemuneracaoTipo.nenhuma)
+  RemuneracaoTipo get remuneracaoTipo => throw _privateConstructorUsedError;
+
+  /// Valor do salário fixo por ocorrência do ciclo.
+  @JsonKey(name: 'remuneracao_valor')
+  double get remuneracaoValor => throw _privateConstructorUsedError;
 
   /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @JsonKey(name: 'comissao_valor')
@@ -103,6 +111,12 @@ abstract class $UserCopyWith<$Res> {
     String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
+    @JsonKey(
+      name: 'remuneracao_tipo',
+      unknownEnumValue: RemuneracaoTipo.nenhuma,
+    )
+    RemuneracaoTipo remuneracaoTipo,
+    @JsonKey(name: 'remuneracao_valor') double remuneracaoValor,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
     @JsonKey(
       name: 'pagamento_frequencia',
@@ -144,6 +158,8 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? nome = freezed,
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
+    Object? remuneracaoTipo = null,
+    Object? remuneracaoValor = null,
     Object? comissaoValor = null,
     Object? pagamentoFrequencia = freezed,
     Object? pagamentoDia = null,
@@ -187,6 +203,14 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
                 ? _value.comissaoTipo
                 : comissaoTipo // ignore: cast_nullable_to_non_nullable
                       as ComissaoTipo,
+            remuneracaoTipo: null == remuneracaoTipo
+                ? _value.remuneracaoTipo
+                : remuneracaoTipo // ignore: cast_nullable_to_non_nullable
+                      as RemuneracaoTipo,
+            remuneracaoValor: null == remuneracaoValor
+                ? _value.remuneracaoValor
+                : remuneracaoValor // ignore: cast_nullable_to_non_nullable
+                      as double,
             comissaoValor: null == comissaoValor
                 ? _value.comissaoValor
                 : comissaoValor // ignore: cast_nullable_to_non_nullable
@@ -258,6 +282,12 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
     String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
+    @JsonKey(
+      name: 'remuneracao_tipo',
+      unknownEnumValue: RemuneracaoTipo.nenhuma,
+    )
+    RemuneracaoTipo remuneracaoTipo,
+    @JsonKey(name: 'remuneracao_valor') double remuneracaoValor,
     @JsonKey(name: 'comissao_valor') double comissaoValor,
     @JsonKey(
       name: 'pagamento_frequencia',
@@ -296,6 +326,8 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? nome = freezed,
     Object? whatsapp = freezed,
     Object? comissaoTipo = null,
+    Object? remuneracaoTipo = null,
+    Object? remuneracaoValor = null,
     Object? comissaoValor = null,
     Object? pagamentoFrequencia = freezed,
     Object? pagamentoDia = null,
@@ -339,6 +371,14 @@ class __$$UserImplCopyWithImpl<$Res>
             ? _value.comissaoTipo
             : comissaoTipo // ignore: cast_nullable_to_non_nullable
                   as ComissaoTipo,
+        remuneracaoTipo: null == remuneracaoTipo
+            ? _value.remuneracaoTipo
+            : remuneracaoTipo // ignore: cast_nullable_to_non_nullable
+                  as RemuneracaoTipo,
+        remuneracaoValor: null == remuneracaoValor
+            ? _value.remuneracaoValor
+            : remuneracaoValor // ignore: cast_nullable_to_non_nullable
+                  as double,
         comissaoValor: null == comissaoValor
             ? _value.comissaoValor
             : comissaoValor // ignore: cast_nullable_to_non_nullable
@@ -404,6 +444,12 @@ class _$UserImpl extends _User {
     this.whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     this.comissaoTipo = ComissaoTipo.nenhuma,
+    @JsonKey(
+      name: 'remuneracao_tipo',
+      unknownEnumValue: RemuneracaoTipo.nenhuma,
+    )
+    this.remuneracaoTipo = RemuneracaoTipo.nenhuma,
+    @JsonKey(name: 'remuneracao_valor') this.remuneracaoValor = 0,
     @JsonKey(name: 'comissao_valor') this.comissaoValor = 0,
     @JsonKey(
       name: 'pagamento_frequencia',
@@ -446,10 +492,20 @@ class _$UserImpl extends _User {
   @override
   final String? whatsapp;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria`.
   @override
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   final ComissaoTipo comissaoTipo;
+
+  /// Remuneração alternativa para quem não recebe comissão.
+  @override
+  @JsonKey(name: 'remuneracao_tipo', unknownEnumValue: RemuneracaoTipo.nenhuma)
+  final RemuneracaoTipo remuneracaoTipo;
+
+  /// Valor do salário fixo por ocorrência do ciclo.
+  @override
+  @JsonKey(name: 'remuneracao_valor')
+  final double remuneracaoValor;
 
   /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @override
@@ -509,7 +565,7 @@ class _$UserImpl extends _User {
 
   @override
   String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, categoriaComissaoId: $categoriaComissaoId, ativo: $ativo, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
+    return 'User(id: $id, name: $name, email: $email, role: $role, nome: $nome, whatsapp: $whatsapp, comissaoTipo: $comissaoTipo, remuneracaoTipo: $remuneracaoTipo, remuneracaoValor: $remuneracaoValor, comissaoValor: $comissaoValor, pagamentoFrequencia: $pagamentoFrequencia, pagamentoDia: $pagamentoDia, pagamentoDia2: $pagamentoDia2, avatar: $avatar, corAgenda: $corAgenda, categoriaComissaoId: $categoriaComissaoId, ativo: $ativo, verified: $verified, emailVisibility: $emailVisibility, created: $created, updated: $updated)';
   }
 
   @override
@@ -526,6 +582,10 @@ class _$UserImpl extends _User {
                 other.whatsapp == whatsapp) &&
             (identical(other.comissaoTipo, comissaoTipo) ||
                 other.comissaoTipo == comissaoTipo) &&
+            (identical(other.remuneracaoTipo, remuneracaoTipo) ||
+                other.remuneracaoTipo == remuneracaoTipo) &&
+            (identical(other.remuneracaoValor, remuneracaoValor) ||
+                other.remuneracaoValor == remuneracaoValor) &&
             (identical(other.comissaoValor, comissaoValor) ||
                 other.comissaoValor == comissaoValor) &&
             (identical(other.pagamentoFrequencia, pagamentoFrequencia) ||
@@ -559,6 +619,8 @@ class _$UserImpl extends _User {
     nome,
     whatsapp,
     comissaoTipo,
+    remuneracaoTipo,
+    remuneracaoValor,
     comissaoValor,
     pagamentoFrequencia,
     pagamentoDia,
@@ -597,6 +659,12 @@ abstract class _User extends User {
     final String? whatsapp,
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     final ComissaoTipo comissaoTipo,
+    @JsonKey(
+      name: 'remuneracao_tipo',
+      unknownEnumValue: RemuneracaoTipo.nenhuma,
+    )
+    final RemuneracaoTipo remuneracaoTipo,
+    @JsonKey(name: 'remuneracao_valor') final double remuneracaoValor,
     @JsonKey(name: 'comissao_valor') final double comissaoValor,
     @JsonKey(
       name: 'pagamento_frequencia',
@@ -637,10 +705,20 @@ abstract class _User extends User {
   @override
   String? get whatsapp;
 
-  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
+  /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria`.
   @override
   @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
   ComissaoTipo get comissaoTipo;
+
+  /// Remuneração alternativa para quem não recebe comissão.
+  @override
+  @JsonKey(name: 'remuneracao_tipo', unknownEnumValue: RemuneracaoTipo.nenhuma)
+  RemuneracaoTipo get remuneracaoTipo;
+
+  /// Valor do salário fixo por ocorrência do ciclo.
+  @override
+  @JsonKey(name: 'remuneracao_valor')
+  double get remuneracaoValor;
 
   /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
   @override

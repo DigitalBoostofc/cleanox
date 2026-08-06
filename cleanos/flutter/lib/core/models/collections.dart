@@ -62,6 +62,7 @@ enum ComissaoTipo {
     ComissaoTipo.percentual => 'percentual',
     ComissaoTipo.fixo => 'fixo',
     ComissaoTipo.diaria => 'diaria',
+
   };
 
   String get label => switch (this) {
@@ -69,6 +70,7 @@ enum ComissaoTipo {
     ComissaoTipo.percentual => 'Percentual (%)',
     ComissaoTipo.fixo => 'Valor fixo (R\$ por OS)',
     ComissaoTipo.diaria => 'Diária (R\$ por dia trabalhado)',
+
   };
 
   /// Comissão configurada (percentual, fixo ou diária com valor > 0).
@@ -76,6 +78,17 @@ enum ComissaoTipo {
       this == ComissaoTipo.percentual ||
       this == ComissaoTipo.fixo ||
       this == ComissaoTipo.diaria;
+}
+
+/// Remuneração alternativa quando o profissional não recebe comissão.
+enum RemuneracaoTipo {
+  @JsonValue('nenhuma')
+  nenhuma,
+  @JsonValue('salario_fixo')
+  salarioFixo;
+
+  String get wire => this == RemuneracaoTipo.salarioFixo ? 'salario_fixo' : 'nenhuma';
+  String get label => this == RemuneracaoTipo.salarioFixo ? 'Salário fixo' : 'Nenhuma';
 }
 
 /// Frequência de repasse ao profissional (config em Financeiro → Equipe).

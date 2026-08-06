@@ -29,6 +29,8 @@ class PbComissaoRepository implements ComissaoRepository {
     required String profissionalId,
     required ComissaoTipo tipo,
     required double valor,
+    RemuneracaoTipo remuneracaoTipo = RemuneracaoTipo.nenhuma,
+    double remuneracaoValor = 0,
     PagamentoFrequencia? pagamentoFrequencia,
     int pagamentoDia = 0,
     int pagamentoDia2 = 0,
@@ -36,6 +38,10 @@ class PbComissaoRepository implements ComissaoRepository {
     final body = <String, dynamic>{
       'comissao_tipo': tipo.wire,
       'comissao_valor': tipo == ComissaoTipo.nenhuma ? 0 : valor,
+      'remuneracao_tipo': remuneracaoTipo.wire,
+      'remuneracao_valor': remuneracaoTipo == RemuneracaoTipo.salarioFixo
+          ? remuneracaoValor
+          : 0,
       // R2: select vazio = "" no PB.
       'pagamento_frequencia': tipo == ComissaoTipo.nenhuma
           ? ''
