@@ -11,6 +11,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart' show ordensRepositoryProvider;
@@ -1906,6 +1907,18 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
           context,
           'Bonificação adicionada.',
           type: ToastType.success,
+        );
+      }
+    } on ClientException catch (e) {
+      if (mounted) {
+        final message = e.response['message']?.toString();
+        final detail = message == null || message.isEmpty
+            ? 'HTTP ${e.statusCode}'
+            : message;
+        showClxToast(
+          context,
+          'Não foi possível adicionar a bonificação: $detail',
+          type: ToastType.error,
         );
       }
     } catch (_) {

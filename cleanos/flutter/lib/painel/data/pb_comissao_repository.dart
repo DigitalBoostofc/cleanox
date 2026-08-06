@@ -107,21 +107,20 @@ class PbComissaoRepository implements ComissaoRepository {
     final y = now.year.toString().padLeft(4, '0');
     final m = now.month.toString().padLeft(2, '0');
     final d = now.day.toString().padLeft(2, '0');
+    final body = <String, dynamic>{
+      'profissional': profissionalId,
+      'valor_os': 0,
+      'valor_comissao': valor,
+      'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
+      'base_valor': valor,
+      'status': ComissaoStatus.pendente.wire,
+      'data': '$y-$m-$d',
+      'descricao': descricao.trim(),
+    };
+    if (osId != null && osId.isNotEmpty) body['os'] = osId;
     final rec = await _pb
         .collection(Collections.profComissoes)
-        .create(
-          body: {
-            'profissional': profissionalId,
-            'os': osId ?? '',
-            'valor_os': 0,
-            'valor_comissao': valor,
-            'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
-            'base_valor': valor,
-            'status': ComissaoStatus.pendente.wire,
-            'data': '$y-$m-$d',
-            'descricao': descricao.trim(),
-          },
-        );
+        .create(body: body);
     return ProfComissao.fromRecord(rec);
   }
 }
