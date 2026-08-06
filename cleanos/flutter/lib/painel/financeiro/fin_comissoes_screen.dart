@@ -269,6 +269,7 @@ class FinComissoesScreen extends ConsumerWidget {
                 narrow: narrow,
                 periodLabel: period.label,
                 onToggle: (c) => _toggleStatus(context, ref, c),
+                onDelete: (c) => _deleteBonificacao(context, ref, c),
                 onOpenSheet: (filtro, {String? profId}) => _openSheet(
                   context,
                   ref,
@@ -334,6 +335,55 @@ class FinComissoesScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteBonificacao(
+    BuildContext context,
+    WidgetRef ref,
+    ProfComissao c,
+  ) async {
+    if (c.tipoAplicado != ProfComissaoTipo.bonificacao ||
+        c.status != ComissaoStatus.pendente) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir bonificação?'),
+        content: const Text(
+          'Esta ajuda de custo será removida definitivamente. '
+          'Comissões de OS não podem ser excluídas por esta ação.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(comissaoRepositoryProvider).excluirBonificacao(c.id);
+      ref.invalidate(_comissoesExtratoProvider);
+      ref.invalidate(finPeriodLancamentosProvider);
+      ref.invalidate(finPendentesProvider);
+      ref.invalidate(finContasProvider);
+      ref.invalidate(finComissoesPendentesTotalProvider);
+      if (!context.mounted) return;
+      showClxToast(context, 'Bonificação excluída.', type: ToastType.success);
+    } catch (_) {
+      if (!context.mounted) return;
+      showClxToast(
+        context,
+        'Não foi possível excluir a bonificação.',
+        type: ToastType.error,
+      );
+    }
+  }
+
   void _openSheet(
     BuildContext context,
     WidgetRef ref, {
@@ -348,6 +398,7 @@ class FinComissoesScreen extends ConsumerWidget {
         filtroInicial: filtro,
         profId: profId,
         onToggle: (c) => _toggleStatus(context, ref, c),
+        onDelete: (c) => _deleteBonificacao(context, ref, c),
       ),
     );
   }
@@ -419,6 +470,7 @@ class _Dashboard extends StatelessWidget {
     required this.narrow,
     required this.periodLabel,
     required this.onToggle,
+    required this.onDelete,
     required this.onOpenSheet,
     required this.onFecharCiclo,
   });
@@ -433,6 +485,7 @@ class _Dashboard extends StatelessWidget {
   final bool narrow;
   final String periodLabel;
   final Future<void> Function(ProfComissao) onToggle;
+  final Future<void> Function(ProfComissao) onDelete;
   final void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet;
   final VoidCallback onFecharCiclo;
 
@@ -1410,11 +1463,13 @@ class _ComissaoRow extends StatelessWidget {
     required this.item,
     required this.profNome,
     required this.onToggle,
+    this.onDelete,
   });
 
   final ProfComissao item;
   final String profNome;
   final VoidCallback onToggle;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1519,6 +1574,15 @@ class _ComissaoRow extends StatelessWidget {
               ),
             ],
           ),
+          if (onDelete != null) ...[
+            const SizedBox(width: ClxSpace.x2),
+            IconButton(
+              tooltip: 'Excluir bonificação',
+              icon: const Icon(Icons.delete_outline_rounded),
+              color: clx.error,
+              onPressed: onDelete,
+            ),
+          ],
         ],
       ),
     );
@@ -1531,12 +1595,14 @@ class _ComissaoSheet extends ConsumerStatefulWidget {
   const _ComissaoSheet({
     required this.filtroInicial,
     required this.onToggle,
+    required this.onDelete,
     this.profId,
   });
 
   final _FiltroSheet filtroInicial;
   final String? profId;
   final Future<void> Function(ProfComissao) onToggle;
+  final Future<void> Function(ProfComissao) onDelete;
 
   @override
   ConsumerState<_ComissaoSheet> createState() => _ComissaoSheetState();
@@ -1726,6 +1792,7 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                         profNome: prof.displayName,
                         isAtual: isAtual,
                         onToggle: widget.onToggle,
+                        onDelete: (c) => widget.onDelete(c),
                       );
                     },
                   )
@@ -1746,6 +1813,10 @@ class _ComissaoSheetState extends ConsumerState<_ComissaoSheet> {
                         item: c,
                         profNome: _nome(profs, c.profissional),
                         onToggle: () => widget.onToggle(c),
+                        onDelete: c.tipoAplicado == ProfComissaoTipo.bonificacao &&
+                                c.status == ComissaoStatus.pendente
+                            ? () => widget.onDelete(c)
+                            : null,
                       );
                     },
                   ),
@@ -1762,12 +1833,14 @@ class _SemanaComissaoSection extends StatefulWidget {
     required this.grupo,
     required this.profNome,
     required this.onToggle,
+    required this.onDelete,
     this.isAtual = false,
   });
 
   final SemanaComissaoGrupo grupo;
   final String profNome;
   final Future<void> Function(ProfComissao) onToggle;
+  final Future<void> Function(ProfComissao) onDelete;
   final bool isAtual;
 
   @override
@@ -1862,6 +1935,11 @@ class _SemanaComissaoSectionState extends State<_SemanaComissaoSection> {
                   item: g.itens[i],
                   profNome: widget.profNome,
                   onToggle: () => widget.onToggle(g.itens[i]),
+                  onDelete:
+                      g.itens[i].tipoAplicado == ProfComissaoTipo.bonificacao &&
+                              g.itens[i].status == ComissaoStatus.pendente
+                          ? () => widget.onDelete(g.itens[i])
+                          : null,
                 ),
               ],
             ],

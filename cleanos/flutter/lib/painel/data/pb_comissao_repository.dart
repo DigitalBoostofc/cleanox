@@ -103,6 +103,11 @@ class PbComissaoRepository implements ComissaoRepository {
   }
 
   @override
+  Future<void> excluirBonificacao(String id) async {
+    await _pb.collection(Collections.profComissoes).delete(id);
+  }
+
+  @override
   Future<ProfComissao> criarBonificacao({
     required String profissionalId,
     required double valor,
