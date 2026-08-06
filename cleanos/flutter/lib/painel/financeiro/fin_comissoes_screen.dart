@@ -1912,12 +1912,26 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
     } on ClientException catch (e) {
       if (mounted) {
         final message = e.response['message']?.toString();
-        final detail = message == null || message.isEmpty
-            ? 'HTTP ${e.statusCode}'
-            : message;
+        final rawData = e.response['data'];
+        final fieldErrors = rawData is Map
+            ? rawData.entries
+                .map((entry) {
+                  final value = entry.value;
+                  if (value is Map && value['message'] != null) {
+                    return '${entry.key}: ${value['message']}';
+                  }
+                  return '${entry.key}: $value';
+                })
+                .join(' | ')
+            : '';
+        final detail = [
+          if (message != null && message.isNotEmpty) message,
+          if (fieldErrors.isNotEmpty) fieldErrors,
+        ].join(' — ');
         showClxToast(
           context,
-          'Não foi possível adicionar a bonificação: $detail',
+          'Não foi possível adicionar a bonificação: '
+              '${detail.isEmpty ? 'HTTP ${e.statusCode}' : detail}',
           type: ToastType.error,
         );
       }
