@@ -452,8 +452,10 @@ final ordensLookupsProvider = FutureProvider.autoDispose<OrdensLookups>((
   ref,
 ) async {
   final servicos = await ref.watch(servicosRepositoryProvider).listAtivos();
-  final profs = await ref
-      .watch(usuariosRepositoryProvider)
-      .list(filter: profissionaisFilter(), sort: 'nome,name');
+  final profs = (await ref
+          .watch(usuariosRepositoryProvider)
+          .list(sort: 'nome,name'))
+      .where((u) => u.hasRole(Role.profissional) && u.ativo)
+      .toList();
   return OrdensLookups(servicos: servicos, profissionais: profs);
 });

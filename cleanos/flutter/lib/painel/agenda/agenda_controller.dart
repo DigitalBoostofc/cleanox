@@ -433,9 +433,11 @@ class AgendaController extends StateNotifier<AgendaState> {
 
   Future<void> _loadProfs() async {
     try {
-      final profs = await _ref
-          .read(usuariosRepositoryProvider)
-          .list(filter: profissionaisFilter(), sort: 'nome,name');
+      final profs = (await _ref
+              .read(usuariosRepositoryProvider)
+              .list(sort: 'nome,name'))
+          .where((u) => u.hasRole(Role.profissional) && u.ativo)
+          .toList();
       if (mounted) state = state.copyWith(profissionais: profs);
     } catch (_) {
       /* filtro de profissional é opcional — silencioso */
