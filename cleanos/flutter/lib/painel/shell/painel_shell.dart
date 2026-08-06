@@ -962,55 +962,41 @@ class _RoleSwitcher extends ConsumerWidget {
         ? user!.roles
         : [if (user != null) user.role];
     if (roles.length < 2) return const SizedBox.shrink();
+    final target = roles.firstWhere((role) => role != user?.role);
     final clx = context.clx;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: compact ? 0 : ClxSpace.x3),
-      child: PopupMenuButton<Role>(
-        tooltip: 'Trocar perfil',
-        onSelected: (role) => _switch(context, ref, role),
-        itemBuilder: (context) => [
-          for (final role in roles)
-            PopupMenuItem(
-              value: role,
-              child: Row(
-                children: [
-                  Icon(
-                    role.isProfissional
-                        ? Icons.engineering_outlined
-                        : Icons.dashboard_outlined,
-                    size: 18,
-                  ),
-                  const SizedBox(width: ClxSpace.x2),
-                  Text('${_label(role)}${role == user?.role ? ' (ativo)' : ''}'),
-                ],
-              ),
-            ),
-        ],
-        child: Material(
-          color: clx.primary.withValues(alpha: 0.10),
+      child: Tooltip(
+        message: 'Ir para ${_label(target)}',
+        child: InkWell(
           borderRadius: ClxRadii.rMd,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? 8 : ClxSpace.x3,
-              vertical: 8,
-            ),
-            child: Row(
-              mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
-              children: [
-                Icon(Icons.swap_horiz_rounded, size: 18, color: clx.primary),
-                if (!compact) ...[
-                  const SizedBox(width: ClxSpace.x2),
-                  Expanded(
-                    child: Text(
-                      'Trocar perfil',
-                      style: TextStyle(
-                        color: clx.primary,
-                        fontWeight: FontWeight.w700,
+          onTap: () => _switch(context, ref, target),
+          child: Material(
+            color: clx.primary.withValues(alpha: 0.10),
+            borderRadius: ClxRadii.rMd,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 8 : ClxSpace.x3,
+                vertical: 8,
+              ),
+              child: Row(
+                mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+                children: [
+                  Icon(Icons.swap_horiz_rounded, size: 18, color: clx.primary),
+                  if (!compact) ...[
+                    const SizedBox(width: ClxSpace.x2),
+                    Expanded(
+                      child: Text(
+                        'Ir para ${_label(target)}',
+                        style: TextStyle(
+                          color: clx.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
