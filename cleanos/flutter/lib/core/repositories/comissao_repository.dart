@@ -37,6 +37,9 @@ abstract class ComissaoRepository {
   /// Cada uma dispara o hook de despesa (via_comissao).
   Future<void> marcarLotePagas(List<String> ids);
 
+  /// Exclui uma bonificação manual ainda pendente.
+  Future<void> excluirBonificacao(String id);
+
   /// Cria uma bonificação manual, independente da configuração automática.
   Future<ProfComissao> criarBonificacao({
     required String profissionalId,
