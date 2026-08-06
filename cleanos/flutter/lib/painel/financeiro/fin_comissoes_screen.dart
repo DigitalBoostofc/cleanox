@@ -1972,9 +1972,10 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
   @override
   void initState() {
     super.initState();
-    _profissional = widget.profissionais.isEmpty
+    final ativos = widget.profissionais.where((u) => u.ativo).toList();
+    _profissional = ativos.isEmpty
         ? null
-        : widget.profissionais.first;
+        : ativos.first;
   }
 
   @override
@@ -2054,6 +2055,9 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
+    final profissionaisAtivos = widget.profissionais
+        .where((u) => u.ativo)
+        .toList();
     return Container(
       padding: const EdgeInsets.all(ClxSpace.x5),
       decoration: BoxDecoration(
@@ -2089,7 +2093,7 @@ class _BonificacaoFormState extends ConsumerState<_BonificacaoForm> {
               border: OutlineInputBorder(),
             ),
             items: [
-              for (final u in widget.profissionais)
+              for (final u in profissionaisAtivos)
                 DropdownMenuItem(value: u, child: Text(u.displayName)),
             ],
             onChanged: _saving
