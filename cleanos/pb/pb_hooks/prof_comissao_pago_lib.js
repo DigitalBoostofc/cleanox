@@ -1245,6 +1245,13 @@ function sincronizarCiclosDoProf(app, profId) {
   var pagas = [];
   for (var i = 0; i < (list || []).length; i++) {
     var c = list[i];
+    if (_isBonificacao(c)) {
+      // Bonificação paga com lançamento 1:1 continua válida, mas nunca forma lote.
+      if (String(c.get("status") || "") === "paga") {
+        pagas.push({ c: c, win: cicloDoProfEm(app, p, String(c.get("data") || '').slice(0, 10)) });
+      }
+      continue;
+    }
     var v = Number(c.get("valor_comissao") || 0);
     if (!(v > 0)) continue;
     var st = String(c.get("status") || "");
@@ -1304,6 +1311,7 @@ function sincronizarCiclosDoProf(app, profId) {
       idsIndividuais[pcid] = true;
       continue;
     }
+    if (_isBonificacao(pc)) continue;
     var pe =
       String(pc.get("pago_em") || "")
         .trim()
@@ -1803,6 +1811,8 @@ function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
 
       for (var i = 0; i < (list || []).length; i++) {
         var c = list[i];
+        // Bonificação não pode ser paga/reaberta pelo ciclo de OS.
+        if (_isBonificacao(c)) continue;
         var cd = String(c.get("data") || "")
           .trim()
           .slice(0, 10);

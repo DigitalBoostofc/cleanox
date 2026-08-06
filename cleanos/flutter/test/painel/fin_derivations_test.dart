@@ -702,6 +702,35 @@ void main() {
       expect(aPagar.single.lancamento.valor, 150);
     });
 
+    test('bonificação avulsa não entra no repasse agregado de OS', () {
+      final lancs = finComissoesPendentesComoLancamentos(
+        comissoes: [
+          const ProfComissao(
+            id: 'b1',
+            profissional: 'jp',
+            os: '',
+            valorComissao: 75,
+            tipoAplicado: ProfComissaoTipo.bonificacao,
+            status: ComissaoStatus.pendente,
+            data: '2026-08-09',
+          ),
+        ],
+        categorias: cats,
+        profissionais: [
+          const User(
+            id: 'jp',
+            name: 'João Pedro',
+            role: Role.profissional,
+            pagamentoFrequencia: PagamentoFrequencia.semanal,
+            pagamentoDia: DateTime.sunday,
+          ),
+        ],
+        contaId: 'caixa',
+        now: DateTime.utc(2026, 8, 9, 15),
+      );
+      expect(lancs, isEmpty);
+    });
+
     test('soma por profissional (não 1 por OS)', () {
       final now = DateTime.utc(2026, 7, 21, 15);
       final profs = [
