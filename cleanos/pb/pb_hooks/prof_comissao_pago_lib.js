@@ -1245,6 +1245,8 @@ function sincronizarCiclosDoProf(app, profId) {
   var pagas = [];
   for (var i = 0; i < (list || []).length; i++) {
     var c = list[i];
+    // Bonificação é avulsa: nunca entra em repasse agregado de OS.
+    if (_isBonificacao(c)) continue;
     var v = Number(c.get("valor_comissao") || 0);
     if (!(v > 0)) continue;
     var st = String(c.get("status") || "");
@@ -1803,6 +1805,8 @@ function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
 
       for (var i = 0; i < (list || []).length; i++) {
         var c = list[i];
+        // Bonificação não pode ser paga/reaberta pelo ciclo de OS.
+        if (_isBonificacao(c)) continue;
         var cd = String(c.get("data") || "")
           .trim()
           .slice(0, 10);
