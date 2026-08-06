@@ -450,6 +450,21 @@ class _Dashboard extends StatelessWidget {
     return '${p.first} ${p.last[0]}.';
   }
 
+  String tipoLancamentoLabel(List<ProfComissao> lancamentos) {
+    if (lancamentos.isNotEmpty &&
+        lancamentos.every(
+          (c) => c.tipoAplicado == ProfComissaoTipo.bonificacao,
+        )) {
+      return lancamentos.length == 1 ? 'bonificação' : 'bonificações';
+    }
+    if (lancamentos.every(
+      (c) => c.tipoAplicado != ProfComissaoTipo.bonificacao,
+    )) {
+      return lancamentos.length == 1 ? 'comissão' : 'comissões';
+    }
+    return 'lançamentos';
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
@@ -775,11 +790,13 @@ class _Dashboard extends StatelessWidget {
               ) /
               100.0;
           final nAbertas = cicloDoProf.length;
-          final nPagas = items
+          final tipoAbertas = tipoLancamentoLabel(cicloDoProf);
+          final pagasDoProf = items
               .where(
                 (c) => c.profissional == id && c.status == ComissaoStatus.paga,
               )
-              .length;
+              .toList();
+          final nPagas = pagasDoProf.length;
 
           // Previsto: OS abertas com data ≤ próximo pagamento do prof.
           final nextPay = u != null ? proximaDataPagamento(u) : null;
@@ -802,6 +819,8 @@ class _Dashboard extends StatelessWidget {
             pago: pago,
             nAbertas: nAbertas,
             nPagas: nPagas,
+            tipoAbertas: tipoAbertas,
+            tipoPagas: tipoLancamentoLabel(pagasDoProf),
             previsto: prev.valor,
             nPrevistas: prev.qtdOs,
             proximoPagamentoLabel: fmtPayDay(nextPay),
@@ -825,6 +844,8 @@ class _Dashboard extends StatelessWidget {
           pago: r.pago,
           nAbertas: r.nAbertas,
           nPagas: r.nPagas,
+          tipoAbertas: r.tipoAbertas,
+          tipoPagas: r.tipoPagas,
           previsto: r.previsto,
           nPrevistas: r.nPrevistas,
           proximoPagamentoLabel: r.proximoPagamentoLabel,
@@ -1082,6 +1103,8 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.pago,
     required this.nAbertas,
     required this.nPagas,
+    required this.tipoAbertas,
+    required this.tipoPagas,
     required this.previsto,
     required this.nPrevistas,
     required this.proximoPagamentoLabel,
@@ -1097,6 +1120,8 @@ class _ProfExtratoCard extends StatelessWidget {
   final double pago;
   final int nAbertas;
   final int nPagas;
+  final String tipoAbertas;
+  final String tipoPagas;
   final double previsto;
   final int nPrevistas;
   final String proximoPagamentoLabel;
@@ -1201,8 +1226,8 @@ class _ProfExtratoCard extends StatelessWidget {
                       valor: aberto,
                       hint: nAbertas > 0
                           ? (periodoCicloLabel.isNotEmpty
-                                ? '$nAbertas · $periodoCicloLabel'
-                                : '$nAbertas comissão${nAbertas == 1 ? '' : 'ões'}')
+                                ? '$nAbertas $tipoAbertas · $periodoCicloLabel'
+                                : '$nAbertas $tipoAbertas')
                           : (periodoCicloLabel.isNotEmpty
                                 ? periodoCicloLabel
                                 : null),
@@ -1224,7 +1249,7 @@ class _ProfExtratoCard extends StatelessWidget {
                       label: 'Pagas',
                       valor: pago,
                       hint: nPagas > 0
-                          ? '$nPagas comissão${nPagas == 1 ? '' : 'ões'}'
+                          ? '$nPagas $tipoPagas'
                           : null,
                       color: clx.success,
                     ),
