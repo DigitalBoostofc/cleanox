@@ -71,16 +71,13 @@ function listarComissoesDaOs(app, osId) {
   try {
     const list = app.findRecordsByFilter(
       "prof_comissoes",
-      "os = {:id}",
+      "os = {:id} && tipo_aplicado != 'bonificacao'",
       "",
       50,
       0,
       { id: osId },
     );
-    // Bonificação é manual: nunca entra no recálculo automático da OS.
-    return (list || []).filter(function (rec) {
-      return String(rec.get("tipo_aplicado") || "") !== "bonificacao";
-    });
+    return list || [];
   } catch (_) {
     return [];
   }
@@ -266,6 +263,8 @@ function atualizarComissaoDaOs(app, record) {
   for (let i = 0; i < list.length; i++) {
     const rec = list[i];
     const pid = String(rec.get("profissional") || "");
+    const tipo = String(rec.get("tipo_aplicado") || "").toLowerCase();
+    if (tipo === "bonificacao") continue;
     if (wanted[pid]) continue;
     try {
       try {
@@ -298,6 +297,7 @@ function atualizarComissaoDaOs(app, record) {
       const rec = rows[i];
       try {
         const tipo = String(rec.get("tipo_aplicado") || "").toLowerCase();
+        if (tipo === "bonificacao") continue;
         const base = Number(rec.get("base_valor") || 0);
         // Diária: valor cheio por dia (não divide). %/fixo: fraciona na dupla.
         const fLinha = tipo === "diaria" ? 1 : fracao;
@@ -374,7 +374,7 @@ function removerComissoesDaOs(app, osId) {
   try {
     list = app.findRecordsByFilter(
       "prof_comissoes",
-      "os = {:id}",
+      "os = {:id} && tipo_aplicado != 'bonificacao'",
       "",
       50,
       0,
