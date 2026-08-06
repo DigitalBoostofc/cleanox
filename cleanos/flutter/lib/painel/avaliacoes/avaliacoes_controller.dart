@@ -118,9 +118,11 @@ class AvaliacoesController extends StateNotifier<AvaliacoesState> {
     );
     try {
       // Profissionais + OS avaliadas (para agregar média/total por profissional).
-      final profs = await _ref
-          .read(usuariosRepositoryProvider)
-          .list(filter: profissionaisFilter(), sort: 'name');
+      final profs = (await _ref
+              .read(usuariosRepositoryProvider)
+              .list(sort: 'name'))
+          .where((u) => u.hasRole(Role.profissional) && u.ativo)
+          .toList();
 
       final avaliadas = await _ref
           .read(ordensRepositoryProvider)

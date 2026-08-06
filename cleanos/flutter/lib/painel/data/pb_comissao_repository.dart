@@ -15,15 +15,16 @@ class PbComissaoRepository implements ComissaoRepository {
 
   @override
   Future<List<User>> listProfissionais({bool incluirInativos = false}) async {
-    final roleFilter =
-        '(roles ?= {:r} || role = {:r})${incluirInativos ? '' : ' && ativo = true'}';
     final recs = await _pb
         .collection(Collections.users)
         .getFullList(
-          filter: _pb.filter(roleFilter, {'r': Role.profissional.wire}),
           sort: 'nome',
         );
-    return recs.map(User.fromRecord).toList();
+    return recs
+        .map(User.fromRecord)
+        .where((u) => u.hasRole(Role.profissional))
+        .where((u) => incluirInativos || u.ativo)
+        .toList();
   }
 
   @override
