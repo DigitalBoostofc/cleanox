@@ -149,13 +149,13 @@ function _sqlUpdateLancMeta(app, id, fields) {
 
 /**
  * Resolve categoria de despesa da comissão/repasse.
- * Retorna { categoriaId, subcategoriaId } — sub sempre vazia ("").
+ * Retorna { categoriaId, subcategoriaId }.
  *
  * Canônico (dono 2026-07-24): só a raiz **"Equipe"** (sem subcategorias
  * Comissões/Profissionais). Subs legadas, se ainda existirem, são ignoradas
  * (migração 1700000047 remove e re-aponta lançamentos).
  */
-function acharCategoriaComissao(app) {
+function acharCategoriaComissao(app, profNome) {
   // 1) Raiz Equipe
   try {
     const equipe = app.findFirstRecordByFilter(
@@ -163,14 +163,14 @@ function acharCategoriaComissao(app) {
       "tipo = 'despesa' && nome = 'Equipe' && (parent_id = '' || parent_id = null)",
     );
     if (equipe) {
-      return { categoriaId: equipe.id, subcategoriaId: null };
+      return _acharOuCriarSubcategoriaProf(app, equipe.id, profNome);
     }
   } catch (_) {}
 
   // 2) Fallback: id canônico do seed
   try {
     const e = app.findRecordById("fin_categorias", "catdequipe00001");
-    if (e) return { categoriaId: e.id, subcategoriaId: null };
+    if (e) return _acharOuCriarSubcategoriaProf(app, e.id, profNome);
   } catch (_) {}
 
   // 3) Fallback: 1ª despesa raiz
@@ -184,10 +184,42 @@ function acharCategoriaComissao(app) {
       {},
     );
     if (list && list.length > 0) {
-      return { categoriaId: list[0].id, subcategoriaId: null };
+      return _acharOuCriarSubcategoriaProf(app, list[0].id, profNome);
     }
   } catch (_) {}
   return null;
+}
+
+function _acharOuCriarSubcategoriaProf(app, equipeId, profNome) {
+  const nome = String(profNome || "").trim();
+  if (!nome) return { categoriaId: equipeId, subcategoriaId: null };
+  const safeNome = nome.replace(/'/g, "\\'");
+  try {
+    const sub = app.findFirstRecordByFilter(
+      "fin_categorias",
+      "tipo = 'despesa' && parent_id = '" +
+        equipeId +
+        "' && nome = '" +
+        safeNome +
+        "'",
+    );
+    if (sub) return { categoriaId: equipeId, subcategoriaId: sub.id };
+  } catch (_) {}
+  try {
+    const col = app.findCollectionByNameOrId("fin_categorias");
+    const sub = new Record(col);
+    sub.set("nome", nome);
+    sub.set("tipo", "despesa");
+    sub.set("parent_id", equipeId);
+    sub.set("icone", "");
+    sub.set("cor", "");
+    sub.set("arquivada", false);
+    app.save(sub);
+    return { categoriaId: equipeId, subcategoriaId: sub.id };
+  } catch (err) {
+    console.log("[comissao-pago] subcategoria profissional: " + err);
+    return { categoriaId: equipeId, subcategoriaId: null };
+  }
 }
 
 function acharConta(app) {
@@ -459,7 +491,7 @@ function recalcularDespesaRepasse(app, profId, ymd) {
     } catch (_) {}
   }
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, profNome);
   if (!cats || !cats.categoriaId) {
     console.log("[comissao-pago] nenhuma categoria de despesa; skip repasse.");
     return null;
@@ -617,17 +649,6 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     return null;
   }
 
-  const cats = acharCategoriaComissao(app);
-  if (!cats || !cats.categoriaId) {
-    console.log("[comissao-pago] nenhuma categoria de despesa; skip.");
-    return null;
-  }
-  const contaId = acharConta(app);
-  if (!contaId) {
-    console.log("[comissao-pago] nenhuma conta ativa; skip.");
-    return null;
-  }
-
   let profNome = String(comissao.get("profissional_nome") || "").trim();
   if (!profNome) {
     try {
@@ -637,6 +658,17 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
         profNome = String(p.get("name") || "");
       }
     } catch (_) {}
+  }
+
+  const cats = acharCategoriaComissao(app, profNome);
+  if (!cats || !cats.categoriaId) {
+    console.log("[comissao-pago] nenhuma categoria de despesa; skip.");
+    return null;
+  }
+  const contaId = acharConta(app);
+  if (!contaId) {
+    console.log("[comissao-pago] nenhuma conta ativa; skip.");
+    return null;
   }
 
   const desc = String(comissao.get("descricao") || "");
@@ -689,7 +721,17 @@ function garantirLancamentoStatus(app, comissao, statusLanc) {
     return criarLancamentoDaComissao(app, comissao, status);
   }
   const atual = String(lanc.get("status") || "");
-  const cats = acharCategoriaComissao(app);
+  let profNome = String(comissao.get("profissional_nome") || "").trim();
+  if (!profNome) {
+    try {
+      const profId = String(comissao.get("profissional") || "");
+      if (profId) {
+        const p = app.findRecordById("users", profId);
+        profNome = String(p.get("name") || p.get("nome") || "");
+      }
+    } catch (_) {}
+  }
+  const cats = acharCategoriaComissao(app, profNome);
   var mudou = false;
   if (atual !== status) {
     lanc.set("status", status);
@@ -813,7 +855,7 @@ function _upsertDespesaOsPaga(app, comissao, profId) {
   }
   var descricao = _descricaoComissaoOsPaga(profNome || p.slice(0, 8), comissao);
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, profNome);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
@@ -1381,7 +1423,7 @@ function sincronizarCiclosDoProf(app, profId) {
     profNome = String(u.get("name") || u.get("nome") || "");
   } catch (_) {}
 
-  var cats = acharCategoriaComissao(app);
+  var cats = acharCategoriaComissao(app, profNome);
   if (!cats || !cats.categoriaId) return null;
   var contaId = acharConta(app);
   if (!contaId) return null;
@@ -2028,15 +2070,15 @@ function realinharDatasComissaoComOs(app) {
 
 /**
  * Realinha categoria/sub de todas as despesas via_comissao para
- * a raiz **Equipe** (sem sub). Não mexe em status/valor/saldo (R1).
+ * **Equipe → profissional**. Não mexe em status/valor/saldo (R1).
  */
 function realinharCategoriasComissao(app) {
-  const cats = acharCategoriaComissao(app);
-  if (!cats || !cats.categoriaId) {
+  const equipe = acharCategoriaComissao(app);
+  if (!equipe || !equipe.categoriaId) {
     console.log("[comissao-pago] realinhar categorias: sem Equipe.");
     return 0;
   }
-  const wantSub = "";
+
   let list = [];
   try {
     list = app.findRecordsByFilter(
@@ -2053,6 +2095,24 @@ function realinharCategoriasComissao(app) {
   var n = 0;
   for (var i = 0; i < list.length; i++) {
     var lanc = list[i];
+    var profNome = "";
+    try {
+      var comissaoId = String(lanc.get("comissao_id") || "");
+      if (comissaoId) {
+        var comissao = app.findRecordById("prof_comissoes", comissaoId);
+        profNome = String(comissao.get("profissional_nome") || "").trim();
+        if (!profNome) {
+          var profId = String(comissao.get("profissional") || "");
+          if (profId) {
+            var user = app.findRecordById("users", profId);
+            profNome = String(user.get("name") || user.get("nome") || "");
+          }
+        }
+      }
+    } catch (_) {}
+    var cats = acharCategoriaComissao(app, profNome);
+    if (!cats || !cats.categoriaId) continue;
+    var wantSub = cats.subcategoriaId || "";
     var mudou = false;
     if (String(lanc.get("categoria_id") || "") !== cats.categoriaId) {
       lanc.set("categoria_id", cats.categoriaId);

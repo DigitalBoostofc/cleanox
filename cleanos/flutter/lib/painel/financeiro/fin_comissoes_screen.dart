@@ -507,17 +507,11 @@ class _Dashboard extends StatelessWidget {
       items,
     ).entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
-    // Cores estáveis por profissional (mesmas nos 2 donuts).
-    final sortedProfIds = profEntries.map((e) => e.key).toList()
-      ..sort((a, b) {
-        final na = byProf[a]?.nome ?? nomeProf(a);
-        final nb = byProf[b]?.nome ?? nomeProf(b);
-        return na.toLowerCase().compareTo(nb.toLowerCase());
-      });
-    final series = finSeriesColors(context, sortedProfIds.length);
+    // A cor do gráfico é a mesma cor definida no usuário e usada na Agenda.
+    final userById = {for (final u in profs) u.id: u};
     final colorByProf = <String, Color>{
-      for (var i = 0; i < sortedProfIds.length; i++)
-        sortedProfIds[i]: series[i],
+      for (final id in profEntries.map((e) => e.key))
+        id: corGraficoComissaoProfissional(userById[id]),
     };
 
     // Dois gráficos separados: em aberto × pagas (não misturar no mesmo donut).
