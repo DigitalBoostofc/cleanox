@@ -602,6 +602,7 @@ void main() {
       final f = finLancamentosFilter();
       expect(f, contains("origem != 'via_comissao'"));
       expect(f, contains("comissao_id = ''"));
+      expect(f, contains("descricao ~ 'Bonificação'"));
     });
 
     test('finContasPendentesFilter filtra tipo + não pago + sem comissão 1:1',

@@ -690,9 +690,14 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
     return null;
   }
 
-  const desc = String(comissao.get("descricao") || "");
+  const isBonus = _isBonificacao(comissao);
+  const prefixo = isBonus ? "Bonificação" : "Comissão";
+  const desc = String(comissao.get("descricao") || "").replace(
+    isBonus ? /^bonificação\s*[·-]\s*/i : /^$/,
+    "",
+  ).trim();
   const descricao =
-    "Comissão" + (profNome ? " · " + profNome : "") + (desc ? " · " + desc : "");
+    prefixo + (profNome ? " · " + profNome : "") + (desc ? " · " + desc : "");
 
   const osId = String(comissao.get("os") || "");
   const data = dataLancamentoComissao(app, comissao);
@@ -802,6 +807,13 @@ function sincronizarLancamento(app, comissao, origStatus) {
   try {
     const novo = String(comissao.get("status") || "");
     const profId = String(comissao.get("profissional") || "").trim();
+
+    // Bonificação avulsa gera sua própria despesa na data adicionada; nunca
+    // entra no ciclo agregado de OS.
+    if (_isBonificacao(comissao)) {
+      garantirLancamentoStatus(app, comissao, novo === "paga" ? "pago" : "pendente");
+      return;
+    }
 
     if (!profId) {
       if (novo === "paga") {
@@ -1662,6 +1674,10 @@ function onComissaoCriada(app, comissao) {
   const st = String(comissao.get("status") || "");
   const profId = String(comissao.get("profissional") || "").trim();
   if (!profId) return;
+  if (_isBonificacao(comissao)) {
+    garantirLancamentoStatus(app, comissao, st === "paga" ? "pago" : "pendente");
+    return;
+  }
   if (st === "paga") {
     var pe = String(comissao.get("pago_em") || "")
       .trim()

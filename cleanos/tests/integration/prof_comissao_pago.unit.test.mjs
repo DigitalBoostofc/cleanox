@@ -220,6 +220,23 @@ function pends(lancs) {
 }
 
 describe('individual 👍', () => {
+  it('bonificação pendente gera despesa na data adicionada com observação', () => {
+    const c = comPend({
+      tipo_aplicado: 'bonificacao',
+      descricao: 'Ajuda combustível',
+      data: '2026-08-09 00:00:00.000Z',
+    }, 'bonus1')
+    const { app, lancamentos } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, '')
+    assert.equal(lancamentos.length, 1)
+    assert.equal(lancamentos[0].get('status'), 'pendente')
+    assert.equal(lancamentos[0].get('data'), '2026-08-09')
+    assert.equal(
+      lancamentos[0].get('descricao'),
+      'Bonificação · João Pedro · Ajuda combustível',
+    )
+  })
+
   it('cria 1:1 Comissao - Prof - OS - Cliente na data do 👍', () => {
     const c = comPaga()
     const { app, lancamentos } = mockApp({ comissoes: [c] })
@@ -258,7 +275,7 @@ describe('individual 👍', () => {
     pago.sincronizarLancamento(app, c, 'pendente')
     const o = ones(lancamentos)
     assert.equal(o.length, 1)
-    assert.equal(o[0].get('descricao'), 'Bonificação - João Pedro - apoio em dupla')
+    assert.equal(o[0].get('descricao'), 'Bonificação · João Pedro · apoio em dupla')
     assert.equal(o[0].get('valor'), 40)
   })
 })
