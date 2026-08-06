@@ -114,7 +114,7 @@ class PbComissaoRepository implements ComissaoRepository {
       'tipo_aplicado': ProfComissaoTipo.bonificacao.wire,
       'base_valor': valor,
       'status': ComissaoStatus.pendente.wire,
-      'data': '$y-$m-$d',
+      'data': '$y-$m-$d 00:00:00.000Z',
       'descricao': descricao.trim(),
     };
     if (osId != null && osId.isNotEmpty) body['os'] = osId;
