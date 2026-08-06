@@ -341,6 +341,23 @@ class _RoleChip extends StatelessWidget {
   }
 }
 
+class _RoleChips extends StatelessWidget {
+  const _RoleChips({required this.user});
+  final User user;
+
+  @override
+  Widget build(BuildContext context) {
+    final roles = user.roles.isEmpty ? <Role>[user.role] : user.roles;
+    return Wrap(
+      spacing: ClxSpace.x2,
+      runSpacing: ClxSpace.x1,
+      children: [
+        for (final role in roles) _RoleChip(role: role),
+      ],
+    );
+  }
+}
+
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.user});
   final User user;
@@ -407,18 +424,7 @@ class _UsuarioRow extends StatelessWidget {
             ),
             Expanded(
               flex: 2,
-              child: Row(
-                children: [
-                  Flexible(child: _RoleChip(role: user.role)),
-                  if (user.hasRole(Role.profissional)) ...[
-                    const SizedBox(width: ClxSpace.x2),
-                    Text(
-                      '(app)',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: clx.ink3),
-                    ),
-                  ],
-                ],
-              ),
+              child: _RoleChips(user: user),
             ),
             Expanded(
               flex: 2,
@@ -504,7 +510,7 @@ class _UsuarioCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _RoleChip(role: user.role),
+              _RoleChips(user: user),
               const SizedBox(width: ClxSpace.x2),
               _AtivoChip(ativo: user.ativo),
             ],
