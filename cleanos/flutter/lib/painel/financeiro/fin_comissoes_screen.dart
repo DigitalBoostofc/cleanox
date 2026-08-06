@@ -2194,6 +2194,7 @@ class _ProfComissaoCard extends ConsumerStatefulWidget {
 
 class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
   late ComissaoTipo _tipo;
+  late RemuneracaoTipo _remuneracao;
   late PagamentoFrequencia? _freq;
   late int _dia;
   late int _dia2;
@@ -2204,6 +2205,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
   void initState() {
     super.initState();
     _tipo = widget.user.comissaoTipo;
+    _remuneracao = widget.user.remuneracaoTipo;
     _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
     _dia = widget.user.pagamentoDia;
     _dia2 = widget.user.pagamentoDia2;
@@ -2227,6 +2229,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
         oldWidget.user.pagamentoDia != widget.user.pagamentoDia ||
         oldWidget.user.pagamentoDia2 != widget.user.pagamentoDia2) {
       _tipo = widget.user.comissaoTipo;
+      _remuneracao = widget.user.remuneracaoTipo;
       _freq = widget.user.pagamentoFrequencia ?? PagamentoFrequencia.quinzenal;
       _dia = widget.user.pagamentoDia;
       _dia2 = widget.user.pagamentoDia2;
@@ -2247,23 +2250,37 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
     super.dispose();
   }
 
-  String get _valorLabel => switch (_tipo) {
+  String get _valorLabel {
+    if (_tipo == ComissaoTipo.nenhuma &&
+        _remuneracao == RemuneracaoTipo.salarioFixo) {
+      return 'Valor do salário (R\$ por pagamento)';
+    }
+    return switch (_tipo) {
     ComissaoTipo.percentual => 'Percentual (%)',
     ComissaoTipo.diaria => 'Valor da diária (R\$)',
     ComissaoTipo.fixo => 'Valor fixo por OS (R\$)',
     ComissaoTipo.nenhuma => 'Valor',
-  };
+    };
+  }
 
-  String get _valorHint => switch (_tipo) {
+  String get _valorHint {
+    if (_tipo == ComissaoTipo.nenhuma &&
+        _remuneracao == RemuneracaoTipo.salarioFixo) {
+      return 'ex: 1.500';
+    }
+    return switch (_tipo) {
     ComissaoTipo.percentual => 'ex: 30',
     ComissaoTipo.diaria => 'ex: 150',
     _ => 'ex: 50',
-  };
+    };
+  }
 
   Future<void> _save() async {
     final raw = _valor.text.trim().replaceAll(',', '.');
     final v = double.tryParse(raw) ?? 0;
-    if (_tipo != ComissaoTipo.nenhuma && v <= 0) {
+    final salario = _tipo == ComissaoTipo.nenhuma &&
+        _remuneracao == RemuneracaoTipo.salarioFixo;
+    if ((_tipo != ComissaoTipo.nenhuma || salario) && v <= 0) {
       showClxToast(
         context,
         'Informe um valor maior que zero.',
@@ -2279,7 +2296,7 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
       );
       return;
     }
-    if (_tipo != ComissaoTipo.nenhuma && _freq == null) {
+    if ((_tipo != ComissaoTipo.nenhuma || salario) && _freq == null) {
       showClxToast(
         context,
         'Escolha a frequência de pagamento.',
@@ -2295,16 +2312,20 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             profissionalId: widget.user.id,
             tipo: _tipo,
             valor: _tipo == ComissaoTipo.nenhuma ? 0 : v,
-            pagamentoFrequencia: _tipo == ComissaoTipo.nenhuma ? null : _freq,
-            pagamentoDia: _tipo == ComissaoTipo.nenhuma ? 0 : _dia,
-            pagamentoDia2: _tipo == ComissaoTipo.nenhuma ? 0 : _dia2,
+            remuneracaoTipo: _remuneracao,
+            remuneracaoValor: salario ? v : 0,
+            pagamentoFrequencia: (_tipo == ComissaoTipo.nenhuma && !salario)
+                ? null
+                : _freq,
+            pagamentoDia: (_tipo == ComissaoTipo.nenhuma && !salario) ? 0 : _dia,
+            pagamentoDia2: (_tipo == ComissaoTipo.nenhuma && !salario) ? 0 : _dia2,
           );
       widget.onSaved();
     } catch (_) {
       if (mounted) {
         showClxToast(
           context,
-          'Não foi possível salvar a comissão.',
+          'Não foi possível salvar a configuração financeira.',
           type: ToastType.error,
         );
       }
@@ -2385,10 +2406,40 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
             onChanged: _saving
                 ? null
                 : (t) {
-                    if (t != null) setState(() => _tipo = t);
+                    if (t != null) {
+                      setState(() {
+                        _tipo = t;
+                        if (t != ComissaoTipo.nenhuma) {
+                          _remuneracao = RemuneracaoTipo.nenhuma;
+                        }
+
+                      });
+                    }
                   },
           ),
-          if (_tipo != ComissaoTipo.nenhuma) ...[
+          if (_tipo == ComissaoTipo.nenhuma) ...[
+            const SizedBox(height: ClxSpace.x3),
+            DropdownButtonFormField<RemuneracaoTipo>(
+              // ignore: deprecated_member_use
+              value: _remuneracao,
+              decoration: const InputDecoration(
+                labelText: 'Forma de remuneração',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                for (final r in RemuneracaoTipo.values)
+                  DropdownMenuItem(value: r, child: Text(r.label)),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (r) {
+                      if (r != null) setState(() => _remuneracao = r);
+                    },
+            ),
+          ],
+          if (_tipo != ComissaoTipo.nenhuma ||
+              _remuneracao == RemuneracaoTipo.salarioFixo) ...[
             const SizedBox(height: ClxSpace.x3),
             TextField(
               controller: _valor,
@@ -2406,6 +2457,9 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
                 hintText: _valorHint,
                 helperText: _tipo == ComissaoTipo.diaria
                     ? '1 diária por dia BRT com pelo menos 1 OS concluída'
+                    : _tipo == ComissaoTipo.nenhuma &&
+                            _remuneracao == RemuneracaoTipo.salarioFixo
+                    ? 'Valor acordado por pagamento; não depende de OS ou dias trabalhados.'
                     : null,
               ),
             ),
@@ -2419,7 +2473,12 @@ class _ProfComissaoCardState extends ConsumerState<_ProfComissaoCard> {
                 isDense: true,
               ),
               items: [
-                for (final f in PagamentoFrequencia.values)
+                for (final f in PagamentoFrequencia.values.where(
+                  (f) =>
+                      !(_tipo == ComissaoTipo.nenhuma &&
+                          _remuneracao == RemuneracaoTipo.salarioFixo) ||
+                      f != PagamentoFrequencia.diario,
+                ))
                   DropdownMenuItem(value: f, child: Text(f.label)),
               ],
               onChanged: _saving

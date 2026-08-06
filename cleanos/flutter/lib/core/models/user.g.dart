@@ -26,6 +26,14 @@ _$UserImpl _$$UserImplFromJson(Map<String, dynamic> json) => _$UserImpl(
         unknownValue: ComissaoTipo.nenhuma,
       ) ??
       ComissaoTipo.nenhuma,
+  remuneracaoTipo:
+      $enumDecodeNullable(
+        _$RemuneracaoTipoEnumMap,
+        json['remuneracao_tipo'],
+        unknownValue: RemuneracaoTipo.nenhuma,
+      ) ??
+      RemuneracaoTipo.nenhuma,
+  remuneracaoValor: (json['remuneracao_valor'] as num?)?.toDouble() ?? 0,
   comissaoValor: (json['comissao_valor'] as num?)?.toDouble() ?? 0,
   pagamentoFrequencia: $enumDecodeNullable(
     _$PagamentoFrequenciaEnumMap,
@@ -53,6 +61,8 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'nome': instance.nome,
       'whatsapp': instance.whatsapp,
       'comissao_tipo': _$ComissaoTipoEnumMap[instance.comissaoTipo]!,
+      'remuneracao_tipo': _$RemuneracaoTipoEnumMap[instance.remuneracaoTipo]!,
+      'remuneracao_valor': instance.remuneracaoValor,
       'comissao_valor': instance.comissaoValor,
       'pagamento_frequencia':
           _$PagamentoFrequenciaEnumMap[instance.pagamentoFrequencia],
@@ -79,6 +89,11 @@ const _$ComissaoTipoEnumMap = {
   ComissaoTipo.percentual: 'percentual',
   ComissaoTipo.fixo: 'fixo',
   ComissaoTipo.diaria: 'diaria',
+};
+
+const _$RemuneracaoTipoEnumMap = {
+  RemuneracaoTipo.nenhuma: 'nenhuma',
+  RemuneracaoTipo.salarioFixo: 'salario_fixo',
 };
 
 const _$PagamentoFrequenciaEnumMap = {

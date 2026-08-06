@@ -42,6 +42,7 @@ class ProfPagamentoSnapshot {
     required this.qtdAbertasCiclo,
     required this.pendentes,
     required this.historico,
+    this.bonificacoes = const [],
     this.proximoPagamento,
     this.frequencia,
     this.cicloLabel = '',
@@ -58,6 +59,9 @@ class ProfPagamentoSnapshot {
 
   /// Pagamentos já feitos (agrupados por data), mais recente primeiro.
   final List<PagamentoHistorico> historico;
+
+  /// Bonificações manuais, pagas ou pendentes, sem misturar com comissão de OS.
+  final List<ProfComissao> bonificacoes;
 
   final DateTime? proximoPagamento;
   final PagamentoFrequencia? frequencia;
@@ -606,13 +610,22 @@ ProfPagamentoSnapshot buildPagamentoSnapshot({
   }
 
   final next = proximaDataPagamento(me, now: now);
+  final bonificacoes = comissoes
+      .where((c) => c.tipoAplicado == ProfComissaoTipo.bonificacao)
+      .toList();
+  final salarioDoProximoCiclo = me.hasRemuneracaoAtiva &&
+          me.remuneracaoValor > 0 &&
+          next != null
+      ? me.remuneracaoValor
+      : 0.0;
   return ProfPagamentoSnapshot(
-    aReceber: centsPend / 100.0,
+    aReceber: salarioDoProximoCiclo + centsPend / 100.0,
     qtdPendentes: pendentes.length,
     pendentes: pendentes,
     perspectiva: centsPrev / 100.0,
     qtdAbertasCiclo: qtdAbertas,
     historico: groupPagamentosHistorico(comissoes),
+    bonificacoes: bonificacoes,
     frequencia: me.pagamentoFrequencia,
     proximoPagamento: next,
     cicloLabel: cicloPagamentoLabel(me),

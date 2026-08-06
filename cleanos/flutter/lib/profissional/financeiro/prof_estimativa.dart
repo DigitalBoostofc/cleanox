@@ -154,7 +154,9 @@ double estimarComissaoOs(User me, OrdemServico os) {
   if (!me.comissaoTipo.isAtiva || me.comissaoValor <= 0) return 0;
 
   // Diária só vira linha no extrato ao concluir (≥1 OS/dia) — não estima por OS.
-  if (me.comissaoTipo == ComissaoTipo.diaria) return 0;
+  if (me.comissaoTipo == ComissaoTipo.diaria || me.hasRemuneracaoAtiva) {
+    return 0;
+  }
 
   if (me.comissaoTipo == ComissaoTipo.fixo) {
     return (me.comissaoValor * 100).roundToDouble() / 100;

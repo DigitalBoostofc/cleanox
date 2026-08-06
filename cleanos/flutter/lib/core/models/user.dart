@@ -32,10 +32,18 @@ class User with _$User {
     /// para o aviso "Nova OS" ao profissional. Cadastrado pelo admin.
     String? whatsapp,
 
-    /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria` (migrations 23/36).
+    /// Comissão: `nenhuma` | `percentual` | `fixo` | `diaria`.
     @JsonKey(name: 'comissao_tipo', unknownEnumValue: ComissaoTipo.nenhuma)
     @Default(ComissaoTipo.nenhuma)
     ComissaoTipo comissaoTipo,
+
+    /// Remuneração alternativa para quem não recebe comissão.
+    @JsonKey(name: 'remuneracao_tipo', unknownEnumValue: RemuneracaoTipo.nenhuma)
+    @Default(RemuneracaoTipo.nenhuma)
+    RemuneracaoTipo remuneracaoTipo,
+
+    /// Valor do salário fixo por ocorrência do ciclo.
+    @JsonKey(name: 'remuneracao_valor') @Default(0) double remuneracaoValor,
 
     /// % (0–100), R$/OS ou R$/diária, conforme [comissaoTipo].
     @JsonKey(name: 'comissao_valor') @Default(0) double comissaoValor,
@@ -86,6 +94,10 @@ class User with _$User {
     if (tipo == null || tipo == '') j['comissao_tipo'] = 'nenhuma';
     final val = j['comissao_valor'];
     if (val == null || val == '') j['comissao_valor'] = 0;
+    final rem = j['remuneracao_tipo'];
+    if (rem == null || rem == '') j['remuneracao_tipo'] = 'nenhuma';
+    final remVal = j['remuneracao_valor'];
+    if (remVal == null || remVal == '') j['remuneracao_valor'] = 0;
     // R2: select vazio vira "" no PB — freezed enum não aceita "".
     final freq = j['pagamento_frequencia'];
     if (freq == null || freq == '') j.remove('pagamento_frequencia');
@@ -134,7 +146,15 @@ class User with _$User {
       comissaoTipo.isAtiva &&
       comissaoValor > 0;
 
+  bool get hasRemuneracaoAtiva =>
+      role == Role.profissional &&
+      remuneracaoTipo == RemuneracaoTipo.salarioFixo &&
+      remuneracaoValor > 0;
+
   String get comissaoResumo {
+    if (hasRemuneracaoAtiva) {
+      return 'R\$ ${remuneracaoValor.toStringAsFixed(2)} / ciclo';
+    }
     if (!comissaoTipo.isAtiva || comissaoValor <= 0) return 'Sem comissão';
     if (comissaoTipo == ComissaoTipo.percentual) {
       final v = comissaoValor == comissaoValor.roundToDouble()
@@ -145,6 +165,7 @@ class User with _$User {
     if (comissaoTipo == ComissaoTipo.diaria) {
       return 'R\$ ${comissaoValor.toStringAsFixed(2)} / dia';
     }
+
     return 'R\$ ${comissaoValor.toStringAsFixed(2)} por OS';
   }
 
