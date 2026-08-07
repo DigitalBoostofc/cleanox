@@ -35,6 +35,7 @@ import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/user.dart';
 
 /// Altura de UMA hora na grade. Token ÚNICO de escala (px/min = /60).
 const double kAgendaAlturaHoraPx = 56;
@@ -646,10 +647,13 @@ class _BlocoOSState extends State<_BlocoOS> {
     // Cor = profissional. Avatar só em atribuída/em andamento; check = concluída.
     final cor = corAgendaOs(os);
     final prof = os.expand?.profissional;
+    final prof2 = os.expand?.profissional2;
     final mostraAvatar =
         agendaMostraAvatar(os) && prof != null && prof.displayName != '—';
+    final mostraAvatar2 =
+        agendaMostraAvatar(os) && prof2 != null && prof2.displayName != '—';
     final concluida = agendaMostraCheckConcluida(os);
-    final reservaCanto = mostraAvatar || concluida;
+    final reservaCanto = mostraAvatar || mostraAvatar2 || concluida;
     final detalhes = _detalhesAgendaOs(os);
     final cliente =
         os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao;
@@ -727,20 +731,19 @@ class _BlocoOSState extends State<_BlocoOS> {
               ),
             ),
           ),
-          if (mostraAvatar)
+          if (mostraAvatar || mostraAvatar2)
             // Canto INFERIOR direito (pedido do dono, 16/07).
             Positioned(
               bottom: 0,
               right: 0,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: cor, width: 1.5),
-                ),
-                child: Tooltip(
-                  message: prof.displayName,
-                  child: UserAvatar(user: prof, radius: 10),
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (mostraAvatar)
+                    _AgendaProfAvatar(user: prof, cor: cor),
+                  if (mostraAvatar2)
+                    _AgendaProfAvatar(user: prof2, cor: cor),
+                ],
               ),
             )
           else if (concluida)
@@ -833,6 +836,27 @@ class _BlocoOSState extends State<_BlocoOS> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AgendaProfAvatar extends StatelessWidget {
+  const _AgendaProfAvatar({required this.user, required this.cor});
+
+  final User user;
+  final Color cor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: cor, width: 1.5),
+      ),
+      child: Tooltip(
+        message: user.displayName,
+        child: UserAvatar(user: user, radius: 10),
       ),
     );
   }
