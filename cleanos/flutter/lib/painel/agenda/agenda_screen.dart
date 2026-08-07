@@ -702,8 +702,11 @@ class _EventChip extends StatelessWidget {
     final clx = context.clx;
     final cor = corAgendaOs(os);
     final prof = os.expand?.profissional;
+    final prof2 = os.expand?.profissional2;
     final mostraAvatar =
         agendaMostraAvatar(os) && prof != null && prof.displayName != '—';
+    final mostraAvatar2 =
+        agendaMostraAvatar(os) && prof2 != null && prof2.displayName != '—';
     final concluida = agendaMostraCheckConcluida(os);
     return GestureDetector(
       onTap: () => onTap(os),
@@ -719,11 +722,17 @@ class _EventChip extends StatelessWidget {
         ),
         child: Row(
           children: [
-            if (mostraAvatar) ...[
-              Tooltip(
-                message: prof.displayName,
-                child: UserAvatar(user: prof, radius: 7),
-              ),
+            if (mostraAvatar || mostraAvatar2) ...[
+              if (mostraAvatar)
+                Tooltip(
+                  message: prof.displayName,
+                  child: UserAvatar(user: prof, radius: 7),
+                ),
+              if (mostraAvatar2)
+                Tooltip(
+                  message: prof2.displayName,
+                  child: UserAvatar(user: prof2, radius: 7),
+                ),
               const SizedBox(width: 4),
             ],
             if (concluida) ...[
@@ -1039,9 +1048,13 @@ class _AgendaMiniCard extends StatelessWidget {
     final clx = context.clx;
     final cor = corAgendaOs(os);
     final profUser = os.expand?.profissional;
+    final profUser2 = os.expand?.profissional2;
     final prof = profUser?.displayName;
+    final prof2 = profUser2?.displayName;
     final mostraAvatar =
         agendaMostraAvatar(os) && prof != null && prof != '—';
+    final mostraAvatar2 =
+        agendaMostraAvatar(os) && prof2 != null && prof2 != '—';
     final concluida = agendaMostraCheckConcluida(os);
     // Faixa "08:00–10:00" (duração efetiva: OS > profissional > 60). Card, nunca
     // tabela — R4.
@@ -1104,11 +1117,17 @@ class _AgendaMiniCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            if (mostraAvatar && profUser != null) ...[
-              Tooltip(
-                message: profUser.displayName,
-                child: UserAvatar(user: profUser, radius: 14),
-              ),
+            if (mostraAvatar || mostraAvatar2) ...[
+              if (mostraAvatar && profUser != null)
+                Tooltip(
+                  message: profUser.displayName,
+                  child: UserAvatar(user: profUser, radius: 14),
+                ),
+              if (mostraAvatar2 && profUser2 != null)
+                Tooltip(
+                  message: profUser2.displayName,
+                  child: UserAvatar(user: profUser2, radius: 14),
+                ),
               const SizedBox(width: ClxSpace.x2),
             ] else if (concluida) ...[
               Icon(Icons.check_circle, size: 20, color: cor),
