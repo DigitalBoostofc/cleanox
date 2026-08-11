@@ -343,7 +343,12 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                     ),
                   ),
                 ),
-              Expanded(child: _body()),
+              Expanded(
+                child: VitrineContentFrame(
+                  maxWidth: _step == 0 ? 1180 : 760,
+                  child: _body(),
+                ),
+              ),
               if (_step == 1)
                 VitrineStickyBar(
                   totalLabel:
@@ -415,16 +420,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        const Text(
-          'Olá 👋',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-            letterSpacing: -0.4,
-          ),
-        ),
+        const VitrineGreeting(),
         const SizedBox(height: 4),
         Text(
           kAppTagline,
