@@ -50,6 +50,56 @@ abstract final class VitrineUi {
       );
 }
 
+/// Centraliza a experiência pública sem deixar o conteúdo esticar em telas
+/// largas. No mobile ocupa toda a largura disponível.
+class VitrineContentFrame extends StatelessWidget {
+  const VitrineContentFrame({
+    super.key,
+    required this.child,
+    this.maxWidth = 760,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: SizedBox.expand(child: child),
+      ),
+    );
+  }
+}
+
+/// Saudação estável em web/Android, sem depender de fonte de emoji do sistema.
+class VitrineGreeting extends StatelessWidget {
+  const VitrineGreeting({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Olá',
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: ClxBrand.navy,
+            letterSpacing: -0.4,
+          ),
+        ),
+        SizedBox(width: 7),
+        Icon(Icons.waving_hand_rounded, size: 25, color: Color(0xFFF59E0B)),
+      ],
+    );
+  }
+}
+
 /// Topbar claro: logo + chip WhatsApp (home pública — sem conta).
 class VitrineLightTopBar extends StatelessWidget {
   const VitrineLightTopBar({super.key, this.whatsapp});
@@ -71,9 +121,34 @@ class VitrineLightTopBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         child: Row(
           children: [
-            const CleanoxLogo(
-              height: 36,
-              variant: CleanoxLogoVariant.primary,
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CleanoxLogo(
+                  height: 30,
+                  width: 30,
+                  variant: CleanoxLogoVariant.mark,
+                ),
+                SizedBox(width: 8),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: 'CLEAN'),
+                      TextSpan(
+                        text: 'OX',
+                        style: TextStyle(color: ClxBrand.cyan),
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(
+                    fontFamily: kFontFamily,
+                    color: ClxBrand.navy,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
             ),
             const Spacer(),
             if ((whatsapp ?? '').trim().isNotEmpty)
@@ -301,9 +376,12 @@ class VitrineStickyBar extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
           if (totalLabel != null && totalValue != null) ...[
             Row(
               children: [
@@ -360,7 +438,9 @@ class VitrineStickyBar extends StatelessWidget {
                   : Text(buttonLabel),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -386,9 +466,12 @@ class VitrineHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImg = imageUrl != null && imageUrl!.isNotEmpty;
-    return Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 860;
+        return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 168),
+      constraints: BoxConstraints(minHeight: wide ? 220 : 168),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(VitrineUi.rLg),
         boxShadow: const [
@@ -428,19 +511,41 @@ class VitrineHeroCard extends StatelessWidget {
             )
           else
             const Positioned.fill(child: _HeroGradient()),
+          if (!hasImg && wide)
+            Positioned(
+              key: const Key('vitrine-hero-art'),
+              right: 72,
+              top: 20,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Icon(
+                  Icons.cleaning_services_rounded,
+                  size: 78,
+                  color: Colors.white.withValues(alpha: 0.88),
+                ),
+              ),
+            ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(wide ? 32 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
+                  constraints: BoxConstraints(maxWidth: wide ? 560 : 280),
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: kFontFamily,
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: wide ? 30 : 18,
                       fontWeight: FontWeight.w800,
                       height: 1.25,
                     ),
@@ -448,13 +553,13 @@ class VitrineHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
+                  constraints: BoxConstraints(maxWidth: wide ? 520 : 280),
                   child: Text(
                     subtitle,
                     style: TextStyle(
                       fontFamily: kFontFamily,
                       color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 12,
+                      fontSize: wide ? 15 : 12,
                       height: 1.35,
                     ),
                   ),
@@ -483,8 +588,10 @@ class VitrineHeroCard extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
+          ],
+        ),
+        );
+      },
     );
   }
 }
@@ -533,16 +640,22 @@ class VitrineCategoryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 0.88,
-      children: [
-        for (final it in items)
-          Material(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 800 ? 8 : 4;
+        return GridView.builder(
+          itemCount: items.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            mainAxisExtent: 94,
+          ),
+          itemBuilder: (context, index) {
+            final it = items[index];
+            return Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(VitrineUi.rMd),
             child: InkWell(
@@ -583,7 +696,7 @@ class VitrineCategoryGrid extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: kFontFamily,
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: VitrineUi.ink2,
                       ),
@@ -592,8 +705,10 @@ class VitrineCategoryGrid extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 }
