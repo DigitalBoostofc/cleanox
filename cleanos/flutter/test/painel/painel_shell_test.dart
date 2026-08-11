@@ -16,7 +16,7 @@ import 'painel_test_helpers.dart';
 
 void main() {
   group('menu por papel (espelha PainelLayout)', () {
-    testWidgets('admin vê o item WhatsApp (admin-only)', (tester) async {
+    testWidgets('admin vê WhatsApp e Vitrine', (tester) async {
       await pumpPainelApp(
         tester,
         user: painelUser(role: Role.admin),
@@ -32,11 +32,12 @@ void main() {
       }
 
       expect(find.text('WhatsApp'), findsOneWidget);
+      expect(find.text('Vitrine'), findsOneWidget);
       expect(find.text('Clientes'), findsOneWidget);
       expect(find.text('Avaliações'), findsOneWidget);
     });
 
-    testWidgets('gerente NÃO vê o item WhatsApp', (tester) async {
+    testWidgets('gerente vê Vitrine, mas NÃO vê WhatsApp', (tester) async {
       await pumpPainelApp(
         tester,
         user: painelUser(role: Role.gerente),
@@ -50,19 +51,22 @@ void main() {
       }
 
       expect(find.text('WhatsApp'), findsNothing);
+      expect(find.text('Vitrine'), findsOneWidget);
       expect(find.text('Clientes'), findsOneWidget);
       expect(find.text('Avaliações'), findsOneWidget);
     });
 
-    test('navItemsForRole: admin=9 itens, gerente=8 (sem WhatsApp)', () {
+    test('navItemsForRole: gerente não recebe itens admin-only', () {
       expect(navItemsForRole(Role.admin).length, kPainelNavItems.length);
       final gerente = navItemsForRole(Role.gerente);
       expect(gerente.length, kPainelNavItems.length - 1);
       expect(gerente.any((i) => i.section == PainelSection.whatsapp), isFalse);
+      expect(gerente.any((i) => i.label == 'Vitrine'), isTrue);
     });
 
     test('painelPath / painelSectionForLocation (round-trip)', () {
       expect(painelPath(PainelSection.financeiro), '/painel/financeiro');
+      expect(painelPath(PainelSection.vitrine), '/painel/vitrine');
       expect(
         painelSectionForLocation('/painel/financeiro/lancamentos'),
         PainelSection.financeiro,
@@ -200,6 +204,37 @@ void main() {
       );
 
       expect(currentLocation(router), '/painel/whatsapp');
+    });
+
+    testWidgets('admin abre o editor da vitrine dentro do painel', (
+      tester,
+    ) async {
+      final router = await pumpPainelApp(
+        tester,
+        user: painelUser(role: Role.admin),
+        repo: FakePainelOrdens.empty(),
+        location: '/painel/vitrine',
+      );
+
+      expect(currentLocation(router), '/painel/vitrine');
+      expect(find.text('Editar vitrine'), findsOneWidget);
+      expect(find.text('Conteúdo'), findsOneWidget);
+      expect(find.text('Mídia'), findsOneWidget);
+      expect(find.text('Ofertas'), findsOneWidget);
+    });
+
+    testWidgets('gerente abre /painel/vitrine conforme permissão do CMS', (
+      tester,
+    ) async {
+      final router = await pumpPainelApp(
+        tester,
+        user: painelUser(role: Role.gerente),
+        repo: FakePainelOrdens.empty(),
+        location: '/painel/vitrine',
+      );
+
+      expect(currentLocation(router), '/painel/vitrine');
+      expect(find.text('Editar vitrine'), findsOneWidget);
     });
   });
 }

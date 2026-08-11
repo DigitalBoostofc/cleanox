@@ -336,7 +336,10 @@ class VitrineApiException implements Exception {
 class VitrineApi {
   VitrineApi({http.Client? client, String? baseUrl, PocketBase? pb})
       : _client = client ?? http.Client(),
-        _base = (baseUrl ?? Env.pbUrl).replaceAll(RegExp(r'/$'), ''),
+        _base = (baseUrl ?? pb?.baseURL ?? Env.pbUrl).replaceAll(
+          RegExp(r'/$'),
+          '',
+        ),
         _pb = pb;
 
   final http.Client _client;

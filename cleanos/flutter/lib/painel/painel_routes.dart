@@ -34,6 +34,7 @@ import 'servicos/servicos_list_screen.dart';
 import 'shell/painel_nav.dart';
 import 'shell/painel_shell.dart';
 import 'usuarios/usuarios_screen.dart';
+import 'vitrine/vitrine_painel_screen.dart';
 import 'whatsapp/whatsapp_admin_screen.dart';
 // ⚠️ Eager (não deferred): em prod o loadLibrary dos chunks quebrou Agenda /
 // Financeiro / Serviços ("Não foi possível carregar este módulo"). Bundle
@@ -181,6 +182,16 @@ StatefulShellRoute painelShellRoute(
             path: painelPath(PainelSection.avaliacoes),
             name: 'painel-avaliacoes',
             builder: (context, state) => const AvaliacoesScreen(),
+          ),
+        ],
+      ),
+      // ── Vitrine pública: CMS usando a sessão do painel (admin/gerente). ──
+      StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: painelPath(PainelSection.vitrine),
+            name: 'painel-vitrine',
+            builder: (context, state) => const VitrinePainelScreen(),
           ),
         ],
       ),

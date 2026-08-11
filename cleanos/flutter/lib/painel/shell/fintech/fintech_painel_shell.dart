@@ -42,6 +42,7 @@ const List<PainelSection> kFintechMaisSections = [
   PainelSection.servicos,
   PainelSection.avaliacoes,
   PainelSection.usuarios,
+  PainelSection.vitrine,
   PainelSection.whatsapp,
 ];
 
@@ -227,6 +228,7 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
       PainelSection.servicos => 'Serviços',
       PainelSection.usuarios => 'Usuários',
       PainelSection.avaliacoes => 'Avaliações',
+      PainelSection.vitrine => 'Vitrine',
       PainelSection.whatsapp => 'WhatsApp',
       PainelSection.conta => 'Minha Conta',
       PainelSection.dashboard => 'Início',
@@ -246,6 +248,7 @@ class _FintechPainelScaffoldState extends ConsumerState<FintechPainelScaffold> {
       PainelSection.servicos => 'Catálogo de serviços',
       PainelSection.usuarios => 'Equipe e acessos',
       PainelSection.avaliacoes => 'Feedback dos clientes',
+      PainelSection.vitrine => 'Site público e agendamentos',
       PainelSection.whatsapp => 'Conexão e templates',
       PainelSection.conta => 'Seus dados e senha',
       PainelSection.dashboard => _longDatePtBrHeader(),

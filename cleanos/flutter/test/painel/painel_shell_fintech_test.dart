@@ -182,7 +182,7 @@ void main() {
 
   group('tela Menu (hamburger no header)', () {
     testWidgets(
-      'admin vê foto + Agenda/Serviços/Avaliações/Usuários/WhatsApp (sem Conta duplicada)',
+      'admin vê foto + Agenda/Serviços/Avaliações/Usuários/Vitrine/WhatsApp',
       (tester) async {
         await _pumpCleanosApp(
           tester,
@@ -204,6 +204,7 @@ void main() {
         expect(find.text('Serviços'), findsOneWidget);
         expect(find.text('Avaliações'), findsOneWidget);
         expect(find.text('Usuários'), findsOneWidget);
+        expect(find.text('Vitrine'), findsOneWidget);
         expect(find.text('WhatsApp'), findsOneWidget);
         // Clientes e OS saíram do menu (estão na barra).
         expect(find.text('Ordens de Serviço'), findsNothing);
@@ -212,7 +213,9 @@ void main() {
       },
     );
 
-    testWidgets('gerente NÃO vê WhatsApp no Menu', (tester) async {
+    testWidgets('gerente vê Vitrine, mas NÃO vê WhatsApp no Menu', (
+      tester,
+    ) async {
       await _pumpCleanosApp(
         tester,
         surface: AppSurface.android,
@@ -226,6 +229,29 @@ void main() {
 
       expect(find.text('Serviços'), findsOneWidget);
       expect(find.text('WhatsApp'), findsNothing);
+      expect(find.text('Vitrine'), findsOneWidget);
+    });
+
+    testWidgets('admin abre o editor da Vitrine pelo Menu em 390px', (
+      tester,
+    ) async {
+      final router = await _pumpCleanosApp(
+        tester,
+        surface: AppSurface.android,
+        user: painelUser(role: Role.admin),
+        repo: FakePainelOrdens.empty(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('nav-menu-header')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Vitrine'));
+      await _settleNav(tester);
+
+      expect(currentLocation(router), '/painel/vitrine');
+      expect(find.text('Editar vitrine'), findsOneWidget);
+      expect(find.text('Conteúdo'), findsOneWidget);
+      expect(find.text('Mídia'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('tocar num item do Menu navega e fecha a lista', (
