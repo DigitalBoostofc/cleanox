@@ -25,6 +25,7 @@ enum PainelSection {
   servicos,
   usuarios,
   avaliacoes,
+  vitrine,
   whatsapp,
   conta,
 }
@@ -93,6 +94,11 @@ const List<PainelNavItem> kPainelNavItems = [
     icon: Icons.star_outline_rounded,
   ),
   PainelNavItem(
+    section: PainelSection.vitrine,
+    label: 'Vitrine',
+    icon: Icons.storefront_outlined,
+  ),
+  PainelNavItem(
     section: PainelSection.whatsapp,
     label: 'WhatsApp',
     icon: Icons.chat_outlined,
@@ -117,6 +123,7 @@ String painelTitle(PainelSection s) => switch (s) {
   PainelSection.servicos => 'Serviços',
   PainelSection.usuarios => 'Usuários',
   PainelSection.avaliacoes => 'Avaliações',
+  PainelSection.vitrine => 'Vitrine',
   PainelSection.whatsapp => 'WhatsApp',
   PainelSection.conta => 'Minha Conta',
 };
@@ -132,6 +139,7 @@ String painelPath(PainelSection s) => switch (s) {
   PainelSection.servicos => '/painel/servicos',
   PainelSection.usuarios => '/painel/usuarios',
   PainelSection.avaliacoes => '/painel/avaliacoes',
+  PainelSection.vitrine => '/painel/vitrine',
   PainelSection.whatsapp => '/painel/whatsapp',
   PainelSection.conta => '/painel/conta',
 };
