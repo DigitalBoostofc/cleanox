@@ -237,6 +237,7 @@ function defaultConfig() {
     hero_subtitulo:
       "Escolha o que precisa limpar e marque data e horário",
     hero_cta: "Agendar agora",
+    hero_cta_ativo: true,
     whatsapp_exibido: "",
     rodape_msg: "Pagamento só no local · maquininha Cleanox",
     cidades_texto: "",
@@ -257,6 +258,16 @@ function numCfg(v, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function boolCfg(v, fallback) {
+  if (v === true || v === 1 || v === "1" || v === "true" || v === "TRUE") {
+    return true;
+  }
+  if (v === false || v === 0 || v === "0" || v === "false" || v === "FALSE") {
+    return false;
+  }
+  return fallback;
+}
+
 function getConfig(app) {
   const base = defaultConfig();
   try {
@@ -268,6 +279,7 @@ function getConfig(app) {
         hero_titulo: String(r.get("hero_titulo") || base.hero_titulo),
         hero_subtitulo: String(r.get("hero_subtitulo") || base.hero_subtitulo),
         hero_cta: String(r.get("hero_cta") || base.hero_cta),
+        hero_cta_ativo: boolCfg(r.get("hero_cta_ativo"), base.hero_cta_ativo),
         whatsapp_exibido: String(r.get("whatsapp_exibido") || ""),
         rodape_msg: String(r.get("rodape_msg") || base.rodape_msg),
         cidades_texto: String(r.get("cidades_texto") || ""),
@@ -336,6 +348,9 @@ function saveConfig(app, body) {
     if (body[k] != null && body[k] !== "") {
       rec.set(k, Math.max(0, Math.floor(Number(body[k]) || 0)));
     }
+  }
+  if (body.hero_cta_ativo != null) {
+    rec.set("hero_cta_ativo", boolCfg(body.hero_cta_ativo, true));
   }
   app.save(rec);
   return getConfig(app);

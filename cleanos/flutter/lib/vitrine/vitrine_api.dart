@@ -270,6 +270,7 @@ class VitrineConfig {
     this.heroSubtitulo =
         'Escolha o que precisa limpar e marque data e horário',
     this.heroCta = 'Agendar agora',
+    this.heroCtaAtivo = true,
     this.whatsappExibido = '',
     this.rodapeMsg = 'Pagamento só no local · maquininha Cleanox',
     this.cidadesTexto = '',
@@ -291,6 +292,7 @@ class VitrineConfig {
   final String heroTitulo;
   final String heroSubtitulo;
   final String heroCta;
+  final bool heroCtaAtivo;
   final String whatsappExibido;
   final String rodapeMsg;
   final String cidadesTexto;
@@ -308,6 +310,7 @@ class VitrineConfig {
     heroSubtitulo:
         '${j['hero_subtitulo'] ?? 'Escolha o que precisa limpar e marque data e horário'}',
     heroCta: '${j['hero_cta'] ?? 'Agendar agora'}',
+    heroCtaAtivo: _boolCfg(j['hero_cta_ativo'], true),
     whatsappExibido: '${j['whatsapp_exibido'] ?? ''}',
     rodapeMsg:
         '${j['rodape_msg'] ?? 'Pagamento só no local · maquininha Cleanox'}',
@@ -325,6 +328,7 @@ class VitrineConfig {
     'hero_titulo': heroTitulo,
     'hero_subtitulo': heroSubtitulo,
     'hero_cta': heroCta,
+    'hero_cta_ativo': heroCtaAtivo,
     'whatsapp_exibido': whatsappExibido,
     'rodape_msg': rodapeMsg,
     'cidades_texto': cidadesTexto,
@@ -341,6 +345,7 @@ class VitrineConfig {
     String? heroTitulo,
     String? heroSubtitulo,
     String? heroCta,
+    bool? heroCtaAtivo,
     String? whatsappExibido,
     String? rodapeMsg,
     String? cidadesTexto,
@@ -356,6 +361,7 @@ class VitrineConfig {
     heroTitulo: heroTitulo ?? this.heroTitulo,
     heroSubtitulo: heroSubtitulo ?? this.heroSubtitulo,
     heroCta: heroCta ?? this.heroCta,
+    heroCtaAtivo: heroCtaAtivo ?? this.heroCtaAtivo,
     whatsappExibido: whatsappExibido ?? this.whatsappExibido,
     rodapeMsg: rodapeMsg ?? this.rodapeMsg,
     cidadesTexto: cidadesTexto ?? this.cidadesTexto,
@@ -367,6 +373,19 @@ class VitrineConfig {
     antecedenciaMinutos: antecedenciaMinutos ?? this.antecedenciaMinutos,
     horizonteDias: horizonteDias ?? this.horizonteDias,
   );
+}
+
+bool _boolCfg(Object? v, bool fallback) {
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  if (v is String) {
+    final s = v.trim().toLowerCase();
+    if (s == 'true' || s == '1' || s == 'yes' || s == 'sim') return true;
+    if (s == 'false' || s == '0' || s == 'no' || s == 'nao' || s == 'não') {
+      return false;
+    }
+  }
+  return fallback;
 }
 
 class VitrineAgendarResult {

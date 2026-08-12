@@ -751,6 +751,7 @@ class VitrineHeroCard extends StatelessWidget {
     required this.subtitle,
     required this.cta,
     required this.onCta,
+    this.showCta = true,
     this.imageUrl,
   });
 
@@ -758,6 +759,7 @@ class VitrineHeroCard extends StatelessWidget {
   final String subtitle;
   final String cta;
   final VoidCallback onCta;
+  final bool showCta;
   final String? imageUrl;
 
   @override
@@ -862,26 +864,28 @@ class VitrineHeroCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: onCta,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: ClxBrand.navy,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                if (showCta)
+                  FilledButton(
+                    key: const Key('vitrine-hero-cta'),
+                    onPressed: onCta,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: ClxBrand.navy,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      textStyle: const TextStyle(
+                        fontFamily: kFontFamily,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    textStyle: const TextStyle(
-                      fontFamily: kFontFamily,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                    child: Text(cta),
                   ),
-                  child: Text(cta),
-                ),
               ],
             ),
           ),

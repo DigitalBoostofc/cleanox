@@ -453,6 +453,7 @@ class _VitrineAdminPersonalizarScreenState
   final _passo = TextEditingController();
   final _antecedencia = TextEditingController();
   final _horizonte = TextEditingController();
+  bool _heroCtaAtivo = true;
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -470,6 +471,7 @@ class _VitrineAdminPersonalizarScreenState
       _titulo.text = c.heroTitulo;
       _sub.text = c.heroSubtitulo;
       _cta.text = c.heroCta;
+      _heroCtaAtivo = c.heroCtaAtivo;
       _wa.text = c.whatsappExibido;
       _rodape.text = c.rodapeMsg;
       _cidades.text = c.cidadesTexto;
@@ -503,6 +505,7 @@ class _VitrineAdminPersonalizarScreenState
               heroTitulo: _titulo.text.trim(),
               heroSubtitulo: _sub.text.trim(),
               heroCta: _cta.text.trim(),
+              heroCtaAtivo: _heroCtaAtivo,
               whatsappExibido: _wa.text.trim(),
               rodapeMsg: _rodape.text.trim(),
               cidadesTexto: _cidades.text.trim(),
@@ -617,8 +620,22 @@ class _VitrineAdminPersonalizarScreenState
                   decoration: const InputDecoration(labelText: 'Subtítulo'),
                 ),
                 const SizedBox(height: 12),
+                SwitchListTile(
+                  key: const Key('vitrine-hero-cta-ativo'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Mostrar botão do hero'),
+                  subtitle: Text(
+                    _heroCtaAtivo
+                        ? 'Botão “${_cta.text.trim().isEmpty ? 'Agendar agora' : _cta.text.trim()}” visível na home'
+                        : 'Botão oculto na home da Vitrine',
+                  ),
+                  value: _heroCtaAtivo,
+                  onChanged: (v) => setState(() => _heroCtaAtivo = v),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _cta,
+                  enabled: _heroCtaAtivo,
                   decoration: const InputDecoration(
                     labelText: 'Texto do botão',
                   ),
