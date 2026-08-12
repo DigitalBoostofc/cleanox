@@ -771,7 +771,7 @@ class _ServiceActions extends StatelessWidget {
   }
 }
 
-/// Uma foto ou carrossel automático (sem botão "Ver fotos").
+/// Uma foto ou carrossel automático em loop contínuo (sempre desliza à esquerda).
 class _ServicePhotoCarousel extends StatefulWidget {
   const _ServicePhotoCarousel({
     required this.media,
@@ -788,14 +788,36 @@ class _ServicePhotoCarousel extends StatefulWidget {
 }
 
 class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
-  late final PageController _controller;
+  /// Multiplicador grande: PageView infinito para o wrap última→primeira
+  /// animar sempre "para a esquerda" (índice só sobe).
+  static const int _loopBase = 1000;
+
+  PageController? _controller;
   Timer? _timer;
-  int _index = 0;
+  int _page = 0;
+
+  int get _n => widget.media.length;
+
+  int get _realIndex => _n == 0 ? 0 : _page % _n;
+
+  int get _startPage => _n <= 1 ? 0 : _n * _loopBase;
 
   @override
   void initState() {
     super.initState();
-    _controller = PageController();
+    _bootstrapController();
+  }
+
+  void _bootstrapController() {
+    _timer?.cancel();
+    _controller?.dispose();
+    _controller = null;
+    if (_n <= 1) {
+      _page = 0;
+      return;
+    }
+    _page = _startPage;
+    _controller = PageController(initialPage: _page);
     _restartTimer();
   }
 
@@ -803,23 +825,20 @@ class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
   void didUpdateWidget(covariant _ServicePhotoCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.media.length != widget.media.length) {
-      _index = 0;
-      if (_controller.hasClients) {
-        _controller.jumpToPage(0);
-      }
-      _restartTimer();
+      _bootstrapController();
+      setState(() {});
     }
   }
 
   void _restartTimer() {
     _timer?.cancel();
-    if (widget.media.length < 2) return;
+    if (_n < 2) return;
     _timer = Timer.periodic(kVitrineFotoCarouselInterval, (_) {
-      if (!mounted || !_controller.hasClients) return;
-      final next = (_index + 1) % widget.media.length;
-      _controller.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 420),
+      final c = _controller;
+      if (!mounted || c == null || !c.hasClients) return;
+      // Sempre +1: wrap visual via itemBuilder % n, sem voltar o PageView.
+      c.nextPage(
+        duration: const Duration(milliseconds: 480),
         curve: Curves.easeInOut,
       );
     });
@@ -828,7 +847,7 @@ class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
   @override
   void dispose() {
     _timer?.cancel();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -840,15 +859,19 @@ class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
     if (widget.media.length == 1) {
       return _ServicePhoto(media: widget.media.first, icon: widget.icon);
     }
+    final controller = _controller;
+    if (controller == null) {
+      return _ServicePhoto(media: widget.media.first, icon: widget.icon);
+    }
     return Stack(
       fit: StackFit.expand,
       children: [
         PageView.builder(
-          controller: _controller,
-          itemCount: widget.media.length,
-          onPageChanged: (value) => setState(() => _index = value),
+          controller: controller,
+          // itemCount null = infinito → nextPage nunca “volta” na última.
+          onPageChanged: (value) => setState(() => _page = value),
           itemBuilder: (context, index) => _ServicePhoto(
-            media: widget.media[index],
+            media: widget.media[index % _n],
             icon: widget.icon,
           ),
         ),
@@ -860,14 +883,14 @@ class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (var i = 0; i < widget.media.length; i++)
+                for (var i = 0; i < _n; i++)
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: i == _index ? 16 : 7,
+                    width: i == _realIndex ? 16 : 7,
                     height: 7,
                     decoration: BoxDecoration(
-                      color: i == _index
+                      color: i == _realIndex
                           ? Colors.white
                           : Colors.white.withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(999),

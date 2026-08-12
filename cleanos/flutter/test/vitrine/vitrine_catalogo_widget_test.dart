@@ -226,6 +226,11 @@ void main() {
     expect(find.textContaining('Ver foto'), findsNothing);
     expect(find.byKey(const Key('vitrine-gallery-photo')), findsNothing);
     expect(find.byType(PageView), findsOneWidget);
+    // Loop contínuo à esquerda: PageView infinito (sem itemCount finito).
+    final pageView = tester.widget<PageView>(find.byType(PageView));
+    expect(pageView.childrenDelegate, isA<SliverChildBuilderDelegate>());
+    final delegate = pageView.childrenDelegate as SliverChildBuilderDelegate;
+    expect(delegate.estimatedChildCount, isNull);
   });
 
   testWidgets('botão vira Remover vermelho quando selecionado', (tester) async {
