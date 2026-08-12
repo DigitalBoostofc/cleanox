@@ -11,7 +11,9 @@ import '../../core/design/tokens.dart';
 import '../../core/design/widgets/cleanox_logo.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+import '../vitrine_page_layout.dart';
 import 'vitrine_admin_auth.dart';
+import 'vitrine_layout_editor.dart';
 import 'vitrine_midia_editor.dart';
 import 'vitrine_midia_repository.dart';
 import 'vitrine_servico_editor.dart';
@@ -455,7 +457,14 @@ class _VitrineAdminPersonalizarScreenState
   final _horizonte = TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  bool _savingLayout = false;
+  bool _publishingLayout = false;
+  VitrinePageLayout _layoutDraft = VitrinePageLayout.defaults();
+  VitrinePageLayout _layoutPublished = VitrinePageLayout.defaults();
   String? _error;
+
+  bool get _layoutMatchesPublished =>
+      _layoutDraft.toJson().toString() == _layoutPublished.toJson().toString();
 
   @override
   void initState() {
@@ -465,7 +474,13 @@ class _VitrineAdminPersonalizarScreenState
 
   Future<void> _load() async {
     try {
-      final c = await ref.read(vitrineAdminApiProvider).adminGetConfig();
+      final api = ref.read(vitrineAdminApiProvider);
+      final results = await Future.wait([
+        api.adminGetConfig(),
+        api.adminGetLayout(),
+      ]);
+      final c = results[0] as VitrineConfig;
+      final layoutState = results[1] as VitrineLayoutAdminState;
       if (!mounted) return;
       _titulo.text = c.heroTitulo;
       _sub.text = c.heroSubtitulo;
@@ -480,7 +495,11 @@ class _VitrineAdminPersonalizarScreenState
       _passo.text = '${c.passoMin}';
       _antecedencia.text = '${c.antecedenciaMinutos}';
       _horizonte.text = '${c.horizonteDias}';
-      setState(() => _loading = false);
+      setState(() {
+        _layoutDraft = layoutState.draft;
+        _layoutPublished = layoutState.published;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -525,6 +544,82 @@ class _VitrineAdminPersonalizarScreenState
       if (!mounted) return;
       setState(() {
         _saving = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  Future<void> _saveLayoutDraft() async {
+    setState(() {
+      _savingLayout = true;
+      _error = null;
+    });
+    try {
+      final state = await ref
+          .read(vitrineAdminApiProvider)
+          .adminSaveLayoutDraft(_layoutDraft);
+      if (!mounted) return;
+      setState(() {
+        _layoutDraft = state.draft;
+        _layoutPublished = state.published;
+        _savingLayout = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rascunho salvo. A Vitrine pública não foi alterada.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _savingLayout = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  Future<void> _publishLayout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Publicar layout?'),
+        content: const Text(
+          'O rascunho salvo passará a organizar a Vitrine que os clientes acessam.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Publicar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _publishingLayout = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(vitrineAdminApiProvider);
+      await api.adminSaveLayoutDraft(_layoutDraft);
+      final state = await api.adminPublishLayout();
+      if (!mounted) return;
+      setState(() {
+        _layoutDraft = state.draft;
+        _layoutPublished = state.published;
+        _publishingLayout = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Layout publicado na Vitrine.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _publishingLayout = false;
         _error = '$e';
       });
     }
@@ -595,6 +690,96 @@ class _VitrineAdminPersonalizarScreenState
                 color: ClxBrand.navy,
                 height: 1.4,
               ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'Layout da página',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: ClxBrand.navy,
+                      ),
+                    ),
+                    Chip(
+                      avatar: Icon(
+                        _layoutMatchesPublished
+                            ? Icons.check_circle_outline
+                            : Icons.edit_outlined,
+                        size: 18,
+                      ),
+                      label: Text(
+                        _layoutMatchesPublished
+                            ? 'Publicado'
+                            : 'Rascunho com alterações',
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _savingLayout ? null : _saveLayoutDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(
+                        _savingLayout ? 'Salvando…' : 'Salvar rascunho',
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _publishingLayout ? null : _publishLayout,
+                      icon: const Icon(Icons.publish_outlined),
+                      label: Text(
+                        _publishingLayout ? 'Publicando…' : 'Publicar layout',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Organize seções e confira o preview. Salvar cria apenas um rascunho; publicar é uma ação separada.',
+                  style: TextStyle(color: ClxBrand.muted),
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final editor = VitrineLayoutEditor(
+                      layout: _layoutDraft,
+                      onChanged: (layout) =>
+                          setState(() => _layoutDraft = layout),
+                    );
+                    final preview = VitrineLayoutPreview(layout: _layoutDraft);
+                    if (constraints.maxWidth < 900) {
+                      return Column(
+                        children: [
+                          SizedBox(height: 620, child: editor),
+                          const Divider(height: 24),
+                          SizedBox(height: 620, child: preview),
+                        ],
+                      );
+                    }
+                    return SizedBox(
+                      height: 680,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 5, child: editor),
+                          const VerticalDivider(width: 24),
+                          Expanded(flex: 7, child: preview),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
