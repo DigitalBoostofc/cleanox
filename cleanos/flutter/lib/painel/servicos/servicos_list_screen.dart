@@ -12,8 +12,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/design/design.dart';
 import '../../core/models/servico.dart';
+import '../../vitrine/admin/vitrine_midia_repository.dart';
 import 'servicos_controller.dart';
 import 'servicos_labels.dart';
+import 'servicos_midia_index.dart';
 
 const double _kTableBreakpoint = 820;
 
@@ -54,6 +56,7 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
     final saved = await context.push<bool>('/painel/servicos/novo');
     if (saved == true) {
       await ref.read(servicosControllerProvider.notifier).refresh();
+      ref.invalidate(servicosMidiaIndexProvider);
       if (mounted) {
         showClxToast(context, 'Serviço criado.', type: ToastType.success);
       }
@@ -63,6 +66,8 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
   Future<void> _editar(ServicoPB s) async {
     // Rota deep-linkável `/painel/servicos/:id` (tela cheia no navigator raiz).
     final saved = await context.push<bool>('/painel/servicos/${s.id}');
+    // Sempre revalida fotos: upload no editor não depende de "salvar" o serviço.
+    ref.invalidate(servicosMidiaIndexProvider);
     if (saved == true) {
       await ref.read(servicosControllerProvider.notifier).refresh();
       if (mounted) {
@@ -113,15 +118,21 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(servicosControllerProvider);
+    final midiaAsync = ref.watch(servicosMidiaIndexProvider);
+    final midiaIndex =
+        midiaAsync.valueOrNull ?? const <String, List<VitrineMidiaItem>>{};
     return Column(
       children: [
         _Toolbar(onNovo: _novo),
-        Expanded(child: _body(state)),
+        Expanded(child: _body(state, midiaIndex)),
       ],
     );
   }
 
-  Widget _body(ServicosState state) {
+  Widget _body(
+    ServicosState state,
+    Map<String, List<VitrineMidiaItem>> midiaIndex,
+  ) {
     if (state.loading) return const Center(child: Spinner(size: 26));
     if (state.error != null && state.isEmpty) {
       return Center(
@@ -163,10 +174,14 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
       builder: (context, c) {
         final table = c.maxWidth >= _kTableBreakpoint;
         return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(servicosControllerProvider.notifier).refresh(),
+          onRefresh: () async {
+            await ref.read(servicosControllerProvider.notifier).refresh();
+            ref.invalidate(servicosMidiaIndexProvider);
+          },
           color: context.clx.primary,
-          child: table ? _tableView(state) : _cardsView(state),
+          child: table
+              ? _tableView(state, midiaIndex)
+              : _cardsView(state, midiaIndex),
         );
       },
     );
@@ -182,7 +197,10 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
     );
   }
 
-  Widget _tableView(ServicosState state) {
+  Widget _tableView(
+    ServicosState state,
+    Map<String, List<VitrineMidiaItem>> midiaIndex,
+  ) {
     final clx = context.clx;
     return Column(
       children: [
@@ -196,7 +214,8 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
             children: const [
               _HeaderCell('Serviço', flex: 4),
               _HeaderCell('Categoria / Grupo', flex: 3),
-              _HeaderCell('Valor', flex: 3),
+              _HeaderCell('Valor', flex: 2),
+              _HeaderCell('Fotos', flex: 2),
               _HeaderCell('Tipo de valor', flex: 2),
               _HeaderCell('Tempo médio', flex: 2),
               _HeaderCell('Status', flex: 2),
@@ -213,9 +232,12 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
             itemBuilder: (context, i) {
               if (i >= state.items.length) return _footer(state, i);
               final s = state.items[i];
+              final fotos = midiaIndex[s.id] ?? const <VitrineMidiaItem>[];
               return _ServicoRow(
                 servico: s,
+                fotos: fotos,
                 onTap: () => _editar(s),
+                onFotos: () => _showFotos(s, fotos),
                 onToggle: () => ref
                     .read(servicosControllerProvider.notifier)
                     .toggleStatus(s),
@@ -229,7 +251,10 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
     );
   }
 
-  Widget _cardsView(ServicosState state) {
+  Widget _cardsView(
+    ServicosState state,
+    Map<String, List<VitrineMidiaItem>> midiaIndex,
+  ) {
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(ClxSpace.x4),
@@ -237,11 +262,14 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
       itemBuilder: (context, i) {
         if (i >= state.items.length) return _footer(state, i);
         final s = state.items[i];
+        final fotos = midiaIndex[s.id] ?? const <VitrineMidiaItem>[];
         return Padding(
           padding: const EdgeInsets.only(bottom: ClxSpace.x3),
           child: _ServicoCard(
             servico: s,
+            fotos: fotos,
             onTap: () => _editar(s),
+            onFotos: () => _showFotos(s, fotos),
             onToggle: () =>
                 ref.read(servicosControllerProvider.notifier).toggleStatus(s),
             onDuplicar: () => _duplicar(s),
@@ -249,6 +277,20 @@ class _ServicosListScreenState extends ConsumerState<ServicosListScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showFotos(ServicoPB s, List<VitrineMidiaItem> fotos) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _ServicoFotosDialog(
+        nome: s.nome,
+        fotos: fotos,
+        onEditar: () {
+          Navigator.of(context).pop();
+          _editar(s);
+        },
+      ),
     );
   }
 }
@@ -523,14 +565,18 @@ class _RowMenu extends StatelessWidget {
 class _ServicoRow extends StatelessWidget {
   const _ServicoRow({
     required this.servico,
+    required this.fotos,
     required this.onTap,
+    required this.onFotos,
     required this.onToggle,
     required this.onDuplicar,
     required this.onExcluir,
   });
 
   final ServicoPB servico;
+  final List<VitrineMidiaItem> fotos;
   final VoidCallback onTap;
+  final VoidCallback onFotos;
   final VoidCallback onToggle;
   final VoidCallback onDuplicar;
   final VoidCallback onExcluir;
@@ -582,7 +628,7 @@ class _ServicoRow extends StatelessWidget {
               ),
             ),
             Expanded(
-              flex: 3,
+              flex: 2,
               child: Text(
                 formatValorServico(servico),
                 maxLines: 1,
@@ -590,6 +636,16 @@ class _ServicoRow extends StatelessWidget {
                 style: tt.bodyLarge?.copyWith(
                   color: clx.ink,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _FotosThumb(
+                  fotos: fotos,
+                  onTap: onFotos,
                 ),
               ),
             ),
@@ -643,14 +699,18 @@ class _ServicoRow extends StatelessWidget {
 class _ServicoCard extends StatelessWidget {
   const _ServicoCard({
     required this.servico,
+    required this.fotos,
     required this.onTap,
+    required this.onFotos,
     required this.onToggle,
     required this.onDuplicar,
     required this.onExcluir,
   });
 
   final ServicoPB servico;
+  final List<VitrineMidiaItem> fotos;
   final VoidCallback onTap;
+  final VoidCallback onFotos;
   final VoidCallback onToggle;
   final VoidCallback onDuplicar;
   final VoidCallback onExcluir;
@@ -706,6 +766,7 @@ class _ServicoCard extends StatelessWidget {
                   style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 ),
               ),
+              _FotosThumb(fotos: fotos, onTap: onFotos),
             ],
           ),
           const SizedBox(height: ClxSpace.x2),
@@ -730,6 +791,188 @@ class _ServicoCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Miniatura + contagem: mostra se tem foto e abre o visualizador.
+class _FotosThumb extends StatelessWidget {
+  const _FotosThumb({required this.fotos, required this.onTap});
+
+  final List<VitrineMidiaItem> fotos;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final n = fotos.length;
+    final url = n == 0 ? null : fotos.first.displayUrl;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(ClxRadii.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(ClxRadii.sm),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: n == 0
+                      ? ColoredBox(
+                          color: clx.bg3,
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 18,
+                            color: clx.ink3,
+                          ),
+                        )
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ColoredBox(color: clx.bg3),
+                            if (url != null && url.isNotEmpty)
+                              Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 18,
+                                  color: clx.ink3,
+                                ),
+                              )
+                            else
+                              Icon(
+                                Icons.image_outlined,
+                                size: 18,
+                                color: clx.ink3,
+                              ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                n == 0 ? 'Sem foto' : (n == 1 ? '1 foto' : '$n fotos'),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: n == 0 ? clx.ink3 : clx.ink2,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ServicoFotosDialog extends StatelessWidget {
+  const _ServicoFotosDialog({
+    required this.nome,
+    required this.fotos,
+    required this.onEditar,
+  });
+
+  final String nome;
+  final List<VitrineMidiaItem> fotos;
+  final VoidCallback onEditar;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return AlertDialog(
+      backgroundColor: clx.bg,
+      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+      title: Text(nome.isEmpty ? 'Fotos do serviço' : nome),
+      content: SizedBox(
+        width: 520,
+        child: fotos.isEmpty
+            ? Text(
+                'Este serviço ainda não tem foto na Vitrine. '
+                'Abra o editor e use “Fotos na Vitrine”.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: clx.ink2,
+                      height: 1.45,
+                    ),
+              )
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 420),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 4 / 3,
+                  ),
+                  itemCount: fotos.length,
+                  itemBuilder: (context, i) {
+                    final f = fotos[i];
+                    final url = f.displayUrl;
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(ClxRadii.md),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ColoredBox(color: clx.bg3),
+                          if (url != null && url.isNotEmpty)
+                            Image.network(
+                              url,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: clx.ink3,
+                                ),
+                              ),
+                            ),
+                          if (f.papel == 'capa')
+                            Positioned(
+                              left: 8,
+                              top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: clx.ink.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text(
+                                  'Capa',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+      ),
+      actions: [
+        ClxButton(
+          label: 'Fechar',
+          variant: ClxButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        ClxButton(
+          label: fotos.isEmpty ? 'Adicionar fotos' : 'Gerenciar fotos',
+          icon: Icons.photo_library_outlined,
+          onPressed: onEditar,
+        ),
+      ],
     );
   }
 }
