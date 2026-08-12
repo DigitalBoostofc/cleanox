@@ -924,7 +924,154 @@ class VitrineCatItem {
   final String? imageUrl;
 }
 
-/// Grid de categorias (mockup 4 colunas).
+/// Dois cards grandes: Residencial × Automotiva (“O que você procura?”).
+class VitrineMacroChoice extends StatelessWidget {
+  const VitrineMacroChoice({
+    super.key,
+    required this.onResidencial,
+    required this.onAutomotiva,
+    this.residencialImageUrl,
+    this.automotivaImageUrl,
+  });
+
+  final VoidCallback onResidencial;
+  final VoidCallback onAutomotiva;
+  final String? residencialImageUrl;
+  final String? automotivaImageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 520;
+        final residencial = _MacroCard(
+          key: const Key('vitrine-macro-residencial'),
+          title: 'Higienização residencial',
+          subtitle: 'Sofá, colchão, poltrona, tapete e mais',
+          icon: Icons.home_outlined,
+          imageUrl: residencialImageUrl,
+          onTap: onResidencial,
+        );
+        final automotiva = _MacroCard(
+          key: const Key('vitrine-macro-automotiva'),
+          title: 'Estética automotiva',
+          subtitle: 'Bancos, teto, carpete e pacotes Cleanox',
+          icon: Icons.directions_car_outlined,
+          imageUrl: automotivaImageUrl,
+          onTap: onAutomotiva,
+        );
+        if (stacked) {
+          return Column(
+            children: [
+              residencial,
+              const SizedBox(height: 12),
+              automotiva,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: residencial),
+            const SizedBox(width: 12),
+            Expanded(child: automotiva),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MacroCard extends StatelessWidget {
+  const _MacroCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.imageUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(VitrineUi.rLg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(VitrineUi.rLg),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 132),
+          decoration: VitrineUi.cardDeco().copyWith(
+            borderRadius: BorderRadius.circular(VitrineUi.rLg),
+          ),
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: ClxBrand.cyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: imageUrl != null && imageUrl!.isNotEmpty
+                    ? Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          icon,
+                          size: 30,
+                          color: ClxBrand.cyan,
+                        ),
+                      )
+                    : Icon(icon, size: 30, color: ClxBrand.cyan),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: kFontFamily,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: ClxBrand.navy,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontFamily: kFontFamily,
+                        fontSize: 12,
+                        color: ClxBrand.muted,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: ClxBrand.cyan),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Grid de categorias (legado / uso secundário).
 class VitrineCategoryGrid extends StatelessWidget {
   const VitrineCategoryGrid({
     super.key,
