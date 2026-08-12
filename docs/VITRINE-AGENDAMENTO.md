@@ -84,22 +84,6 @@ selecionados. A OS nasce **`agendada` sem profissional** (admin/gerente
 atribui no painel). Capacidade considera OS sem profissional (anti-overbooking).
 Idempotência via `idempotency_key` + `vitrine_idempotency_key` na OS.
 
-## Layout global da página
-
-O CMS também mantém um layout controlado por seções. Admin e gerente podem
-reordenar blocos, ocultar seções opcionais, escolher variantes visuais e
-conferir o preview responsivo. `hero` e `catalog` são obrigatórios para
-preservar descoberta e conversão.
-
-Há dois snapshots separados em `vitrine_config`:
-
-- `layout_rascunho`: alterações em preparação, visíveis somente no CMS;
-- `layout_publicado`: única configuração consumida pela Vitrine pública.
-
-Salvar rascunho nunca altera `agendar.cleanox.com.br`. A ação explícita
-**Publicar layout** normaliza e copia o rascunho para o snapshot publicado.
-Configurações vazias, antigas ou inválidas usam o layout padrão completo.
-
 Opcional em prod: `VITRINE_SLOT_SECRET` (senão cai no `CLEANOS_SERVICE_SECRET`).
 
 ## Fluxo (UX autoagendamento)

@@ -144,90 +144,6 @@ function hashHex(s) {
 
 const VITRINE_LAYOUTS = ["destaque", "fotografico", "antes_depois", "compacto"];
 const VITRINE_PRECO_MODOS = ["valor", "a_partir_de", "sob_avaliacao", "ocultar"];
-const VITRINE_SECOES = [
-  "hero",
-  "categories",
-  "featured",
-  "catalog",
-  "how_it_works",
-  "cities",
-  "payment",
-  "final_cta",
-];
-const VITRINE_VARIANTES_SECAO = ["standard", "compact", "carousel", "impact"];
-
-function varianteSecaoSegura(id, value) {
-  const variant = enumSeguro(value, VITRINE_VARIANTES_SECAO, "standard");
-  if (id === "featured") return variant;
-  if (id === "hero" || id === "final_cta") {
-    return variant === "carousel" ? "standard" : variant;
-  }
-  return variant === "standard" || variant === "compact"
-    ? variant
-    : "standard";
-}
-
-function normalizarLayoutVitrine(value) {
-  const raw = value && typeof value === "object" ? value.sections : null;
-  const sections = [];
-  const seen = {};
-  if (Array.isArray(raw)) {
-    for (var i = 0; i < raw.length; i++) {
-      const item = raw[i];
-      if (!item || typeof item !== "object") continue;
-      const id = String(item.id || "");
-      if (VITRINE_SECOES.indexOf(id) < 0 || seen[id]) continue;
-      seen[id] = true;
-      sections.push({
-        id: id,
-        visible: id === "hero" || id === "catalog" ? true : item.visible !== false,
-        variant: varianteSecaoSegura(id, item.variant),
-      });
-    }
-  }
-  for (var n = 0; n < VITRINE_SECOES.length; n++) {
-    const id = VITRINE_SECOES[n];
-    if (!seen[id]) {
-      sections.push({ id: id, visible: true, variant: "standard" });
-    }
-  }
-  return { v: 1, sections: sections };
-}
-
-function snapshotLayoutVitrine(value) {
-  return normalizarLayoutVitrine(value);
-}
-
-function layoutVitrineDeCampo(value) {
-  var parsed = value;
-  // O PB/JSVM pode materializar JSONField como bytes (números ou strings)
-  // quando o valor veio de SQL/migration. Decodifica antes do JSON.parse.
-  if (Array.isArray(parsed) && parsed.length) {
-    const bytes = parsed.every(function (item) {
-      return /^\d{1,3}$/.test(String(item)) && Number(item) < 256;
-    });
-    if (bytes) {
-      try {
-        parsed = String.fromCharCode.apply(
-          null,
-          parsed.map(function (item) {
-            return Number(item);
-          }),
-        );
-      } catch (_) {
-        parsed = null;
-      }
-    }
-  }
-  if (typeof parsed === "string" && parsed.trim()) {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch (_) {
-      parsed = null;
-    }
-  }
-  return normalizarLayoutVitrine(parsed);
-}
 
 function enumSeguro(value, allowed, fallback) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -333,7 +249,6 @@ function defaultConfig() {
     passo_min: 30,
     antecedencia_minutos: 60,
     horizonte_dias: 14,
-    layout_publicado: normalizarLayoutVitrine(null),
   };
 }
 
@@ -379,68 +294,10 @@ function getConfig(app) {
           1,
           Math.floor(numCfg(r.get("horizonte_dias"), base.horizonte_dias)),
         ),
-        layout_publicado: layoutVitrineDeCampo(r.get("layout_publicado")),
       };
     }
   } catch (_) {}
   return base;
-}
-
-function findVitrineConfigRecord(app, createIfMissing) {
-  var rec = null;
-  try {
-    const list = app.findRecordsByFilter("vitrine_config", "", "", 1, 0);
-    if (list && list.length) rec = list[0];
-  } catch (_) {}
-  if (!rec && createIfMissing) {
-    const col = app.findCollectionByNameOrId("vitrine_config");
-    rec = new Record(col);
-  }
-  return rec;
-}
-
-function adminGetConfig(app) {
-  const publico = getConfig(app);
-  const rec = findVitrineConfigRecord(app, false);
-  const publicado = rec
-    ? layoutVitrineDeCampo(rec.get("layout_publicado"))
-    : normalizarLayoutVitrine(null);
-  const rascunho = rec && rec.get("layout_rascunho")
-    ? layoutVitrineDeCampo(rec.get("layout_rascunho"))
-    : snapshotLayoutVitrine(publicado);
-  const out = {};
-  for (const key in publico) out[key] = publico[key];
-  out.layout_rascunho = rascunho;
-  out.layout_publicado = publicado;
-  return out;
-}
-
-function layoutAdminObrigatorio(body) {
-  if (!body || !Object.prototype.hasOwnProperty.call(body, "layout")) {
-    throw new Error("Layout obrigatório.");
-  }
-  const layout = body.layout;
-  if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
-    throw new Error("Layout inválido.");
-  }
-  return layout;
-}
-
-function salvarLayoutRascunho(app, body) {
-  const rec = findVitrineConfigRecord(app, true);
-  const source = layoutAdminObrigatorio(body);
-  rec.set("layout_rascunho", normalizarLayoutVitrine(source));
-  app.save(rec);
-  return adminGetConfig(app);
-}
-
-function publicarLayoutVitrine(app, layout) {
-  const rec = findVitrineConfigRecord(app, true);
-  const snapshot = snapshotLayoutVitrine(layoutAdminObrigatorio({ layout: layout }));
-  rec.set("layout_rascunho", snapshotLayoutVitrine(snapshot));
-  rec.set("layout_publicado", snapshot);
-  app.save(rec);
-  return adminGetConfig(app);
 }
 
 function saveConfig(app, body) {
@@ -1582,13 +1439,8 @@ module.exports = {
   validarCepBr,
   validarDadosAgendamento,
   getConfig,
-  adminGetConfig,
   saveConfig,
-  salvarLayoutRascunho,
-  publicarLayoutVitrine,
   defaultConfig,
-  normalizarLayoutVitrine,
-  snapshotLayoutVitrine,
   orderBumpsParaCarrinho,
   listarBumpsRaw,
   listarMidiaPublica,
