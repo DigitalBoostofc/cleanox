@@ -1,12 +1,13 @@
 /// Componentes de UI da vitrine — alinhados aos mockups mobile Cleanox.
 library;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/tokens.dart';
-// logo via Image.asset (assets/brand/logo_cleanox_color.png)
+// logo: assets/brand/logo_cleanox_color.png
 
 /// Canvas e superfícies do mockup.
 abstract final class VitrineUi {
@@ -69,12 +70,48 @@ class VitrineBrandLogo extends StatelessWidget {
   /// Se true, fallback de texto fica branco (header legado navy).
   final bool onDark;
 
+  Widget _fallback() => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'CLEANOX',
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: onDark ? Colors.white : ClxBrand.navy,
+            letterSpacing: 0.6,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: VitrineUi.logoH,
-      width: VitrineUi.logoW,
-      child: Image.asset(
+    // Na web, Image.asset às vezes falha silenciosamente com SW/cache;
+    // tenta network no mesmo origin e cai no asset/texto.
+    final Widget img;
+    if (kIsWeb) {
+      final url =
+          '${Uri.base.origin}/assets/assets/brand/logo_cleanox_color.png';
+      img = Image.network(
+        url,
+        height: VitrineUi.logoH,
+        width: VitrineUi.logoW,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        filterQuality: FilterQuality.high,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => Image.asset(
+          VitrineUi.logoAsset,
+          height: VitrineUi.logoH,
+          width: VitrineUi.logoW,
+          fit: BoxFit.contain,
+          alignment: Alignment.centerLeft,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _fallback(),
+        ),
+      );
+    } else {
+      img = Image.asset(
         VitrineUi.logoAsset,
         height: VitrineUi.logoH,
         width: VitrineUi.logoW,
@@ -82,20 +119,14 @@ class VitrineBrandLogo extends StatelessWidget {
         alignment: Alignment.centerLeft,
         filterQuality: FilterQuality.high,
         gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'CLEANOX',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: onDark ? Colors.white : ClxBrand.navy,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ),
-      ),
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    }
+
+    return SizedBox(
+      height: VitrineUi.logoH,
+      width: VitrineUi.logoW,
+      child: img,
     );
   }
 }
@@ -527,10 +558,14 @@ class VitrineBottomNav extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.event_available_rounded,
-                  color: Colors.white,
-                  size: 30,
+                // Ícone branco centralizado. Usa event_available (não _rounded) —
+                // tree-shake web às vezes omitia o glifo rounded e o FAB ficava vazio.
+                child: const Center(
+                  child: Icon(
+                    Icons.event_available,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
