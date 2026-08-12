@@ -89,9 +89,9 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: VitrineHeroCard(
-            title: 'Orçamento em 1 minuto',
+            title: 'Agende seu serviço',
             subtitle: 'Escolha os serviços e agende.',
-            cta: 'Montar orçamento',
+            cta: 'Agendar agora',
             onCta: () {},
           ),
         ),

@@ -124,12 +124,29 @@ function gerarCandidatos(inicioHm, fimHm, servDurMin, stepMin) {
 }
 
 /**
+ * Conta quantas OS (intervalos [start,end)) sobrepõem [a0,a1).
+ * Inclui OS sem profissional — capacidade operacional, não só agenda por pro.
+ */
+function contarSobreposicoes(intervalos, a0, a1) {
+  var n = 0;
+  const list = intervalos || [];
+  for (var i = 0; i < list.length; i++) {
+    const iv = list[i];
+    if (overlaps(a0, a1, iv[0], iv[1])) n += 1;
+  }
+  return n;
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.ymd - YYYY-MM-DD BRT
  * @param {number} opts.servicoDurMin
  * @param {number} [opts.stepMin]
  * @param {Array<{profissional:string, dias:Array, duracao_min?:number}>} opts.disponibilidades
  * @param {Array<{profissional:string, data_hora:string, duracao_min?:number}>} opts.osOcupadas
+ * @param {number} [opts.capacidadeSimultanea] - máx. OS sobrepostas (default = n° de pros ativos no dia)
+ * @param {string} [opts.janelaInicio] - fallback CMS "HH:MM" se sem disponibilidade
+ * @param {string} [opts.janelaFim]
  * @param {number} [opts.nowMs] - epoch ms (testes); default Date.now()
  * @param {number} [opts.horizonteMinutosAgora] - não oferece slot que já passou no dia de hoje
  * @returns {Array<{hora:string, profissionais:string[]}>}
@@ -149,63 +166,103 @@ function calcularSlotsLivres(opts) {
     pad2(brtNow.getUTCMonth() + 1) +
     "-" +
     pad2(brtNow.getUTCDate());
-  const nowMinBrt = brtNow.getUTCHours() * 60 + brtNow.getUTCMinutes();
+  var nowMinBrt = brtNow.getUTCHours() * 60 + brtNow.getUTCMinutes();
+  const antec = Math.max(0, Number(opts.antecedenciaMinutos) || 0);
+  if (ymd === todayYmd && antec > 0) {
+    nowMinBrt += antec;
+  }
 
-  // ocupação por profissional: lista de [start,end)
+  // ocupação por profissional + ocupação global (inclui profissional vazio)
   const ocup = {};
+  const globalOcup = [];
   const osList = opts.osOcupadas || [];
   for (var i = 0; i < osList.length; i++) {
     const o = osList[i];
-    const pid = String(o.profissional || "");
-    if (!pid) continue;
     const start = osStartMinOnYmdBrt(o.data_hora, ymd);
     if (start == null) continue;
     const odur = Math.max(15, Number(o.duracao_min) || servDur);
+    const interval = [start, start + odur];
+    globalOcup.push(interval);
+    const pid = String(o.profissional || "");
+    if (!pid) continue;
     if (!ocup[pid]) ocup[pid] = [];
-    ocup[pid].push([start, start + odur]);
+    ocup[pid].push(interval);
   }
 
-  // mapa hora → set de pros livres
-  const byHora = {};
-
+  // janelas ativas do dia (por profissional) + fallback CMS
   const disps = opts.disponibilidades || [];
+  const janelas = []; // { pid, inicio, fim }
+  const activePids = [];
   for (var d = 0; d < disps.length; d++) {
     const disp = disps[d];
     const pid = String(disp.profissional || "");
-    if (!pid) continue;
     const dias = disp.dias || [];
     const dia = dias[wd];
     if (!dia || !dia.ativo) continue;
-    const candidatos = gerarCandidatos(
-      dia.inicio,
-      dia.fim,
-      servDur,
-      step,
-    );
-    const busy = ocup[pid] || [];
-    for (var c = 0; c < candidatos.length; c++) {
-      const start = candidatos[c];
-      const end = start + servDur;
-      // não oferece no passado (hoje)
-      if (ymd === todayYmd && start <= nowMinBrt) continue;
-      var colide = false;
-      for (var b = 0; b < busy.length; b++) {
-        if (overlaps(start, end, busy[b][0], busy[b][1])) {
-          colide = true;
-          break;
-        }
-      }
-      if (colide) continue;
-      const hm = minToHm(start);
-      if (!byHora[hm]) byHora[hm] = [];
-      if (byHora[hm].indexOf(pid) === -1) byHora[hm].push(pid);
+    if (pid && activePids.indexOf(pid) === -1) activePids.push(pid);
+    janelas.push({
+      pid: pid,
+      inicio: dia.inicio,
+      fim: dia.fim,
+    });
+  }
+  if (!janelas.length) {
+    const ji = String(opts.janelaInicio || "08:00");
+    const jf = String(opts.janelaFim || "18:00");
+    if (hmToMin(ji) >= 0 && hmToMin(jf) > hmToMin(ji)) {
+      janelas.push({ pid: "", inicio: ji, fim: jf });
     }
   }
 
-  const horas = Object.keys(byHora).sort();
+  const capCfg = Number(opts.capacidadeSimultanea);
+  const capacidade = Math.max(
+    1,
+    capCfg > 0 ? Math.floor(capCfg) : activePids.length || 1,
+  );
+
+  // mapa hora → set de pros livres (pode ser [] se só janela CMS)
+  const byHora = {};
+  const horasOk = {};
+
+  for (var j = 0; j < janelas.length; j++) {
+    const win = janelas[j];
+    const candidatos = gerarCandidatos(win.inicio, win.fim, servDur, step);
+    const busy = win.pid ? ocup[win.pid] || [] : [];
+    for (var c = 0; c < candidatos.length; c++) {
+      const start = candidatos[c];
+      const end = start + servDur;
+      if (ymd === todayYmd && start <= nowMinBrt) continue;
+
+      // Capacidade operacional: OS sem profissional também ocupa.
+      if (contarSobreposicoes(globalOcup, start, end) >= capacidade) continue;
+
+      if (win.pid) {
+        var colide = false;
+        for (var b = 0; b < busy.length; b++) {
+          if (overlaps(start, end, busy[b][0], busy[b][1])) {
+            colide = true;
+            break;
+          }
+        }
+        if (colide) continue;
+      }
+
+      const hm = minToHm(start);
+      horasOk[hm] = true;
+      if (!byHora[hm]) byHora[hm] = [];
+      if (win.pid && byHora[hm].indexOf(win.pid) === -1) {
+        byHora[hm].push(win.pid);
+      }
+    }
+  }
+
+  const horas = Object.keys(horasOk).sort();
   const out = [];
   for (var h = 0; h < horas.length; h++) {
-    out.push({ hora: horas[h], profissionais: byHora[horas[h]] });
+    out.push({
+      hora: horas[h],
+      profissionais: byHora[horas[h]] || [],
+    });
   }
   return out;
 }
@@ -234,6 +291,7 @@ module.exports = {
   minToHm,
   weekdayFromYmd,
   overlaps,
+  contarSobreposicoes,
   osStartMinOnYmdBrt,
   brtSlotToUtcPb,
   gerarCandidatos,

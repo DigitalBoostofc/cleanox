@@ -65,11 +65,15 @@ function rateLimit(ip, maxPerMin) {
 }
 
 function hmacSecret() {
-  return (
-    String($os.getenv("VITRINE_SLOT_SECRET") || "") ||
-    String($os.getenv("CLEANOS_SERVICE_SECRET") || "") ||
-    "cleanos-vitrine-dev-only"
-  );
+  var a = "";
+  var b = "";
+  try {
+    if (typeof $os !== "undefined" && $os.getenv) {
+      a = String($os.getenv("VITRINE_SLOT_SECRET") || "");
+      b = String($os.getenv("CLEANOS_SERVICE_SECRET") || "");
+    }
+  } catch (_) {}
+  return a || b || "cleanos-vitrine-dev-only";
 }
 
 /** Token simples: base64url(payload).sig  — sig = sha256 hex do secret+payload */
@@ -229,16 +233,28 @@ function listarServicosPublicos(app) {
 
 function defaultConfig() {
   return {
-    hero_titulo: "Orçamento em 1 minuto",
+    hero_titulo: "Agende seu serviço",
     hero_subtitulo:
-      "Escolha o que precisa limpar e agende no horário ideal",
-    hero_cta: "Montar orçamento",
+      "Escolha o que precisa limpar e marque data e horário",
+    hero_cta: "Agendar agora",
     whatsapp_exibido: "",
     rodape_msg: "Pagamento só no local · maquininha Cleanox",
     cidades_texto: "",
     como_funciona:
-      "1) Selecione os serviços\n2) Informe contato e endereço\n3) Veja o orçamento e ofertas\n4) Escolha data e horário\n5) Confirmamos no WhatsApp",
+      "1) Selecione os serviços\n2) Escolha data e horário\n3) Informe contato e endereço\n4) Revise e confirme\n5) OS criada — a Cleanox atribui a equipe",
+    // Capacidade / grade (fallback seguro se sem disponibilidade por prof)
+    capacidade_simultanea: 0, // 0 = derivar do n° de pros ativos no dia
+    horario_inicio: "08:00",
+    horario_fim: "18:00",
+    passo_min: 30,
+    antecedencia_minutos: 60,
+    horizonte_dias: 14,
   };
+}
+
+function numCfg(v, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function getConfig(app) {
@@ -256,6 +272,28 @@ function getConfig(app) {
         rodape_msg: String(r.get("rodape_msg") || base.rodape_msg),
         cidades_texto: String(r.get("cidades_texto") || ""),
         como_funciona: String(r.get("como_funciona") || base.como_funciona),
+        capacidade_simultanea: numCfg(
+          r.get("capacidade_simultanea"),
+          base.capacidade_simultanea,
+        ),
+        horario_inicio: String(
+          r.get("horario_inicio") || base.horario_inicio,
+        ),
+        horario_fim: String(r.get("horario_fim") || base.horario_fim),
+        passo_min: Math.max(
+          15,
+          Math.floor(numCfg(r.get("passo_min"), base.passo_min)),
+        ),
+        antecedencia_minutos: Math.max(
+          0,
+          Math.floor(
+            numCfg(r.get("antecedencia_minutos"), base.antecedencia_minutos),
+          ),
+        ),
+        horizonte_dias: Math.max(
+          1,
+          Math.floor(numCfg(r.get("horizonte_dias"), base.horizonte_dias)),
+        ),
       };
     }
   } catch (_) {}
@@ -280,10 +318,24 @@ function saveConfig(app, body) {
     "rodape_msg",
     "cidades_texto",
     "como_funciona",
+    "horario_inicio",
+    "horario_fim",
   ];
   for (var i = 0; i < keys.length; i++) {
     const k = keys[i];
     if (body[k] != null) rec.set(k, String(body[k]));
+  }
+  const nums = [
+    "capacidade_simultanea",
+    "passo_min",
+    "antecedencia_minutos",
+    "horizonte_dias",
+  ];
+  for (var n = 0; n < nums.length; n++) {
+    const k = nums[n];
+    if (body[k] != null && body[k] !== "") {
+      rec.set(k, Math.max(0, Math.floor(Number(body[k]) || 0)));
+    }
   }
   app.save(rec);
   return getConfig(app);
@@ -871,12 +923,17 @@ function slotsDoDia(app, servicoId, ymd, duracaoMin) {
     dur = serv && serv.tempo_medio_min > 0 ? serv.tempo_medio_min : 60;
   }
   dur = Math.max(30, Math.round(dur));
+  const cfg = getConfig(app);
   const disps = listarDisponibilidades(app);
   const osOcupadas = listarOsOcupadasNoDia(app, ymd);
   const livres = slots().calcularSlotsLivres({
     ymd: ymd,
     servicoDurMin: dur,
-    stepMin: 30,
+    stepMin: cfg.passo_min || 30,
+    capacidadeSimultanea: cfg.capacidade_simultanea || 0,
+    janelaInicio: cfg.horario_inicio || "08:00",
+    janelaFim: cfg.horario_fim || "18:00",
+    antecedenciaMinutos: cfg.antecedencia_minutos || 0,
     disponibilidades: disps,
     osOcupadas: osOcupadas,
   });
@@ -890,7 +947,7 @@ function slotsDoDia(app, servicoId, ymd, duracaoMin) {
       s: sid,
       d: ymd,
       h: s.hora,
-      p: s.profissionais,
+      p: s.profissionais || [],
       e: exp,
       dur: dur,
     });
@@ -903,11 +960,55 @@ function normalizarTelefone(t) {
   return String(t || "").replace(/\D/g, "");
 }
 
-function upsertCliente(app, body) {
-  const tel = normalizarTelefone(body.telefone);
-  if (tel.length < 10) throw new Error("Telefone inválido");
+/** CEP BR: 8 dígitos (com ou sem máscara). Vazio permitido só se não obrigatório. */
+function normalizarCep(cep) {
+  return String(cep || "").replace(/\D/g, "");
+}
+
+function validarCepBr(cep) {
+  const d = normalizarCep(cep);
+  if (!d) return false;
+  return /^\d{8}$/.test(d);
+}
+
+/**
+ * Valida payload de endereço/contato do autoagendamento.
+ * Não aceita "endereco livre" como substituto de bairro/rua.
+ */
+function validarDadosAgendamento(body) {
   const nome = String(body.nome || "").trim();
   if (!nome) throw new Error("Nome obrigatório");
+  const tel = normalizarTelefone(body.telefone || body.whatsapp);
+  if (tel.length < 10) throw new Error("Telefone inválido");
+  const rua = String(body.rua || "").trim();
+  if (!rua) throw new Error("Rua obrigatória");
+  const numero = String(body.numero || "").trim();
+  if (!numero) throw new Error("Número obrigatório");
+  const bairro = String(body.bairro || "").trim();
+  if (!bairro) throw new Error("Bairro obrigatório");
+  const cidade = String(body.cidade || "").trim();
+  if (!cidade) throw new Error("Cidade obrigatória");
+  const cep = normalizarCep(body.cep);
+  if (cep && !validarCepBr(cep)) throw new Error("CEP inválido");
+  if (!cep) throw new Error("CEP obrigatório");
+  return {
+    nome: nome,
+    telefone: tel,
+    cep: cep,
+    rua: rua,
+    numero: numero,
+    complemento: String(body.complemento || "").trim(),
+    bairro: bairro,
+    cidade: cidade,
+    estado: String(body.estado || "").trim().toUpperCase().slice(0, 2),
+  };
+}
+
+function upsertCliente(app, body) {
+  // telefone alias whatsapp
+  if (!body.telefone && body.whatsapp) body.telefone = body.whatsapp;
+  const dados = validarDadosAgendamento(body);
+  const tel = dados.telefone;
 
   let existente = null;
   try {
@@ -920,27 +1021,36 @@ function upsertCliente(app, body) {
   }
 
   const fields = {
-    nome: nome,
+    nome: dados.nome,
     sobrenome: String(body.sobrenome || "").trim(),
     telefone: tel,
     email: String(body.email || "").trim(),
-    endereco_cep: String(body.cep || "").trim(),
-    endereco_rua: String(body.rua || "").trim(),
-    endereco_numero: String(body.numero || "").trim(),
-    endereco_bairro: String(body.bairro || "").trim(),
-    endereco_cidade: String(body.cidade || "").trim(),
-    endereco_estado: String(body.estado || "").trim(),
-    endereco_complemento: String(body.complemento || "").trim(),
+    endereco_cep: dados.cep,
+    endereco_rua: dados.rua,
+    endereco_numero: dados.numero,
+    endereco_bairro: dados.bairro,
+    endereco_cidade: dados.cidade,
+    endereco_estado: dados.estado,
+    endereco_complemento: dados.complemento,
     origem: "vitrine",
     ativo: true,
   };
 
   if (existente) {
+    // Público sem prova de posse: NÃO sobrescreve PII já preenchida no cofre.
+    // Só preenche campos vazios (rebooking seguro).
     const keys = Object.keys(fields);
     for (var i = 0; i < keys.length; i++) {
       const k = keys[i];
-      if (k === "origem") continue; // não sobrescreve origem antiga
-      if (fields[k] !== "" && fields[k] != null) existente.set(k, fields[k]);
+      if (k === "origem" || k === "ativo") continue;
+      if (fields[k] === "" || fields[k] == null) continue;
+      var cur = "";
+      try {
+        cur = String(existente.get(k) || "").trim();
+      } catch (_) {
+        cur = "";
+      }
+      if (!cur) existente.set(k, fields[k]);
     }
     app.save(existente);
     return existente;
@@ -991,10 +1101,10 @@ function normalizarItensAgendamento(app, rawItens) {
   for (var j = 0; j < raw.length; j++) {
     const original = raw[j] || {};
     const sid = String(original.id || original.servico_id || "").trim();
-    if (!sid || seen[sid]) throw new Error("Serviço inválido no orçamento.");
+    if (!sid || seen[sid]) throw new Error("Serviço inválido no agendamento.");
     const pub = getServicoPublico(app, sid);
     if (!pub || pub.ativo === false || pub.vitrine === false) {
-      throw new Error("Serviço indisponível no orçamento.");
+      throw new Error("Serviço indisponível no agendamento.");
     }
 
     const bumpId = String(original.order_bump_id || "").trim();
@@ -1028,12 +1138,102 @@ function duracaoFinalAgendamento(durToken, durSoma) {
 }
 
 /**
- * Agenda: valida token, revalida slot, cria cliente+OS.
- * Body traz ids e metadados informativos; nome/preço são recalculados aqui.
+ * Aceita só chaves opacas [A-Za-z0-9_-]{8,100}.
+ * Impede injeção em filter string-built do PB.
+ */
+function sanitizeIdempotencyKey(raw) {
+  const k = String(raw || "").trim().slice(0, 100);
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(k)) return "";
+  return k;
+}
+
+function findOsByIdempotencyKey(app, key) {
+  const k = sanitizeIdempotencyKey(key);
+  if (!k) return null;
+  // k já é charset seguro — sem aspas/operadores de filter
+  try {
+    return app.findFirstRecordByFilter(
+      "ordens_servico",
+      'vitrine_idempotency_key = "' + k + '"',
+    );
+  } catch (_) {
+    try {
+      const list = app.findRecordsByFilter(
+        "ordens_servico",
+        'vitrine_idempotency_key = "' + k + '"',
+        "",
+        1,
+        0,
+      );
+      return list && list.length ? list[0] : null;
+    } catch (__) {
+      return null;
+    }
+  }
+}
+
+function resultadoAgendamento(os, ymd, hora, titulo, valor, bairro, cidade) {
+  return {
+    ok: true,
+    os_id: os.id,
+    os_ref: String(os.id).slice(-6).toUpperCase(),
+    data: ymd,
+    hora: hora,
+    data_hora: String(os.get("data_hora") || ""),
+    servico: titulo,
+    valor: Math.round(Number(valor || 0) * 100) / 100,
+    bairro: String(bairro || ""),
+    cidade: String(cidade || ""),
+    mensagem:
+      "Agendamento confirmado! A Cleanox vai atribuir a equipe. No dia do serviço o pagamento é na maquininha da Cleanox.",
+  };
+}
+
+/**
+ * Agenda: valida token, revalida capacidade, cria cliente+OS.
+ * Body traz ids e metadados informativos; nome/preço/duração são recalculados aqui.
+ * OS nasce `agendada` sem profissional — admin/gerente atribui no painel.
  */
 function agendar(app, body) {
   const honeypot = String(body.website || body.honeypot || "");
   if (honeypot) throw new Error("Rejeitado");
+
+  const idempKey = sanitizeIdempotencyKey(
+    body.idempotency_key || body.idempotencyKey || "",
+  );
+  if (idempKey) {
+    const existing = findOsByIdempotencyKey(app, idempKey);
+    if (existing) {
+      var ymdE = "";
+      var horaE = "";
+      try {
+        const dh = String(existing.get("data_hora") || "");
+        var raw = dh.indexOf("T") >= 0 ? dh : dh.replace(" ", "T");
+        if (!/[zZ]$|[+-]\d{2}:?\d{2}$/.test(raw)) raw += "Z";
+        const d = new Date(raw);
+        const brt = new Date(d.getTime() - slots().BRT_OFFSET_MS);
+        ymdE =
+          brt.getUTCFullYear() +
+          "-" +
+          String(brt.getUTCMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(brt.getUTCDate()).padStart(2, "0");
+        horaE =
+          String(brt.getUTCHours()).padStart(2, "0") +
+          ":" +
+          String(brt.getUTCMinutes()).padStart(2, "0");
+      } catch (_) {}
+      return resultadoAgendamento(
+        existing,
+        ymdE,
+        horaE,
+        String(existing.get("tipo_servico_nome") || ""),
+        existing.get("valor_servico"),
+        existing.get("bairro"),
+        "",
+      );
+    }
+  }
 
   const token = String(body.slot_token || body.token || "");
   const payload = verifySlot(token);
@@ -1044,11 +1244,10 @@ function agendar(app, body) {
 
   const ymd = String(payload.d || "");
   const hora = String(payload.h || "");
-  const profsToken = payload.p || [];
   const durToken = Number(payload.dur) || 0;
 
-  // Itens do orçamento (multi-select da vitrine)
   var itens = normalizarItensAgendamento(app, body.itens);
+  if (!itens.length) throw new Error("Selecione ao menos um serviço.");
   var valorTotal = 0;
   var nomes = [];
   var durSoma = 0;
@@ -1063,7 +1262,34 @@ function agendar(app, body) {
     if (Number(it.duracao_min) > 0) durSoma += Number(it.duracao_min);
     if (!primaryId && sid) primaryId = sid;
   }
-  // Fallback: 1 serviço do token
+
+  if (primaryId) {
+    var primaryInItens = false;
+    for (var pi = 0; pi < itens.length; pi++) {
+      if (String(itens[pi].id) === primaryId) {
+        primaryInItens = true;
+        break;
+      }
+    }
+    if (!primaryInItens) primaryId = String(itens[0].id || "");
+  } else {
+    primaryId = String(itens[0].id || "");
+  }
+
+  const adicionais = [];
+  for (var aj = 0; aj < itens.length; aj++) {
+    const it2 = itens[aj];
+    if (String(it2.id) === primaryId) continue;
+    adicionais.push({
+      id: "vit-" + it2.id,
+      serviceId: it2.id,
+      nome: it2.nome,
+      valor: Math.max(0, Math.round(Number(it2.valor || 0) * 100) / 100),
+      quantidade: 1,
+      aprovacao: "nao_requer",
+    });
+  }
+
   var serv = primaryId ? getServicoPublico(app, primaryId) : null;
   if (!serv && !nomes.length) throw new Error("Serviço não encontrado");
   if (!nomes.length && serv) {
@@ -1075,26 +1301,13 @@ function agendar(app, body) {
   var dur = duracaoFinalAgendamento(durToken, durSoma);
   if (!primaryId && serv) primaryId = serv.id;
 
-  // Endereço: aceita "endereco" único (landing) ou campos separados
-  var enderecoLivre = String(body.endereco || "").trim();
-  if (enderecoLivre && !String(body.bairro || "").trim()) {
-    // tenta extrair bairro grosseiro
-    body.bairro = enderecoLivre;
-  }
-  if (!String(body.cidade || "").trim() && enderecoLivre) {
-    // default cidade da atuação se não veio
-    const at = getAtuacao(app);
-    if (at.cidades && at.cidades.length) body.cidade = at.cidades[0];
-  }
-  // telefone alias whatsapp
   if (!body.telefone && body.whatsapp) body.telefone = body.whatsapp;
+  const dados = validarDadosAgendamento(body);
 
-  const cidade = String(body.cidade || "").trim();
-  if (cidade && !cidadeCoberta(app, cidade)) {
+  if (dados.cidade && !cidadeCoberta(app, dados.cidade)) {
     throw new Error("Ainda não atendemos essa cidade.");
   }
 
-  // Revalida slot com a mesma duração
   const again = slotsDoDia(app, primaryId, ymd, dur);
   if (again.error) throw new Error(again.error);
   var still = null;
@@ -1104,74 +1317,90 @@ function agendar(app, body) {
       break;
     }
   }
-  if (!still) throw new Error("Esse horário acabou de ser preenchido. Escolha outro.");
-
-  const revalPayload = verifySlot(still.token);
-  const profsNow = (revalPayload && revalPayload.p) || [];
-  const cand = [];
-  for (var j = 0; j < profsToken.length; j++) {
-    if (profsNow.indexOf(profsToken[j]) >= 0) cand.push(profsToken[j]);
+  if (!still) {
+    throw new Error("Esse horário acabou de ser preenchido. Escolha outro.");
   }
-  if (!cand.length) {
-    for (var k = 0; k < profsNow.length; k++) cand.push(profsNow[k]);
-  }
-  if (!cand.length) throw new Error("Sem profissional disponível nesse horário.");
-
-  const osOcup = listarOsOcupadasNoDia(app, ymd);
-  const contagem = contagemOsPorProfNoDia(osOcup);
-  const profId = slots().escolherProfissional(cand, contagem);
 
   const cliente = upsertCliente(app, body);
   const dataHora = slots().brtSlotToUtcPb(ymd, hora);
 
   const titulo = nomes.join(" + ").slice(0, 180);
   var obsUser = String(body.observacoes || "").trim();
-  if (body.veiculo) {
-    obsUser = ("Veículo: " + String(body.veiculo).trim() +
-      (obsUser ? "\n" + obsUser : "")).trim();
-  }
   const obsItens =
-    "Orçamento vitrine:\n" +
+    "Serviços solicitados via vitrine:\n" +
     nomes
-      .map(function (n, idx) {
-        const it = itens[idx] || {};
-        const v = Number(it.valor || 0);
-        return "- " + n + (v > 0 ? " · R$ " + v.toFixed(2) : "");
+      .map(function (n) {
+        return "- " + n;
       })
       .join("\n") +
-    "\nTotal: R$ " +
-    Number(valorTotal).toFixed(2) +
     (obsUser ? "\n\n" + obsUser : "");
+
+  const snapshot = serv
+    ? {
+        id: serv.id,
+        nome: serv.nome,
+        valor_base: serv.valor_base,
+        tempo_medio_min: serv.tempo_medio_min,
+        origem: "vitrine",
+      }
+    : { nome: titulo, origem: "vitrine" };
 
   const col = app.findCollectionByNameOrId("ordens_servico");
   const os = new Record(col);
   os.set("cliente", cliente.id);
   if (primaryId) os.set("servico", primaryId);
-  os.set("profissional", profId);
-  os.set("status", "atribuida");
+  os.set("profissional", "");
+  try {
+    os.set("profissional2", "");
+  } catch (_) {}
+  os.set("status", "agendada");
   os.set("data_hora", dataHora);
   os.set("duracao_min", dur);
   os.set("valor_servico", Math.round(valorTotal * 100) / 100);
-  os.set("nome_curto", String(cliente.get("nome") || body.nome || ""));
-  os.set("bairro", String(body.bairro || cliente.get("endereco_bairro") || ""));
+  os.set("nome_curto", String(cliente.get("nome") || dados.nome || ""));
+  os.set("bairro", dados.bairro);
   os.set("tipo_servico_nome", titulo || (serv && serv.nome) || "Serviço");
   os.set("canal_origem", "vitrine");
   os.set("observacoes", obsItens.slice(0, 2000));
-  app.save(os);
+  try {
+    os.set("adicionais", adicionais);
+  } catch (_) {}
+  try {
+    os.set("service_snapshot", snapshot);
+  } catch (_) {}
+  if (idempKey) {
+    os.set("vitrine_idempotency_key", idempKey.slice(0, 100));
+  }
 
-  return {
-    ok: true,
-    os_id: os.id,
-    os_ref: String(os.id).slice(-6).toUpperCase(),
-    data: ymd,
-    hora: hora,
-    data_hora: dataHora,
-    servico: titulo || (serv && serv.nome) || "",
-    valor: Math.round(valorTotal * 100) / 100,
-    bairro: String(body.bairro || ""),
-    mensagem:
-      "Agendamento confirmado! Nossa equipe entrará em contato se precisar de algo. No dia do serviço o pagamento é na maquininha da Cleanox.",
-  };
+  try {
+    app.save(os);
+  } catch (err) {
+    if (idempKey) {
+      const againOs = findOsByIdempotencyKey(app, idempKey);
+      if (againOs) {
+        return resultadoAgendamento(
+          againOs,
+          ymd,
+          hora,
+          String(againOs.get("tipo_servico_nome") || titulo),
+          againOs.get("valor_servico"),
+          againOs.get("bairro"),
+          dados.cidade,
+        );
+      }
+    }
+    throw err;
+  }
+
+  return resultadoAgendamento(
+    os,
+    ymd,
+    hora,
+    titulo || (serv && serv.nome) || "",
+    valorTotal,
+    dados.bairro,
+    dados.cidade,
+  );
 }
 
 /** Mapeia erro de admin CMS → { status, error } */
@@ -1206,6 +1435,9 @@ module.exports = {
   signSlot,
   verifySlot,
   normalizarTelefone,
+  normalizarCep,
+  validarCepBr,
+  validarDadosAgendamento,
   getConfig,
   saveConfig,
   defaultConfig,

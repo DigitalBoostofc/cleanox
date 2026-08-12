@@ -261,14 +261,25 @@ class VitrineBootstrap {
 class VitrineConfig {
   const VitrineConfig({
     this.id = '',
-    this.heroTitulo = 'Orçamento em 1 minuto',
+    this.heroTitulo = 'Agende seu serviço',
     this.heroSubtitulo =
-        'Escolha o que precisa limpar e agende no horário ideal',
-    this.heroCta = 'Montar orçamento',
+        'Escolha o que precisa limpar e marque data e horário',
+    this.heroCta = 'Agendar agora',
     this.whatsappExibido = '',
     this.rodapeMsg = 'Pagamento só no local · maquininha Cleanox',
     this.cidadesTexto = '',
-    this.comoFunciona = '',
+    this.comoFunciona =
+        '1) Selecione os serviços\n'
+        '2) Escolha data e horário\n'
+        '3) Informe contato e endereço\n'
+        '4) Revise e confirme\n'
+        '5) OS criada — a Cleanox atribui a equipe',
+    this.capacidadeSimultanea = 0,
+    this.horarioInicio = '08:00',
+    this.horarioFim = '18:00',
+    this.passoMin = 30,
+    this.antecedenciaMinutos = 60,
+    this.horizonteDias = 14,
   });
 
   final String id;
@@ -279,18 +290,30 @@ class VitrineConfig {
   final String rodapeMsg;
   final String cidadesTexto;
   final String comoFunciona;
+  final int capacidadeSimultanea;
+  final String horarioInicio;
+  final String horarioFim;
+  final int passoMin;
+  final int antecedenciaMinutos;
+  final int horizonteDias;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
-    heroTitulo: '${j['hero_titulo'] ?? 'Orçamento em 1 minuto'}',
+    heroTitulo: '${j['hero_titulo'] ?? 'Agende seu serviço'}',
     heroSubtitulo:
-        '${j['hero_subtitulo'] ?? 'Escolha o que precisa limpar e agende no horário ideal'}',
-    heroCta: '${j['hero_cta'] ?? 'Montar orçamento'}',
+        '${j['hero_subtitulo'] ?? 'Escolha o que precisa limpar e marque data e horário'}',
+    heroCta: '${j['hero_cta'] ?? 'Agendar agora'}',
     whatsappExibido: '${j['whatsapp_exibido'] ?? ''}',
     rodapeMsg:
         '${j['rodape_msg'] ?? 'Pagamento só no local · maquininha Cleanox'}',
     cidadesTexto: '${j['cidades_texto'] ?? ''}',
     comoFunciona: '${j['como_funciona'] ?? ''}',
+    capacidadeSimultanea: (j['capacidade_simultanea'] as num?)?.toInt() ?? 0,
+    horarioInicio: '${j['horario_inicio'] ?? '08:00'}',
+    horarioFim: '${j['horario_fim'] ?? '18:00'}',
+    passoMin: (j['passo_min'] as num?)?.toInt() ?? 30,
+    antecedenciaMinutos: (j['antecedencia_minutos'] as num?)?.toInt() ?? 60,
+    horizonteDias: (j['horizonte_dias'] as num?)?.toInt() ?? 14,
   );
 
   Map<String, dynamic> toJson() => {
@@ -301,6 +324,12 @@ class VitrineConfig {
     'rodape_msg': rodapeMsg,
     'cidades_texto': cidadesTexto,
     'como_funciona': comoFunciona,
+    'capacidade_simultanea': capacidadeSimultanea,
+    'horario_inicio': horarioInicio,
+    'horario_fim': horarioFim,
+    'passo_min': passoMin,
+    'antecedencia_minutos': antecedenciaMinutos,
+    'horizonte_dias': horizonteDias,
   };
 
   VitrineConfig copyWith({
@@ -311,6 +340,12 @@ class VitrineConfig {
     String? rodapeMsg,
     String? cidadesTexto,
     String? comoFunciona,
+    int? capacidadeSimultanea,
+    String? horarioInicio,
+    String? horarioFim,
+    int? passoMin,
+    int? antecedenciaMinutos,
+    int? horizonteDias,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -320,6 +355,12 @@ class VitrineConfig {
     rodapeMsg: rodapeMsg ?? this.rodapeMsg,
     cidadesTexto: cidadesTexto ?? this.cidadesTexto,
     comoFunciona: comoFunciona ?? this.comoFunciona,
+    capacidadeSimultanea: capacidadeSimultanea ?? this.capacidadeSimultanea,
+    horarioInicio: horarioInicio ?? this.horarioInicio,
+    horarioFim: horarioFim ?? this.horarioFim,
+    passoMin: passoMin ?? this.passoMin,
+    antecedenciaMinutos: antecedenciaMinutos ?? this.antecedenciaMinutos,
+    horizonteDias: horizonteDias ?? this.horizonteDias,
   );
 }
 
@@ -331,6 +372,8 @@ class VitrineAgendarResult {
     required this.servico,
     required this.valor,
     required this.mensagem,
+    this.bairro = '',
+    this.cidade = '',
   });
 
   final String osRef;
@@ -339,6 +382,8 @@ class VitrineAgendarResult {
   final String servico;
   final double valor;
   final String mensagem;
+  final String bairro;
+  final String cidade;
 
   factory VitrineAgendarResult.fromJson(Map<String, dynamic> j) =>
       VitrineAgendarResult(
@@ -348,6 +393,8 @@ class VitrineAgendarResult {
         servico: '${j['servico'] ?? ''}',
         valor: (j['valor'] as num?)?.toDouble() ?? 0,
         mensagem: '${j['mensagem'] ?? ''}',
+        bairro: '${j['bairro'] ?? ''}',
+        cidade: '${j['cidade'] ?? ''}',
       );
 }
 

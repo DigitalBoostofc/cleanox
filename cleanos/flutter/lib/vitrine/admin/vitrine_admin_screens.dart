@@ -447,6 +447,12 @@ class _VitrineAdminPersonalizarScreenState
   final _rodape = TextEditingController();
   final _cidades = TextEditingController();
   final _como = TextEditingController();
+  final _capacidade = TextEditingController();
+  final _horaIni = TextEditingController();
+  final _horaFim = TextEditingController();
+  final _passo = TextEditingController();
+  final _antecedencia = TextEditingController();
+  final _horizonte = TextEditingController();
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -468,6 +474,12 @@ class _VitrineAdminPersonalizarScreenState
       _rodape.text = c.rodapeMsg;
       _cidades.text = c.cidadesTexto;
       _como.text = c.comoFunciona;
+      _capacidade.text = '${c.capacidadeSimultanea}';
+      _horaIni.text = c.horarioInicio;
+      _horaFim.text = c.horarioFim;
+      _passo.text = '${c.passoMin}';
+      _antecedencia.text = '${c.antecedenciaMinutos}';
+      _horizonte.text = '${c.horizonteDias}';
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -495,6 +507,13 @@ class _VitrineAdminPersonalizarScreenState
               rodapeMsg: _rodape.text.trim(),
               cidadesTexto: _cidades.text.trim(),
               comoFunciona: _como.text.trim(),
+              capacidadeSimultanea: int.tryParse(_capacidade.text.trim()) ?? 0,
+              horarioInicio: _horaIni.text.trim(),
+              horarioFim: _horaFim.text.trim(),
+              passoMin: int.tryParse(_passo.text.trim()) ?? 30,
+              antecedenciaMinutos:
+                  int.tryParse(_antecedencia.text.trim()) ?? 60,
+              horizonteDias: int.tryParse(_horizonte.text.trim()) ?? 14,
             ),
           );
       if (!mounted) return;
@@ -520,6 +539,12 @@ class _VitrineAdminPersonalizarScreenState
     _rodape.dispose();
     _cidades.dispose();
     _como.dispose();
+    _capacidade.dispose();
+    _horaIni.dispose();
+    _horaFim.dispose();
+    _passo.dispose();
+    _antecedencia.dispose();
+    _horizonte.dispose();
     super.dispose();
   }
 
@@ -625,6 +650,85 @@ class _VitrineAdminPersonalizarScreenState
                   controller: _como,
                   maxLines: 5,
                   decoration: const InputDecoration(labelText: 'Como funciona'),
+                ),
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Grade pública (capacidade)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: ClxBrand.navy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '0 em capacidade = usar o número de profissionais com '
+                  'disponibilidade no dia. OS sem profissional também ocupa vaga.',
+                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _capacidade,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Capacidade simultânea (0 = automático)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _horaIni,
+                        decoration: const InputDecoration(
+                          labelText: 'Horário início (fallback)',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _horaFim,
+                        decoration: const InputDecoration(
+                          labelText: 'Horário fim (fallback)',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _passo,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Passo (min)',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _antecedencia,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Antecedência (min)',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _horizonte,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Horizonte de dias',
+                  ),
                 ),
               ],
             ),
@@ -894,7 +998,7 @@ class _VitrineAdminBumpsScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ofertas que aparecem no orçamento conforme o que o cliente marcou.',
+              'Ofertas de serviços adicionais conforme o que o cliente marcou.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),

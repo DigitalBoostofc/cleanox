@@ -73,26 +73,33 @@ ponto focal X/Y. Mídias globais antigas (`hero`, `categoria_*`) permanecem
 compatíveis.
 
 O frontend é mobile-first, oferece busca e filtros por grupo e preserva o
-mesmo carrinho e o fluxo de agendamento. Imagem ausente degrada para um
-placeholder da identidade Cleanox; nunca impede o orçamento.
+mesmo carrinho e o fluxo de **autoagendamento**. Imagem ausente degrada para um
+placeholder da identidade Cleanox; nunca impede o agendamento.
 
-`POST /vitrine/agendar` recalcula nome e preço no servidor; valores enviados
-pelo navegador são ignorados. Promoção de order bump só é aceita quando o
-`order_bump_id` está ativo e elegível para o carrinho. A duração gravada e
-revalidada nunca pode ser menor que a soma canônica dos serviços selecionados.
+`POST /vitrine/agendar` recalcula nome, preço e duração no servidor; valores
+enviados pelo navegador são ignorados. Promoção de order bump só é aceita
+quando o `order_bump_id` está ativo e elegível para o carrinho. A duração
+gravada e revalidada nunca pode ser menor que a soma canônica dos serviços
+selecionados. A OS nasce **`agendada` sem profissional** (admin/gerente
+atribui no painel). Capacidade considera OS sem profissional (anti-overbooking).
+Idempotência via `idempotency_key` + `vitrine_idempotency_key` na OS.
 
 Opcional em prod: `VITRINE_SLOT_SECRET` (senão cai no `CLEANOS_SERVICE_SECRET`).
 
-## Fluxo (UX cotador)
+## Fluxo (UX autoagendamento)
 
-1. **Serviços** — multi-select + total ao vivo  
-2. **Seus dados** — nome, WhatsApp, endereço  
-3. **Orçamento final** — resumo + CTA agendar  
-4. **Agendar** — dia + horários reais (slots)  
-5. OS `atribuida` + cliente `origem=vitrine` + `canal_origem=vitrine`  
-   → badge **Vitrine** no painel (lista/detalhe/agenda)
+1. **Serviços** — multi-select + valor estimado ao vivo  
+2. **Data e horário** — slots reais da operação (capacidade)  
+3. **Seus dados e endereço** — nome, WhatsApp, CEP/rua/número/bairro/cidade/UF  
+4. **Revisar e confirmar** — resumo + serviços adicionais + CTA  
+5. **Agendamento confirmado** — OS `agendada` + cliente `origem=vitrine` +
+   `canal_origem=vitrine` → badge **Vitrine** no painel; equipe atribuída
+   internamente (status passa a `atribuida`)
 
 Público: **https://agendar.cleanox.com.br**
+
+Migration de copy/capacidade: `1700000065_vitrine_autoagendamento.js`
+(só reescreve hero/como_funciona quando iguais aos defaults legados).
 
 ## Fora do escopo atual
 
