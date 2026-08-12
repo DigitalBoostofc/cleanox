@@ -24,6 +24,7 @@ import '../../core/models/servico.dart';
 import '../data/painel_providers.dart';
 import 'checklist_editor.dart';
 import 'servicos_labels.dart';
+import 'servico_vitrine_fotos.dart';
 
 class ServicoEditorScreen extends ConsumerStatefulWidget {
   const ServicoEditorScreen({super.key, this.servicoId});
@@ -438,6 +439,28 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                 clx,
                 title: 'Informações principais',
                 child: _infoSection(clx),
+              ),
+              const SizedBox(height: ClxSpace.x4),
+              _card(
+                clx,
+                title: 'Fotos na Vitrine',
+                subtitle: _isEdit
+                    ? 'Adicione uma ou mais fotos deste serviço. A capa aparece '
+                        'no card em agendar.cleanox.com.br.'
+                    : 'Salve o serviço primeiro para liberar o envio de fotos.',
+                child: _isEdit
+                    ? ServicoVitrineFotosSection(
+                        servicoId: widget.servicoId!,
+                        servicoNome: _nome.text,
+                        enabled: !_saving,
+                      )
+                    : Text(
+                        'Depois de criar o serviço, abra-o de novo para anexar '
+                        'fotos da Vitrine.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: clx.ink2,
+                            ),
+                      ),
               ),
               const SizedBox(height: ClxSpace.x4),
               _card(

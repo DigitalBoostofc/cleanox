@@ -64,6 +64,25 @@ class VitrineMidiaRepository {
     return recs.map(_fromRec).toList();
   }
 
+  /// Fotos vinculadas a um serviço (capa primeiro, depois ordem).
+  Future<List<VitrineMidiaItem>> listByServico(String servicoId) async {
+    final id = servicoId.trim();
+    if (id.isEmpty) return const [];
+    final safe = id.replaceAll(RegExp(r'["\\]'), '');
+    final recs = await _col.getFullList(
+      filter: 'servico = "$safe"',
+      sort: 'ordem,-created',
+    );
+    final items = recs.map(_fromRec).toList();
+    items.sort((a, b) {
+      final pa = a.papel == 'capa' ? 0 : 1;
+      final pb = b.papel == 'capa' ? 0 : 1;
+      if (pa != pb) return pa - pb;
+      return a.ordem.compareTo(b.ordem);
+    });
+    return items;
+  }
+
   VitrineMidiaItem _fromRec(RecordModel r) {
     final data = r.data;
     final arquivo = '${data['arquivo'] ?? ''}';
