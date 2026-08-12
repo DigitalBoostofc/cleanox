@@ -138,6 +138,18 @@ function hashHex(s) {
   return (h >>> 0).toString(16);
 }
 
+const VITRINE_LAYOUTS = ["destaque", "fotografico", "antes_depois", "compacto"];
+const VITRINE_PRECO_MODOS = ["valor", "a_partir_de", "sob_avaliacao", "ocultar"];
+
+function enumSeguro(value, allowed, fallback) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return allowed.indexOf(normalized) >= 0 ? normalized : fallback;
+}
+
+function textoVitrine(value, max) {
+  return String(value || "").trim().slice(0, max);
+}
+
 function servicoPublico(rec) {
   if (!rec) return null;
   const ativo = !!rec.get("ativo");
@@ -161,6 +173,21 @@ function servicoPublico(rec) {
     tempo_medio_label: String(rec.get("tempo_medio_label") || ""),
     orientacoes_pre: String(rec.get("orientacoes_pre") || ""),
     vitrine_destaque: !!rec.get("vitrine_destaque"),
+    vitrine_layout: enumSeguro(
+      rec.get("vitrine_layout"),
+      VITRINE_LAYOUTS,
+      rec.get("vitrine_destaque") ? "destaque" : "fotografico",
+    ),
+    vitrine_titulo: String(rec.get("vitrine_titulo") || ""),
+    vitrine_descricao: String(rec.get("vitrine_descricao") || ""),
+    vitrine_badge: String(rec.get("vitrine_badge") || ""),
+    vitrine_cta: String(rec.get("vitrine_cta") || ""),
+    vitrine_preco_modo: enumSeguro(
+      rec.get("vitrine_preco_modo"),
+      VITRINE_PRECO_MODOS,
+      "a_partir_de",
+    ),
+    vitrine_ordem: Math.max(0, Number(rec.get("vitrine_ordem") || 0)),
   };
 }
 
@@ -186,9 +213,16 @@ function listarServicosPublicos(app) {
     const p = servicoPublico(list[i]);
     if (p && p.nome) out.push(p);
   }
-  // Destaques primeiro
+  // Ordem editorial primeiro; em empate, destaque e nome mantêm resultado estável.
   out.sort(function (a, b) {
-    return (b.vitrine_destaque ? 1 : 0) - (a.vitrine_destaque ? 1 : 0);
+    const ordem = Number(a.vitrine_ordem || 0) - Number(b.vitrine_ordem || 0);
+    if (ordem !== 0) return ordem;
+    const destaque =
+      (b.vitrine_destaque ? 1 : 0) - (a.vitrine_destaque ? 1 : 0);
+    if (destaque !== 0) return destaque;
+    const an = String(a.nome || "").toLowerCase();
+    const bn = String(b.nome || "").toLowerCase();
+    return an < bn ? -1 : an > bn ? 1 : 0;
   });
   return out;
 }
@@ -430,6 +464,23 @@ function listarMidiaPublica(app, baseUrl, soAtivos) {
     const arquivo = String(r.get("arquivo") || "");
     const urlExterna = String(r.get("url_externa") || "");
     const fileUrl = filePublicUrl(baseUrl, "vitrine_midia", r.id, arquivo);
+    var servico = r.get("servico");
+    if (Array.isArray(servico)) servico = servico.length ? servico[0] : "";
+    if (servico && typeof servico === "object" && servico.id) {
+      servico = servico.id;
+    }
+    servico = String(servico || "");
+    const papel = servico
+      ? enumSeguro(
+          r.get("papel"),
+          ["capa", "galeria", "antes", "depois"],
+          "galeria",
+        )
+      : enumSeguro(r.get("papel"), ["capa", "galeria", "antes", "depois"], "");
+    function foco(valor) {
+      if (valor == null || valor === "") return 50;
+      return Math.max(0, Math.min(100, Number(valor) || 0));
+    }
     out.push({
       id: r.id,
       chave: String(r.get("chave") || ""),
@@ -439,6 +490,12 @@ function listarMidiaPublica(app, baseUrl, soAtivos) {
       arquivo: arquivo,
       url: urlExterna || fileUrl || "",
       ativo: r.get("ativo") !== false,
+      servico: servico,
+      papel: papel,
+      par_id: String(r.get("par_id") || ""),
+      legenda: String(r.get("legenda") || ""),
+      foco_x: foco(r.get("foco_x")),
+      foco_y: foco(r.get("foco_y")),
     });
   }
   out.sort(function (a, b) {
@@ -476,24 +533,77 @@ function listarServicosAdmin(app) {
       ativo: !!r.get("ativo") || String(r.get("status") || "") === "ativo",
       vitrine: r.get("vitrine") !== false,
       vitrine_destaque: !!r.get("vitrine_destaque"),
+      vitrine_layout: enumSeguro(
+        r.get("vitrine_layout"),
+        VITRINE_LAYOUTS,
+        r.get("vitrine_destaque") ? "destaque" : "fotografico",
+      ),
+      vitrine_titulo: String(r.get("vitrine_titulo") || ""),
+      vitrine_descricao: String(r.get("vitrine_descricao") || ""),
+      vitrine_badge: String(r.get("vitrine_badge") || ""),
+      vitrine_cta: String(r.get("vitrine_cta") || ""),
+      vitrine_preco_modo: enumSeguro(
+        r.get("vitrine_preco_modo"),
+        VITRINE_PRECO_MODOS,
+        "a_partir_de",
+      ),
+      vitrine_ordem: Math.max(0, Number(r.get("vitrine_ordem") || 0)),
     });
   }
+  out.sort(function (a, b) {
+    const ordem = Number(a.vitrine_ordem || 0) - Number(b.vitrine_ordem || 0);
+    if (ordem !== 0) return ordem;
+    const an = String(a.nome || "").toLowerCase();
+    const bn = String(b.nome || "").toLowerCase();
+    return an < bn ? -1 : an > bn ? 1 : 0;
+  });
   return out;
 }
 
-function setServicoVitrineFlags(app, id, flags) {
+function setServicoVitrineConfig(app, id, flags) {
   const r = app.findRecordById("servicos", id);
   if (flags.vitrine != null) r.set("vitrine", !!flags.vitrine);
   if (flags.vitrine_destaque != null) {
     r.set("vitrine_destaque", !!flags.vitrine_destaque);
   }
+  if (flags.vitrine_layout != null) {
+    r.set(
+      "vitrine_layout",
+      enumSeguro(flags.vitrine_layout, VITRINE_LAYOUTS, "fotografico"),
+    );
+  }
+  if (flags.vitrine_titulo != null) {
+    r.set("vitrine_titulo", textoVitrine(flags.vitrine_titulo, 160));
+  }
+  if (flags.vitrine_descricao != null) {
+    r.set("vitrine_descricao", textoVitrine(flags.vitrine_descricao, 500));
+  }
+  if (flags.vitrine_badge != null) {
+    r.set("vitrine_badge", textoVitrine(flags.vitrine_badge, 60));
+  }
+  if (flags.vitrine_cta != null) {
+    r.set("vitrine_cta", textoVitrine(flags.vitrine_cta, 60));
+  }
+  if (flags.vitrine_preco_modo != null) {
+    r.set(
+      "vitrine_preco_modo",
+      enumSeguro(
+        flags.vitrine_preco_modo,
+        VITRINE_PRECO_MODOS,
+        "a_partir_de",
+      ),
+    );
+  }
+  if (flags.vitrine_ordem != null) {
+    r.set("vitrine_ordem", Math.max(0, Math.floor(Number(flags.vitrine_ordem) || 0)));
+  }
   app.save(r);
-  return {
-    id: r.id,
-    vitrine: r.get("vitrine") !== false,
-    vitrine_destaque: !!r.get("vitrine_destaque"),
-  };
+  const result = servicoPublico(r) || { id: r.id };
+  result.vitrine = r.get("vitrine") !== false;
+  return result;
 }
+
+const setServicoVitrineFlags = setServicoVitrineConfig;
 
 function upsertBump(app, body, existingId) {
   const col = app.findCollectionByNameOrId("vitrine_order_bumps");
@@ -857,8 +967,69 @@ function contagemOsPorProfNoDia(osOcupadas) {
 }
 
 /**
+ * Recalcula itens do agendamento exclusivamente a partir do catálogo/CMS.
+ * Nome e valor enviados pelo navegador são informativos e nunca confiáveis.
+ */
+function normalizarItensAgendamento(app, rawItens) {
+  const raw = Array.isArray(rawItens) ? rawItens : [];
+  const baseIds = [];
+  for (var i = 0; i < raw.length; i++) {
+    const item = raw[i] || {};
+    const bumpId = String(item.order_bump_id || "").trim();
+    const sid = String(item.id || item.servico_id || "").trim();
+    if (!bumpId && sid) baseIds.push(sid);
+  }
+
+  const elegiveis = orderBumpsParaCarrinho(app, baseIds);
+  const bumpsById = {};
+  for (var b = 0; b < elegiveis.length; b++) {
+    bumpsById[String(elegiveis[b].id || "")] = elegiveis[b];
+  }
+
+  const out = [];
+  const seen = {};
+  for (var j = 0; j < raw.length; j++) {
+    const original = raw[j] || {};
+    const sid = String(original.id || original.servico_id || "").trim();
+    if (!sid || seen[sid]) throw new Error("Serviço inválido no orçamento.");
+    const pub = getServicoPublico(app, sid);
+    if (!pub || pub.ativo === false || pub.vitrine === false) {
+      throw new Error("Serviço indisponível no orçamento.");
+    }
+
+    const bumpId = String(original.order_bump_id || "").trim();
+    var nome = String(pub.nome || "").trim();
+    var valor = Number(pub.valor_base || 0);
+    if (bumpId) {
+      const bump = bumpsById[bumpId];
+      if (!bump || String(bump.servico_oferta || "") !== sid) {
+        throw new Error("Oferta adicional inválida ou expirada.");
+      }
+      nome = String(bump.titulo || nome).trim();
+      const promo = Number(bump.preco_promo || 0);
+      valor = promo > 0 ? promo : valor;
+    }
+
+    seen[sid] = true;
+    out.push({
+      id: sid,
+      nome: nome,
+      valor: Math.max(0, Math.round(valor * 100) / 100),
+      duracao_min: Number(pub.tempo_medio_min || 0),
+    });
+  }
+  return out;
+}
+
+function duracaoFinalAgendamento(durToken, durSoma) {
+  const token = Math.max(0, Number(durToken) || 0);
+  const soma = Number(durSoma) > 0 ? Number(durSoma) : 60;
+  return Math.max(30, Math.round(Math.max(token, soma)));
+}
+
+/**
  * Agenda: valida token, revalida slot, cria cliente+OS.
- * Body pode trazer `itens: [{id, nome, valor}]` (orçamento multi-serviço).
+ * Body traz ids e metadados informativos; nome/preço são recalculados aqui.
  */
 function agendar(app, body) {
   const honeypot = String(body.website || body.honeypot || "");
@@ -877,26 +1048,19 @@ function agendar(app, body) {
   const durToken = Number(payload.dur) || 0;
 
   // Itens do orçamento (multi-select da vitrine)
-  var itens = Array.isArray(body.itens) ? body.itens : [];
+  var itens = normalizarItensAgendamento(app, body.itens);
   var valorTotal = 0;
   var nomes = [];
   var durSoma = 0;
   var primaryId = String(payload.s || body.servico_id || "");
   for (var ii = 0; ii < itens.length; ii++) {
     const it = itens[ii] || {};
-    const sid = String(it.id || it.servico_id || "");
-    const pub = sid ? getServicoPublico(app, sid) : null;
-    const nome = String(it.nome || (pub && pub.nome) || "").trim();
-    const val = Number(
-      it.valor != null
-        ? it.valor
-        : pub
-          ? pub.valor_base
-          : 0,
-    );
+    const sid = String(it.id || "");
+    const nome = String(it.nome || "").trim();
+    const val = Number(it.valor || 0);
     if (nome) nomes.push(nome);
     if (val > 0) valorTotal += val;
-    if (pub && pub.tempo_medio_min > 0) durSoma += pub.tempo_medio_min;
+    if (Number(it.duracao_min) > 0) durSoma += Number(it.duracao_min);
     if (!primaryId && sid) primaryId = sid;
   }
   // Fallback: 1 serviço do token
@@ -908,8 +1072,7 @@ function agendar(app, body) {
     durSoma = serv.tempo_medio_min || 60;
   }
   if (!(valorTotal > 0) && serv) valorTotal = serv.valor_base;
-  var dur = durToken > 0 ? durToken : durSoma > 0 ? durSoma : 60;
-  dur = Math.max(30, Math.round(dur));
+  var dur = duracaoFinalAgendamento(durToken, durSoma);
   if (!primaryId && serv) primaryId = serv.id;
 
   // Endereço: aceita "endereco" único (landing) ou campos separados
@@ -1031,11 +1194,14 @@ module.exports = {
   rateLimit,
   assertVitrineAdmin,
   adminHttpError,
+  servicoPublico,
   listarServicosPublicos,
   getServicoPublico,
   getAtuacao,
   cidadeCoberta,
   slotsDoDia,
+  normalizarItensAgendamento,
+  duracaoFinalAgendamento,
   agendar,
   signSlot,
   verifySlot,
@@ -1050,6 +1216,7 @@ module.exports = {
   requestBaseUrl,
   filePublicUrl,
   listarServicosAdmin,
+  setServicoVitrineConfig,
   setServicoVitrineFlags,
   upsertBump,
   deleteBump,

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/tokens.dart';
@@ -13,7 +12,12 @@ import '../../core/design/widgets/cleanox_logo.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
 import 'vitrine_admin_auth.dart';
+import 'vitrine_midia_editor.dart';
 import 'vitrine_midia_repository.dart';
+import 'vitrine_servico_editor.dart';
+
+export 'vitrine_midia_editor.dart';
+export 'vitrine_servico_editor.dart';
 
 // ── Login ───────────────────────────────────────────────────────────────────
 
@@ -271,8 +275,9 @@ class _VitrineAdminDashboardScreenState
             final total = items.fold<double>(0, (s, a) => s + a.valorServico);
             final ticket = items.isEmpty ? 0.0 : total / items.length;
             final ativos = items
-                .where((a) =>
-                    a.status != 'cancelada' && a.status != 'concluida')
+                .where(
+                  (a) => a.status != 'cancelada' && a.status != 'concluida',
+                )
                 .length;
 
             return Column(
@@ -479,7 +484,9 @@ class _VitrineAdminPersonalizarScreenState
       _error = null;
     });
     try {
-      await ref.read(vitrineAdminApiProvider).adminSaveConfig(
+      await ref
+          .read(vitrineAdminApiProvider)
+          .adminSaveConfig(
             VitrineConfig(
               heroTitulo: _titulo.text.trim(),
               heroSubtitulo: _sub.text.trim(),
@@ -491,9 +498,9 @@ class _VitrineAdminPersonalizarScreenState
             ),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configuração salva')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Configuração salva')));
       setState(() => _saving = false);
     } catch (e) {
       if (!mounted) return;
@@ -574,7 +581,9 @@ class _VitrineAdminPersonalizarScreenState
               children: [
                 TextField(
                   controller: _titulo,
-                  decoration: const InputDecoration(labelText: 'Título do hero'),
+                  decoration: const InputDecoration(
+                    labelText: 'Título do hero',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -585,13 +594,16 @@ class _VitrineAdminPersonalizarScreenState
                 const SizedBox(height: 12),
                 TextField(
                   controller: _cta,
-                  decoration: const InputDecoration(labelText: 'Texto do botão'),
+                  decoration: const InputDecoration(
+                    labelText: 'Texto do botão',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _wa,
-                  decoration:
-                      const InputDecoration(labelText: 'WhatsApp exibido'),
+                  decoration: const InputDecoration(
+                    labelText: 'WhatsApp exibido',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -604,7 +616,9 @@ class _VitrineAdminPersonalizarScreenState
                 const SizedBox(height: 12),
                 TextField(
                   controller: _rodape,
-                  decoration: const InputDecoration(labelText: 'Mensagem rodapé'),
+                  decoration: const InputDecoration(
+                    labelText: 'Mensagem rodapé',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -650,13 +664,34 @@ class _VitrineAdminServicosScreenState
     bool? vitrine,
     bool? destaque,
   }) async {
-    await ref.read(vitrineAdminApiProvider).adminPatchServico(
-          s.id,
-          vitrine: vitrine,
-          vitrineDestaque: destaque,
-        );
+    await ref
+        .read(vitrineAdminApiProvider)
+        .adminPatchServico(s.id, vitrine: vitrine, vitrineDestaque: destaque);
     if (!mounted) return;
     setState(_reload);
+  }
+
+  Future<void> _openEditor(VitrineAdminServico servico) async {
+    final api = ref.read(vitrineAdminApiProvider);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => VitrineServicoEditorDialog(
+        servico: servico,
+        onSave: (draft) => api.adminPatchServico(
+          servico.id,
+          vitrine: draft['vitrine'] == true,
+          vitrineDestaque: draft['vitrine_destaque'] == true,
+          layout: VitrineServicoLayout.parse(draft['vitrine_layout']),
+          vitrineTitulo: '${draft['vitrine_titulo'] ?? ''}',
+          vitrineDescricao: '${draft['vitrine_descricao'] ?? ''}',
+          vitrineBadge: '${draft['vitrine_badge'] ?? ''}',
+          vitrineCta: '${draft['vitrine_cta'] ?? ''}',
+          precoModo: VitrinePrecoModo.parse(draft['vitrine_preco_modo']),
+          vitrineOrdem: (draft['vitrine_ordem'] as num?)?.toInt() ?? 0,
+        ),
+      ),
+    );
+    if (saved == true && mounted) setState(_reload);
   }
 
   @override
@@ -684,29 +719,64 @@ class _VitrineAdminServicosScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Marque o que aparece no site de agendamento e o que é destaque na home.',
+              'Escolha o formato, a mensagem e a posição de cada serviço. '
+              'Use Mídia para definir capa, galeria ou antes/depois.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
             for (final s in items)
               Card(
-                child: SwitchListTile(
-                  title: Text(s.nome,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(
-                    '${s.grupo.isEmpty ? '—' : s.grupo} · ${formatCurrency(s.valorBase)}'
-                    '${s.vitrineDestaque ? ' · destaque' : ''}',
-                  ),
-                  value: s.vitrine,
-                  onChanged: (v) => _toggle(s, vitrine: v),
-                  secondary: IconButton(
-                    tooltip: 'Destaque na home',
-                    icon: Icon(
-                      s.vitrineDestaque ? Icons.star : Icons.star_border,
-                      color: s.vitrineDestaque ? ClxBrand.cyan : ClxBrand.muted,
-                    ),
-                    onPressed: () =>
-                        _toggle(s, destaque: !s.vitrineDestaque),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                  child: Row(
+                    children: [
+                      Switch(
+                        value: s.vitrine,
+                        onChanged: (value) => _toggle(s, vitrine: value),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s.vitrineTitulo.isEmpty
+                                  ? s.nome
+                                  : s.vitrineTitulo,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '${s.grupo.isEmpty ? '—' : s.grupo} · '
+                              '${formatCurrency(s.valorBase)} · '
+                              '${_adminLayoutLabel(s.layout)}'
+                              '${s.vitrineDestaque ? ' · destaque' : ''}',
+                              style: const TextStyle(
+                                color: ClxBrand.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Destaque na home',
+                        icon: Icon(
+                          s.vitrineDestaque ? Icons.star : Icons.star_border,
+                          color: s.vitrineDestaque
+                              ? ClxBrand.cyan
+                              : ClxBrand.muted,
+                        ),
+                        onPressed: () =>
+                            _toggle(s, destaque: !s.vitrineDestaque),
+                      ),
+                      IconButton(
+                        tooltip: 'Personalizar serviço',
+                        icon: const Icon(Icons.tune),
+                        onPressed: () => _openEditor(s),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -716,6 +786,13 @@ class _VitrineAdminServicosScreenState
     );
   }
 }
+
+String _adminLayoutLabel(VitrineServicoLayout layout) => switch (layout) {
+  VitrineServicoLayout.destaque => 'Destaque amplo',
+  VitrineServicoLayout.fotografico => 'Card fotográfico',
+  VitrineServicoLayout.antesDepois => 'Antes/depois',
+  VitrineServicoLayout.compacto => 'Compacto',
+};
 
 // ── Order bumps ─────────────────────────────────────────────────────────────
 
@@ -831,8 +908,10 @@ class _VitrineAdminBumpsScreenState
             for (final b in items)
               Card(
                 child: ListTile(
-                  title: Text(b.titulo,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  title: Text(
+                    b.titulo,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   subtitle: Text(
                     '${b.gatilhoTipo}: ${b.gatilhoValores.join(", ")} · '
                     '${formatCurrency(b.precoPromo)}'
@@ -899,12 +978,8 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
     _cheio = TextEditingController(
       text: e != null && e.precoCheio > 0 ? '${e.precoCheio}' : '',
     );
-    _promo = TextEditingController(
-      text: e != null ? '${e.precoPromo}' : '',
-    );
-    _gatilho = TextEditingController(
-      text: e?.gatilhoValores.join(', ') ?? '',
-    );
+    _promo = TextEditingController(text: e != null ? '${e.precoPromo}' : '');
+    _gatilho = TextEditingController(text: e?.gatilhoValores.join(', ') ?? '');
     _prio = TextEditingController(text: '${e?.prioridade ?? 10}');
     _tipo = e?.gatilhoTipo ?? 'qualquer_grupo';
     _servicoOferta = e?.servicoOferta;
@@ -981,14 +1056,16 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
               ),
               TextField(
                 controller: _badge,
-                decoration:
-                    const InputDecoration(labelText: 'Badge (ex.: −39%)'),
+                decoration: const InputDecoration(
+                  labelText: 'Badge (ex.: −39%)',
+                ),
               ),
               DropdownButtonFormField<String>(
                 // ignore: deprecated_member_use
                 value: _servicoOferta,
-                decoration:
-                    const InputDecoration(labelText: 'Serviço ofertado'),
+                decoration: const InputDecoration(
+                  labelText: 'Serviço ofertado',
+                ),
                 items: [
                   for (final s in widget.servicos)
                     DropdownMenuItem(value: s.id, child: Text(s.nome)),
@@ -1000,8 +1077,9 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
                   Expanded(
                     child: TextField(
                       controller: _cheio,
-                      decoration:
-                          const InputDecoration(labelText: 'Preço cheio'),
+                      decoration: const InputDecoration(
+                        labelText: 'Preço cheio',
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                   ),
@@ -1009,8 +1087,9 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
                   Expanded(
                     child: TextField(
                       controller: _promo,
-                      decoration:
-                          const InputDecoration(labelText: 'Preço promo'),
+                      decoration: const InputDecoration(
+                        labelText: 'Preço promo',
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                   ),
@@ -1099,42 +1178,66 @@ class _VitrineAdminMidiaScreenState
   }
 
   Future<void> _openEditor([VitrineMidiaItem? existing]) async {
+    final servicos = await ref
+        .read(vitrineAdminApiProvider)
+        .adminListServicos();
+    if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => _MidiaEditorDialog(
+      builder: (ctx) => VitrineMidiaEditorDialog(
         existing: existing,
-        onSave: ({
-          required chave,
-          required titulo,
-          required urlExterna,
-          required ordem,
-          required ativo,
-          fileBytes,
-          filename,
-        }) async {
-          if (existing == null) {
-            await _repo.create(
-              chave: chave,
-              titulo: titulo,
-              urlExterna: urlExterna,
-              ordem: ordem,
-              ativo: ativo,
-              fileBytes: fileBytes,
-              filename: filename,
-            );
-          } else {
-            await _repo.update(
-              existing.id,
-              chave: chave,
-              titulo: titulo,
-              urlExterna: urlExterna,
-              ordem: ordem,
-              ativo: ativo,
-              fileBytes: fileBytes,
-              filename: filename,
-            );
-          }
-        },
+        servicos: servicos,
+        onSave:
+            ({
+              required chave,
+              required titulo,
+              required urlExterna,
+              required ordem,
+              required ativo,
+              required servicoId,
+              required papel,
+              required parId,
+              required legenda,
+              required focoX,
+              required focoY,
+              fileBytes,
+              filename,
+            }) async {
+              if (existing == null) {
+                await _repo.create(
+                  chave: chave,
+                  titulo: titulo,
+                  urlExterna: urlExterna,
+                  ordem: ordem,
+                  ativo: ativo,
+                  servicoId: servicoId,
+                  papel: papel,
+                  parId: parId,
+                  legenda: legenda,
+                  focoX: focoX,
+                  focoY: focoY,
+                  fileBytes: fileBytes,
+                  filename: filename,
+                );
+              } else {
+                await _repo.update(
+                  existing.id,
+                  chave: chave,
+                  titulo: titulo,
+                  urlExterna: urlExterna,
+                  ordem: ordem,
+                  ativo: ativo,
+                  servicoId: servicoId,
+                  papel: papel,
+                  parId: parId,
+                  legenda: legenda,
+                  focoX: focoX,
+                  focoY: focoY,
+                  fileBytes: fileBytes,
+                  filename: filename,
+                );
+              }
+            },
       ),
     );
     if (ok == true && mounted) setState(_reload);
@@ -1199,8 +1302,8 @@ class _VitrineAdminMidiaScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Fotos do hero, categorias e order bumps. Use chave estável '
-              '(ex.: hero, categoria_sofa, bump_cadeira).',
+              'Fotos globais do hero/categorias e galerias de cada serviço. '
+              'Defina capa, antes/depois e o ponto focal no editor.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1233,11 +1336,15 @@ class _VitrineAdminMidiaScreenState
                                   ? Image.network(
                                       m.displayUrl!,
                                       fit: BoxFit.cover,
+                                      alignment: Alignment(
+                                        (m.focoX / 50) - 1,
+                                        (m.focoY / 50) - 1,
+                                      ),
                                       errorBuilder: (_, __, ___) =>
                                           const ColoredBox(
-                                        color: Color(0xFFE2E8F0),
-                                        child: Icon(Icons.broken_image),
-                                      ),
+                                            color: Color(0xFFE2E8F0),
+                                            child: Icon(Icons.broken_image),
+                                          ),
                                     )
                                   : const ColoredBox(
                                       color: Color(0xFFE8F4F6),
@@ -1254,7 +1361,9 @@ class _VitrineAdminMidiaScreenState
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    m.chave,
+                                    m.servicoId.isNotEmpty
+                                        ? 'Foto de serviço · ${m.papelLabel}'
+                                        : m.chave,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: ClxBrand.navy,
@@ -1265,6 +1374,16 @@ class _VitrineAdminMidiaScreenState
                                       m.titulo,
                                       style: const TextStyle(
                                         fontSize: 12,
+                                        color: ClxBrand.muted,
+                                      ),
+                                    ),
+                                  if (m.legenda.isNotEmpty)
+                                    Text(
+                                      m.legenda,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
                                         color: ClxBrand.muted,
                                       ),
                                     ),
@@ -1304,181 +1423,6 @@ class _VitrineAdminMidiaScreenState
           ],
         );
       },
-    );
-  }
-}
-
-class _MidiaEditorDialog extends StatefulWidget {
-  const _MidiaEditorDialog({
-    required this.existing,
-    required this.onSave,
-  });
-
-  final VitrineMidiaItem? existing;
-  final Future<void> Function({
-    required String chave,
-    required String titulo,
-    required String urlExterna,
-    required int ordem,
-    required bool ativo,
-    List<int>? fileBytes,
-    String? filename,
-  }) onSave;
-
-  @override
-  State<_MidiaEditorDialog> createState() => _MidiaEditorDialogState();
-}
-
-class _MidiaEditorDialogState extends State<_MidiaEditorDialog> {
-  late final TextEditingController _chave;
-  late final TextEditingController _titulo;
-  late final TextEditingController _url;
-  late final TextEditingController _ordem;
-  bool _ativo = true;
-  bool _saving = false;
-  String? _error;
-  List<int>? _bytes;
-  String? _filename;
-
-  @override
-  void initState() {
-    super.initState();
-    final e = widget.existing;
-    _chave = TextEditingController(text: e?.chave ?? 'hero');
-    _titulo = TextEditingController(text: e?.titulo ?? '');
-    _url = TextEditingController(text: e?.urlExterna ?? '');
-    _ordem = TextEditingController(text: '${e?.ordem ?? 0}');
-    _ativo = e?.ativo ?? true;
-  }
-
-  @override
-  void dispose() {
-    _chave.dispose();
-    _titulo.dispose();
-    _url.dispose();
-    _ordem.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pick() async {
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 85,
-    );
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    setState(() {
-      _bytes = bytes;
-      _filename = x.name;
-    });
-  }
-
-  Future<void> _save() async {
-    if (_chave.text.trim().isEmpty) {
-      setState(() => _error = 'Chave obrigatória');
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await widget.onSave(
-        chave: _chave.text.trim(),
-        titulo: _titulo.text.trim(),
-        urlExterna: _url.text.trim(),
-        ordem: int.tryParse(_ordem.text) ?? 0,
-        ativo: _ativo,
-        fileBytes: _bytes,
-        filename: _filename,
-      );
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _error = '$e';
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.existing == null ? 'Nova mídia' : 'Editar mídia'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _chave,
-                decoration: const InputDecoration(
-                  labelText: 'Chave',
-                  hintText: 'hero, categoria_sofa…',
-                ),
-              ),
-              TextField(
-                controller: _titulo,
-                decoration: const InputDecoration(labelText: 'Título'),
-              ),
-              TextField(
-                controller: _url,
-                decoration: const InputDecoration(
-                  labelText: 'URL externa (opcional)',
-                ),
-              ),
-              TextField(
-                controller: _ordem,
-                decoration: const InputDecoration(labelText: 'Ordem'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _pick,
-                    icon: const Icon(Icons.upload),
-                    label: Text(
-                      _filename ?? 'Escolher foto',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (_bytes != null) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(_bytes!.length / 1024).toStringAsFixed(0)} KB',
-                      style: const TextStyle(fontSize: 12, color: ClxBrand.muted),
-                    ),
-                  ],
-                ],
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Ativo na vitrine'),
-                value: _ativo,
-                onChanged: (v) => setState(() => _ativo = v),
-              ),
-              if (_error != null)
-                Text(_error!, style: TextStyle(color: Colors.red.shade700)),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '…' : 'Salvar'),
-        ),
-      ],
     );
   }
 }

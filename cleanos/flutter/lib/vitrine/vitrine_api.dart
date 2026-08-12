@@ -8,6 +8,36 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../core/env/env.dart';
 
+enum VitrineServicoLayout {
+  destaque('destaque'),
+  fotografico('fotografico'),
+  antesDepois('antes_depois'),
+  compacto('compacto');
+
+  const VitrineServicoLayout(this.apiValue);
+  final String apiValue;
+
+  static VitrineServicoLayout parse(dynamic value) => values.firstWhere(
+    (item) => item.apiValue == '$value',
+    orElse: () => VitrineServicoLayout.fotografico,
+  );
+}
+
+enum VitrinePrecoModo {
+  valor('valor'),
+  aPartirDe('a_partir_de'),
+  sobAvaliacao('sob_avaliacao'),
+  ocultar('ocultar');
+
+  const VitrinePrecoModo(this.apiValue);
+  final String apiValue;
+
+  static VitrinePrecoModo parse(dynamic value) => values.firstWhere(
+    (item) => item.apiValue == '$value',
+    orElse: () => VitrinePrecoModo.aPartirDe,
+  );
+}
+
 class VitrineServico {
   const VitrineServico({
     required this.id,
@@ -21,6 +51,13 @@ class VitrineServico {
     required this.tempoMedioLabel,
     required this.orientacoesPre,
     this.vitrineDestaque = false,
+    this.layout = VitrineServicoLayout.fotografico,
+    this.vitrineTitulo = '',
+    this.vitrineDescricao = '',
+    this.vitrineBadge = '',
+    this.vitrineCta = '',
+    this.precoModo = VitrinePrecoModo.aPartirDe,
+    this.vitrineOrdem = 0,
   });
 
   final String id;
@@ -34,20 +71,41 @@ class VitrineServico {
   final String tempoMedioLabel;
   final String orientacoesPre;
   final bool vitrineDestaque;
+  final VitrineServicoLayout layout;
+  final String vitrineTitulo;
+  final String vitrineDescricao;
+  final String vitrineBadge;
+  final String vitrineCta;
+  final VitrinePrecoModo precoModo;
+  final int vitrineOrdem;
+
+  String get tituloComercial =>
+      vitrineTitulo.trim().isNotEmpty ? vitrineTitulo.trim() : nome;
+  String get descricaoComercial =>
+      vitrineDescricao.trim().isNotEmpty ? vitrineDescricao.trim() : descricao;
+  String get ctaComercial =>
+      vitrineCta.trim().isNotEmpty ? vitrineCta.trim() : 'Adicionar';
 
   factory VitrineServico.fromJson(Map<String, dynamic> j) => VitrineServico(
-        id: '${j['id'] ?? ''}',
-        nome: '${j['nome'] ?? ''}',
-        descricao: '${j['descricao'] ?? ''}',
-        categoria: '${j['categoria'] ?? ''}',
-        grupo: '${j['grupo'] ?? ''}',
-        valorBase: (j['valor_base'] as num?)?.toDouble() ?? 0,
-        valorBaseMax: (j['valor_base_max'] as num?)?.toDouble() ?? 0,
-        tempoMedioMin: (j['tempo_medio_min'] as num?)?.toInt() ?? 0,
-        tempoMedioLabel: '${j['tempo_medio_label'] ?? ''}',
-        orientacoesPre: '${j['orientacoes_pre'] ?? ''}',
-        vitrineDestaque: j['vitrine_destaque'] == true,
-      );
+    id: '${j['id'] ?? ''}',
+    nome: '${j['nome'] ?? ''}',
+    descricao: '${j['descricao'] ?? ''}',
+    categoria: '${j['categoria'] ?? ''}',
+    grupo: '${j['grupo'] ?? ''}',
+    valorBase: (j['valor_base'] as num?)?.toDouble() ?? 0,
+    valorBaseMax: (j['valor_base_max'] as num?)?.toDouble() ?? 0,
+    tempoMedioMin: (j['tempo_medio_min'] as num?)?.toInt() ?? 0,
+    tempoMedioLabel: '${j['tempo_medio_label'] ?? ''}',
+    orientacoesPre: '${j['orientacoes_pre'] ?? ''}',
+    vitrineDestaque: j['vitrine_destaque'] == true,
+    layout: VitrineServicoLayout.parse(j['vitrine_layout']),
+    vitrineTitulo: '${j['vitrine_titulo'] ?? ''}',
+    vitrineDescricao: '${j['vitrine_descricao'] ?? ''}',
+    vitrineBadge: '${j['vitrine_badge'] ?? ''}',
+    vitrineCta: '${j['vitrine_cta'] ?? ''}',
+    precoModo: VitrinePrecoModo.parse(j['vitrine_preco_modo']),
+    vitrineOrdem: (j['vitrine_ordem'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class VitrineSlot {
@@ -55,10 +113,8 @@ class VitrineSlot {
   final String hora;
   final String token;
 
-  factory VitrineSlot.fromJson(Map<String, dynamic> j) => VitrineSlot(
-        hora: '${j['hora'] ?? ''}',
-        token: '${j['token'] ?? ''}',
-      );
+  factory VitrineSlot.fromJson(Map<String, dynamic> j) =>
+      VitrineSlot(hora: '${j['hora'] ?? ''}', token: '${j['token'] ?? ''}');
 }
 
 class VitrineOrderBump {
@@ -95,21 +151,21 @@ class VitrineOrderBump {
   final String fotoUrl;
 
   factory VitrineOrderBump.fromJson(Map<String, dynamic> j) => VitrineOrderBump(
-        id: '${j['id'] ?? ''}',
-        titulo: '${j['titulo'] ?? ''}',
-        descricao: '${j['descricao'] ?? ''}',
-        badge: '${j['badge'] ?? ''}',
-        servicoOferta: '${j['servico_oferta'] ?? ''}',
-        servicoNome: '${j['servico_nome'] ?? ''}',
-        precoCheio: (j['preco_cheio'] as num?)?.toDouble() ?? 0,
-        precoPromo: (j['preco_promo'] as num?)?.toDouble() ?? 0,
-        ativo: j['ativo'] != false,
-        gatilhoTipo: '${j['gatilho_tipo'] ?? 'qualquer_grupo'}',
-        gatilhoValores: _strList(j['gatilho_valores']),
-        excluirSe: _strList(j['excluir_se']),
-        prioridade: (j['prioridade'] as num?)?.toInt() ?? 0,
-        fotoUrl: '${j['foto_url'] ?? ''}',
-      );
+    id: '${j['id'] ?? ''}',
+    titulo: '${j['titulo'] ?? ''}',
+    descricao: '${j['descricao'] ?? ''}',
+    badge: '${j['badge'] ?? ''}',
+    servicoOferta: '${j['servico_oferta'] ?? ''}',
+    servicoNome: '${j['servico_nome'] ?? ''}',
+    precoCheio: (j['preco_cheio'] as num?)?.toDouble() ?? 0,
+    precoPromo: (j['preco_promo'] as num?)?.toDouble() ?? 0,
+    ativo: j['ativo'] != false,
+    gatilhoTipo: '${j['gatilho_tipo'] ?? 'qualquer_grupo'}',
+    gatilhoValores: _strList(j['gatilho_valores']),
+    excluirSe: _strList(j['excluir_se']),
+    prioridade: (j['prioridade'] as num?)?.toInt() ?? 0,
+    fotoUrl: '${j['foto_url'] ?? ''}',
+  );
 
   static List<String> _strList(dynamic v) {
     if (v is! List) return const [];
@@ -124,6 +180,12 @@ class VitrineMidia {
     required this.titulo,
     required this.url,
     this.ordem = 0,
+    this.servicoId = '',
+    this.papel = '',
+    this.parId = '',
+    this.legenda = '',
+    this.focoX = 50,
+    this.focoY = 50,
   });
 
   final String id;
@@ -131,14 +193,29 @@ class VitrineMidia {
   final String titulo;
   final String url;
   final int ordem;
+  final String servicoId;
+  final String papel;
+  final String parId;
+  final String legenda;
+  final double focoX;
+  final double focoY;
+
+  double get alignmentX => (focoX.clamp(0, 100) - 50) / 50;
+  double get alignmentY => (focoY.clamp(0, 100) - 50) / 50;
 
   factory VitrineMidia.fromJson(Map<String, dynamic> j) => VitrineMidia(
-        id: '${j['id'] ?? ''}',
-        chave: '${j['chave'] ?? ''}',
-        titulo: '${j['titulo'] ?? ''}',
-        url: '${j['url'] ?? j['url_externa'] ?? ''}',
-        ordem: (j['ordem'] as num?)?.toInt() ?? 0,
-      );
+    id: '${j['id'] ?? ''}',
+    chave: '${j['chave'] ?? ''}',
+    titulo: '${j['titulo'] ?? ''}',
+    url: '${j['url'] ?? j['url_externa'] ?? ''}',
+    ordem: (j['ordem'] as num?)?.toInt() ?? 0,
+    servicoId: '${j['servico'] ?? ''}',
+    papel: '${j['papel'] ?? ''}',
+    parId: '${j['par_id'] ?? ''}',
+    legenda: '${j['legenda'] ?? ''}',
+    focoX: (j['foco_x'] as num?)?.toDouble() ?? 50,
+    focoY: (j['foco_y'] as num?)?.toDouble() ?? 50,
+  );
 }
 
 class VitrineBootstrap {
@@ -163,6 +240,21 @@ class VitrineBootstrap {
       m.putIfAbsent(k, () => it.url);
     }
     return m;
+  }
+
+  List<VitrineMidia> midiaDoServico(String servicoId, {String? papel}) => [
+    for (final item in midia)
+      if (item.servicoId == servicoId &&
+          (papel == null || item.papel == papel) &&
+          item.url.isNotEmpty)
+        item,
+  ]..sort((a, b) => a.ordem.compareTo(b.ordem));
+
+  VitrineMidia? capaDoServico(String servicoId) {
+    final capas = midiaDoServico(servicoId, papel: 'capa');
+    if (capas.isNotEmpty) return capas.first;
+    final todas = midiaDoServico(servicoId);
+    return todas.isEmpty ? null : todas.first;
   }
 }
 
@@ -189,27 +281,27 @@ class VitrineConfig {
   final String comoFunciona;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
-        id: '${j['id'] ?? ''}',
-        heroTitulo: '${j['hero_titulo'] ?? 'Orçamento em 1 minuto'}',
-        heroSubtitulo:
-            '${j['hero_subtitulo'] ?? 'Escolha o que precisa limpar e agende no horário ideal'}',
-        heroCta: '${j['hero_cta'] ?? 'Montar orçamento'}',
-        whatsappExibido: '${j['whatsapp_exibido'] ?? ''}',
-        rodapeMsg:
-            '${j['rodape_msg'] ?? 'Pagamento só no local · maquininha Cleanox'}',
-        cidadesTexto: '${j['cidades_texto'] ?? ''}',
-        comoFunciona: '${j['como_funciona'] ?? ''}',
-      );
+    id: '${j['id'] ?? ''}',
+    heroTitulo: '${j['hero_titulo'] ?? 'Orçamento em 1 minuto'}',
+    heroSubtitulo:
+        '${j['hero_subtitulo'] ?? 'Escolha o que precisa limpar e agende no horário ideal'}',
+    heroCta: '${j['hero_cta'] ?? 'Montar orçamento'}',
+    whatsappExibido: '${j['whatsapp_exibido'] ?? ''}',
+    rodapeMsg:
+        '${j['rodape_msg'] ?? 'Pagamento só no local · maquininha Cleanox'}',
+    cidadesTexto: '${j['cidades_texto'] ?? ''}',
+    comoFunciona: '${j['como_funciona'] ?? ''}',
+  );
 
   Map<String, dynamic> toJson() => {
-        'hero_titulo': heroTitulo,
-        'hero_subtitulo': heroSubtitulo,
-        'hero_cta': heroCta,
-        'whatsapp_exibido': whatsappExibido,
-        'rodape_msg': rodapeMsg,
-        'cidades_texto': cidadesTexto,
-        'como_funciona': comoFunciona,
-      };
+    'hero_titulo': heroTitulo,
+    'hero_subtitulo': heroSubtitulo,
+    'hero_cta': heroCta,
+    'whatsapp_exibido': whatsappExibido,
+    'rodape_msg': rodapeMsg,
+    'cidades_texto': cidadesTexto,
+    'como_funciona': comoFunciona,
+  };
 
   VitrineConfig copyWith({
     String? heroTitulo,
@@ -219,17 +311,16 @@ class VitrineConfig {
     String? rodapeMsg,
     String? cidadesTexto,
     String? comoFunciona,
-  }) =>
-      VitrineConfig(
-        id: id,
-        heroTitulo: heroTitulo ?? this.heroTitulo,
-        heroSubtitulo: heroSubtitulo ?? this.heroSubtitulo,
-        heroCta: heroCta ?? this.heroCta,
-        whatsappExibido: whatsappExibido ?? this.whatsappExibido,
-        rodapeMsg: rodapeMsg ?? this.rodapeMsg,
-        cidadesTexto: cidadesTexto ?? this.cidadesTexto,
-        comoFunciona: comoFunciona ?? this.comoFunciona,
-      );
+  }) => VitrineConfig(
+    id: id,
+    heroTitulo: heroTitulo ?? this.heroTitulo,
+    heroSubtitulo: heroSubtitulo ?? this.heroSubtitulo,
+    heroCta: heroCta ?? this.heroCta,
+    whatsappExibido: whatsappExibido ?? this.whatsappExibido,
+    rodapeMsg: rodapeMsg ?? this.rodapeMsg,
+    cidadesTexto: cidadesTexto ?? this.cidadesTexto,
+    comoFunciona: comoFunciona ?? this.comoFunciona,
+  );
 }
 
 class VitrineAgendarResult {
@@ -269,6 +360,13 @@ class VitrineAdminServico {
     required this.vitrine,
     required this.vitrineDestaque,
     required this.ativo,
+    this.layout = VitrineServicoLayout.fotografico,
+    this.vitrineTitulo = '',
+    this.vitrineDescricao = '',
+    this.vitrineBadge = '',
+    this.vitrineCta = '',
+    this.precoModo = VitrinePrecoModo.aPartirDe,
+    this.vitrineOrdem = 0,
   });
 
   final String id;
@@ -278,6 +376,13 @@ class VitrineAdminServico {
   final bool vitrine;
   final bool vitrineDestaque;
   final bool ativo;
+  final VitrineServicoLayout layout;
+  final String vitrineTitulo;
+  final String vitrineDescricao;
+  final String vitrineBadge;
+  final String vitrineCta;
+  final VitrinePrecoModo precoModo;
+  final int vitrineOrdem;
 
   factory VitrineAdminServico.fromJson(Map<String, dynamic> j) =>
       VitrineAdminServico(
@@ -288,7 +393,26 @@ class VitrineAdminServico {
         vitrine: j['vitrine'] != false,
         vitrineDestaque: j['vitrine_destaque'] == true,
         ativo: j['ativo'] == true,
+        layout: VitrineServicoLayout.parse(j['vitrine_layout']),
+        vitrineTitulo: '${j['vitrine_titulo'] ?? ''}',
+        vitrineDescricao: '${j['vitrine_descricao'] ?? ''}',
+        vitrineBadge: '${j['vitrine_badge'] ?? ''}',
+        vitrineCta: '${j['vitrine_cta'] ?? ''}',
+        precoModo: VitrinePrecoModo.parse(j['vitrine_preco_modo']),
+        vitrineOrdem: (j['vitrine_ordem'] as num?)?.toInt() ?? 0,
       );
+
+  Map<String, dynamic> toPatchJson() => {
+    'vitrine': vitrine,
+    'vitrine_destaque': vitrineDestaque,
+    'vitrine_layout': layout.apiValue,
+    'vitrine_titulo': vitrineTitulo,
+    'vitrine_descricao': vitrineDescricao,
+    'vitrine_badge': vitrineBadge,
+    'vitrine_cta': vitrineCta,
+    'vitrine_preco_modo': precoModo.apiValue,
+    'vitrine_ordem': vitrineOrdem,
+  };
 }
 
 class VitrineAgendamentoResumo {
@@ -335,12 +459,12 @@ class VitrineApiException implements Exception {
 
 class VitrineApi {
   VitrineApi({http.Client? client, String? baseUrl, PocketBase? pb})
-      : _client = client ?? http.Client(),
-        _base = (baseUrl ?? pb?.baseURL ?? Env.pbUrl).replaceAll(
-          RegExp(r'/$'),
-          '',
-        ),
-        _pb = pb;
+    : _client = client ?? http.Client(),
+      _base = (baseUrl ?? pb?.baseURL ?? Env.pbUrl).replaceAll(
+        RegExp(r'/$'),
+        '',
+      ),
+      _pb = pb;
 
   final http.Client _client;
   final String _base;
@@ -534,16 +658,25 @@ class VitrineApi {
     String id, {
     bool? vitrine,
     bool? vitrineDestaque,
+    VitrineServicoLayout? layout,
+    String? vitrineTitulo,
+    String? vitrineDescricao,
+    String? vitrineBadge,
+    String? vitrineCta,
+    VitrinePrecoModo? precoModo,
+    int? vitrineOrdem,
   }) async {
-    await _send(
-      'PATCH',
-      '/api/cleanos/vitrine/admin/servicos/$id',
-      {
-        if (vitrine != null) 'vitrine': vitrine,
-        if (vitrineDestaque != null) 'vitrine_destaque': vitrineDestaque,
-      },
-      auth: true,
-    );
+    await _send('PATCH', '/api/cleanos/vitrine/admin/servicos/$id', {
+      if (vitrine != null) 'vitrine': vitrine,
+      if (vitrineDestaque != null) 'vitrine_destaque': vitrineDestaque,
+      if (layout != null) 'vitrine_layout': layout.apiValue,
+      if (vitrineTitulo != null) 'vitrine_titulo': vitrineTitulo,
+      if (vitrineDescricao != null) 'vitrine_descricao': vitrineDescricao,
+      if (vitrineBadge != null) 'vitrine_badge': vitrineBadge,
+      if (vitrineCta != null) 'vitrine_cta': vitrineCta,
+      if (precoModo != null) 'vitrine_preco_modo': precoModo.apiValue,
+      if (vitrineOrdem != null) 'vitrine_ordem': vitrineOrdem,
+    }, auth: true);
   }
 
   Future<List<VitrineOrderBump>> adminListBumps() async {
@@ -586,11 +719,9 @@ class VitrineApi {
   }
 
   Future<List<VitrineAgendamentoResumo>> adminAgendamentos() async {
-    final j = await _get(
-      '/api/cleanos/vitrine/admin/agendamentos',
-      {'limit': '40'},
-      true,
-    );
+    final j = await _get('/api/cleanos/vitrine/admin/agendamentos', {
+      'limit': '40',
+    }, true);
     final items = j['items'];
     if (items is! List) return const [];
     return [

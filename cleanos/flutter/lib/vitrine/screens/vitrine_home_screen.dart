@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+import '../widgets/vitrine_catalogo_personalizavel.dart';
 import '../widgets/vitrine_ui.dart';
 
 class VitrineHomeScreen extends StatefulWidget {
@@ -29,6 +30,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   List<VitrineServico> _catalog = const [];
   List<VitrineOrderBump> _bumps = const [];
   VitrineConfig _config = const VitrineConfig();
+  VitrineBootstrap _bootstrap = const VitrineBootstrap(
+    config: VitrineConfig(),
+    midia: [],
+  );
   Map<String, String> _midia = const {};
   List<String> _cidades = const [];
   String _estado = '';
@@ -55,23 +60,27 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   void initState() {
     super.initState();
     _catalogFuture = vitrineApiProvider.listServicos();
-    vitrineApiProvider.bootstrap().then((b) {
-      if (!mounted) return;
-      setState(() {
-        _config = b.config;
-        _midia = b.midiaByChave;
-        _cidades = b.cidades;
-        _estado = b.estado;
-        // Pré-seleciona cidade se só houver uma, ou se o campo estiver vazio.
-        if (_cidade.text.trim().isEmpty && b.cidades.length == 1) {
-          _cidade.text = b.cidades.first;
-        }
-      });
-    }).catchError((_) {
-      return vitrineApiProvider.getConfig().then((c) {
-        if (mounted) setState(() => _config = c);
-      });
-    });
+    vitrineApiProvider
+        .bootstrap()
+        .then((b) {
+          if (!mounted) return;
+          setState(() {
+            _bootstrap = b;
+            _config = b.config;
+            _midia = b.midiaByChave;
+            _cidades = b.cidades;
+            _estado = b.estado;
+            // Pré-seleciona cidade se só houver uma, ou se o campo estiver vazio.
+            if (_cidade.text.trim().isEmpty && b.cidades.length == 1) {
+              _cidade.text = b.cidades.first;
+            }
+          });
+        })
+        .catchError((_) {
+          return vitrineApiProvider.getConfig().then((c) {
+            if (mounted) setState(() => _config = c);
+          });
+        });
   }
 
   String? _midiaUrl(String chave) {
@@ -139,6 +148,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       _error = null;
     });
     if (step == 3) _loadBumps();
+  }
+
+  void _toggleServico(VitrineServico servico) {
+    setState(() {
+      if (_selected.contains(servico.id)) {
+        _selected.remove(servico.id);
+      } else {
+        _selected.add(servico.id);
+      }
+    });
   }
 
   Future<void> _loadBumps() async {
@@ -413,9 +432,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Home (mockup C1) ─────────────────────────────────────────────────────
 
   Widget _home() {
-    final destaques =
-        _catalog.where((s) => s.vitrineDestaque).take(8).toList();
-    final pkgs = destaques.isNotEmpty ? destaques : _catalog.take(6).toList();
+    final destaques = _catalog.where((s) => s.vitrineDestaque).take(8).toList();
+    final pkgs = <VitrineServico>[
+      ...destaques,
+      ..._catalog.where((s) => !s.vitrineDestaque),
+    ].take(6).toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -487,19 +508,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               label: 'Impermeab.',
               filter: 'imper',
               imageUrl:
-                  _midiaUrl('categoria_imper') ?? _midiaUrl('impermeabilizacao'),
+                  _midiaUrl('categoria_imper') ??
+                  _midiaUrl('impermeabilizacao'),
             ),
             VitrineCatItem(
               icon: Icons.event_seat_outlined,
               label: 'Cadeira',
               filter: 'cadeira',
-              imageUrl:
-                  _midiaUrl('categoria_cadeira') ?? _midiaUrl('cadeira'),
+              imageUrl: _midiaUrl('categoria_cadeira') ?? _midiaUrl('cadeira'),
             ),
-            const VitrineCatItem(
-              icon: Icons.add,
-              label: 'Mais',
-            ),
+            const VitrineCatItem(icon: Icons.add, label: 'Mais'),
           ],
           onTap: (f) {
             setState(() => _groupFilter = f);
@@ -535,67 +553,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 120,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: pkgs.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, i) {
-              final s = pkgs[i];
-              return Container(
-                width: 148,
-                padding: const EdgeInsets.all(14),
-                decoration: VitrineUi.cardDeco(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.nome,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: kFontFamily,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: ClxBrand.navy,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'a partir de',
-                      style: TextStyle(
-                        fontFamily: kFontFamily,
-                        fontSize: 11,
-                        color: ClxBrand.muted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ClxBrand.cyan.withValues(alpha: 0.12),
-                        borderRadius:
-                            BorderRadius.circular(VitrineUi.rPill),
-                      ),
-                      child: Text(
-                        formatCurrency(s.valorBase),
-                        style: const TextStyle(
-                          fontFamily: kFontFamily,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: ClxBrand.primary2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+        VitrineCatalogoPersonalizavel(
+          servicos: pkgs,
+          bootstrap: _bootstrap,
+          selectedIds: _selected,
+          onToggle: (servico) {
+            _toggleServico(servico);
+            _go(1);
+          },
         ),
         if (_config.cidadesTexto.isNotEmpty) ...[
           const SizedBox(height: 18),
@@ -626,73 +591,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Serviços (mockup C2) ─────────────────────────────────────────────────
 
   Widget _servicos() {
-    var list = List<VitrineServico>.from(_catalog);
-    if (_groupFilter != null && _groupFilter!.isNotEmpty) {
-      final f = _groupFilter!.toLowerCase();
-      final filtered = list.where((s) {
-        final g = s.grupo.toLowerCase();
-        final n = s.nome.toLowerCase();
-        final c = s.categoria.toLowerCase();
-        return g.contains(f) || n.contains(f) || c.contains(f);
-      }).toList();
-      if (filtered.isNotEmpty) list = filtered;
-    }
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
-        const Text(
-          'O que precisa higienizar?',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-          ),
+        VitrineCatalogoPersonalizavel(
+          servicos: _catalog,
+          bootstrap: _bootstrap,
+          selectedIds: _selected,
+          onToggle: _toggleServico,
+          initialGroup: _groupFilter,
         ),
-        const SizedBox(height: 6),
-        const Text(
-          'Selecione um ou mais itens para orçar',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 13,
-            color: ClxBrand.muted,
-          ),
-        ),
-        if (_groupFilter != null) ...[
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ActionChip(
-              label: Text('Filtro: $_groupFilter · limpar'),
-              onPressed: () => setState(() => _groupFilter = null),
-            ),
-          ),
-        ],
-        const SizedBox(height: 14),
-        for (final s in list)
-          VitrineServiceRow(
-            nome: s.nome,
-            descricao: s.descricao,
-            preco: formatCurrency(s.valorBase),
-            selected: _selected.contains(s.id),
-            onTap: () => setState(() {
-              if (_selected.contains(s.id)) {
-                _selected.remove(s.id);
-              } else {
-                _selected.add(s.id);
-              }
-            }),
-          ),
-        if (list.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'Nenhum serviço disponível no momento.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: ClxBrand.muted),
-            ),
-          ),
       ],
     );
   }
@@ -763,8 +671,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 13,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(VitrineUi.rMd),
                 borderSide: const BorderSide(color: VitrineUi.line, width: 1.5),
@@ -786,7 +696,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               for (final c in _cidades)
                 DropdownMenuItem(
                   value: c,
-                  child: Text(c, style: const TextStyle(fontFamily: kFontFamily)),
+                  child: Text(
+                    c,
+                    style: const TextStyle(fontFamily: kFontFamily),
+                  ),
                 ),
             ],
             onChanged: (v) {
@@ -954,7 +867,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   color: ClxBrand.cyan,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.info_outline, size: 16, color: Colors.white),
+                child: const Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -1032,8 +949,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     final foto = b.fotoUrl.isNotEmpty
         ? b.fotoUrl
         : (_midiaUrl('bump_${b.id}') ??
-            _midiaUrl('bump_${b.servicoOferta}') ??
-            '');
+              _midiaUrl('bump_${b.servicoOferta}') ??
+              '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -1054,10 +971,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(VitrineUi.rMd),
-              border: Border.all(
-                color: ClxBrand.cyan,
-                width: 1.5,
-              ),
+              border: Border.all(color: ClxBrand.cyan, width: 1.5),
             ),
             child: Row(
               children: [
@@ -1087,8 +1001,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFD97706),
-                            borderRadius:
-                                BorderRadius.circular(VitrineUi.rPill),
+                            borderRadius: BorderRadius.circular(
+                              VitrineUi.rPill,
+                            ),
                           ),
                           child: Text(
                             b.badge,
@@ -1197,7 +1112,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
               final d = dias[i];
-              final sel = _dia != null &&
+              final sel =
+                  _dia != null &&
                   _dia!.year == d.year &&
                   _dia!.month == d.month &&
                   _dia!.day == d.day;
@@ -1214,9 +1130,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 selected: sel,
                 selectedColor: ClxBrand.navy,
                 backgroundColor: Colors.white,
-                side: BorderSide(
-                  color: sel ? ClxBrand.navy : VitrineUi.line,
-                ),
+                side: BorderSide(color: sel ? ClxBrand.navy : VitrineUi.line),
                 onSelected: (_) {
                   setState(() => _dia = d);
                   _loadSlots(d);
@@ -1288,10 +1202,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             children: [
               _mini('Serviços', _picked.map((s) => s.nome).join(' + ')),
               if (_pickedBumps.isNotEmpty)
-                _mini(
-                  'Ofertas',
-                  _pickedBumps.map((b) => b.titulo).join(' + '),
-                ),
+                _mini('Ofertas', _pickedBumps.map((b) => b.titulo).join(' + ')),
               if (_dia != null && _slot != null)
                 _mini(
                   'Quando',
@@ -1345,10 +1256,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     final text = _config.comoFunciona.isNotEmpty
         ? _config.comoFunciona
         : '1) Selecione os serviços\n'
-            '2) Informe contato e endereço\n'
-            '3) Veja o orçamento e ofertas\n'
-            '4) Escolha data e horário\n'
-            '5) Confirmamos no WhatsApp';
+              '2) Informe contato e endereço\n'
+              '3) Veja o orçamento e ofertas\n'
+              '4) Escolha data e horário\n'
+              '5) Confirmamos no WhatsApp';
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
@@ -1454,17 +1365,15 @@ class _SuccessBody extends StatelessWidget {
                 children: [
                   _kv('Protocolo', result.osRef),
                   _kv('Serviço', result.servico),
-                  _kv(
-                    'Data',
-                    () {
-                      try {
-                        return DateFormat('dd/MM/yyyy')
-                            .format(DateTime.parse(result.data));
-                      } catch (_) {
-                        return result.data;
-                      }
-                    }(),
-                  ),
+                  _kv('Data', () {
+                    try {
+                      return DateFormat(
+                        'dd/MM/yyyy',
+                      ).format(DateTime.parse(result.data));
+                    } catch (_) {
+                      return result.data;
+                    }
+                  }()),
                   _kv('Horário', result.hora),
                   if (result.valor > 0)
                     _kv('Total', formatCurrency(result.valor)),
@@ -1500,31 +1409,31 @@ class _SuccessBody extends StatelessWidget {
   }
 
   Widget _kv(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 90,
-              child: Text(
-                k,
-                style: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontSize: 13,
-                  color: ClxBrand.muted,
-                ),
-              ),
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            k,
+            style: const TextStyle(
+              fontFamily: kFontFamily,
+              fontSize: 13,
+              color: ClxBrand.muted,
             ),
-            Expanded(
-              child: Text(
-                v,
-                style: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontWeight: FontWeight.w700,
-                  color: ClxBrand.navy,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        Expanded(
+          child: Text(
+            v,
+            style: const TextStyle(
+              fontFamily: kFontFamily,
+              fontWeight: FontWeight.w700,
+              color: ClxBrand.navy,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
