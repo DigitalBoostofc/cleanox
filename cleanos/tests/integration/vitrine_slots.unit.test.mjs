@@ -105,4 +105,34 @@ describe('vitrine_slots_lib', () => {
     const min = lib.osStartMinOnYmdBrt(utc, '2026-08-05')
     assert.equal(min, 9 * 60)
   })
+
+  it('gerarGradePreferencia: janela cheia sem capacidade', () => {
+    const grade = lib.gerarGradePreferencia({
+      ymd: '2026-08-05',
+      stepMin: 60,
+      janelaInicio: '08:00',
+      janelaFim: '12:00',
+      nowMs: Date.UTC(2026, 6, 1, 12, 0, 0),
+    })
+    assert.deepEqual(
+      grade.map((s) => s.hora),
+      ['08:00', '09:00', '10:00', '11:00'],
+    )
+    assert.deepEqual(grade[0].profissionais, [])
+  })
+
+  it('gerarGradePreferencia: ignora ocupação (preferência livre)', () => {
+    // Mesmo com “agora” no meio do dia, dia futuro devolve grade inteira.
+    const grade = lib.gerarGradePreferencia({
+      ymd: '2026-12-01',
+      stepMin: 30,
+      janelaInicio: '09:00',
+      janelaFim: '10:00',
+      nowMs: Date.now(),
+    })
+    assert.deepEqual(
+      grade.map((s) => s.hora),
+      ['09:00', '09:30'],
+    )
+  })
 })

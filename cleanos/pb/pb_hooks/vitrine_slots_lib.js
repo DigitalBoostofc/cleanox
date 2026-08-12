@@ -124,6 +124,52 @@ function gerarCandidatos(inicioHm, fimHm, servDurMin, stepMin) {
 }
 
 /**
+ * Grade de PREFERÊNCIA do lead (produto 2026-08):
+ * qualquer horário na janela, sem capacidade/disponibilidade/OS.
+ * A equipe confirma depois — OS nasce só `agendada` (Em agendamento).
+ *
+ * @param {object} opts
+ * @param {string} opts.ymd
+ * @param {number} [opts.stepMin]
+ * @param {string} [opts.janelaInicio]
+ * @param {string} [opts.janelaFim]
+ * @param {number} [opts.nowMs]
+ * @param {number} [opts.antecedenciaMinutos] — só evita horários já passados no dia de hoje
+ * @returns {Array<{hora:string, profissionais:string[]}>}
+ */
+function gerarGradePreferencia(opts) {
+  const ymd = String(opts.ymd || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
+  const step = Math.max(15, Number(opts.stepMin) || 30);
+  const a = hmToMin(opts.janelaInicio || "08:00");
+  const b = hmToMin(opts.janelaFim || "18:00");
+  if (a < 0 || b < 0 || b <= a) return [];
+
+  const nowMs = opts.nowMs != null ? Number(opts.nowMs) : Date.now();
+  const brtNow = new Date(nowMs - BRT_OFFSET_MS);
+  const todayYmd =
+    brtNow.getUTCFullYear() +
+    "-" +
+    pad2(brtNow.getUTCMonth() + 1) +
+    "-" +
+    pad2(brtNow.getUTCDate());
+  var minOk = -1;
+  if (ymd === todayYmd) {
+    minOk =
+      brtNow.getUTCHours() * 60 +
+      brtNow.getUTCMinutes() +
+      Math.max(0, Number(opts.antecedenciaMinutos) || 0);
+  }
+
+  const out = [];
+  for (var t = a; t < b; t += step) {
+    if (minOk >= 0 && t <= minOk) continue;
+    out.push({ hora: minToHm(t), profissionais: [] });
+  }
+  return out;
+}
+
+/**
  * Conta quantas OS (intervalos [start,end)) sobrepõem [a0,a1).
  * Inclui OS sem profissional — capacidade operacional, não só agenda por pro.
  */
@@ -295,6 +341,7 @@ module.exports = {
   osStartMinOnYmdBrt,
   brtSlotToUtcPb,
   gerarCandidatos,
+  gerarGradePreferencia,
   calcularSlotsLivres,
   escolherProfissional,
   BRT_OFFSET_MS,

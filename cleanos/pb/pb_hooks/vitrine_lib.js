@@ -908,9 +908,10 @@ function listarOsOcupadasNoDia(app, ymd) {
 }
 
 /**
- * @param {string} [servicoId]  principal (opcional se duracaoMin forçado)
+ * Grade pública de preferência do lead (não é agenda de capacidade).
+ * @param {string} [servicoId]
  * @param {string} ymd
- * @param {number} [duracaoMin] duração total do pacote (soma dos itens)
+ * @param {number} [duracaoMin] — só informativa no token (duração do pacote)
  */
 function slotsDoDia(app, servicoId, ymd, duracaoMin) {
   var dur = Number(duracaoMin) || 0;
@@ -924,21 +925,17 @@ function slotsDoDia(app, servicoId, ymd, duracaoMin) {
   }
   dur = Math.max(30, Math.round(dur));
   const cfg = getConfig(app);
-  const disps = listarDisponibilidades(app);
-  const osOcupadas = listarOsOcupadasNoDia(app, ymd);
-  const livres = slots().calcularSlotsLivres({
+  // Preferência livre: janela CMS + passo. Sem capacidade / OS / disponibilidade.
+  const livres = slots().gerarGradePreferencia({
     ymd: ymd,
-    servicoDurMin: dur,
     stepMin: cfg.passo_min || 30,
-    capacidadeSimultanea: cfg.capacidade_simultanea || 0,
     janelaInicio: cfg.horario_inicio || "08:00",
     janelaFim: cfg.horario_fim || "18:00",
     antecedenciaMinutos: cfg.antecedencia_minutos || 0,
-    disponibilidades: disps,
-    osOcupadas: osOcupadas,
   });
 
-  const exp = Date.now() + 15 * 60 * 1000;
+  // Token válido por 2h — lead preenche dados depois de escolher horário.
+  const exp = Date.now() + 2 * 60 * 60 * 1000;
   const sid = servicoId || (serv && serv.id) || "";
   const out = [];
   for (var i = 0; i < livres.length; i++) {
@@ -947,13 +944,20 @@ function slotsDoDia(app, servicoId, ymd, duracaoMin) {
       s: sid,
       d: ymd,
       h: s.hora,
-      p: s.profissionais || [],
+      p: [],
       e: exp,
       dur: dur,
+      pref: 1,
     });
     out.push({ hora: s.hora, token: token });
   }
-  return { servico: serv, data: ymd, duracao_min: dur, slots: out };
+  return {
+    servico: serv,
+    data: ymd,
+    duracao_min: dur,
+    modo: "preferencia",
+    slots: out,
+  };
 }
 
 function normalizarTelefone(t) {
@@ -1185,7 +1189,7 @@ function resultadoAgendamento(os, ymd, hora, titulo, valor, bairro, cidade) {
     bairro: String(bairro || ""),
     cidade: String(cidade || ""),
     mensagem:
-      "Agendamento confirmado! A Cleanox vai atribuir a equipe. No dia do serviço o pagamento é na maquininha da Cleanox.",
+      "Recebemos seu pedido! A Cleanox vai confirmar o horário e entrar em contato. No dia do serviço o pagamento é na maquininha da Cleanox.",
   };
 }
 
@@ -1308,18 +1312,8 @@ function agendar(app, body) {
     throw new Error("Ainda não atendemos essa cidade.");
   }
 
-  const again = slotsDoDia(app, primaryId, ymd, dur);
-  if (again.error) throw new Error(again.error);
-  var still = null;
-  for (var i = 0; i < (again.slots || []).length; i++) {
-    if (again.slots[i].hora === hora) {
-      still = again.slots[i];
-      break;
-    }
-  }
-  if (!still) {
-    throw new Error("Esse horário acabou de ser preenchido. Escolha outro.");
-  }
+  // Preferência do lead: NÃO revalida capacidade. Equipe confirma no painel
+  // (OS nasce `agendada` / Em agendamento, sem profissional).
 
   const cliente = upsertCliente(app, body);
   const dataHora = slots().brtSlotToUtcPb(ymd, hora);
