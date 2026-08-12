@@ -558,13 +558,14 @@ class VitrineBottomNav extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Ícone branco centralizado. Usa event_available (não _rounded) —
-                // tree-shake web às vezes omitia o glifo rounded e o FAB ficava vazio.
+                // Ícone desenhado (não depende da fonte MaterialIcons no web).
                 child: const Center(
-                  child: Icon(
-                    Icons.event_available,
-                    color: Colors.white,
-                    size: 30,
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CustomPaint(
+                      painter: _VitrineFabCalendarPainter(),
+                    ),
                   ),
                 ),
               ),
@@ -586,6 +587,53 @@ class VitrineBottomNav extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Calendário + check em stroke branco — independente de MaterialIcons (web).
+class _VitrineFabCalendarPainter extends CustomPainter {
+  const _VitrineFabCalendarPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (size.shortestSide * 0.09).clamp(1.8, 2.6)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+    final padX = w * 0.12;
+    final top = h * 0.18;
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTRB(padX, top, w - padX, h * 0.92),
+      Radius.circular(w * 0.14),
+    );
+    canvas.drawRRect(body, stroke);
+
+    // linha do cabeçalho do calendário
+    final headerY = top + (h * 0.92 - top) * 0.30;
+    canvas.drawLine(Offset(padX, headerY), Offset(w - padX, headerY), stroke);
+
+    // argolas
+    final ringTop = h * 0.06;
+    final ringBot = top + h * 0.06;
+    final leftX = w * 0.32;
+    final rightX = w * 0.68;
+    canvas.drawLine(Offset(leftX, ringTop), Offset(leftX, ringBot), stroke);
+    canvas.drawLine(Offset(rightX, ringTop), Offset(rightX, ringBot), stroke);
+
+    // check
+    final check = Path()
+      ..moveTo(w * 0.30, h * 0.62)
+      ..lineTo(w * 0.44, h * 0.74)
+      ..lineTo(w * 0.72, h * 0.48);
+    canvas.drawPath(check, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// CTA sticky do mockup (total + botão pill).
