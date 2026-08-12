@@ -415,20 +415,28 @@ function adminGetConfig(app) {
   return out;
 }
 
+function layoutAdminObrigatorio(body) {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "layout")) {
+    throw new Error("Layout obrigatório.");
+  }
+  const layout = body.layout;
+  if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
+    throw new Error("Layout inválido.");
+  }
+  return layout;
+}
+
 function salvarLayoutRascunho(app, body) {
   const rec = findVitrineConfigRecord(app, true);
-  const source = body && Object.prototype.hasOwnProperty.call(body, "layout")
-    ? body.layout
-    : null;
+  const source = layoutAdminObrigatorio(body);
   rec.set("layout_rascunho", normalizarLayoutVitrine(source));
   app.save(rec);
   return adminGetConfig(app);
 }
 
-function publicarLayoutVitrine(app) {
+function publicarLayoutVitrine(app, layout) {
   const rec = findVitrineConfigRecord(app, true);
-  const draft = rec.get("layout_rascunho") || rec.get("layout_publicado");
-  const snapshot = snapshotLayoutVitrine(layoutVitrineDeCampo(draft));
+  const snapshot = snapshotLayoutVitrine(layoutAdminObrigatorio({ layout: layout }));
   rec.set("layout_rascunho", snapshotLayoutVitrine(snapshot));
   rec.set("layout_publicado", snapshot);
   app.save(rec);

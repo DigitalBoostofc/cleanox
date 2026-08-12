@@ -735,11 +735,13 @@ class VitrineApi {
     return VitrineLayoutAdminState.fromJson(j);
   }
 
-  Future<VitrineLayoutAdminState> adminPublishLayout() async {
+  Future<VitrineLayoutAdminState> adminPublishLayout(
+    VitrinePageLayout layout,
+  ) async {
     final j = await _send(
       'POST',
       '/api/cleanos/vitrine/admin/layout/publicar',
-      const <String, dynamic>{},
+      {'layout': layout.toJson()},
       auth: true,
     );
     return VitrineLayoutAdminState.fromJson(j);

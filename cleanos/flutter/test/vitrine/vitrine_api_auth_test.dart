@@ -83,12 +83,15 @@ void main() {
     );
 
     await api.adminSaveLayoutDraft(layout);
-    await api.adminPublishLayout();
+    await api.adminPublishLayout(VitrinePageLayout.defaults());
 
     expect(requests[0].method, 'PUT');
     expect(requests[0].url.path, '/api/cleanos/vitrine/admin/layout/rascunho');
     expect(jsonDecode(requests[0].body), {'layout': layout.toJson()});
     expect(requests[1].method, 'POST');
     expect(requests[1].url.path, '/api/cleanos/vitrine/admin/layout/publicar');
+    expect(jsonDecode(requests[1].body), {
+      'layout': VitrinePageLayout.defaults().toJson(),
+    });
   });
 }
