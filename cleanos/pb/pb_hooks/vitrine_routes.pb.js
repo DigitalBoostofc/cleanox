@@ -265,7 +265,8 @@ routerAdd(
     try {
       const lib = require(`${__hooks}/vitrine_lib.js`);
       lib.assertVitrineAdmin(e);
-      return e.json(200, lib.publicarLayoutVitrine(e.app));
+      const body = e.requestInfo().body || {};
+      return e.json(200, lib.publicarLayoutVitrine(e.app, body.layout));
     } catch (err) {
       const lib = require(`${__hooks}/vitrine_lib.js`);
       const x = lib.adminHttpError(err);

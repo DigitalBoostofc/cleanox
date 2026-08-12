@@ -136,19 +136,46 @@ describe('layout global da Vitrine', () => {
     assert.equal(result.layout_rascunho.sections[0].id, 'featured')
   })
 
-  it('publicar copia snapshot do rascunho e preserva o rascunho', () => {
+  it('rejeita salvar rascunho sem um layout válido', () => {
+    const app = fakeApp(fakeRecord({}))
+
+    assert.throws(
+      () => lib.salvarLayoutRascunho(app, {}),
+      /Layout.*obrigatório/i,
+    )
+    assert.throws(
+      () => lib.salvarLayoutRascunho(app, { layout: 'inválido' }),
+      /Layout.*inválido/i,
+    )
+  })
+
+  it('publicar copia snapshot enviado e preserva referências independentes', () => {
     const record = fakeRecord({
       layout_rascunho: { sections: [{ id: 'featured', visible: false, variant: 'carousel' }] },
       layout_publicado: { sections: [{ id: 'hero', variant: 'standard' }] },
     })
     const app = fakeApp(record)
 
-    const result = lib.publicarLayoutVitrine(app)
+    const result = lib.publicarLayoutVitrine(app, record.get('layout_rascunho'))
     record.get('layout_rascunho').sections[0].variant = 'compact'
 
     assert.equal(result.layout_publicado.sections[0].id, 'featured')
     assert.equal(result.layout_publicado.sections[0].variant, 'carousel')
     assert.equal(record.get('layout_publicado').sections[0].variant, 'carousel')
+  })
+
+  it('publica atomicamente o snapshot enviado sem usar rascunho concorrente', () => {
+    const record = fakeRecord({
+      layout_rascunho: { sections: [{ id: 'cities', variant: 'compact' }] },
+      layout_publicado: { sections: [{ id: 'hero', variant: 'standard' }] },
+    })
+
+    const result = lib.publicarLayoutVitrine(fakeApp(record), {
+      sections: [{ id: 'featured', visible: false, variant: 'carousel' }],
+    })
+
+    assert.equal(result.layout_publicado.sections[0].id, 'featured')
+    assert.equal(result.layout_rascunho.sections[0].id, 'featured')
   })
 
   it('rotas admin separam salvar rascunho de publicar e exigem admin ou gerente', () => {
@@ -168,7 +195,9 @@ describe('layout global da Vitrine', () => {
     assert.equal(saved.status, 200)
     assert.equal(record.get('layout_publicado').sections[0].variant, 'standard')
 
-    const published = publishRoute(routeEvent(app, 'admin'))
+    const published = publishRoute(routeEvent(app, 'admin', {
+      layout: { sections: [{ id: 'featured', variant: 'impact' }] },
+    }))
     assert.equal(published.status, 200)
     assert.equal(record.get('layout_publicado').sections[0].id, 'featured')
 

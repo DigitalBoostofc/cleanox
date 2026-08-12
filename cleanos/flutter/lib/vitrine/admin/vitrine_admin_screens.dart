@@ -605,8 +605,7 @@ class _VitrineAdminPersonalizarScreenState
     });
     try {
       final api = ref.read(vitrineAdminApiProvider);
-      await api.adminSaveLayoutDraft(_layoutDraft);
-      final state = await api.adminPublishLayout();
+      final state = await api.adminPublishLayout(_layoutDraft);
       if (!mounted) return;
       setState(() {
         _layoutDraft = state.draft;
