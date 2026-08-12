@@ -10,11 +10,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design/tokens.dart';
-import '../core/design/widgets/cleanox_logo.dart';
 import 'admin/vitrine_admin_auth.dart';
 import 'admin/vitrine_admin_screens.dart';
 import 'admin/vitrine_admin_shell.dart';
 import 'screens/vitrine_home_screen.dart';
+import 'widgets/vitrine_ui.dart';
 
 class VitrineApp extends ConsumerWidget {
   const VitrineApp({super.key});
@@ -227,10 +227,7 @@ class VitrineBrandBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: 80,
       title: const Align(
         alignment: Alignment.centerLeft,
-        child: CleanoxLogo(
-          height: 64,
-          variant: CleanoxLogoVariant.primary,
-        ),
+        child: VitrineBrandLogo(),
       ),
       bottom: bottom,
     );

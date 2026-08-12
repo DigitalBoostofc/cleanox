@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/tokens.dart';
-import '../../core/design/widgets/cleanox_logo.dart';
+// logo via Image.asset (assets/brand/logo_cleanox_color.png)
 
 /// Canvas e superfícies do mockup.
 abstract final class VitrineUi {
@@ -17,6 +17,15 @@ abstract final class VitrineUi {
   static const rMd = 14.0;
   static const rLg = 20.0;
   static const rPill = 999.0;
+
+  /// Proporções canônicas do cabeçalho (home, funil, brand bar).
+  static const double headerPadH = 16;
+  static const double headerPadV = 10;
+  /// Altura da faixa de conteúdo do header (alinha logo + ações).
+  static const double headerRowH = 44;
+  static const double logoH = 36;
+  static const double logoW = 140;
+  static const String logoAsset = 'assets/brand/logo_cleanox_color.png';
 
   static BoxDecoration cardDeco({
     Color? border,
@@ -48,6 +57,79 @@ abstract final class VitrineUi {
                 ),
               ],
       );
+}
+
+/// Logo oficial Cleanox — mesmo tamanho em todas as barras da Vitrine.
+class VitrineBrandLogo extends StatelessWidget {
+  const VitrineBrandLogo({
+    super.key,
+    this.onDark = false,
+  });
+
+  /// Se true, fallback de texto fica branco (header legado navy).
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: VitrineUi.logoH,
+      width: VitrineUi.logoW,
+      child: Image.asset(
+        VitrineUi.logoAsset,
+        height: VitrineUi.logoH,
+        width: VitrineUi.logoW,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        filterQuality: FilterQuality.high,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'CLEANOX',
+            style: TextStyle(
+              fontFamily: kFontFamily,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: onDark ? Colors.white : ClxBrand.navy,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Casco comum do cabeçalho claro (mesma altura/padding em todas as telas).
+class VitrineHeaderShell extends StatelessWidget {
+  const VitrineHeaderShell({
+    super.key,
+    required this.child,
+  });
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: VitrineUi.bg,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            VitrineUi.headerPadH,
+            VitrineUi.headerPadV,
+            VitrineUi.headerPadH,
+            VitrineUi.headerPadV,
+          ),
+          child: SizedBox(
+            height: VitrineUi.headerRowH,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Centraliza a experiência pública sem deixar o conteúdo esticar em telas
@@ -115,78 +197,115 @@ class VitrineLightTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Row(
-          children: [
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CleanoxLogo(
-                  height: 30,
-                  width: 30,
-                  variant: CleanoxLogoVariant.mark,
-                ),
-                SizedBox(width: 8),
-                Text.rich(
-                  TextSpan(
+    return VitrineHeaderShell(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const VitrineBrandLogo(),
+          const Spacer(),
+          if ((whatsapp ?? '').trim().isNotEmpty)
+            Material(
+              color: const Color(0x1A059669),
+              borderRadius: BorderRadius.circular(VitrineUi.rPill),
+              child: InkWell(
+                onTap: _openWa,
+                borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextSpan(text: 'CLEAN'),
-                      TextSpan(
-                        text: 'OX',
-                        style: TextStyle(color: ClxBrand.cyan),
+                      Icon(Icons.chat, size: 16, color: Color(0xFF059669)),
+                      SizedBox(width: 6),
+                      Text(
+                        'WhatsApp',
+                        style: TextStyle(
+                          fontFamily: kFontFamily,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
                       ),
                     ],
                   ),
-                  style: TextStyle(
-                    fontFamily: kFontFamily,
-                    color: ClxBrand.navy,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            if ((whatsapp ?? '').trim().isNotEmpty)
-              Material(
-                color: const Color(0x1A059669),
-                borderRadius: BorderRadius.circular(VitrineUi.rPill),
-                child: InkWell(
-                  onTap: _openWa,
-                  borderRadius: BorderRadius.circular(VitrineUi.rPill),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chat, size: 16, color: Color(0xFF059669)),
-                        SizedBox(width: 6),
-                        Text(
-                          'WhatsApp',
-                          style: TextStyle(
-                            fontFamily: kFontFamily,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF059669),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 }
 
-/// Header navy arredondado + pill de passo (telas 1–4 do mockup).
+/// Header claro do funil (passos 1–4): volta + logo + chip de etapa.
+/// Mesmas proporções/logo da home ([VitrineHeaderShell] + [VitrineBrandLogo]).
+class VitrineLightStepHeader extends StatelessWidget {
+  const VitrineLightStepHeader({
+    super.key,
+    required this.stepLabel,
+    this.onBack,
+  });
+
+  final String stepLabel;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return VitrineHeaderShell(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (onBack != null)
+            SizedBox(
+              width: 40,
+              height: VitrineUi.headerRowH,
+              child: IconButton(
+                onPressed: onBack,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: VitrineUi.headerRowH,
+                ),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                color: ClxBrand.navy,
+              ),
+            )
+          else
+            const SizedBox(width: 0),
+          const VitrineBrandLogo(),
+          const Spacer(),
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                  border: Border.all(color: VitrineUi.line),
+                ),
+                child: Text(
+                  stepLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    color: ClxBrand.navy,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Header navy arredondado + pill de passo (legado / opcional).
 class VitrineNavyHeader extends StatelessWidget {
   const VitrineNavyHeader({
     super.key,
@@ -225,10 +344,7 @@ class VitrineNavyHeader extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
           ],
-          const CleanoxLogo(
-            height: 32,
-            variant: CleanoxLogoVariant.fullDark,
-          ),
+          const VitrineBrandLogo(onDark: true),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -253,7 +369,8 @@ class VitrineNavyHeader extends StatelessWidget {
   }
 }
 
-/// Bottom nav mockup: Início · Orçar · Como funciona (sem Conta).
+/// Bottom nav: Início · **Agendar (FAB redondo suspenso)** · Como funciona.
+/// Barra baixa + círculo sobreposto (como o FAB do casco Easypay do painel).
 class VitrineBottomNav extends StatelessWidget {
   const VitrineBottomNav({
     super.key,
@@ -261,74 +378,171 @@ class VitrineBottomNav extends StatelessWidget {
     required this.onTap,
   });
 
-  /// 0 início · 1 orçar · 2 como funciona
+  /// 0 início · 1 agendar · 2 como funciona
   final int index;
   final ValueChanged<int> onTap;
 
+  static const double _fabSize = 58;
+  /// Quanto o FAB sobe por cima da barra (flutuação forte).
+  static const double _fabLift = 36;
+  /// Altura da faixa branca (sem safe-area).
+  static const double _barH = 54;
+  static const double _centerSlot = 84;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x0F0B1D34),
-            blurRadius: 24,
-            offset: Offset(0, -8),
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    // Espaço extra no topo do widget para o FAB não cortar (Stack overflow).
+    return Padding(
+      padding: const EdgeInsets.only(top: _fabLift),
+      child: Material(
+        elevation: 12,
+        shadowColor: const Color(0x1A0B1D34),
+        color: Colors.transparent,
+        child: Container(
+          height: _barH + bottom,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x140B1D34),
+                blurRadius: 20,
+                offset: Offset(0, -4),
+              ),
+            ],
           ),
-        ],
-      ),
-      padding: EdgeInsets.only(
-        left: 8,
-        right: 8,
-        top: 8,
-        bottom: MediaQuery.paddingOf(context).bottom + 8,
-      ),
-      child: Row(
-        children: [
-          _item(0, Icons.home_rounded, 'Início'),
-          _item(1, Icons.checklist_rounded, 'Orçar'),
-          _item(2, Icons.info_outline_rounded, 'Como funciona'),
-        ],
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // Itens laterais na barra baixa; vão centralizados verticalmente.
+                Row(
+                  children: [
+                    _sideItem(0, Icons.home_rounded, 'Início'),
+                    const SizedBox(width: _centerSlot),
+                    _sideItem(2, Icons.info_outline_rounded, 'Como funciona'),
+                  ],
+                ),
+                // FAB suspenso: metade acima da barra, sobreposto.
+                Positioned(
+                  top: -_fabLift,
+                  child: _agendarFab(),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _item(int i, IconData icon, String label) {
+  Widget _sideItem(int i, IconData icon, String label) {
     final on = index == i;
     return Expanded(
       child: InkWell(
         onTap: () => onTap(i),
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: on ? ClxBrand.cyan : ClxBrand.muted,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: on ? ClxBrand.cyan : ClxBrand.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Círculo elevado + label pequena "Agendar" (fica na zona da barra).
+  Widget _agendarFab() {
+    final on = index == 1;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onTap(1),
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: _centerSlot,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 36,
-                height: 32,
+                width: _fabSize,
+                height: _fabSize,
                 decoration: BoxDecoration(
-                  color: on
-                      ? ClxBrand.cyan.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: on
+                        ? const [
+                            Color(0xFF0B1D34),
+                            Color(0xFF0B8A98),
+                            Color(0xFF0EA5B7),
+                          ]
+                        : const [
+                            Color(0xFF0EA5B7),
+                            Color(0xFF0B8A98),
+                          ],
+                  ),
+                  border: Border.all(color: Colors.white, width: 3.5),
+                  boxShadow: [
+                    // Sombra profunda = “descolado” da barra.
+                    BoxShadow(
+                      color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
+                      blurRadius: 22,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 12),
+                    ),
+                    BoxShadow(
+                      color: ClxBrand.cyan.withValues(alpha: 0.55),
+                      blurRadius: 28,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 10),
+                    ),
+                    BoxShadow(
+                      color: ClxBrand.cyan.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: on ? ClxBrand.cyan : ClxBrand.muted,
+                child: const Icon(
+                  Icons.event_available_rounded,
+                  color: Colors.white,
+                  size: 30,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 8),
               Text(
-                label,
+                'Agendar',
+                maxLines: 1,
                 style: TextStyle(
                   fontFamily: kFontFamily,
                   fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: on ? ClxBrand.cyan : ClxBrand.muted,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  color: on ? ClxBrand.cyan : ClxBrand.navy,
                 ),
               ),
             ],
