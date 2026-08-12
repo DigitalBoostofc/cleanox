@@ -80,7 +80,6 @@ void main() {
     ValueChanged<VitrineServico>? onToggle,
     List<VitrineServico>? items,
     String? initialGroup,
-    bool carousel = false,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -95,7 +94,6 @@ void main() {
               selectedIds: const {},
               onToggle: onToggle ?? (_) {},
               initialGroup: initialGroup,
-              carousel: carousel,
             ),
           ),
         ),
@@ -254,18 +252,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('variante carrossel é horizontal e não estoura no mobile', (
-    tester,
-  ) async {
-    tester.platformDispatcher.textScaleFactorTestValue = 2;
-    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await pumpCatalog(tester, size: const Size(390, 844), carousel: true);
-    await tester.pump();
-
-    expect(find.byKey(const Key('vitrine-catalogo-carrossel')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

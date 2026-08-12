@@ -13,7 +13,6 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
     required this.selectedIds,
     required this.onToggle,
     this.initialGroup,
-    this.carousel = false,
     super.key,
   });
 
@@ -22,7 +21,6 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
   final Set<String> selectedIds;
   final ValueChanged<VitrineServico> onToggle;
   final String? initialGroup;
-  final bool carousel;
 
   @override
   State<VitrineCatalogoPersonalizavel> createState() =>
@@ -119,32 +117,6 @@ class _VitrineCatalogoPersonalizavelState
             const SizedBox(height: 20),
             if (_filtered.isEmpty)
               const _EmptyCatalog()
-            else if (widget.carousel)
-              SizedBox(
-                key: const Key('vitrine-catalogo-carrossel'),
-                height:
-                    330 +
-                    120 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 2),
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _filtered.length,
-                  separatorBuilder: (_, __) => SizedBox(width: gap),
-                  itemBuilder: (context, index) {
-                    final servico = _filtered[index];
-                    return SizedBox(
-                      width: mobile
-                          ? constraints.maxWidth * .88
-                          : math.min(360, constraints.maxWidth * .38),
-                      child: _CarouselServiceCard(
-                        servico: servico,
-                        media: widget.bootstrap.capaDoServico(servico.id),
-                        selected: widget.selectedIds.contains(servico.id),
-                        onToggle: () => widget.onToggle(servico),
-                      ),
-                    );
-                  },
-                ),
-              )
             else
               Wrap(
                 spacing: gap,
@@ -365,95 +337,6 @@ class _ServiceLayout extends StatelessWidget {
     );
     return (first, matching.isEmpty ? after.first : matching.first);
   }
-}
-
-class _CarouselServiceCard extends StatelessWidget {
-  const _CarouselServiceCard({
-    required this.servico,
-    required this.media,
-    required this.selected,
-    required this.onToggle,
-  });
-
-  final VitrineServico servico;
-  final VitrineMidia? media;
-  final bool selected;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) => _CardShell(
-    selected: selected,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: 190,
-          child: _ServicePhoto(media: media, icon: _groupIcon(servico.grupo)),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (servico.vitrineBadge.isNotEmpty)
-                  Text(
-                    servico.vitrineBadge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ClxBrand.cyan,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                    ),
-                  ),
-                const SizedBox(height: 6),
-                Text(
-                  servico.tituloComercial,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: ClxBrand.navy,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Text(
-                    servico.descricaoComercial,
-                    maxLines: 5,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: ClxBrand.muted, height: 1.35),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _priceText(servico),
-                  style: const TextStyle(
-                    color: ClxBrand.navy,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: onToggle,
-                    child: Text(
-                      selected ? 'Selecionado' : servico.ctaComercial,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _DestaqueCard extends StatelessWidget {

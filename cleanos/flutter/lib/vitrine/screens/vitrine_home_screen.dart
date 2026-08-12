@@ -14,9 +14,7 @@ import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
 import '../vitrine_booking.dart';
-import '../vitrine_page_layout.dart';
 import '../widgets/vitrine_catalogo_personalizavel.dart';
-import '../widgets/vitrine_page_sections.dart';
 import '../widgets/vitrine_ui.dart';
 
 class VitrineHomeScreen extends StatefulWidget {
@@ -526,216 +524,141 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        VitrinePageSections(
-          layout: _config.pageLayout.sections.isEmpty
-              ? VitrinePageLayout.defaults()
-              : _config.pageLayout,
-          builder: (_, section) => _homeSection(section, pkgs),
+        VitrineHeroCard(
+          title: _config.heroTitulo,
+          subtitle: _config.heroSubtitulo,
+          cta: _config.heroCta,
+          onCta: () => _go(1),
+          imageUrl: _midiaUrl('hero') ?? _midiaUrl('capa'),
         ),
-      ],
-    );
-  }
-
-  Widget _homeSection(VitrinePageSection section, List<VitrineServico> pkgs) {
-    final spacing = section.variant == VitrineSectionVariant.compact
-        ? 12.0
-        : 22.0;
-    final child = switch (section.id) {
-      VitrineSectionId.hero => VitrineHeroCard(
-        title: _config.heroTitulo,
-        subtitle: _config.heroSubtitulo,
-        cta: _config.heroCta,
-        onCta: () => _go(1),
-        imageUrl: _midiaUrl('hero') ?? _midiaUrl('capa'),
-      ),
-      VitrineSectionId.categories => _homeCategories(),
-      VitrineSectionId.featured => _homeFeatured(pkgs, section.variant),
-      VitrineSectionId.catalog => _homeCatalogCta(),
-      VitrineSectionId.howItWorks => _homeHowItWorks(),
-      VitrineSectionId.cities => _homeInfo(
-        Icons.location_on_outlined,
-        'Onde atendemos',
-        _config.cidadesTexto,
-      ),
-      VitrineSectionId.payment => _homeInfo(
-        Icons.credit_card_outlined,
-        'Pagamento no local',
-        _config.rodapeMsg,
-      ),
-      VitrineSectionId.finalCta => _homeFinalCta(),
-      _ => const SizedBox.shrink(),
-    };
-    if (child is SizedBox && child == const SizedBox.shrink()) return child;
-    return Padding(
-      key: ValueKey('vitrine-section-${section.id}'),
-      padding: EdgeInsets.only(bottom: spacing),
-      child: section.variant == VitrineSectionVariant.impact
-          ? DecoratedBox(
-              decoration: BoxDecoration(
-                color: ClxBrand.navy,
-                borderRadius: BorderRadius.circular(VitrineUi.rLg),
-              ),
-              child: Padding(padding: const EdgeInsets.all(16), child: child),
-            )
-          : child,
-    );
-  }
-
-  Widget _homeCategories() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        'O que higienizamos',
-        style: TextStyle(
-          fontFamily: kFontFamily,
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: ClxBrand.navy,
+        const SizedBox(height: 22),
+        const Text(
+          'O que higienizamos',
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: ClxBrand.navy,
+          ),
         ),
-      ),
-      const SizedBox(height: 12),
-      VitrineCategoryGrid(
-        items: [
-          VitrineCatItem(
-            icon: Icons.weekend_outlined,
-            label: 'Sofá',
-            filter: 'sofa',
-            imageUrl: _midiaUrl('categoria_sofa') ?? _midiaUrl('sofa'),
-          ),
-          VitrineCatItem(
-            icon: Icons.bed_outlined,
-            label: 'Colchão',
-            filter: 'colchao',
-            imageUrl: _midiaUrl('categoria_colchao') ?? _midiaUrl('colchao'),
-          ),
-          VitrineCatItem(
-            icon: Icons.chair_outlined,
-            label: 'Poltrona',
-            filter: 'poltrona',
-            imageUrl: _midiaUrl('categoria_poltrona') ?? _midiaUrl('poltrona'),
-          ),
-          VitrineCatItem(
-            icon: Icons.layers_outlined,
-            label: 'Tapete',
-            filter: 'tapete',
-            imageUrl: _midiaUrl('categoria_tapete') ?? _midiaUrl('tapete'),
-          ),
-          VitrineCatItem(
-            icon: Icons.directions_car_outlined,
-            label: 'Automóvel',
-            filter: 'auto',
-            imageUrl: _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
-          ),
-          VitrineCatItem(
-            icon: Icons.auto_awesome,
-            label: 'Impermeab.',
-            filter: 'imper',
-            imageUrl:
-                _midiaUrl('categoria_imper') ?? _midiaUrl('impermeabilizacao'),
-          ),
-          VitrineCatItem(
-            icon: Icons.event_seat_outlined,
-            label: 'Cadeira',
-            filter: 'cadeira',
-            imageUrl: _midiaUrl('categoria_cadeira') ?? _midiaUrl('cadeira'),
-          ),
-          const VitrineCatItem(icon: Icons.add, label: 'Mais'),
-        ],
-        onTap: (filter) {
-          setState(() => _groupFilter = filter);
-          _go(1);
-        },
-      ),
-    ],
-  );
-
-  Widget _homeFeatured(
-    List<VitrineServico> pkgs,
-    VitrineSectionVariant variant,
-  ) => Column(
-    children: [
-      Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Serviços em destaque',
-              style: TextStyle(
-                fontFamily: kFontFamily,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: ClxBrand.navy,
+        const SizedBox(height: 12),
+        VitrineCategoryGrid(
+          items: [
+            VitrineCatItem(
+              icon: Icons.weekend_outlined,
+              label: 'Sofá',
+              filter: 'sofa',
+              imageUrl: _midiaUrl('categoria_sofa') ?? _midiaUrl('sofa'),
+            ),
+            VitrineCatItem(
+              icon: Icons.bed_outlined,
+              label: 'Colchão',
+              filter: 'colchao',
+              imageUrl: _midiaUrl('categoria_colchao') ?? _midiaUrl('colchao'),
+            ),
+            VitrineCatItem(
+              icon: Icons.chair_outlined,
+              label: 'Poltrona',
+              filter: 'poltrona',
+              imageUrl:
+                  _midiaUrl('categoria_poltrona') ?? _midiaUrl('poltrona'),
+            ),
+            VitrineCatItem(
+              icon: Icons.layers_outlined,
+              label: 'Tapete',
+              filter: 'tapete',
+              imageUrl: _midiaUrl('categoria_tapete') ?? _midiaUrl('tapete'),
+            ),
+            VitrineCatItem(
+              icon: Icons.directions_car_outlined,
+              label: 'Automóvel',
+              filter: 'auto',
+              imageUrl: _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
+            ),
+            VitrineCatItem(
+              icon: Icons.auto_awesome,
+              label: 'Impermeab.',
+              filter: 'imper',
+              imageUrl:
+                  _midiaUrl('categoria_imper') ??
+                  _midiaUrl('impermeabilizacao'),
+            ),
+            VitrineCatItem(
+              icon: Icons.event_seat_outlined,
+              label: 'Cadeira',
+              filter: 'cadeira',
+              imageUrl: _midiaUrl('categoria_cadeira') ?? _midiaUrl('cadeira'),
+            ),
+            const VitrineCatItem(icon: Icons.add, label: 'Mais'),
+          ],
+          onTap: (f) {
+            setState(() => _groupFilter = f);
+            _go(1);
+          },
+        ),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Pacotes em destaque',
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: ClxBrand.navy,
+                ),
               ),
             ),
-          ),
-          TextButton(onPressed: () => _go(1), child: const Text('Ver todos')),
-        ],
-      ),
-      VitrineCatalogoPersonalizavel(
-        servicos: pkgs,
-        bootstrap: _bootstrap,
-        selectedIds: _selected,
-        carousel: variant == VitrineSectionVariant.carousel,
-        onToggle: (servico) {
-          _toggleServico(servico);
-          _go(1);
-        },
-      ),
-    ],
-  );
-
-  Widget _homeCatalogCta() => OutlinedButton.icon(
-    onPressed: () => _go(1),
-    icon: const Icon(Icons.grid_view_rounded),
-    label: const Text('Ver catálogo completo'),
-  );
-
-  Widget _homeHowItWorks() =>
-      _homeInfo(Icons.checklist_rounded, 'Como funciona', _config.comoFunciona);
-
-  Widget _homeInfo(IconData icon, String title, String text) {
-    if (text.trim().isEmpty) return const SizedBox.shrink();
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: ClxBrand.cyan),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: ClxBrand.navy,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    text,
-                    style: const TextStyle(color: ClxBrand.muted, height: 1.4),
-                  ),
-                ],
+            TextButton(
+              onPressed: () => _go(1),
+              child: const Text(
+                'Ver todos',
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontWeight: FontWeight.w600,
+                  color: ClxBrand.cyan,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        VitrineCatalogoPersonalizavel(
+          servicos: pkgs,
+          bootstrap: _bootstrap,
+          selectedIds: _selected,
+          onToggle: (servico) {
+            _toggleServico(servico);
+            _go(1);
+          },
+        ),
+        if (_config.cidadesTexto.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          Text(
+            'Atendemos: ${_config.cidadesTexto}',
+            style: const TextStyle(
+              fontFamily: kFontFamily,
+              fontSize: 12,
+              color: ClxBrand.muted,
+            ),
+          ),
+        ],
+        if (_config.rodapeMsg.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            _config.rodapeMsg,
+            style: const TextStyle(
+              fontFamily: kFontFamily,
+              fontSize: 12,
+              color: ClxBrand.muted,
+            ),
+          ),
+        ],
+      ],
     );
   }
-
-  Widget _homeFinalCta() => FilledButton.icon(
-    onPressed: () => _go(1),
-    icon: const Icon(Icons.calendar_month_outlined),
-    label: const Padding(
-      padding: EdgeInsets.symmetric(vertical: 14),
-      child: Text('Começar meu agendamento'),
-    ),
-  );
 
   // ─── Serviços ─────────────────────────────────────────────────────────────
 
@@ -884,10 +807,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           decoration: VitrineUi.cardDeco(),
           child: Column(
             children: [
-              _mini(
-                'Serviços selecionados',
-                _picked.map((s) => s.nome).join(' + '),
-              ),
+              _mini('Serviços selecionados', _picked.map((s) => s.nome).join(' + ')),
               if (_dia != null && _slot != null)
                 _mini(
                   'Quando',
@@ -1154,11 +1074,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 ),
               ),
               for (final s in _picked)
-                _sumRow(
-                  s.nome,
-                  'Serviço selecionado',
-                  formatCurrency(s.valorBase),
-                ),
+                _sumRow(s.nome, 'Serviço selecionado', formatCurrency(s.valorBase)),
               for (final b in _pickedBumps)
                 _sumRow(
                   '+ ${b.titulo}',
@@ -1172,14 +1088,24 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   'OK',
                   mutedValue: true,
                 ),
-              _sumRow('Nome', _nome.text.trim(), 'OK', mutedValue: true),
+              _sumRow(
+                'Nome',
+                _nome.text.trim(),
+                'OK',
+                mutedValue: true,
+              ),
               _sumRow(
                 'WhatsApp',
                 mascaraWhatsapp(_whatsapp.text),
                 'OK',
                 mutedValue: true,
               ),
-              _sumRow('Endereço', endereco, 'OK', mutedValue: true),
+              _sumRow(
+                'Endereço',
+                endereco,
+                'OK',
+                mutedValue: true,
+              ),
             ],
           ),
         ),
@@ -1544,10 +1470,11 @@ class _SuccessBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final local = [
-      if (result.bairro.isNotEmpty) result.bairro,
-      if (result.cidade.isNotEmpty) result.cidade,
-    ].join(' · ');
+    final local =
+        [
+          if (result.bairro.isNotEmpty) result.bairro,
+          if (result.cidade.isNotEmpty) result.cidade,
+        ].join(' · ');
 
     return SafeArea(
       child: Padding(
