@@ -778,10 +778,12 @@ class _VitrineAdminServicosScreenState
 
   Future<void> _openEditor(VitrineAdminServico servico) async {
     final api = ref.read(vitrineAdminApiProvider);
+    final midiaRepo = VitrineMidiaRepository(ref.read(vitrineAdminPbProvider));
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => VitrineServicoEditorDialog(
         servico: servico,
+        midiaRepo: midiaRepo,
         onSave: (draft) => api.adminPatchServico(
           servico.id,
           vitrine: draft['vitrine'] == true,
@@ -825,8 +827,8 @@ class _VitrineAdminServicosScreenState
             const SizedBox(height: 8),
             const Text(
               'Escolha o formato, a mensagem e a posição de cada serviço. '
-              'Use Serviços → Editar → Fotos na Vitrine para capa e galeria '
-              'de cada serviço. Aqui só mídia global (hero/categorias).',
+              'Use o personalizar do serviço para marcar capa / antes / depois '
+              'nas fotos já cadastradas em Serviços → Editar → Fotos na Vitrine.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),

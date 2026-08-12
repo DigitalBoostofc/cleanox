@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+import 'vitrine_midia_repository.dart';
 
 class VitrineServicoEditorDialog extends StatefulWidget {
   const VitrineServicoEditorDialog({
     required this.servico,
+    required this.midiaRepo,
     required this.onSave,
     super.key,
   });
 
   final VitrineAdminServico servico;
+  final VitrineMidiaRepository midiaRepo;
   final Future<void> Function(Map<String, dynamic> draft) onSave;
 
   @override
@@ -33,6 +36,11 @@ class _VitrineServicoEditorDialogState
   bool _saving = false;
   String? _error;
 
+  List<VitrineMidiaItem> _fotos = const [];
+  bool _fotosLoading = true;
+  String? _fotosError;
+  bool _fotosBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +54,7 @@ class _VitrineServicoEditorDialogState
     _precoModo = servico.precoModo;
     _vitrine = servico.vitrine;
     _destaque = servico.vitrineDestaque;
+    _loadFotos();
   }
 
   @override
@@ -58,12 +67,97 @@ class _VitrineServicoEditorDialogState
     super.dispose();
   }
 
+  Future<void> _loadFotos() async {
+    setState(() {
+      _fotosLoading = true;
+      _fotosError = null;
+    });
+    try {
+      final list = await widget.midiaRepo.listByServico(widget.servico.id);
+      if (!mounted) return;
+      setState(() {
+        _fotos = list;
+        _fotosLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _fotosLoading = false;
+        _fotosError = 'Não foi possível carregar as fotos: $e';
+      });
+    }
+  }
+
+  String get _pairId => 'servico_${widget.servico.id}';
+
+  Future<void> _setPapel(VitrineMidiaItem item, String papel) async {
+    if (_fotosBusy) return;
+    setState(() {
+      _fotosBusy = true;
+      _fotosError = null;
+    });
+    try {
+      // Uma capa / um antes / um depois por serviço.
+      if (papel == 'capa' || papel == 'antes' || papel == 'depois') {
+        for (final other in _fotos) {
+          if (other.id == item.id) continue;
+          if (other.papel == papel) {
+            await widget.midiaRepo.update(
+              other.id,
+              papel: 'galeria',
+              parId: '',
+            );
+          }
+        }
+      }
+
+      final parId = (papel == 'antes' || papel == 'depois') ? _pairId : '';
+      await widget.midiaRepo.update(
+        item.id,
+        papel: papel,
+        parId: parId,
+        ordem: papel == 'capa' ? 0 : item.ordem,
+      );
+
+      // Alinha o par do “outro lado” se já existir.
+      if (papel == 'antes' || papel == 'depois') {
+        final otherRole = papel == 'antes' ? 'depois' : 'antes';
+        for (final other in _fotos) {
+          if (other.id == item.id) continue;
+          if (other.papel == otherRole) {
+            await widget.midiaRepo.update(other.id, parId: _pairId);
+          }
+        }
+      }
+
+      await _loadFotos();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _fotosError = 'Falha ao definir papel da foto: $e');
+    } finally {
+      if (mounted) setState(() => _fotosBusy = false);
+    }
+  }
+
   Future<void> _save() async {
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
+      if (_layout == VitrineServicoLayout.antesDepois) {
+        final hasAntes = _fotos.any((f) => f.papel == 'antes');
+        final hasDepois = _fotos.any((f) => f.papel == 'depois');
+        if (_fotos.isNotEmpty && (!hasAntes || !hasDepois)) {
+          setState(() {
+            _saving = false;
+            _error =
+                'No formato Antes e depois, marque uma foto como Antes e '
+                'outra como Depois (ou cadastre fotos no serviço).';
+          });
+          return;
+        }
+      }
       await widget.onSave({
         'vitrine': _vitrine,
         'vitrine_destaque': _destaque,
@@ -85,12 +179,33 @@ class _VitrineServicoEditorDialogState
     }
   }
 
+  VitrineMidiaItem? get _capa {
+    for (final f in _fotos) {
+      if (f.papel == 'capa') return f;
+    }
+    return _fotos.isEmpty ? null : _fotos.first;
+  }
+
+  VitrineMidiaItem? get _antes {
+    for (final f in _fotos) {
+      if (f.papel == 'antes') return f;
+    }
+    return null;
+  }
+
+  VitrineMidiaItem? get _depois {
+    for (final f in _fotos) {
+      if (f.papel == 'depois') return f;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.all(12),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 980, maxHeight: 780),
+        constraints: const BoxConstraints(maxWidth: 980, maxHeight: 820),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
           child: Column(
@@ -134,11 +249,17 @@ class _VitrineServicoEditorDialogState
                       vitrine: _vitrine,
                       destaque: _destaque,
                       error: _error,
+                      fotos: _fotos,
+                      fotosLoading: _fotosLoading,
+                      fotosError: _fotosError,
+                      fotosBusy: _fotosBusy,
                       onChanged: () => setState(() {}),
                       onLayout: (value) => setState(() => _layout = value),
                       onPreco: (value) => setState(() => _precoModo = value),
                       onVitrine: (value) => setState(() => _vitrine = value),
                       onDestaque: (value) => setState(() => _destaque = value),
+                      onSetPapel: _setPapel,
+                      onReloadFotos: _loadFotos,
                     );
                     final preview = _ServicoPreview(
                       servico: widget.servico,
@@ -148,6 +269,9 @@ class _VitrineServicoEditorDialogState
                       cta: _cta.text,
                       layout: _layout,
                       precoModo: _precoModo,
+                      capa: _capa,
+                      antes: _antes,
+                      depois: _depois,
                     );
                     if (constraints.maxWidth < 760) {
                       return ListView(
@@ -220,6 +344,12 @@ class _EditorFields extends StatelessWidget {
     required this.onPreco,
     required this.onVitrine,
     required this.onDestaque,
+    required this.fotos,
+    required this.fotosLoading,
+    required this.fotosBusy,
+    required this.onSetPapel,
+    required this.onReloadFotos,
+    this.fotosError,
     this.error,
   });
 
@@ -237,6 +367,12 @@ class _EditorFields extends StatelessWidget {
   final ValueChanged<VitrinePrecoModo> onPreco;
   final ValueChanged<bool> onVitrine;
   final ValueChanged<bool> onDestaque;
+  final List<VitrineMidiaItem> fotos;
+  final bool fotosLoading;
+  final bool fotosBusy;
+  final String? fotosError;
+  final Future<void> Function(VitrineMidiaItem item, String papel) onSetPapel;
+  final VoidCallback onReloadFotos;
   final String? error;
 
   @override
@@ -337,9 +473,210 @@ class _EditorFields extends StatelessWidget {
           value: destaque,
           onChanged: onDestaque,
         ),
+        const SizedBox(height: 8),
+        _FotosDoServicoSection(
+          layout: layout,
+          fotos: fotos,
+          loading: fotosLoading,
+          busy: fotosBusy,
+          error: fotosError,
+          onSetPapel: onSetPapel,
+          onReload: onReloadFotos,
+        ),
         if (error != null)
-          Text(error!, style: TextStyle(color: Colors.red.shade700)),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(error!, style: TextStyle(color: Colors.red.shade700)),
+          ),
       ],
+    );
+  }
+}
+
+class _FotosDoServicoSection extends StatelessWidget {
+  const _FotosDoServicoSection({
+    required this.layout,
+    required this.fotos,
+    required this.loading,
+    required this.busy,
+    required this.onSetPapel,
+    required this.onReload,
+    this.error,
+  });
+
+  final VitrineServicoLayout layout;
+  final List<VitrineMidiaItem> fotos;
+  final bool loading;
+  final bool busy;
+  final String? error;
+  final Future<void> Function(VitrineMidiaItem item, String papel) onSetPapel;
+  final VoidCallback onReload;
+
+  @override
+  Widget build(BuildContext context) {
+    final needsPair = layout == VitrineServicoLayout.antesDepois;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Fotos do serviço',
+                style: TextStyle(
+                  color: ClxBrand.navy,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Atualizar fotos',
+              onPressed: busy ? null : onReload,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        Text(
+          needsPair
+              ? 'Escolha qual foto é Antes e qual é Depois. '
+                  'Upload de novas fotos: Serviços → Editar → Fotos na Vitrine.'
+              : 'Defina a capa e o papel de cada foto. '
+                  'Upload: Serviços → Editar → Fotos na Vitrine.',
+          style: const TextStyle(fontSize: 12, color: ClxBrand.muted),
+        ),
+        const SizedBox(height: 10),
+        if (error != null) ...[
+          Text(error!, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
+          const SizedBox(height: 8),
+        ],
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (fotos.isEmpty)
+          Container(
+            key: const Key('vitrine-servico-fotos-empty'),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFDCE5EC)),
+              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFFF8FAFC),
+            ),
+            child: const Text(
+              'Nenhuma foto neste serviço ainda. '
+              'Abra Serviços → Editar → Fotos na Vitrine e envie as imagens.',
+              style: TextStyle(color: ClxBrand.muted, fontSize: 13),
+            ),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final foto in fotos)
+                _FotoPapelCard(
+                  foto: foto,
+                  busy: busy,
+                  highlightAntesDepois: needsPair,
+                  onPapel: (papel) => onSetPapel(foto, papel),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _FotoPapelCard extends StatelessWidget {
+  const _FotoPapelCard({
+    required this.foto,
+    required this.busy,
+    required this.onPapel,
+    this.highlightAntesDepois = false,
+  });
+
+  final VitrineMidiaItem foto;
+  final bool busy;
+  final bool highlightAntesDepois;
+  final ValueChanged<String> onPapel;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = foto.displayUrl;
+    final papel = foto.papel.isEmpty ? 'galeria' : foto.papel;
+    return SizedBox(
+      width: 168,
+      child: Container(
+        key: Key('vitrine-servico-foto-${foto.id}'),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: papel == 'capa' || papel == 'antes' || papel == 'depois'
+                ? ClxBrand.cyan
+                : const Color(0xFFDCE5EC),
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: url == null || url.isEmpty
+                  ? const ColoredBox(
+                      color: Color(0xFFE8F4F6),
+                      child: Icon(Icons.image_outlined, color: ClxBrand.cyan),
+                    )
+                  : Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const ColoredBox(
+                        color: Color(0xFFE2E8F0),
+                        child: Icon(Icons.broken_image_outlined),
+                      ),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: DropdownButtonFormField<String>(
+                key: Key('vitrine-servico-foto-papel-${foto.id}'),
+                initialValue: papel,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Papel',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                items: [
+                  const DropdownMenuItem(value: 'capa', child: Text('Capa')),
+                  const DropdownMenuItem(
+                    value: 'galeria',
+                    child: Text('Galeria'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'antes',
+                    child: Text(
+                      highlightAntesDepois ? 'Antes ★' : 'Antes',
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'depois',
+                    child: Text(
+                      highlightAntesDepois ? 'Depois ★' : 'Depois',
+                    ),
+                  ),
+                ],
+                onChanged: busy
+                    ? null
+                    : (value) {
+                        if (value != null) onPapel(value);
+                      },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -353,6 +690,9 @@ class _ServicoPreview extends StatelessWidget {
     required this.cta,
     required this.layout,
     required this.precoModo,
+    this.capa,
+    this.antes,
+    this.depois,
   });
 
   final VitrineAdminServico servico;
@@ -362,6 +702,9 @@ class _ServicoPreview extends StatelessWidget {
   final String cta;
   final VitrineServicoLayout layout;
   final VitrinePrecoModo precoModo;
+  final VitrineMidiaItem? capa;
+  final VitrineMidiaItem? antes;
+  final VitrineMidiaItem? depois;
 
   @override
   Widget build(BuildContext context) {
@@ -410,11 +753,24 @@ class _ServicoPreview extends StatelessWidget {
                         child: layout == VitrineServicoLayout.antesDepois
                             ? Row(
                                 children: [
-                                  Expanded(child: _imagePlaceholder('ANTES')),
-                                  Expanded(child: _imagePlaceholder('DEPOIS')),
+                                  Expanded(
+                                    child: _photoOrLabel(
+                                      antes?.displayUrl,
+                                      'ANTES',
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _photoOrLabel(
+                                      depois?.displayUrl,
+                                      'DEPOIS',
+                                    ),
+                                  ),
                                 ],
                               )
-                            : _imagePlaceholder('FOTO DO SERVIÇO'),
+                            : _photoOrLabel(
+                                capa?.displayUrl,
+                                'FOTO DO SERVIÇO',
+                              ),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -432,9 +788,17 @@ class _ServicoPreview extends StatelessWidget {
     padding: const EdgeInsets.all(16),
     child: Row(
       children: [
-        const CircleAvatar(
-          backgroundColor: Color(0xFFE8F4F6),
-          child: Icon(Icons.auto_awesome, color: ClxBrand.cyan),
+        ClipOval(
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: capa?.displayUrl != null && capa!.displayUrl!.isNotEmpty
+                ? Image.network(capa!.displayUrl!, fit: BoxFit.cover)
+                : const ColoredBox(
+                    color: Color(0xFFE8F4F6),
+                    child: Icon(Icons.auto_awesome, color: ClxBrand.cyan),
+                  ),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -450,6 +814,19 @@ class _ServicoPreview extends StatelessWidget {
       ],
     ),
   );
+
+  Widget _photoOrLabel(String? url, String label) {
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => _imagePlaceholder(label),
+      );
+    }
+    return _imagePlaceholder(label);
+  }
 
   Widget _imagePlaceholder(String label) => Container(
     color: ClxBrand.navy,
