@@ -14,6 +14,12 @@ class VitrineMidiaItem {
     required this.ordem,
     required this.ativo,
     this.fileUrl,
+    this.servicoId = '',
+    this.papel = '',
+    this.parId = '',
+    this.legenda = '',
+    this.focoX = 50,
+    this.focoY = 50,
   });
 
   final String id;
@@ -24,12 +30,25 @@ class VitrineMidiaItem {
   final int ordem;
   final bool ativo;
   final String? fileUrl;
+  final String servicoId;
+  final String papel;
+  final String parId;
+  final String legenda;
+  final double focoX;
+  final double focoY;
 
   String? get displayUrl {
     if (fileUrl != null && fileUrl!.isNotEmpty) return fileUrl;
     if (urlExterna.isNotEmpty) return urlExterna;
     return null;
   }
+
+  String get papelLabel => switch (papel) {
+    'capa' => 'Capa',
+    'antes' => 'Antes',
+    'depois' => 'Depois',
+    _ => 'Galeria',
+  };
 }
 
 class VitrineMidiaRepository {
@@ -71,6 +90,12 @@ class VitrineMidiaRepository {
       ordem: ordem,
       ativo: ativo,
       fileUrl: fileUrl,
+      servicoId: '${data['servico'] ?? ''}',
+      papel: '${data['papel'] ?? ''}',
+      parId: '${data['par_id'] ?? ''}',
+      legenda: '${data['legenda'] ?? ''}',
+      focoX: (data['foco_x'] as num?)?.toDouble() ?? 50,
+      focoY: (data['foco_y'] as num?)?.toDouble() ?? 50,
     );
   }
 
@@ -80,6 +105,12 @@ class VitrineMidiaRepository {
     String urlExterna = '',
     int ordem = 0,
     bool ativo = true,
+    String servicoId = '',
+    String papel = '',
+    String parId = '',
+    String legenda = '',
+    double focoX = 50,
+    double focoY = 50,
     List<int>? fileBytes,
     String? filename,
   }) async {
@@ -89,15 +120,17 @@ class VitrineMidiaRepository {
       'url_externa': urlExterna,
       'ordem': ordem,
       'ativo': ativo,
+      'servico': servicoId,
+      'papel': papel,
+      'par_id': parId,
+      'legenda': legenda,
+      'foco_x': focoX,
+      'foco_y': focoY,
     };
     final files = <http.MultipartFile>[];
     if (fileBytes != null && fileBytes.isNotEmpty && filename != null) {
       files.add(
-        http.MultipartFile.fromBytes(
-          'arquivo',
-          fileBytes,
-          filename: filename,
-        ),
+        http.MultipartFile.fromBytes('arquivo', fileBytes, filename: filename),
       );
     }
     final rec = files.isEmpty
@@ -113,6 +146,12 @@ class VitrineMidiaRepository {
     String? urlExterna,
     int? ordem,
     bool? ativo,
+    String? servicoId,
+    String? papel,
+    String? parId,
+    String? legenda,
+    double? focoX,
+    double? focoY,
     List<int>? fileBytes,
     String? filename,
   }) async {
@@ -122,15 +161,17 @@ class VitrineMidiaRepository {
       if (urlExterna != null) 'url_externa': urlExterna,
       if (ordem != null) 'ordem': ordem,
       if (ativo != null) 'ativo': ativo,
+      if (servicoId != null) 'servico': servicoId,
+      if (papel != null) 'papel': papel,
+      if (parId != null) 'par_id': parId,
+      if (legenda != null) 'legenda': legenda,
+      if (focoX != null) 'foco_x': focoX,
+      if (focoY != null) 'foco_y': focoY,
     };
     final files = <http.MultipartFile>[];
     if (fileBytes != null && fileBytes.isNotEmpty && filename != null) {
       files.add(
-        http.MultipartFile.fromBytes(
-          'arquivo',
-          fileBytes,
-          filename: filename,
-        ),
+        http.MultipartFile.fromBytes('arquivo', fileBytes, filename: filename),
       );
     }
     final rec = files.isEmpty

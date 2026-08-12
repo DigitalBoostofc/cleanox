@@ -1,7 +1,7 @@
 # Vitrine pública + agendamento Cleanox
 
-**Status:** Fase 1 em implementação (MVP agendável, sem Pix).  
-**Plano:** sessão de design 2026-07-21.
+**Status:** MVP agendável + CMS integrado + catálogo personalizável.
+**Plano inicial:** sessão de design 2026-07-21. Catálogo v2: 2026-08-11.
 
 ## Objetivo
 
@@ -36,6 +36,7 @@ rsync -az --delete build/web/ hostinger:/opt/cleanos/vitrine/web/
 | Arquivo | Papel |
 |---------|--------|
 | `pb_migrations/1700000044_vitrine.js` | `origem=vitrine`, `ordens.canal_origem` |
+| `pb_migrations/1700000064_vitrine_catalogo_personalizavel.js` | Layout/copy/preço por serviço e mídia associada |
 | `pb_hooks/vitrine_slots_lib.js` | Motor de slots (testável) |
 | `pb_hooks/vitrine_lib.js` | Catálogo, slots, agendar, rate-limit |
 | `pb_hooks/vitrine_routes.pb.js` | `routerAdd` das rotas |
@@ -47,6 +48,38 @@ rsync -az --delete build/web/ hostinger:/opt/cleanos/vitrine/web/
 - `GET /api/cleanos/vitrine/atuacao`
 - `GET /api/cleanos/vitrine/slots?servico=&data=`
 - `POST /api/cleanos/vitrine/agendar`
+
+## Catálogo personalizável
+
+O CMS fica no painel principal em `/painel/vitrine` e usa a mesma sessão do
+CleanOS. `admin` e `gerente` podem editar; `profissional` não possui acesso.
+
+Cada serviço pode escolher um formato controlado:
+
+- `destaque`: card amplo com fotografia e argumento comercial;
+- `fotografico`: card de imagem dominante para o grid;
+- `antes_depois`: comparação de um par de imagens;
+- `compacto`: linha curta para serviços complementares.
+
+Campos comerciais (`vitrine_titulo`, `vitrine_descricao`, `vitrine_badge`,
+`vitrine_cta`, `vitrine_preco_modo` e `vitrine_ordem`) não alteram nome,
+descrição ou preço operacional da OS. Serviços antigos, com campos vazios,
+usam automaticamente o formato `fotografico`, textos operacionais e preço
+"a partir de".
+
+As imagens continuam em `vitrine_midia`, agora com relação opcional
+`servico`, papel (`capa`, `galeria`, `antes`, `depois`), `par_id`, legenda e
+ponto focal X/Y. Mídias globais antigas (`hero`, `categoria_*`) permanecem
+compatíveis.
+
+O frontend é mobile-first, oferece busca e filtros por grupo e preserva o
+mesmo carrinho e o fluxo de agendamento. Imagem ausente degrada para um
+placeholder da identidade Cleanox; nunca impede o orçamento.
+
+`POST /vitrine/agendar` recalcula nome e preço no servidor; valores enviados
+pelo navegador são ignorados. Promoção de order bump só é aceita quando o
+`order_bump_id` está ativo e elegível para o carrinho. A duração gravada e
+revalidada nunca pode ser menor que a soma canônica dos serviços selecionados.
 
 Opcional em prod: `VITRINE_SLOT_SECRET` (senão cai no `CLEANOS_SERVICE_SECRET`).
 
@@ -61,10 +94,10 @@ Opcional em prod: `VITRINE_SLOT_SECRET` (senão cai no `CLEANOS_SERVICE_SECRET`)
 
 Público: **https://agendar.cleanox.com.br**
 
-## Fora da Fase 1
+## Fora do escopo atual
 
 - Pix adiantado + desconto (Fase 2)
-- Fotos SEO / cupons
+- Cupons
 
 ## Testes
 
