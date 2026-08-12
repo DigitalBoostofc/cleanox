@@ -655,7 +655,7 @@ class _VitrineAdminPersonalizarScreenState
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Grade pública (capacidade)',
+                    'Horários de preferência (site)',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: ClxBrand.navy,
@@ -664,8 +664,9 @@ class _VitrineAdminPersonalizarScreenState
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  '0 em capacidade = usar o número de profissionais com '
-                  'disponibilidade no dia. OS sem profissional também ocupa vaga.',
+                  'O lead escolhe data/hora de preferência na janela abaixo. '
+                  'Não reserva capacidade: a OS cai em Em agendamento e a '
+                  'equipe confirma depois. Passo = intervalo entre opções.',
                   style: TextStyle(fontSize: 12, color: ClxBrand.muted),
                 ),
                 const SizedBox(height: 12),
@@ -673,7 +674,7 @@ class _VitrineAdminPersonalizarScreenState
                   controller: _capacidade,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Capacidade simultânea (0 = automático)',
+                    labelText: 'Capacidade (legado — não usada na Vitrine)',
                   ),
                 ),
                 const SizedBox(height: 12),

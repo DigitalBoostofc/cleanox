@@ -700,7 +700,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Horários reais da operação. Ao confirmar, o horário fica reservado.',
+          'Escolha a data e o horário de preferência. Nossa equipe confirma e entra em contato.',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 13,
@@ -756,7 +756,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           )
         else if (_slots.isEmpty)
           const Text(
-            'Nenhum horário livre neste dia. Tente outra data.',
+            'Nenhum horário nesta data. Tente outro dia.',
             style: TextStyle(color: ClxBrand.muted),
           )
         else ...[
