@@ -406,7 +406,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               if (_step == 0 || _step == 6)
                 VitrineLightTopBar(whatsapp: _config.whatsappExibido)
               else if (_step >= 1 && _step <= 4)
-                VitrineNavyHeader(
+                VitrineLightStepHeader(
                   stepLabel: _stepLabel,
                   onBack: () => _go(_step == 1 ? 0 : _step - 1),
                 ),

@@ -2,6 +2,9 @@
 ///
 /// Assets em `assets/brand/`. Preferir [CleanoxLogoVariant.primary]
 /// (wordmark com fundo transparente) no login e na sidebar.
+///
+/// Em fundo claro, use [color] (ex.: [ClxBrand.navy]) — os PNGs oficiais
+/// são claros/brancos e somem no canvas branco sem tint.
 library;
 
 import 'package:flutter/material.dart';
@@ -17,7 +20,7 @@ enum CleanoxLogoVariant {
   /// Alias do primary (legado).
   fullLight,
 
-  /// Wordmark claro em fundo navy (hero escuro / fintech).
+  /// Wordmark para fundo navy (hero escuro / fintech) — usar com [color] branco.
   fullDark,
 
   /// Wordmark semi-transparente (sobre fundo colorido).
@@ -25,6 +28,9 @@ enum CleanoxLogoVariant {
 
   /// Só o monograma C (sidebar colapsada).
   mark,
+
+  /// Wordmark colorido oficial (navy + ciano) — ideal em fundo claro.
+  colorWordmark,
 }
 
 /// Logo Cleanox reutilizável (login, shell, splash).
@@ -39,6 +45,7 @@ class CleanoxLogo extends StatelessWidget {
     this.width,
     this.variant = CleanoxLogoVariant.primary,
     this.fit = BoxFit.contain,
+    this.color,
   });
 
   /// Altura do box. `double.infinity` preenche o pai (SizedBox/Expanded).
@@ -49,25 +56,31 @@ class CleanoxLogo extends StatelessWidget {
   final CleanoxLogoVariant variant;
   final BoxFit fit;
 
+  /// Se definido, aplica [BlendMode.srcIn] (ex.: navy no fundo claro,
+  /// branco no header navy). Null = cores do PNG.
+  final Color? color;
+
   static const String _primary = 'assets/brand/logo_primary.png';
   static const String _loginLight = 'assets/brand/logo_login_light.png';
   static const String _fullLight = 'assets/brand/logo_full_light.png';
   static const String _fullDark = 'assets/brand/logo_full_dark.png';
   static const String _fullOnColor = 'assets/brand/logo_full_on_color.png';
   static const String _mark = 'assets/brand/logo_mark.png';
+  static const String _colorWordmark = 'assets/brand/logo_cleanox_color.png';
 
   String get _asset => switch (variant) {
-    CleanoxLogoVariant.primary => _primary,
-    CleanoxLogoVariant.loginLight => _loginLight,
-    CleanoxLogoVariant.fullLight => _fullLight,
-    CleanoxLogoVariant.fullDark => _fullDark,
-    CleanoxLogoVariant.fullOnColor => _fullOnColor,
-    CleanoxLogoVariant.mark => _mark,
-  };
+        CleanoxLogoVariant.primary => _primary,
+        CleanoxLogoVariant.loginLight => _loginLight,
+        CleanoxLogoVariant.fullLight => _fullLight,
+        CleanoxLogoVariant.fullDark => _fullDark,
+        CleanoxLogoVariant.fullOnColor => _fullOnColor,
+        CleanoxLogoVariant.mark => _mark,
+        CleanoxLogoVariant.colorWordmark => _colorWordmark,
+      };
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
+    final img = Image.asset(
       _asset,
       height: height,
       width: width,
@@ -78,9 +91,14 @@ class CleanoxLogo extends StatelessWidget {
         return Icon(
           Icons.cleaning_services_rounded,
           size: iconSize,
-          color: Theme.of(context).colorScheme.primary,
+          color: color ?? Theme.of(context).colorScheme.primary,
         );
       },
+    );
+    if (color == null) return img;
+    return ColorFiltered(
+      colorFilter: ColorFilter.mode(color!, BlendMode.srcIn),
+      child: img,
     );
   }
 }
