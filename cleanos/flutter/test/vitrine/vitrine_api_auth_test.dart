@@ -2,6 +2,7 @@
 library;
 
 import 'package:cleanos/vitrine/vitrine_api.dart';
+import 'package:cleanos/vitrine/vitrine_page_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -61,5 +62,33 @@ void main() {
       'vitrine_preco_modo': 'sob_avaliacao',
       'vitrine_ordem': 7,
     });
+  });
+
+  test('salva rascunho e publica layout em endpoints distintos', () async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      return http.Response(
+        jsonEncode({
+          'layout_rascunho': VitrinePageLayout.defaults().toJson(),
+          'layout_publicado': VitrinePageLayout.defaults().toJson(),
+        }),
+        200,
+      );
+    });
+    final api = VitrineApi(client: client, baseUrl: 'https://app.cleanox.test');
+    final layout = VitrinePageLayout.defaults().move(
+      VitrineSectionId.howItWorks,
+      1,
+    );
+
+    await api.adminSaveLayoutDraft(layout);
+    await api.adminPublishLayout();
+
+    expect(requests[0].method, 'PUT');
+    expect(requests[0].url.path, '/api/cleanos/vitrine/admin/layout/rascunho');
+    expect(jsonDecode(requests[0].body), {'layout': layout.toJson()});
+    expect(requests[1].method, 'POST');
+    expect(requests[1].url.path, '/api/cleanos/vitrine/admin/layout/publicar');
   });
 }

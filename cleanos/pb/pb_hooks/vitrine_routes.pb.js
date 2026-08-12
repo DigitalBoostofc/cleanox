@@ -187,7 +187,7 @@ routerAdd(
     try {
       const lib = require(`${__hooks}/vitrine_lib.js`);
       lib.assertVitrineAdmin(e);
-      return e.json(200, lib.getConfig(e.app));
+      return e.json(200, lib.adminGetConfig(e.app));
     } catch (err) {
       const lib = require(`${__hooks}/vitrine_lib.js`);
       const x = lib.adminHttpError(err);
@@ -211,6 +211,65 @@ routerAdd(
       const lib = require(`${__hooks}/vitrine_lib.js`);
       const x = lib.adminHttpError(err);
       console.error("[vitrine admin config put] " + x.error);
+      return e.json(x.status, { error: x.error });
+    }
+  },
+  $apis.requireAuth(),
+);
+
+routerAdd(
+  "GET",
+  "/api/cleanos/vitrine/admin/layout",
+  (e) => {
+    try {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      lib.assertVitrineAdmin(e);
+      const config = lib.adminGetConfig(e.app);
+      return e.json(200, {
+        layout_rascunho: config.layout_rascunho,
+        layout_publicado: config.layout_publicado,
+      });
+    } catch (err) {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      const x = lib.adminHttpError(err);
+      console.error("[vitrine admin layout get] " + x.error);
+      return e.json(x.status, { error: x.error });
+    }
+  },
+  $apis.requireAuth(),
+);
+
+routerAdd(
+  "PUT",
+  "/api/cleanos/vitrine/admin/layout/rascunho",
+  (e) => {
+    try {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      lib.assertVitrineAdmin(e);
+      const body = e.requestInfo().body || {};
+      return e.json(200, lib.salvarLayoutRascunho(e.app, body));
+    } catch (err) {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      const x = lib.adminHttpError(err);
+      console.error("[vitrine admin layout draft] " + x.error);
+      return e.json(x.status, { error: x.error });
+    }
+  },
+  $apis.requireAuth(),
+);
+
+routerAdd(
+  "POST",
+  "/api/cleanos/vitrine/admin/layout/publicar",
+  (e) => {
+    try {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      lib.assertVitrineAdmin(e);
+      return e.json(200, lib.publicarLayoutVitrine(e.app));
+    } catch (err) {
+      const lib = require(`${__hooks}/vitrine_lib.js`);
+      const x = lib.adminHttpError(err);
+      console.error("[vitrine admin layout publish] " + x.error);
       return e.json(x.status, { error: x.error });
     }
   },

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
 
 import '../core/env/env.dart';
+import 'vitrine_page_layout.dart';
 
 enum VitrineServicoLayout {
   destaque('destaque'),
@@ -258,12 +259,32 @@ class VitrineBootstrap {
   }
 }
 
+class VitrineLayoutAdminState {
+  const VitrineLayoutAdminState({required this.draft, required this.published});
+
+  final VitrinePageLayout draft;
+  final VitrinePageLayout published;
+
+  factory VitrineLayoutAdminState.fromJson(Map<String, dynamic> json) =>
+      VitrineLayoutAdminState(
+        draft: VitrinePageLayout.fromJson(
+          json['layout_rascunho'] is Map<String, dynamic>
+              ? json['layout_rascunho'] as Map<String, dynamic>
+              : null,
+        ),
+        published: VitrinePageLayout.fromJson(
+          json['layout_publicado'] is Map<String, dynamic>
+              ? json['layout_publicado'] as Map<String, dynamic>
+              : null,
+        ),
+      );
+}
+
 class VitrineConfig {
   const VitrineConfig({
     this.id = '',
     this.heroTitulo = 'Agende seu serviço',
-    this.heroSubtitulo =
-        'Escolha o que precisa limpar e marque data e horário',
+    this.heroSubtitulo = 'Escolha o que precisa limpar e marque data e horário',
     this.heroCta = 'Agendar agora',
     this.whatsappExibido = '',
     this.rodapeMsg = 'Pagamento só no local · maquininha Cleanox',
@@ -280,6 +301,7 @@ class VitrineConfig {
     this.passoMin = 30,
     this.antecedenciaMinutos = 60,
     this.horizonteDias = 14,
+    this.pageLayout = const VitrinePageLayout([]),
   });
 
   final String id;
@@ -296,6 +318,7 @@ class VitrineConfig {
   final int passoMin;
   final int antecedenciaMinutos;
   final int horizonteDias;
+  final VitrinePageLayout pageLayout;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
@@ -314,6 +337,11 @@ class VitrineConfig {
     passoMin: (j['passo_min'] as num?)?.toInt() ?? 30,
     antecedenciaMinutos: (j['antecedencia_minutos'] as num?)?.toInt() ?? 60,
     horizonteDias: (j['horizonte_dias'] as num?)?.toInt() ?? 14,
+    pageLayout: VitrinePageLayout.fromJson(
+      j['layout_publicado'] is Map<String, dynamic>
+          ? j['layout_publicado'] as Map<String, dynamic>
+          : null,
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -346,6 +374,7 @@ class VitrineConfig {
     int? passoMin,
     int? antecedenciaMinutos,
     int? horizonteDias,
+    VitrinePageLayout? pageLayout,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -361,6 +390,7 @@ class VitrineConfig {
     passoMin: passoMin ?? this.passoMin,
     antecedenciaMinutos: antecedenciaMinutos ?? this.antecedenciaMinutos,
     horizonteDias: horizonteDias ?? this.horizonteDias,
+    pageLayout: pageLayout ?? this.pageLayout,
   );
 }
 
@@ -689,6 +719,30 @@ class VitrineApi {
       auth: true,
     );
     return VitrineConfig.fromJson(j);
+  }
+
+  Future<VitrineLayoutAdminState> adminGetLayout() async {
+    final j = await _get('/api/cleanos/vitrine/admin/layout', null, true);
+    return VitrineLayoutAdminState.fromJson(j);
+  }
+
+  Future<VitrineLayoutAdminState> adminSaveLayoutDraft(
+    VitrinePageLayout layout,
+  ) async {
+    final j = await _send('PUT', '/api/cleanos/vitrine/admin/layout/rascunho', {
+      'layout': layout.toJson(),
+    }, auth: true);
+    return VitrineLayoutAdminState.fromJson(j);
+  }
+
+  Future<VitrineLayoutAdminState> adminPublishLayout() async {
+    final j = await _send(
+      'POST',
+      '/api/cleanos/vitrine/admin/layout/publicar',
+      const <String, dynamic>{},
+      auth: true,
+    );
+    return VitrineLayoutAdminState.fromJson(j);
   }
 
   Future<List<VitrineAdminServico>> adminListServicos() async {
