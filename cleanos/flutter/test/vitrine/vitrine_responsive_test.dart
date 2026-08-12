@@ -62,7 +62,7 @@ void main() {
       const MaterialApp(
         home: Scaffold(
           body: VitrineContentFrame(
-            maxWidth: 1180,
+            maxWidth: VitrineUi.contentMaxWidth,
             child: ColoredBox(key: Key('content'), color: Colors.cyan),
           ),
         ),
@@ -70,7 +70,7 @@ void main() {
     );
 
     final content = tester.getRect(find.byKey(const Key('content')));
-    expect(content.width, 1180);
+    expect(content.width, VitrineUi.contentMaxWidth);
     expect(content.center.dx, 720);
 
     tester.view.physicalSize = const Size(390, 844);

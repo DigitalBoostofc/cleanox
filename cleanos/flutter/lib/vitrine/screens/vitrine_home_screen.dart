@@ -434,7 +434,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 ),
               Expanded(
                 child: VitrineContentFrame(
-                  maxWidth: _step == 0 ? 1180 : 760,
+                  maxWidth: VitrineUi.contentMaxWidth,
                   child: _body(),
                 ),
               ),

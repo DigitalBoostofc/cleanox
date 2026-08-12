@@ -19,6 +19,9 @@ abstract final class VitrineUi {
   static const rLg = 20.0;
   static const rPill = 999.0;
 
+  /// Largura máxima do conteúdo público (home + todas as etapas do funil).
+  static const double contentMaxWidth = 1180;
+
   /// Proporções canônicas do cabeçalho (home, funil, brand bar).
   static const double headerPadH = 16;
   static const double headerPadV = 10;
@@ -169,7 +172,7 @@ class VitrineContentFrame extends StatelessWidget {
   const VitrineContentFrame({
     super.key,
     required this.child,
-    this.maxWidth = 760,
+    this.maxWidth = VitrineUi.contentMaxWidth,
   });
 
   final Widget child;
@@ -675,7 +678,7 @@ class VitrineStickyBar extends StatelessWidget {
       ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
+          constraints: const BoxConstraints(maxWidth: VitrineUi.contentMaxWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
