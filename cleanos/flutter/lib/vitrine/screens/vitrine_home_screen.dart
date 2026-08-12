@@ -63,7 +63,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   bool _submitting = false;
   String? _error;
   VitrineAgendarResult? _ok;
-  String? _groupFilter;
+  String? _categoriaFilter; // residencial | veicular
+  String? _familiaFilter; // sofa | colchao | …
   String? _idempotencyKey;
   int _duracaoNoSlot = 0;
 
@@ -533,7 +534,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         ),
         const SizedBox(height: 22),
         const Text(
-          'O que higienizamos',
+          'O que você procura?',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 15,
@@ -542,57 +543,23 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        VitrineCategoryGrid(
-          items: [
-            VitrineCatItem(
-              icon: Icons.weekend_outlined,
-              label: 'Sofá',
-              filter: 'sofa',
-              imageUrl: _midiaUrl('categoria_sofa') ?? _midiaUrl('sofa'),
-            ),
-            VitrineCatItem(
-              icon: Icons.bed_outlined,
-              label: 'Colchão',
-              filter: 'colchao',
-              imageUrl: _midiaUrl('categoria_colchao') ?? _midiaUrl('colchao'),
-            ),
-            VitrineCatItem(
-              icon: Icons.chair_outlined,
-              label: 'Poltrona',
-              filter: 'poltrona',
-              imageUrl:
-                  _midiaUrl('categoria_poltrona') ?? _midiaUrl('poltrona'),
-            ),
-            VitrineCatItem(
-              icon: Icons.layers_outlined,
-              label: 'Tapete',
-              filter: 'tapete',
-              imageUrl: _midiaUrl('categoria_tapete') ?? _midiaUrl('tapete'),
-            ),
-            VitrineCatItem(
-              icon: Icons.directions_car_outlined,
-              label: 'Automóvel',
-              filter: 'auto',
-              imageUrl: _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
-            ),
-            VitrineCatItem(
-              icon: Icons.auto_awesome,
-              label: 'Impermeab.',
-              filter: 'imper',
-              imageUrl:
-                  _midiaUrl('categoria_imper') ??
-                  _midiaUrl('impermeabilizacao'),
-            ),
-            VitrineCatItem(
-              icon: Icons.event_seat_outlined,
-              label: 'Cadeira',
-              filter: 'cadeira',
-              imageUrl: _midiaUrl('categoria_cadeira') ?? _midiaUrl('cadeira'),
-            ),
-            const VitrineCatItem(icon: Icons.add, label: 'Mais'),
-          ],
-          onTap: (f) {
-            setState(() => _groupFilter = f);
+        VitrineMacroChoice(
+          residencialImageUrl:
+              _midiaUrl('categoria_residencial') ?? _midiaUrl('categoria_sofa'),
+          automotivaImageUrl:
+              _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
+          onResidencial: () {
+            setState(() {
+              _categoriaFilter = 'residencial';
+              _familiaFilter = null;
+            });
+            _go(1);
+          },
+          onAutomotiva: () {
+            setState(() {
+              _categoriaFilter = 'veicular';
+              _familiaFilter = null;
+            });
             _go(1);
           },
         ),
@@ -611,7 +578,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               ),
             ),
             TextButton(
-              onPressed: () => _go(1),
+              onPressed: () {
+                setState(() {
+                  _categoriaFilter = null;
+                  _familiaFilter = null;
+                });
+                _go(1);
+              },
               child: const Text(
                 'Ver todos',
                 style: TextStyle(
@@ -671,7 +644,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           bootstrap: _bootstrap,
           selectedIds: _selected,
           onToggle: _toggleServico,
-          initialGroup: _groupFilter,
+          initialCategoria: _categoriaFilter,
+          initialGroup: _familiaFilter,
         ),
       ],
     );

@@ -8,13 +8,14 @@ VitrineServico service(
   String nome,
   VitrineServicoLayout layout, {
   String grupo = 'sofa',
+  String categoria = 'residencial',
   String cta = '',
   String? descricao,
 }) => VitrineServico(
   id: id,
   nome: nome,
   descricao: descricao ?? 'Descrição de $nome',
-  categoria: '',
+  categoria: categoria,
   grupo: grupo,
   valorBase: 180,
   valorBaseMax: 0,
@@ -80,6 +81,7 @@ void main() {
     ValueChanged<VitrineServico>? onToggle,
     List<VitrineServico>? items,
     String? initialGroup,
+    String? initialCategoria,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -94,6 +96,7 @@ void main() {
               selectedIds: const {},
               onToggle: onToggle ?? (_) {},
               initialGroup: initialGroup,
+              initialCategoria: initialCategoria,
             ),
           ),
         ),
@@ -149,12 +152,14 @@ void main() {
         'Interior automotivo',
         VitrineServicoLayout.fotografico,
         grupo: 'automotivo',
+        categoria: 'veicular',
       ),
       service(
         'imper',
         'Impermeabilização',
         VitrineServicoLayout.compacto,
         grupo: 'adicional',
+        categoria: 'residencial',
       ),
     ];
 
@@ -173,6 +178,34 @@ void main() {
     );
     expect(find.text('Interior automotivo'), findsOneWidget);
     expect(find.text('Impermeabilização'), findsOneWidget);
+  });
+
+  testWidgets('filtra por categoria macro residencial/veicular', (tester) async {
+    final items = [
+      service(
+        'sofa',
+        'Sofá 3 lugares',
+        VitrineServicoLayout.fotografico,
+        grupo: 'sofa',
+        categoria: 'residencial',
+      ),
+      service(
+        'banco',
+        'Bancos automotivos',
+        VitrineServicoLayout.fotografico,
+        grupo: 'auto',
+        categoria: 'veicular',
+      ),
+    ];
+    await pumpCatalog(tester, items: items, initialCategoria: 'residencial');
+    expect(find.text('Sofá 3 lugares'), findsOneWidget);
+    expect(find.text('Bancos automotivos'), findsNothing);
+    expect(find.text('Higienização residencial'), findsOneWidget);
+
+    await pumpCatalog(tester, items: items, initialCategoria: 'veicular');
+    expect(find.text('Sofá 3 lugares'), findsNothing);
+    expect(find.text('Bancos automotivos'), findsOneWidget);
+    expect(find.text('Estética automotiva'), findsOneWidget);
   });
 
   testWidgets('sem botão Ver foto; carrossel com 2+ fotos do serviço', (
@@ -264,7 +297,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Encontre o cuidado certo'), findsOneWidget);
+    expect(find.text('Todos os serviços'), findsOneWidget);
     expect(
       find.byKey(const Key('vitrine-layout-destaque-hero')),
       findsOneWidget,

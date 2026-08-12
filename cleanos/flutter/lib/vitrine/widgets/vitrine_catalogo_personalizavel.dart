@@ -16,6 +16,7 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
     required this.bootstrap,
     required this.selectedIds,
     required this.onToggle,
+    this.initialCategoria,
     this.initialGroup,
     super.key,
   });
@@ -24,6 +25,11 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
   final VitrineBootstrap bootstrap;
   final Set<String> selectedIds;
   final ValueChanged<VitrineServico> onToggle;
+
+  /// Macro: `residencial` | `veicular` (categoria do serviço).
+  final String? initialCategoria;
+
+  /// Família / grupo: sofa, colchao, poltrona… (chip opcional).
   final String? initialGroup;
 
   @override
@@ -34,58 +40,105 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
 class _VitrineCatalogoPersonalizavelState
     extends State<VitrineCatalogoPersonalizavel> {
   String _query = '';
+  late String _categoria;
   late String _group;
+
+  /// Grupos comerciais — não entram como “família” de produto.
+  static const _gruposComerciais = {
+    'plano',
+    'promocao',
+    'promoção',
+    'adicional',
+    'avulsos',
+    'outros',
+  };
 
   @override
   void initState() {
     super.initState();
-    _group = widget.initialGroup ?? '';
+    _categoria = (widget.initialCategoria ?? '').trim().toLowerCase();
+    _group = (widget.initialGroup ?? '').trim().toLowerCase();
   }
 
   @override
   void didUpdateWidget(covariant VitrineCatalogoPersonalizavel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialCategoria != widget.initialCategoria) {
+      _categoria = (widget.initialCategoria ?? '').trim().toLowerCase();
+    }
     if (oldWidget.initialGroup != widget.initialGroup) {
-      _group = widget.initialGroup ?? '';
+      _group = (widget.initialGroup ?? '').trim().toLowerCase();
     }
   }
 
-  bool _matchesGroup(VitrineServico servico, String filter) {
-    final needle = filter.trim().toLowerCase();
-    if (needle.isEmpty) return true;
-    return servico.grupo.toLowerCase().contains(needle) ||
-        servico.categoria.toLowerCase().contains(needle) ||
-        servico.nome.toLowerCase().contains(needle) ||
-        servico.tituloComercial.toLowerCase().contains(needle);
+  bool _matchesCategoria(VitrineServico servico, String cat) {
+    if (cat.isEmpty) return true;
+    final c = servico.categoria.trim().toLowerCase();
+    if (c == cat) return true;
+    // Fallbacks se cadastro antigo misturar rótulos.
+    if (cat == 'veicular') {
+      return c.contains('veic') ||
+          c.contains('auto') ||
+          servico.grupo.toLowerCase().contains('auto');
+    }
+    if (cat == 'residencial') {
+      return c.contains('resid') ||
+          c.contains('domic') ||
+          (!c.contains('veic') && !c.contains('auto'));
+    }
+    return false;
   }
+
+  bool _matchesFamilia(VitrineServico servico, String familia) {
+    final needle = familia.trim().toLowerCase();
+    if (needle.isEmpty) return true;
+    final g = servico.grupo.toLowerCase();
+    final nome = servico.nome.toLowerCase();
+    final titulo = servico.tituloComercial.toLowerCase();
+    if (g == needle || g.contains(needle)) return true;
+    // Prefixos comuns (auto → automotivo, imper → impermeabilização).
+    return nome.contains(needle) || titulo.contains(needle);
+  }
+
+  List<VitrineServico> get _byCategoria => [
+    for (final s in widget.servicos)
+      if (_matchesCategoria(s, _categoria)) s,
+  ];
 
   List<VitrineServico> get _filtered {
     final query = _query.trim().toLowerCase();
-    final groupMatches = _group.isEmpty
-        ? const <String>{}
-        : {
-            for (final servico in widget.servicos)
-              if (_matchesGroup(servico, _group)) servico.id,
-          };
-    final applyGroup = _group.isNotEmpty && groupMatches.isNotEmpty;
+    final byFamily = [
+      for (final servico in _byCategoria)
+        if (_matchesFamilia(servico, _group)) servico,
+    ];
+    // Família sem match → não esvazia o catálogo (atalhos legados / typos).
+    final base =
+        (_group.isNotEmpty && byFamily.isEmpty) ? _byCategoria : byFamily;
     return [
-      for (final servico in widget.servicos)
-        if ((!applyGroup || groupMatches.contains(servico.id)) &&
-            (query.isEmpty ||
-                servico.tituloComercial.toLowerCase().contains(query) ||
-                servico.descricaoComercial.toLowerCase().contains(query) ||
-                servico.grupo.toLowerCase().contains(query)))
+      for (final servico in base)
+        if (query.isEmpty ||
+            servico.tituloComercial.toLowerCase().contains(query) ||
+            servico.descricaoComercial.toLowerCase().contains(query) ||
+            servico.grupo.toLowerCase().contains(query) ||
+            servico.nome.toLowerCase().contains(query))
           servico,
     ];
   }
 
+  List<String> get _familias {
+    final out = <String>[];
+    for (final servico in _byCategoria) {
+      final g = servico.grupo.trim().toLowerCase();
+      if (g.isEmpty || _gruposComerciais.contains(g)) continue;
+      if (!out.contains(g)) out.add(g);
+    }
+    out.sort();
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final groups = <String>[];
-    for (final servico in widget.servicos) {
-      final group = servico.grupo.trim();
-      if (group.isNotEmpty && !groups.contains(group)) groups.add(group);
-    }
+    final familias = _familias;
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 680;
@@ -94,24 +147,46 @@ class _VitrineCatalogoPersonalizavelState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CatalogHeader(onSearch: (value) => setState(() => _query = value)),
-            if (groups.isNotEmpty) ...[
+            _CatalogHeader(
+              categoria: _categoria,
+              onSearch: (value) => setState(() => _query = value),
+              onClearCategoria: _categoria.isEmpty
+                  ? null
+                  : () => setState(() {
+                      _categoria = '';
+                      _group = '';
+                    }),
+            ),
+            if (_categoria.isNotEmpty || familias.isNotEmpty) ...[
               const SizedBox(height: 14),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    if (_categoria.isNotEmpty) ...[
+                      _FilterChip(
+                        label: _categoria == 'veicular'
+                            ? 'Automotiva'
+                            : 'Residencial',
+                        selected: true,
+                        onTap: () => setState(() {
+                          _categoria = '';
+                          _group = '';
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     _FilterChip(
-                      label: 'Todos',
+                      label: 'Todas as famílias',
                       selected: _group.isEmpty,
                       onTap: () => setState(() => _group = ''),
                     ),
-                    for (final group in groups) ...[
+                    for (final familia in familias) ...[
                       const SizedBox(width: 8),
                       _FilterChip(
-                        label: _groupLabel(group),
-                        selected: _group == group,
-                        onTap: () => setState(() => _group = group),
+                        label: _groupLabel(familia),
+                        selected: _group == familia,
+                        onTap: () => setState(() => _group = familia),
                       ),
                     ],
                   ],
@@ -152,12 +227,23 @@ class _VitrineCatalogoPersonalizavelState
 }
 
 class _CatalogHeader extends StatelessWidget {
-  const _CatalogHeader({required this.onSearch});
+  const _CatalogHeader({
+    required this.onSearch,
+    required this.categoria,
+    this.onClearCategoria,
+  });
 
   final ValueChanged<String> onSearch;
+  final String categoria;
+  final VoidCallback? onClearCategoria;
 
   @override
   Widget build(BuildContext context) {
+    final macro = categoria == 'veicular'
+        ? 'Estética automotiva'
+        : categoria == 'residencial'
+        ? 'Higienização residencial'
+        : 'Todos os serviços';
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -181,19 +267,33 @@ class _CatalogHeader extends StatelessWidget {
               ),
               const SizedBox(height: 7),
               Text(
-                'Encontre o cuidado certo',
+                macro,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: narrow ? 25 : 32,
+                  fontSize: narrow ? 22 : 28,
                   height: 1.08,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 7),
-              const Text(
-                'Cada serviço mostra o resultado do jeito que melhor explica o cuidado.',
-                style: TextStyle(color: Colors.white70, height: 1.4),
+              Text(
+                categoria.isEmpty
+                    ? 'Use os chips de família (sofá, colchão…) para refinar.'
+                    : 'Filtre por família abaixo ou busque pelo nome do serviço.',
+                style: const TextStyle(color: Colors.white70, height: 1.4),
               ),
+              if (onClearCategoria != null) ...[
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: onClearCategoria,
+                  style: TextButton.styleFrom(
+                    foregroundColor: ClxBrand.cyan,
+                    padding: EdgeInsets.zero,
+                  ),
+                  icon: const Icon(Icons.clear_all, size: 18),
+                  label: const Text('Ver todas as categorias'),
+                ),
+              ],
             ],
           );
           final search = TextField(
@@ -202,11 +302,11 @@ class _CatalogHeader extends StatelessWidget {
             style: const TextStyle(color: ClxBrand.navy),
             decoration: InputDecoration(
               hintText: 'Buscar serviço',
-              prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white,
+              prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -214,14 +314,14 @@ class _CatalogHeader extends StatelessWidget {
           if (narrow) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [title, const SizedBox(height: 18), search],
+              children: [title, const SizedBox(height: 16), search],
             );
           }
           return Row(
             children: [
-              Expanded(flex: 3, child: title),
-              const SizedBox(width: 36),
-              Expanded(flex: 2, child: search),
+              Expanded(child: title),
+              const SizedBox(width: 20),
+              SizedBox(width: 280, child: search),
             ],
           );
         },
