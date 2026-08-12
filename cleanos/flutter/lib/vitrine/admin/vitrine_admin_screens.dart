@@ -825,7 +825,8 @@ class _VitrineAdminServicosScreenState
             const SizedBox(height: 8),
             const Text(
               'Escolha o formato, a mensagem e a posição de cada serviço. '
-              'Use Mídia para definir capa, galeria ou antes/depois.',
+              'Use Serviços → Editar → Fotos na Vitrine para capa e galeria '
+              'de cada serviço. Aqui só mídia global (hero/categorias).',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1279,19 +1280,32 @@ class _VitrineAdminMidiaScreenState
   }
 
   void _reload() {
-    _future = _repo.list();
+    _future = _repo.list().then(
+      (items) => [
+        for (final m in items)
+          if (m.servicoId.trim().isEmpty) m,
+      ],
+    );
   }
 
   Future<void> _openEditor([VitrineMidiaItem? existing]) async {
-    final servicos = await ref
-        .read(vitrineAdminApiProvider)
-        .adminListServicos();
+    // Só mídia global — fotos de serviço ficam em Serviços → Editar.
+    if (existing != null && existing.servicoId.trim().isNotEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Foto de serviço: edite em Serviços → Editar → Fotos na Vitrine.',
+          ),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => VitrineMidiaEditorDialog(
         existing: existing,
-        servicos: servicos,
         onSave:
             ({
               required chave,
@@ -1299,12 +1313,6 @@ class _VitrineAdminMidiaScreenState
               required urlExterna,
               required ordem,
               required ativo,
-              required servicoId,
-              required papel,
-              required parId,
-              required legenda,
-              required focoX,
-              required focoY,
               fileBytes,
               filename,
             }) async {
@@ -1315,12 +1323,8 @@ class _VitrineAdminMidiaScreenState
                   urlExterna: urlExterna,
                   ordem: ordem,
                   ativo: ativo,
-                  servicoId: servicoId,
-                  papel: papel,
-                  parId: parId,
-                  legenda: legenda,
-                  focoX: focoX,
-                  focoY: focoY,
+                  servicoId: '',
+                  papel: '',
                   fileBytes: fileBytes,
                   filename: filename,
                 );
@@ -1332,12 +1336,8 @@ class _VitrineAdminMidiaScreenState
                   urlExterna: urlExterna,
                   ordem: ordem,
                   ativo: ativo,
-                  servicoId: servicoId,
-                  papel: papel,
-                  parId: parId,
-                  legenda: legenda,
-                  focoX: focoX,
-                  focoY: focoY,
+                  servicoId: '',
+                  papel: '',
                   fileBytes: fileBytes,
                   filename: filename,
                 );
@@ -1407,8 +1407,9 @@ class _VitrineAdminMidiaScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Fotos globais do hero/categorias e galerias de cada serviço. '
-              'Defina capa, antes/depois e o ponto focal no editor.',
+              'Só mídia global da página (hero, categorias, ofertas). '
+              'Fotos de cada serviço: Painel → Serviços → Editar → '
+              'Fotos na Vitrine.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1417,8 +1418,9 @@ class _VitrineAdminMidiaScreenState
                 child: Padding(
                   padding: EdgeInsets.all(24),
                   child: Text(
-                    'Nenhuma mídia ainda. Toque em “Nova mídia” para enviar '
-                    'uma foto ou colar uma URL externa.',
+                    'Nenhuma mídia global ainda. Toque em “Nova mídia” para '
+                    'hero/categoria/oferta. Fotos de serviço ficam no cadastro '
+                    'do serviço.',
                   ),
                 ),
               )
@@ -1466,9 +1468,7 @@ class _VitrineAdminMidiaScreenState
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    m.servicoId.isNotEmpty
-                                        ? 'Foto de serviço · ${m.papelLabel}'
-                                        : m.chave,
+                                    m.chave,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: ClxBrand.navy,
@@ -1479,16 +1479,6 @@ class _VitrineAdminMidiaScreenState
                                       m.titulo,
                                       style: const TextStyle(
                                         fontSize: 12,
-                                        color: ClxBrand.muted,
-                                      ),
-                                    ),
-                                  if (m.legenda.isNotEmpty)
-                                    Text(
-                                      m.legenda,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11,
                                         color: ClxBrand.muted,
                                       ),
                                     ),
