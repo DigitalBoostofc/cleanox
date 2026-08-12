@@ -175,16 +175,83 @@ void main() {
     expect(find.text('Impermeabilização'), findsOneWidget);
   });
 
-  testWidgets('abre galeria com todas as fotos do serviço', (tester) async {
-    await pumpCatalog(tester);
+  testWidgets('sem botão Ver foto; carrossel com 2+ fotos do serviço', (
+    tester,
+  ) async {
+    final multi = VitrineBootstrap(
+      config: const VitrineConfig(),
+      midia: [
+        VitrineMidia.fromJson({
+          'id': 'p1',
+          'servico': 'photo',
+          'papel': 'capa',
+          'ordem': 0,
+          'url': 'https://images.example/a.webp',
+        }),
+        VitrineMidia.fromJson({
+          'id': 'p2',
+          'servico': 'photo',
+          'papel': 'galeria',
+          'ordem': 1,
+          'url': 'https://images.example/b.webp',
+        }),
+      ],
+    );
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: VitrineCatalogoPersonalizavel(
+              servicos: [
+                service(
+                  'photo',
+                  'Colchão casal',
+                  VitrineServicoLayout.fotografico,
+                  grupo: 'colchao',
+                ),
+              ],
+              bootstrap: multi,
+              selectedIds: const {},
+              onToggle: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
 
-    final action = find.byKey(const Key('vitrine-gallery-compare'));
-    tester.widget<FilledButton>(action).onPressed!();
-    await tester.pumpAndSettle();
+    expect(find.textContaining('Ver foto'), findsNothing);
+    expect(find.byKey(const Key('vitrine-gallery-photo')), findsNothing);
+    expect(find.byType(PageView), findsOneWidget);
+  });
 
-    expect(find.text('Galeria · Poltrona renovada'), findsOneWidget);
-    expect(find.text('1 de 2'), findsOneWidget);
-    expect(find.byKey(const Key('vitrine-gallery-next')), findsOneWidget);
+  testWidgets('botão vira Remover vermelho quando selecionado', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: VitrineCatalogoPersonalizavel(
+              servicos: [
+                service(
+                  'photo',
+                  'Colchão casal',
+                  VitrineServicoLayout.fotografico,
+                ),
+              ],
+              bootstrap: bootstrap,
+              selectedIds: const {'photo'},
+              onToggle: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Remover'), findsWidgets);
+    expect(find.text('Adicionado'), findsNothing);
   });
 
   testWidgets('catálogo não estoura em 390 px', (tester) async {

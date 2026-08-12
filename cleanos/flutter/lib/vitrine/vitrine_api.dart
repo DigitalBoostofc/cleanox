@@ -248,7 +248,12 @@ class VitrineBootstrap {
           (papel == null || item.papel == papel) &&
           item.url.isNotEmpty)
         item,
-  ]..sort((a, b) => a.ordem.compareTo(b.ordem));
+  ]..sort((a, b) {
+      final pa = a.papel == 'capa' ? 0 : (a.papel == 'antes' ? 1 : 2);
+      final pb = b.papel == 'capa' ? 0 : (b.papel == 'antes' ? 1 : 2);
+      if (pa != pb) return pa - pb;
+      return a.ordem.compareTo(b.ordem);
+    });
 
   VitrineMidia? capaDoServico(String servicoId) {
     final capas = midiaDoServico(servicoId, papel: 'capa');

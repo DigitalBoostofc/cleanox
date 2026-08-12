@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,9 @@ import 'package:flutter/material.dart';
 import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+
+/// Intervalo do carrossel automático nas fotos do serviço (Vitrine).
+const Duration kVitrineFotoCarouselInterval = Duration(seconds: 4);
 
 class VitrineCatalogoPersonalizavel extends StatefulWidget {
   const VitrineCatalogoPersonalizavel({
@@ -272,21 +276,13 @@ class _ServiceLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gallery = bootstrap.midiaDoServico(servico.id);
-    final openGallery = gallery.isEmpty
-        ? null
-        : () => showDialog<void>(
-            context: context,
-            builder: (_) =>
-                _VitrineGalleryDialog(servico: servico, media: gallery),
-          );
+    // Fotos só do cadastro do serviço (painel). Sem editor de mídia na Vitrine.
+    final media = bootstrap.midiaDoServico(servico.id);
     return switch (servico.layout) {
       VitrineServicoLayout.destaque => _DestaqueCard(
         key: Key('vitrine-layout-destaque-${servico.id}'),
         servico: servico,
-        media: bootstrap.capaDoServico(servico.id),
-        galleryCount: gallery.length,
-        onOpenGallery: openGallery,
+        media: media,
         selected: selected,
         mobile: mobile,
         onToggle: onToggle,
@@ -294,9 +290,7 @@ class _ServiceLayout extends StatelessWidget {
       VitrineServicoLayout.fotografico => _FotograficoCard(
         key: Key('vitrine-layout-fotografico-${servico.id}'),
         servico: servico,
-        media: bootstrap.capaDoServico(servico.id),
-        galleryCount: gallery.length,
-        onOpenGallery: openGallery,
+        media: media,
         selected: selected,
         onToggle: onToggle,
       ),
@@ -305,8 +299,7 @@ class _ServiceLayout extends StatelessWidget {
         servico: servico,
         before: _pair(bootstrap, servico.id).$1,
         after: _pair(bootstrap, servico.id).$2,
-        galleryCount: gallery.length,
-        onOpenGallery: openGallery,
+        media: media,
         selected: selected,
         mobile: mobile,
         onToggle: onToggle,
@@ -314,8 +307,7 @@ class _ServiceLayout extends StatelessWidget {
       VitrineServicoLayout.compacto => _CompactoCard(
         key: Key('vitrine-layout-compacto-${servico.id}'),
         servico: servico,
-        galleryCount: gallery.length,
-        onOpenGallery: openGallery,
+        media: media,
         selected: selected,
         onToggle: onToggle,
       ),
@@ -343,8 +335,6 @@ class _DestaqueCard extends StatelessWidget {
   const _DestaqueCard({
     required this.servico,
     required this.media,
-    required this.galleryCount,
-    required this.onOpenGallery,
     required this.selected,
     required this.mobile,
     required this.onToggle,
@@ -352,9 +342,7 @@ class _DestaqueCard extends StatelessWidget {
   });
 
   final VitrineServico servico;
-  final VitrineMidia? media;
-  final int galleryCount;
-  final VoidCallback? onOpenGallery;
+  final List<VitrineMidia> media;
   final bool selected;
   final bool mobile;
   final VoidCallback onToggle;
@@ -362,11 +350,9 @@ class _DestaqueCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vertical = _useVerticalCommercialLayout(context, servico, mobile);
-    final photo = _PhotoGalleryAction(
-      serviceId: servico.id,
-      count: galleryCount,
-      onOpen: onOpenGallery,
-      child: _ServicePhoto(media: media, icon: _groupIcon(servico.grupo)),
+    final photo = _ServicePhotoCarousel(
+      media: media,
+      icon: _groupIcon(servico.grupo),
     );
     final content = _ServiceContent(
       servico: servico,
@@ -414,17 +400,13 @@ class _FotograficoCard extends StatelessWidget {
   const _FotograficoCard({
     required this.servico,
     required this.media,
-    required this.galleryCount,
-    required this.onOpenGallery,
     required this.selected,
     required this.onToggle,
     super.key,
   });
 
   final VitrineServico servico;
-  final VitrineMidia? media;
-  final int galleryCount;
-  final VoidCallback? onOpenGallery;
+  final List<VitrineMidia> media;
   final bool selected;
   final VoidCallback onToggle;
 
@@ -436,11 +418,9 @@ class _FotograficoCard extends StatelessWidget {
       children: [
         SizedBox(
           height: 220,
-          child: _PhotoGalleryAction(
-            serviceId: servico.id,
-            count: galleryCount,
-            onOpen: onOpenGallery,
-            child: _ServicePhoto(media: media, icon: _groupIcon(servico.grupo)),
+          child: _ServicePhotoCarousel(
+            media: media,
+            icon: _groupIcon(servico.grupo),
           ),
         ),
         _ServiceContent(
@@ -458,8 +438,7 @@ class _AntesDepoisCard extends StatelessWidget {
     required this.servico,
     required this.before,
     required this.after,
-    required this.galleryCount,
-    required this.onOpenGallery,
+    required this.media,
     required this.selected,
     required this.mobile,
     required this.onToggle,
@@ -469,8 +448,7 @@ class _AntesDepoisCard extends StatelessWidget {
   final VitrineServico servico;
   final VitrineMidia? before;
   final VitrineMidia? after;
-  final int galleryCount;
-  final VoidCallback? onOpenGallery;
+  final List<VitrineMidia> media;
   final bool selected;
   final bool mobile;
   final VoidCallback onToggle;
@@ -478,13 +456,23 @@ class _AntesDepoisCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vertical = _useVerticalCommercialLayout(context, servico, mobile);
+    final hasPair = before != null && after != null;
+    final photo = hasPair
+        ? _comparison(height: vertical ? (mobile ? 230.0 : 300.0) : null)
+        : _ServicePhotoCarousel(
+            media: media,
+            icon: _groupIcon(servico.grupo),
+          );
     return _CardShell(
       selected: selected,
       child: vertical
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _comparison(height: mobile ? 230 : 300),
+                if (hasPair)
+                  photo
+                else
+                  SizedBox(height: mobile ? 230 : 300, child: photo),
                 _content(),
               ],
             )
@@ -492,7 +480,7 @@ class _AntesDepoisCard extends StatelessWidget {
               height: 330,
               child: Row(
                 children: [
-                  Expanded(flex: 6, child: _comparison()),
+                  Expanded(flex: 6, child: photo),
                   Expanded(flex: 5, child: _content()),
                 ],
               ),
@@ -500,22 +488,17 @@ class _AntesDepoisCard extends StatelessWidget {
     );
   }
 
-  Widget _comparison({double? height}) => _PhotoGalleryAction(
-    serviceId: servico.id,
-    count: galleryCount,
-    onOpen: onOpenGallery,
-    child: SizedBox(
-      height: height,
-      child: Row(
-        children: [
-          Expanded(
-            child: _LabeledPhoto(label: 'ANTES', media: before),
-          ),
-          Expanded(
-            child: _LabeledPhoto(label: 'DEPOIS', media: after),
-          ),
-        ],
-      ),
+  Widget _comparison({double? height}) => SizedBox(
+    height: height,
+    child: Row(
+      children: [
+        Expanded(
+          child: _LabeledPhoto(label: 'ANTES', media: before),
+        ),
+        Expanded(
+          child: _LabeledPhoto(label: 'DEPOIS', media: after),
+        ),
+      ],
     ),
   );
 
@@ -530,16 +513,14 @@ class _AntesDepoisCard extends StatelessWidget {
 class _CompactoCard extends StatelessWidget {
   const _CompactoCard({
     required this.servico,
-    required this.galleryCount,
-    required this.onOpenGallery,
+    required this.media,
     required this.selected,
     required this.onToggle,
     super.key,
   });
 
   final VitrineServico servico;
-  final int galleryCount;
-  final VoidCallback? onOpenGallery;
+  final List<VitrineMidia> media;
   final bool selected;
   final VoidCallback onToggle;
 
@@ -550,14 +531,25 @@ class _CompactoCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F4F6),
-              borderRadius: BorderRadius.circular(15),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: media.isEmpty
+                  ? Container(
+                      color: const Color(0xFFE8F4F6),
+                      child: Icon(
+                        _groupIcon(servico.grupo),
+                        color: ClxBrand.cyan,
+                      ),
+                    )
+                  : _ServicePhotoCarousel(
+                      media: media,
+                      icon: _groupIcon(servico.grupo),
+                      showDots: false,
+                    ),
             ),
-            child: Icon(_groupIcon(servico.grupo), color: ClxBrand.cyan),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -579,20 +571,23 @@ class _CompactoCard extends StatelessWidget {
               ],
             ),
           ),
-          if (onOpenGallery != null)
-            IconButton(
-              key: Key('vitrine-gallery-${servico.id}'),
-              tooltip: galleryCount == 1
-                  ? 'Ver foto'
-                  : 'Ver $galleryCount fotos',
-              onPressed: onOpenGallery,
-              icon: const Icon(Icons.photo_library_outlined),
-            ),
-          IconButton.filled(
+          FilledButton(
             key: Key('vitrine-add-${servico.id}'),
-            tooltip: selected ? 'Remover' : servico.ctaComercial,
+            style: FilledButton.styleFrom(
+              backgroundColor:
+                  selected ? const Color(0xFFDC2626) : ClxBrand.cyan,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
             onPressed: onToggle,
-            icon: Icon(selected ? Icons.check : Icons.add),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(selected ? Icons.remove : Icons.add, size: 18),
+                const SizedBox(width: 6),
+                Text(selected ? 'Remover' : 'Adicionar'),
+              ],
+            ),
           ),
         ],
       ),
@@ -712,7 +707,11 @@ class _ServiceActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = selected ? 'Adicionado' : servico.ctaComercial;
+    final label = selected
+        ? 'Remover'
+        : (servico.ctaComercial.trim().isEmpty
+              ? 'Adicionar'
+              : servico.ctaComercial);
     final scale = MediaQuery.textScalerOf(context).scale(1);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -727,12 +726,17 @@ class _ServiceActions extends StatelessWidget {
         );
         final button = FilledButton(
           key: Key('vitrine-add-${servico.id}'),
+          style: FilledButton.styleFrom(
+            backgroundColor:
+                selected ? const Color(0xFFDC2626) : ClxBrand.cyan,
+            foregroundColor: Colors.white,
+          ),
           onPressed: onToggle,
           child: Row(
             mainAxisSize: stacked ? MainAxisSize.max : MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(selected ? Icons.check : Icons.add),
+              Icon(selected ? Icons.remove : Icons.add),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -767,6 +771,116 @@ class _ServiceActions extends StatelessWidget {
   }
 }
 
+/// Uma foto ou carrossel automático (sem botão "Ver fotos").
+class _ServicePhotoCarousel extends StatefulWidget {
+  const _ServicePhotoCarousel({
+    required this.media,
+    required this.icon,
+    this.showDots = true,
+  });
+
+  final List<VitrineMidia> media;
+  final IconData icon;
+  final bool showDots;
+
+  @override
+  State<_ServicePhotoCarousel> createState() => _ServicePhotoCarouselState();
+}
+
+class _ServicePhotoCarouselState extends State<_ServicePhotoCarousel> {
+  late final PageController _controller;
+  Timer? _timer;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController();
+    _restartTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ServicePhotoCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.media.length != widget.media.length) {
+      _index = 0;
+      if (_controller.hasClients) {
+        _controller.jumpToPage(0);
+      }
+      _restartTimer();
+    }
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    if (widget.media.length < 2) return;
+    _timer = Timer.periodic(kVitrineFotoCarouselInterval, (_) {
+      if (!mounted || !_controller.hasClients) return;
+      final next = (_index + 1) % widget.media.length;
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.media.isEmpty) {
+      return _PhotoFallback(icon: widget.icon);
+    }
+    if (widget.media.length == 1) {
+      return _ServicePhoto(media: widget.media.first, icon: widget.icon);
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: widget.media.length,
+          onPageChanged: (value) => setState(() => _index = value),
+          itemBuilder: (context, index) => _ServicePhoto(
+            media: widget.media[index],
+            icon: widget.icon,
+          ),
+        ),
+        if (widget.showDots)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < widget.media.length; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _index ? 16 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: i == _index
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ServicePhoto extends StatelessWidget {
   const _ServicePhoto({required this.media, required this.icon});
 
@@ -783,191 +897,6 @@ class _ServicePhoto extends StatelessWidget {
       fit: BoxFit.cover,
       alignment: Alignment(media!.alignmentX, media!.alignmentY),
       errorBuilder: (_, __, ___) => _PhotoFallback(icon: icon),
-    );
-  }
-}
-
-class _PhotoGalleryAction extends StatelessWidget {
-  const _PhotoGalleryAction({
-    required this.serviceId,
-    required this.count,
-    required this.onOpen,
-    required this.child,
-  });
-
-  final String serviceId;
-  final int count;
-  final VoidCallback? onOpen;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (onOpen == null) return child;
-    return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        child,
-        Positioned(
-          top: 12,
-          right: 12,
-          child: FilledButton.tonalIcon(
-            key: Key('vitrine-gallery-$serviceId'),
-            onPressed: onOpen,
-            icon: const Icon(Icons.photo_library_outlined, size: 17),
-            label: Text(count == 1 ? 'Ver foto' : '$count fotos'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: .92),
-              foregroundColor: ClxBrand.navy,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VitrineGalleryDialog extends StatefulWidget {
-  const _VitrineGalleryDialog({required this.servico, required this.media});
-
-  final VitrineServico servico;
-  final List<VitrineMidia> media;
-
-  @override
-  State<_VitrineGalleryDialog> createState() => _VitrineGalleryDialogState();
-}
-
-class _VitrineGalleryDialogState extends State<_VitrineGalleryDialog> {
-  late final PageController _controller;
-  int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = PageController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _move(int delta) {
-    final target = (_index + delta).clamp(0, widget.media.length - 1).toInt();
-    _controller.animateToPage(
-      target,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final mobile = size.width < 600;
-    return Dialog(
-      insetPadding: EdgeInsets.all(mobile ? 12 : 40),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 920,
-          maxHeight: math.min(size.height - (mobile ? 24 : 80), 720),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 10, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Galeria · ${widget.servico.tituloComercial}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: ClxBrand.navy,
-                        fontSize: mobile ? 18 : 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Fechar galeria',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: widget.media.length,
-                onPageChanged: (value) => setState(() => _index = value),
-                itemBuilder: (context, index) {
-                  final item = widget.media[index];
-                  return ColoredBox(
-                    color: ClxBrand.navy,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: SizedBox.expand(
-                            child: _ServicePhoto(
-                              media: item,
-                              icon: _groupIcon(widget.servico.grupo),
-                            ),
-                          ),
-                        ),
-                        if (item.legenda.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
-                            child: Text(
-                              item.legenda,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Foto anterior',
-                    onPressed: _index == 0 ? null : () => _move(-1),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${_index + 1} de ${widget.media.length}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: ClxBrand.navy,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    key: const Key('vitrine-gallery-next'),
-                    tooltip: 'Próxima foto',
-                    onPressed: _index >= widget.media.length - 1
-                        ? null
-                        : () => _move(1),
-                    icon: const Icon(Icons.arrow_forward),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
