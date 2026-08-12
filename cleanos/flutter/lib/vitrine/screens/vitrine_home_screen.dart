@@ -1,8 +1,10 @@
-/// Vitrine pública — UI alinhada aos mockups mobile Cleanox (sem conta).
+/// Vitrine pública — autoagendamento Cleanox (sem conta).
 ///
-/// Fluxo: 0 home · 1 serviços · 2 contato · 3 orçamento+bumps · 4 agenda · 5 ok
+/// Fluxo: 0 home · 1 serviços · 2 data/hora · 3 dados · 4 revisar · 5 ok
 ///         6 como funciona
 library;
+
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,18 +13,22 @@ import 'package:intl/intl.dart';
 import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+import '../vitrine_booking.dart';
 import '../widgets/vitrine_catalogo_personalizavel.dart';
 import '../widgets/vitrine_ui.dart';
 
 class VitrineHomeScreen extends StatefulWidget {
-  const VitrineHomeScreen({super.key});
+  const VitrineHomeScreen({super.key, this.api});
+
+  /// Injetável em testes; produção usa [vitrineApiProvider].
+  final VitrineApi? api;
 
   @override
   State<VitrineHomeScreen> createState() => _VitrineHomeScreenState();
 }
 
 class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
-  /// 0 home · 1 serviços · 2 dados · 3 orçamento · 4 agenda · 5 sucesso · 6 como
+  /// 0 home · 1 serviços · 2 agenda · 3 dados · 4 revisar · 5 sucesso · 6 como
   int _step = 0;
   late Future<List<VitrineServico>> _catalogFuture;
   final _selected = <String>{};
@@ -41,7 +47,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
 
   final _nome = TextEditingController();
   final _whatsapp = TextEditingController();
-  final _endereco = TextEditingController();
+  final _cep = TextEditingController();
+  final _rua = TextEditingController();
+  final _numero = TextEditingController();
+  final _complemento = TextEditingController();
   final _bairro = TextEditingController();
   final _cidade = TextEditingController();
   final _obs = TextEditingController();
@@ -55,12 +64,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   String? _error;
   VitrineAgendarResult? _ok;
   String? _groupFilter;
+  String? _idempotencyKey;
+  int _duracaoNoSlot = 0;
+
+  VitrineApi get _api => widget.api ?? vitrineApiProvider;
 
   @override
   void initState() {
     super.initState();
-    _catalogFuture = vitrineApiProvider.listServicos();
-    vitrineApiProvider
+    _catalogFuture = _api.listServicos();
+    _api
         .bootstrap()
         .then((b) {
           if (!mounted) return;
@@ -70,14 +83,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             _midia = b.midiaByChave;
             _cidades = b.cidades;
             _estado = b.estado;
-            // Pré-seleciona cidade se só houver uma, ou se o campo estiver vazio.
             if (_cidade.text.trim().isEmpty && b.cidades.length == 1) {
               _cidade.text = b.cidades.first;
+            }
+            if (_estado.isEmpty && b.estado.isNotEmpty) {
+              _estado = b.estado;
             }
           });
         })
         .catchError((_) {
-          return vitrineApiProvider.getConfig().then((c) {
+          return _api.getConfig().then((c) {
             if (mounted) setState(() => _config = c);
           });
         });
@@ -93,7 +108,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   void dispose() {
     _nome.dispose();
     _whatsapp.dispose();
-    _endereco.dispose();
+    _cep.dispose();
+    _rua.dispose();
+    _numero.dispose();
+    _complemento.dispose();
     _bairro.dispose();
     _cidade.dispose();
     _obs.dispose();
@@ -142,12 +160,19 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return sorted.first.id;
   }
 
+  void _invalidateSlot({bool clearDia = false}) {
+    _slot = null;
+    _slots = const [];
+    _duracaoNoSlot = 0;
+    if (clearDia) _dia = null;
+  }
+
   void _go(int step) {
     setState(() {
       _step = step;
       _error = null;
     });
-    if (step == 3) _loadBumps();
+    if (step == 4) _loadBumps();
   }
 
   void _toggleServico(VitrineServico servico) {
@@ -157,6 +182,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       } else {
         _selected.add(servico.id);
       }
+      // Alterar serviços/duração invalida slot antigo.
+      _invalidateSlot();
     });
   }
 
@@ -170,9 +197,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     }
     setState(() => _loadingBumps = true);
     try {
-      final list = await vitrineApiProvider.orderBumps(
-        _picked.map((s) => s.id).toList(),
-      );
+      final list = await _api.orderBumps(_picked.map((s) => s.id).toList());
       if (!mounted) return;
       setState(() {
         _bumps = list;
@@ -194,9 +219,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       _slots = const [];
       _slot = null;
       _error = null;
+      _duracaoNoSlot = _duracaoMin;
     });
     try {
-      final list = await vitrineApiProvider.slots(
+      final list = await _api.slots(
         servicoId: _primaryId,
         dataYmd: _ymd(day),
         duracaoMin: _duracaoMin,
@@ -220,26 +246,58 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
+  String _newIdempotencyKey() {
+    final r = Random.secure();
+    final bytes = List<int>.generate(16, (_) => r.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   Future<void> _submit() async {
     if (_slot == null || _dia == null || _picked.isEmpty) return;
+    final err = validarDadosVitrine(
+      nome: _nome.text,
+      whatsapp: _whatsapp.text,
+      cep: _cep.text,
+      rua: _rua.text,
+      numero: _numero.text,
+      bairro: _bairro.text,
+      cidade: _cidade.text,
+      estado: _estado,
+    );
+    if (err != null) {
+      setState(() => _error = err);
+      return;
+    }
+    // Se a duração mudou desde a escolha do slot, exige nova escolha.
+    if (_duracaoNoSlot > 0 && _duracaoNoSlot != _duracaoMin) {
+      setState(() {
+        _invalidateSlot();
+        _error = 'A duração mudou. Escolha novamente data e horário.';
+        _step = 2;
+      });
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
+      _idempotencyKey ??= _newIdempotencyKey();
     });
     try {
-      final res = await vitrineApiProvider.agendar({
-        'slot_token': _slot!.token,
-        'nome': _nome.text.trim(),
-        'whatsapp': _whatsapp.text.trim(),
-        'telefone': _whatsapp.text.trim(),
-        'endereco': _endereco.text.trim(),
-        'bairro': _bairro.text.trim().isNotEmpty
-            ? _bairro.text.trim()
-            : _endereco.text.trim(),
-        'cidade': _cidade.text.trim(),
-        'observacoes': _obs.text.trim(),
-        'website': _honeypot.text,
-        'itens': [
+      final payload = montarPayloadAgendamento(
+        slotToken: _slot!.token,
+        nome: _nome.text,
+        whatsapp: _whatsapp.text,
+        cep: _cep.text,
+        rua: _rua.text,
+        numero: _numero.text,
+        bairro: _bairro.text,
+        cidade: _cidade.text,
+        estado: _estado,
+        complemento: _complemento.text,
+        observacoes: _obs.text,
+        honeypot: _honeypot.text,
+        idempotencyKey: _idempotencyKey!,
+        itens: [
           for (final s in _picked)
             {'id': s.id, 'nome': s.nome, 'valor': s.valorBase},
           for (final b in _pickedBumps)
@@ -250,7 +308,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               'order_bump_id': b.id,
             },
         ],
-      });
+      );
+      final res = await _api.agendar(payload);
       if (!mounted) return;
       setState(() {
         _ok = res;
@@ -267,16 +326,30 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 
   bool get _dadosOk =>
-      _nome.text.trim().isNotEmpty &&
-      _whatsapp.text.replaceAll(RegExp(r'\D'), '').length >= 10 &&
-      _endereco.text.trim().isNotEmpty &&
-      (_cidades.isEmpty || _cidade.text.trim().isNotEmpty);
+      validarDadosVitrine(
+        nome: _nome.text,
+        whatsapp: _whatsapp.text,
+        cep: _cep.text,
+        rua: _rua.text,
+        numero: _numero.text,
+        bairro: _bairro.text,
+        cidade: _cidade.text,
+        estado: _estado,
+      ) ==
+      null;
 
   int get _navIndex {
     if (_step == 0) return 0;
     if (_step == 6) return 2;
     if (_step >= 1 && _step <= 4) return 1;
     return 0;
+  }
+
+  String get _stepLabel => VitrineStepX.fromIndex(_step).headerLabel;
+
+  int get _horizonte {
+    final h = _config.horizonteDias;
+    return h > 0 ? h : 14;
   }
 
   @override
@@ -303,7 +376,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () => setState(() {
-                        _catalogFuture = vitrineApiProvider.listServicos();
+                        _catalogFuture = _api.listServicos();
                       }),
                       child: const Text('Tentar de novo'),
                     ),
@@ -321,6 +394,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 _ok = null;
                 _selected.clear();
                 _selectedBumps.clear();
+                _invalidateSlot(clearDia: true);
+                _idempotencyKey = null;
                 _step = 0;
               }),
             );
@@ -332,13 +407,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 VitrineLightTopBar(whatsapp: _config.whatsappExibido)
               else if (_step >= 1 && _step <= 4)
                 VitrineNavyHeader(
-                  stepLabel: switch (_step) {
-                    1 => '1 · Serviços',
-                    2 => '2 · Contato',
-                    3 => '3 · Orçamento',
-                    4 => '4 · Agendar',
-                    _ => '',
-                  },
+                  stepLabel: _stepLabel,
                   onBack: () => _go(_step == 1 ? 0 : _step - 1),
                 ),
               if (_error != null)
@@ -370,29 +439,32 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               ),
               if (_step == 1)
                 VitrineStickyBar(
-                  totalLabel:
-                      '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
-                  totalValue: 'TOTAL ${formatCurrency(_total)}',
+                  totalLabel: _total > 0
+                      ? '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}'
+                      : '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
+                  totalValue: _total > 0
+                      ? 'Valor estimado ${formatCurrency(_total)}'
+                      : ' ',
                   buttonLabel: 'Continuar',
                   onPressed: _picked.isEmpty ? null : () => _go(2),
                 )
               else if (_step == 2)
                 VitrineStickyBar(
-                  buttonLabel: 'Ver orçamento',
-                  onPressed: _dadosOk ? () => _go(3) : null,
+                  buttonLabel: 'Continuar',
+                  onPressed: _slot != null ? () => _go(3) : null,
                 )
               else if (_step == 3)
                 VitrineStickyBar(
-                  totalLabel: 'Total agora',
-                  totalValue: formatCurrency(_total),
-                  buttonLabel: 'Escolher data e horário',
-                  onPressed: () => _go(4),
+                  buttonLabel: 'Revisar e confirmar',
+                  onPressed: _dadosOk ? () => _go(4) : null,
                 )
               else if (_step == 4)
                 VitrineStickyBar(
+                  totalLabel: 'Valor estimado',
+                  totalValue: formatCurrency(_total),
                   buttonLabel: 'Confirmar agendamento',
                   loading: _submitting,
-                  onPressed: _slot != null ? _submit : null,
+                  onPressed: _submitting ? null : _submit,
                 )
               else if (_step == 0 || _step == 6)
                 VitrineBottomNav(
@@ -417,11 +489,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       case 1:
         return _servicos();
       case 2:
-        return _dados();
-      case 3:
-        return _orcamento();
-      case 4:
         return _agenda();
+      case 3:
+        return _dados();
+      case 4:
+        return _revisar();
       case 6:
         return _comoFunciona();
       default:
@@ -429,7 +501,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     }
   }
 
-  // ─── Home (mockup C1) ─────────────────────────────────────────────────────
+  // ─── Home ─────────────────────────────────────────────────────────────────
 
   Widget _home() {
     final destaques = _catalog.where((s) => s.vitrineDestaque).take(8).toList();
@@ -588,7 +660,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  // ─── Serviços (mockup C2) ─────────────────────────────────────────────────
+  // ─── Serviços ─────────────────────────────────────────────────────────────
 
   Widget _servicos() {
     return ListView(
@@ -605,14 +677,163 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  // ─── Contato (mockup C3) ──────────────────────────────────────────────────
+  // ─── Data e horário ───────────────────────────────────────────────────────
+
+  Widget _agenda() {
+    final now = DateTime.now();
+    final dias = List.generate(
+      _horizonte,
+      (i) => DateTime(now.year, now.month, now.day + 1 + i),
+    );
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        const Text(
+          'Escolha data e horário',
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: ClxBrand.navy,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Horários reais da operação. Ao confirmar, o horário fica reservado.',
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 13,
+            color: ClxBrand.muted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 44,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: dias.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final d = dias[i];
+              final sel =
+                  _dia != null &&
+                  _dia!.year == d.year &&
+                  _dia!.month == d.month &&
+                  _dia!.day == d.day;
+              return ChoiceChip(
+                label: Text(
+                  DateFormat('EEE dd/MM', 'pt_BR').format(d),
+                  style: TextStyle(
+                    fontFamily: kFontFamily,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: sel ? Colors.white : ClxBrand.navy,
+                  ),
+                ),
+                selected: sel,
+                selectedColor: ClxBrand.navy,
+                backgroundColor: Colors.white,
+                side: BorderSide(color: sel ? ClxBrand.navy : VitrineUi.line),
+                onSelected: (_) {
+                  setState(() => _dia = d);
+                  _loadSlots(d);
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_loadingSlots)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_dia == null)
+          const Text(
+            'Selecione um dia acima.',
+            style: TextStyle(color: ClxBrand.muted),
+          )
+        else if (_slots.isEmpty)
+          const Text(
+            'Nenhum horário livre neste dia. Tente outra data.',
+            style: TextStyle(color: ClxBrand.muted),
+          )
+        else ...[
+          const Text(
+            'Horários',
+            style: TextStyle(
+              fontFamily: kFontFamily,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: ClxBrand.navy,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final s in _slots)
+                ChoiceChip(
+                  label: Text(
+                    s.hora,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontWeight: FontWeight.w600,
+                      color: _slot?.hora == s.hora
+                          ? Colors.white
+                          : VitrineUi.ink2,
+                    ),
+                  ),
+                  selected: _slot?.hora == s.hora,
+                  selectedColor: ClxBrand.navy,
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                    color: _slot?.hora == s.hora
+                        ? ClxBrand.navy
+                        : VitrineUi.line,
+                  ),
+                  onSelected: (_) => setState(() {
+                    _slot = s;
+                    _duracaoNoSlot = _duracaoMin;
+                  }),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+        Container(
+          decoration: VitrineUi.cardDeco(),
+          child: Column(
+            children: [
+              _mini('Serviços selecionados', _picked.map((s) => s.nome).join(' + ')),
+              if (_dia != null && _slot != null)
+                _mini(
+                  'Quando',
+                  '${DateFormat('dd/MM').format(_dia!)} · ${_slot!.hora}',
+                ),
+              if (_total > 0)
+                _mini(
+                  'Valor estimado do serviço',
+                  formatCurrency(_total),
+                  highlight: true,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Dados e endereço ─────────────────────────────────────────────────────
 
   Widget _dados() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         const Text(
-          'Para onde vamos?',
+          'Seus dados e endereço',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 20,
@@ -622,7 +843,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Só para confirmar o atendimento — sem criar conta',
+          'Usamos só para o atendimento — sem criar conta. '
+          'Telefone e endereço ficam no cofre da Cleanox.',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 13,
@@ -643,9 +865,39 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           onChanged: (_) => setState(() {}),
         ),
         VitrineField(
-          label: 'Endereço do serviço',
-          controller: _endereco,
+          label: 'CEP',
+          controller: _cep,
+          keyboard: TextInputType.number,
+          formatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(8),
+          ],
           onChanged: (_) => setState(() {}),
+        ),
+        VitrineField(
+          label: 'Rua',
+          controller: _rua,
+          onChanged: (_) => setState(() {}),
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: VitrineField(
+                label: 'Número',
+                controller: _numero,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: VitrineField(
+                label: 'Complemento (opcional)',
+                controller: _complemento,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ],
         ),
         VitrineField(
           label: 'Bairro',
@@ -714,6 +966,18 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             controller: _cidade,
             onChanged: (_) => setState(() {}),
           ),
+        if (_estado.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'Estado: $_estado',
+              style: const TextStyle(
+                fontFamily: kFontFamily,
+                fontSize: 12,
+                color: ClxBrand.muted,
+              ),
+            ),
+          ),
         VitrineField(
           label: 'Observações (opcional)',
           controller: _obs,
@@ -737,14 +1001,21 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  // ─── Orçamento + bumps (mockup C4) ────────────────────────────────────────
+  // ─── Revisar e confirmar ──────────────────────────────────────────────────
 
-  Widget _orcamento() {
+  Widget _revisar() {
+    final endereco =
+        '${_rua.text.trim()}, ${_numero.text.trim()}'
+        '${_complemento.text.trim().isEmpty ? '' : ' · ${_complemento.text.trim()}'}\n'
+        '${_bairro.text.trim()} · ${_cidade.text.trim()}'
+        '${_estado.isEmpty ? '' : '-$_estado'}\n'
+        'CEP ${_cep.text.trim()}';
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         const Text(
-          'Seu orçamento',
+          'Resumo do agendamento',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 20,
@@ -754,7 +1025,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Base + ofertas de acordo com o que você marcou',
+          'Confira os serviços, o horário e o endereço antes de confirmar.',
           style: TextStyle(
             fontFamily: kFontFamily,
             fontSize: 13,
@@ -783,7 +1054,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total estimado',
+                      'Valor estimado do serviço',
                       style: TextStyle(
                         fontFamily: kFontFamily,
                         fontSize: 12,
@@ -803,16 +1074,35 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 ),
               ),
               for (final s in _picked)
-                _sumRow(s.nome, s.descricao, formatCurrency(s.valorBase)),
+                _sumRow(s.nome, 'Serviço selecionado', formatCurrency(s.valorBase)),
               for (final b in _pickedBumps)
                 _sumRow(
                   '+ ${b.titulo}',
-                  'Oferta · order bump',
+                  'Serviço adicional',
                   formatCurrency(b.precoPromo),
                 ),
+              if (_dia != null && _slot != null)
+                _sumRow(
+                  'Data e horário',
+                  '${DateFormat('dd/MM/yyyy').format(_dia!)} · ${_slot!.hora}',
+                  'OK',
+                  mutedValue: true,
+                ),
               _sumRow(
-                'Cliente',
-                '${_nome.text.trim()} · ${_bairro.text.trim().isEmpty ? _endereco.text.trim() : _bairro.text.trim()}',
+                'Nome',
+                _nome.text.trim(),
+                'OK',
+                mutedValue: true,
+              ),
+              _sumRow(
+                'WhatsApp',
+                mascaraWhatsapp(_whatsapp.text),
+                'OK',
+                mutedValue: true,
+              ),
+              _sumRow(
+                'Endereço',
+                endereco,
                 'OK',
                 mutedValue: true,
               ),
@@ -829,7 +1119,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           )
         else if (_bumps.isNotEmpty) ...[
           const Text(
-            'Aproveite no seu orçamento',
+            'Serviços adicionais',
             style: TextStyle(
               fontFamily: kFontFamily,
               fontSize: 14,
@@ -839,7 +1129,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Ofertas montadas de acordo com o carrinho',
+            'Opcionais combinados com o que você selecionou',
             style: TextStyle(
               fontFamily: kFontFamily,
               fontSize: 12,
@@ -904,6 +1194,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         border: Border(bottom: BorderSide(color: VitrineUi.line)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -965,6 +1256,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             } else {
               _selectedBumps.add(b.id);
             }
+            // Adicional muda duração → invalida slot.
+            _invalidateSlot();
           }),
           borderRadius: BorderRadius.circular(VitrineUi.rMd),
           child: Container(
@@ -1082,140 +1375,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  // ─── Agenda (mockup C5) ───────────────────────────────────────────────────
-
-  Widget _agenda() {
-    final now = DateTime.now();
-    final dias = List.generate(
-      14,
-      (i) => DateTime(now.year, now.month, now.day + 1 + i),
-    );
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      children: [
-        const Text(
-          'Escolha o dia e o horário',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 44,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: dias.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, i) {
-              final d = dias[i];
-              final sel =
-                  _dia != null &&
-                  _dia!.year == d.year &&
-                  _dia!.month == d.month &&
-                  _dia!.day == d.day;
-              return ChoiceChip(
-                label: Text(
-                  DateFormat('EEE dd/MM', 'pt_BR').format(d),
-                  style: TextStyle(
-                    fontFamily: kFontFamily,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: sel ? Colors.white : ClxBrand.navy,
-                  ),
-                ),
-                selected: sel,
-                selectedColor: ClxBrand.navy,
-                backgroundColor: Colors.white,
-                side: BorderSide(color: sel ? ClxBrand.navy : VitrineUi.line),
-                onSelected: (_) {
-                  setState(() => _dia = d);
-                  _loadSlots(d);
-                },
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_loadingSlots)
-          const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_dia == null)
-          const Text(
-            'Selecione um dia acima.',
-            style: TextStyle(color: ClxBrand.muted),
-          )
-        else if (_slots.isEmpty)
-          const Text(
-            'Nenhum horário livre neste dia. Tente outra data.',
-            style: TextStyle(color: ClxBrand.muted),
-          )
-        else ...[
-          const Text(
-            'Horários',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              color: ClxBrand.navy,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in _slots)
-                ChoiceChip(
-                  label: Text(
-                    s.hora,
-                    style: TextStyle(
-                      fontFamily: kFontFamily,
-                      fontWeight: FontWeight.w600,
-                      color: _slot?.hora == s.hora
-                          ? Colors.white
-                          : VitrineUi.ink2,
-                    ),
-                  ),
-                  selected: _slot?.hora == s.hora,
-                  selectedColor: ClxBrand.navy,
-                  backgroundColor: Colors.white,
-                  side: BorderSide(
-                    color: _slot?.hora == s.hora
-                        ? ClxBrand.navy
-                        : VitrineUi.line,
-                  ),
-                  onSelected: (_) => setState(() => _slot = s),
-                ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 16),
-        Container(
-          decoration: VitrineUi.cardDeco(),
-          child: Column(
-            children: [
-              _mini('Serviços', _picked.map((s) => s.nome).join(' + ')),
-              if (_pickedBumps.isNotEmpty)
-                _mini('Ofertas', _pickedBumps.map((b) => b.titulo).join(' + ')),
-              if (_dia != null && _slot != null)
-                _mini(
-                  'Quando',
-                  '${DateFormat('dd/MM').format(_dia!)} · ${_slot!.hora}',
-                ),
-              _mini('Total', formatCurrency(_total), highlight: true),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _mini(String k, String v, {bool highlight = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -1255,11 +1414,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   Widget _comoFunciona() {
     final text = _config.comoFunciona.isNotEmpty
         ? _config.comoFunciona
-        : '1) Selecione os serviços\n'
-              '2) Informe contato e endereço\n'
-              '3) Veja o orçamento e ofertas\n'
-              '4) Escolha data e horário\n'
-              '5) Confirmamos no WhatsApp';
+        : kComoFuncionaDefault;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
@@ -1298,7 +1453,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 borderRadius: BorderRadius.circular(VitrineUi.rPill),
               ),
             ),
-            child: const Text('Montar orçamento'),
+            child: const Text('Agendar agora'),
           ),
         ),
       ],
@@ -1306,7 +1461,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 }
 
-// ─── Sucesso (mockup C6) ────────────────────────────────────────────────────
+// ─── Sucesso ────────────────────────────────────────────────────────────────
 
 class _SuccessBody extends StatelessWidget {
   const _SuccessBody({required this.result, required this.onHome});
@@ -1315,6 +1470,12 @@ class _SuccessBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final local =
+        [
+          if (result.bairro.isNotEmpty) result.bairro,
+          if (result.cidade.isNotEmpty) result.cidade,
+        ].join(' · ');
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1324,8 +1485,8 @@ class _SuccessBody extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(
-                color: const Color(0xFFD1FAE5),
+              decoration: const BoxDecoration(
+                color: Color(0xFFD1FAE5),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -1336,7 +1497,7 @@ class _SuccessBody extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Agendamento recebido!',
+              'Agendamento confirmado!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: kFontFamily,
@@ -1347,7 +1508,9 @@ class _SuccessBody extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              result.mensagem,
+              result.mensagem.isNotEmpty
+                  ? result.mensagem
+                  : 'A Cleanox vai atribuir a equipe. Pagamento só no local.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: kFontFamily,
@@ -1363,8 +1526,8 @@ class _SuccessBody extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
-                  _kv('Protocolo', result.osRef),
-                  _kv('Serviço', result.servico),
+                  _kv('Referência', result.osRef),
+                  _kv('Serviços', result.servico),
                   _kv('Data', () {
                     try {
                       return DateFormat(
@@ -1375,8 +1538,9 @@ class _SuccessBody extends StatelessWidget {
                     }
                   }()),
                   _kv('Horário', result.hora),
+                  if (local.isNotEmpty) _kv('Local', local),
                   if (result.valor > 0)
-                    _kv('Total', formatCurrency(result.valor)),
+                    _kv('Valor estimado', formatCurrency(result.valor)),
                 ],
               ),
             ),
@@ -1413,7 +1577,7 @@ class _SuccessBody extends StatelessWidget {
     child: Row(
       children: [
         SizedBox(
-          width: 90,
+          width: 110,
           child: Text(
             k,
             style: const TextStyle(

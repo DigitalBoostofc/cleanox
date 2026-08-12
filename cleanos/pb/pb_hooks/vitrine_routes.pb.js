@@ -110,7 +110,7 @@ routerAdd("POST", "/api/cleanos/vitrine/agendar", (e) => {
     const msg = String(err && err.message ? err.message : err);
     console.error("[vitrine] agendar: " + msg);
     const code =
-      /inválid|obrigat|expir|preenchid|cidade|Horário|Rejeitado|Telefone|Nome/i.test(
+      /inválid|obrigat|expir|preenchid|cidade|Horário|Rejeitado|Telefone|Nome|Rua|Número|Bairro|CEP|Selecione|Oferta|Serviço/i.test(
         msg,
       )
         ? 400
