@@ -1170,6 +1170,15 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const Text(
+            'Ver',
+            style: TextStyle(
+              fontFamily: kFontFamily,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(width: 4),
           Flexible(
             child: Text(
               _macroTitle(outra),
