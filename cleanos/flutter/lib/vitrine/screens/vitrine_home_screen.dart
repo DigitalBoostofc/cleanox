@@ -183,15 +183,36 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     if (step == 4) _loadBumps();
   }
 
-  /// FAB Agendar → tela de data/horário (com itens selecionados).
-  void _goAgendar() {
+  /// FAB Carrinho → sheet com itens + Continuar (ou aviso se vazio).
+  Future<void> _openCarrinho() async {
     if (_picked.isEmpty) {
       setState(() {
-        _error = 'Selecione ao menos um serviço para agendar.';
+        _error = 'Adicione ao menos um serviço ao carrinho.';
       });
       return;
     }
-    _go(2);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _CarrinhoSheet(
+          items: List<VitrineServico>.from(_picked),
+          onRemove: (s) {
+            setState(() {
+              _selected.remove(s.id);
+              _error = null;
+            });
+          },
+          onContinuar: () {
+            Navigator.of(ctx).pop();
+            if (_picked.isNotEmpty) _go(2);
+          },
+        );
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   String? _macroOf(VitrineServico s) => vitrineMacroCategoriaOf(
@@ -569,16 +590,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   child: _body(),
                 ),
               ),
-              if (_step == 1 || (_step == 0 && _picked.isNotEmpty))
-                VitrineStickyBar(
-                  totalLabel:
-                      '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
-                  totalCaption: _total > 0 ? 'Valor estimado' : null,
-                  totalValue: _total > 0 ? formatCurrency(_total) : '—',
-                  buttonLabel: 'Continuar',
-                  onPressed: _picked.isEmpty ? null : () => _go(2),
-                )
-              else if (_step == 2)
+              // Ao adicionar no catálogo: NÃO sticky — só badge no carrinho.
+              if (_step == 2)
                 VitrineStickyBar(
                   buttonLabel: 'Continuar',
                   onPressed: _slot != null ? () => _go(3) : null,
@@ -597,7 +610,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   loading: _submitting,
                   onPressed: _submitting ? null : _submit,
                 )
-              else if ((_step == 0 && _homeBrowse >= 3) || _step == 6)
+              else if (_step == 6 ||
+                  _step == 1 ||
+                  (_step == 0 &&
+                      (_homeBrowse >= 3 || _picked.isNotEmpty)))
                 VitrineBottomNav(
                   index: _navIndex,
                   cartCount: _picked.length,
@@ -609,7 +625,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                         _error = null;
                       });
                     }
-                    if (i == 1) _goAgendar();
+                    if (i == 1) _openCarrinho();
                     if (i == 2) _go(6);
                   },
                 ),
@@ -2343,6 +2359,230 @@ class _SuccessBody extends StatelessWidget {
   );
 }
 
+/// Sheet do carrinho: lista itens + Continuar (sem sticky bar no catálogo).
+class _CarrinhoSheet extends StatefulWidget {
+  const _CarrinhoSheet({
+    required this.items,
+    required this.onRemove,
+    required this.onContinuar,
+  });
+
+  final List<VitrineServico> items;
+  final ValueChanged<VitrineServico> onRemove;
+  final VoidCallback onContinuar;
+
+  @override
+  State<_CarrinhoSheet> createState() => _CarrinhoSheetState();
+}
+
+class _CarrinhoSheetState extends State<_CarrinhoSheet> {
+  late List<VitrineServico> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List<VitrineServico>.from(widget.items);
+  }
+
+  double get _total =>
+      _items.fold<double>(0, (s, x) => s + x.valorBase);
+
+  void _remove(VitrineServico s) {
+    setState(() {
+      _items.removeWhere((x) => x.id == s.id);
+    });
+    widget.onRemove(s);
+    if (_items.isEmpty && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final maxH = MediaQuery.sizeOf(context).height * 0.78;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH, maxWidth: 560),
+          child: Material(
+            key: const Key('vitrine-carrinho-sheet'),
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Seu carrinho',
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: ClxBrand.navy,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('vitrine-carrinho-close'),
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final s = _items[i];
+                      final nome = s.tituloComercial.trim().isNotEmpty
+                          ? s.tituloComercial
+                          : s.nome;
+                      return Container(
+                        key: Key('vitrine-carrinho-item-${s.id}'),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nome,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: kFontFamily,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: ClxBrand.navy,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    formatCurrency(s.valorBase),
+                                    style: const TextStyle(
+                                      fontFamily: kFontFamily,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: ClxBrand.cyan,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              key: Key('vitrine-carrinho-remove-${s.id}'),
+                              tooltip: 'Remover',
+                              onPressed: () => _remove(s),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: ClxBrand.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      top: BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${_items.length} item${_items.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontFamily: kFontFamily,
+                                fontSize: 13,
+                                color: ClxBrand.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            formatCurrency(_total),
+                            style: const TextStyle(
+                              fontFamily: kFontFamily,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: ClxBrand.navy,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        key: const Key('vitrine-carrinho-continuar'),
+                        onPressed:
+                            _items.isEmpty ? null : widget.onContinuar,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: ClxBrand.cyan,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        child: const Text(
+                          'Continuar',
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Card navy da home: busca + chips de categoria atualizam a própria home.
 class _HomeCatalogHeader extends StatefulWidget {
