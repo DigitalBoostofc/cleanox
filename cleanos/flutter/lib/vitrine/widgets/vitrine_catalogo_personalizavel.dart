@@ -325,7 +325,11 @@ class _VitrineCatalogoPersonalizavelState
         // Cards compactos em grade em qualquer largura (otimizado mobile).
         const gridMode = true;
         final scaler = MediaQuery.textScalerOf(context);
-        final tileH = _gridTileHeight(tileW: tileW, textScaler: scaler);
+        final tileH = _gridTileHeight(
+          tileW: tileW,
+          textScaler: scaler,
+          mobile: mobile,
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -407,28 +411,28 @@ class _VitrineCatalogoPersonalizavelState
   }
 }
 
-/// Altura única da célula da grade (foto 16:9 + bloco de texto/CTA fixo).
+/// Altura única da célula da grade (foto 16:9 + bloco de texto/CTA compacto).
 double _gridTileHeight({
   required double tileW,
   required TextScaler textScaler,
+  required bool mobile,
 }) {
   final photoH = tileW * 9 / 16;
-  final titleSize = textScaler.scale(13.5).clamp(12.0, 16.0);
-  final priceSize = textScaler.scale(14.0).clamp(12.5, 17.0);
-  final detailsSize = textScaler.scale(11.5).clamp(10.0, 13.0);
-  final badgeSize = textScaler.scale(9).clamp(8.0, 11.0);
-  // Padding corpo 10+10; badge slot; título 2 linhas; detalhes; preço; gaps; CTA 36.
-  final bodyH = 10 +
-      10 +
-      (badgeSize + 10) + // slot badge (sempre reservado)
-      6 +
-      (titleSize * 1.2 * 2) +
-      4 +
-      (detailsSize * 1.25) +
-      6 +
-      (priceSize * 1.2) +
-      8 +
-      36;
+  final titleSize = textScaler.scale(mobile ? 12.5 : 13.5).clamp(11.5, 15.0);
+  final priceSize = textScaler.scale(mobile ? 13.0 : 14.0).clamp(12.0, 16.0);
+  final detailsSize = textScaler.scale(mobile ? 10.5 : 11.5).clamp(10.0, 12.5);
+  final ctaH = mobile ? 32.0 : 36.0;
+  // Padding corpo apertado; título 2 linhas; detalhes; preço; CTA.
+  // Badge vai sobre a foto (não ocupa corpo).
+  final bodyH = (mobile ? 6.0 : 8.0) + // top
+      (titleSize * 1.15 * 2) +
+      2 +
+      (detailsSize * 1.15) +
+      4 + // mínimo antes do preço (Spacer absorve resto)
+      (priceSize * 1.15) +
+      (mobile ? 6.0 : 8.0) +
+      ctaH +
+      (mobile ? 8.0 : 10.0); // bottom
   return photoH + bodyH;
 }
 
@@ -668,8 +672,8 @@ class _ServiceLayout extends StatelessWidget {
   }
 }
 
-/// Card compacto de grade (2 colunas no mobile) — foto / título / preço / CTA.
-/// Largura e altura vêm do pai ([SizedBox] da grade) para todos ficarem iguais.
+/// Card compacto de grade — foto 16:9 / título / preço / CTA.
+/// Mesma largura e altura na grade; badge na foto (sem buraco sob a imagem).
 class _GridTileCard extends StatelessWidget {
   const _GridTileCard({
     required this.servico,
@@ -688,12 +692,18 @@ class _GridTileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final mobile = width < 680;
     final scaler = MediaQuery.textScalerOf(context);
-    final titleSize = scaler.scale(13.5).clamp(12.0, 16.0);
-    final priceSize = scaler.scale(14.0).clamp(12.5, 17.0);
-    final ctaSize = scaler.scale(12.5).clamp(11.0, 15.0);
-    final detailsSize = scaler.scale(11.5).clamp(10.0, 13.0);
-    final badgeSize = scaler.scale(9).clamp(8.0, 11.0);
+    final titleSize = scaler.scale(mobile ? 12.5 : 13.5).clamp(11.5, 15.0);
+    final priceSize = scaler.scale(mobile ? 13.0 : 14.0).clamp(12.0, 16.0);
+    final ctaSize = scaler.scale(mobile ? 12.0 : 12.5).clamp(11.0, 14.5);
+    final detailsSize = scaler.scale(mobile ? 10.5 : 11.5).clamp(10.0, 12.5);
+    final badgeSize = scaler.scale(mobile ? 8.5 : 9.0).clamp(8.0, 10.5);
+    final ctaH = mobile ? 32.0 : 36.0;
+    final padH = mobile ? 8.0 : 10.0;
+    final padTop = mobile ? 6.0 : 8.0;
+    final padBottom = mobile ? 8.0 : 10.0;
     final price = _priceText(servico);
     final badge = servico.vitrineBadge.trim();
 
@@ -702,59 +712,59 @@ class _GridTileCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Foto 16:9 — mesma proporção em todo card da grade.
           AspectRatio(
             aspectRatio: 16 / 9,
-            child: GestureDetector(
-              onTap: onDetalhes,
-              behavior: HitTestBehavior.opaque,
-              child: _ServicePhotoCarousel(
-                media: media,
-                icon: _groupIcon(servico.grupo),
-                showDots: media.length > 1,
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                GestureDetector(
+                  onTap: onDetalhes,
+                  behavior: HitTestBehavior.opaque,
+                  child: _ServicePhotoCarousel(
+                    media: media,
+                    icon: _groupIcon(servico.grupo),
+                    showDots: media.length > 1,
+                  ),
+                ),
+                if (badge.isNotEmpty)
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        badge.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: ClxBrand.cyan,
+                          fontSize: badgeSize,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+              padding: EdgeInsets.fromLTRB(padH, padTop, padH, padBottom),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Slot de badge sempre da mesma altura (vazio se não houver).
+                  // Título: 2 linhas fixas, colado na foto.
                   SizedBox(
-                    height: badgeSize + 10,
-                    child: badge.isEmpty
-                        ? const SizedBox.shrink()
-                        : Align(
-                            alignment: Alignment.centerLeft,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE8F4F6),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                badge.toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: ClxBrand.cyan,
-                                  fontSize: badgeSize,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: .4,
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Título: sempre 2 linhas de altura.
-                  SizedBox(
-                    height: titleSize * 1.2 * 2,
+                    height: titleSize * 1.15 * 2,
                     child: Text(
                       servico.tituloComercial,
                       maxLines: 2,
@@ -762,14 +772,14 @@ class _GridTileCard extends StatelessWidget {
                       style: TextStyle(
                         color: ClxBrand.navy,
                         fontSize: titleSize,
-                        height: 1.2,
+                        height: 1.15,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   SizedBox(
-                    height: detailsSize * 1.25,
+                    height: detailsSize * 1.15,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton(
@@ -787,6 +797,7 @@ class _GridTileCard extends StatelessWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: detailsSize,
+                            height: 1.1,
                           ),
                         ),
                       ),
@@ -794,7 +805,7 @@ class _GridTileCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   SizedBox(
-                    height: priceSize * 1.2,
+                    height: priceSize * 1.15,
                     child: Text(
                       price.isEmpty ? ' ' : price,
                       maxLines: 1,
@@ -802,13 +813,14 @@ class _GridTileCard extends StatelessWidget {
                       style: TextStyle(
                         color: ClxBrand.navy,
                         fontSize: priceSize,
+                        height: 1.15,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: mobile ? 6 : 8),
                   SizedBox(
-                    height: 36,
+                    height: ctaH,
                     child: FilledButton(
                       key: Key('vitrine-add-${servico.id}'),
                       style: FilledButton.styleFrom(
@@ -816,7 +828,7 @@ class _GridTileCard extends StatelessWidget {
                             ? const Color(0xFFDC2626)
                             : ClxBrand.cyan,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
                         ),
@@ -833,9 +845,9 @@ class _GridTileCard extends StatelessWidget {
                           children: [
                             Icon(
                               selected ? Icons.remove : Icons.add,
-                              size: 16,
+                              size: mobile ? 15 : 16,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 3),
                             Text(
                               selected
                                   ? 'Remover'
