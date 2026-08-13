@@ -915,7 +915,8 @@ class _VitrineAdminServicosScreenState
   List<VitrineAdminServico>? _items;
   Object? _error;
   bool _loading = true;
-  bool _reordering = false;
+  /// Lock lógico sem rebuild de UI (evita LinearProgress/snackbar mexerem o scroll).
+  bool _reorderBusy = false;
   final _scrollController = ScrollController();
   final _togglingIds = <String>{};
 
@@ -931,7 +932,29 @@ class _VitrineAdminServicosScreenState
     super.dispose();
   }
 
+  double get _scrollOffset =>
+      _scrollController.hasClients ? _scrollController.offset : 0.0;
+
+  void _keepScroll([double? offset]) {
+    final o = offset ?? _scrollOffset;
+    void jump() {
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      final target = o.clamp(0.0, max);
+      if ((_scrollController.offset - target).abs() > 0.5) {
+        _scrollController.jumpTo(target);
+      }
+    }
+
+    // Restaura no próximo frame e no seguinte (layout do reorder pode atrasar).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      jump();
+      WidgetsBinding.instance.addPostFrameCallback((_) => jump());
+    });
+  }
+
   Future<void> _load() async {
+    final offset = _scrollOffset;
     setState(() {
       _loading = true;
       _error = null;
@@ -943,24 +966,28 @@ class _VitrineAdminServicosScreenState
         _items = items;
         _loading = false;
       });
+      _keepScroll(offset);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
       });
+      _keepScroll(offset);
     }
   }
 
   void _replaceLocal(VitrineAdminServico updated) {
     final list = _items;
     if (list == null) return;
+    final offset = _scrollOffset;
     setState(() {
       _items = [
         for (final s in list)
           if (s.id == updated.id) updated else s,
       ];
     });
+    _keepScroll(offset);
   }
 
   List<VitrineAdminServico> _ofMacro(String macro) {
@@ -969,10 +996,12 @@ class _VitrineAdminServicosScreenState
       for (final s in items)
         if (s.macroCategoria == macro) s,
     ];
+    // Ordem canônica: só vitrine_ordem (empate estável por id, não por nome —
+    // evita “pulo” visual se vários ainda estão em 0).
     filtered.sort((a, b) {
       final o = a.vitrineOrdem.compareTo(b.vitrineOrdem);
       if (o != 0) return o;
-      return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+      return a.id.compareTo(b.id);
     });
     return filtered;
   }
@@ -982,13 +1011,15 @@ class _VitrineAdminServicosScreenState
     bool? vitrine,
     bool? destaque,
   }) async {
-    if (_togglingIds.contains(s.id) || _reordering) return;
+    if (_togglingIds.contains(s.id) || _reorderBusy) return;
     final next = s.copyWith(
       vitrine: vitrine ?? s.vitrine,
       vitrineDestaque: destaque ?? s.vitrineDestaque,
     );
     _replaceLocal(next);
+    final offset = _scrollOffset;
     setState(() => _togglingIds.add(s.id));
+    _keepScroll(offset);
     try {
       await ref.read(vitrineAdminApiProvider).adminPatchServico(
             s.id,
@@ -999,34 +1030,42 @@ class _VitrineAdminServicosScreenState
       if (!mounted) return;
       _replaceLocal(s);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível atualizar: $e')),
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Não foi possível atualizar: $e'),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _togglingIds.remove(s.id));
+      if (mounted) {
+        final o = _scrollOffset;
+        setState(() => _togglingIds.remove(s.id));
+        _keepScroll(o);
+      }
     }
   }
 
-  /// Reordena dentro da categoria e grava `vitrine_ordem` (0..n).
-  /// Essa ordem é a do catálogo público ao clicar no macro.
+  /// Reordena na categoria e grava `vitrine_ordem` sem resetar o scroll.
   Future<void> _onReorderMacro(
     String macro,
     int oldIndex,
     int newIndex,
   ) async {
-    if (_reordering) return;
+    if (_reorderBusy) return;
     final before = _ofMacro(macro);
     if (before.isEmpty) return;
     var target = newIndex;
     if (target > oldIndex) target -= 1;
     if (target < 0 || target >= before.length || oldIndex == target) return;
 
+    final offset = _scrollOffset;
     final moved = [...before];
     final item = moved.removeAt(oldIndex);
     moved.insert(target, item);
 
-    // Snapshot para rollback.
     final snapshot = _items == null ? null : [..._items!];
-    final byId = {for (final s in (_items ?? const <VitrineAdminServico>[])) s.id: s};
+    final byId = {
+      for (final s in (_items ?? const <VitrineAdminServico>[])) s.id: s,
+    };
     final updatedMoved = <VitrineAdminServico>[
       for (var i = 0; i < moved.length; i++)
         moved[i].copyWith(vitrineOrdem: i),
@@ -1034,40 +1073,42 @@ class _VitrineAdminServicosScreenState
     for (final s in updatedMoved) {
       byId[s.id] = s;
     }
+
+    _reorderBusy = true;
+    // Um único setState: lista nova, sem barra de progresso nem snack de sucesso.
     setState(() {
-      _reordering = true;
       _items = byId.values.toList();
     });
+    _keepScroll(offset);
 
     try {
       final api = ref.read(vitrineAdminApiProvider);
-      // Só grava quem mudou de ordem.
       final futures = <Future<void>>[];
-      for (var i = 0; i < updatedMoved.length; i++) {
-        final s = updatedMoved[i];
+      for (final s in updatedMoved) {
         final prev = before.firstWhere((e) => e.id == s.id);
         if (prev.vitrineOrdem != s.vitrineOrdem) {
-          futures.add(api.adminPatchServico(s.id, vitrineOrdem: s.vitrineOrdem));
+          futures.add(
+            api.adminPatchServico(s.id, vitrineOrdem: s.vitrineOrdem),
+          );
         }
       }
       await Future.wait(futures);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ordem salva — vale no site ao abrir a categoria'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      // Sucesso silencioso — snackbar/progress deslocavam o layout e o scroll.
     } catch (e) {
       if (!mounted) return;
       if (snapshot != null) {
         setState(() => _items = snapshot);
+        _keepScroll(offset);
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível salvar a ordem: $e')),
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Não foi possível salvar a ordem: $e'),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _reordering = false);
+      _reorderBusy = false;
+      if (mounted) _keepScroll(offset);
     }
   }
 
@@ -1094,15 +1135,7 @@ class _VitrineAdminServicosScreenState
       ),
     );
     if (saved == true && mounted) {
-      final offset =
-          _scrollController.hasClients ? _scrollController.offset : 0.0;
       await _load();
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        final max = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(offset.clamp(0.0, max));
-      });
     }
   }
 
@@ -1127,7 +1160,7 @@ class _VitrineAdminServicosScreenState
     final residencial = _ofMacro('residencial');
     final outros = _ofMacro('outros');
     return ListView(
-      key: const Key('vitrine-admin-servicos-list'),
+      key: const PageStorageKey<String>('vitrine-admin-servicos-list'),
       controller: _scrollController,
       padding: const EdgeInsets.all(20),
       children: [
@@ -1147,13 +1180,9 @@ class _VitrineAdminServicosScreenState
           'Use o personalizar para capa/antes/depois e demais campos.',
           style: TextStyle(color: ClxBrand.muted, fontSize: 13),
         ),
-        if (_reordering) ...[
-          const SizedBox(height: 8),
-          const LinearProgressIndicator(minHeight: 2),
-        ],
         const SizedBox(height: 16),
         _section(
-          key: const Key('vitrine-admin-sec-veicular'),
+          key: const ValueKey('vitrine-admin-sec-veicular'),
           macro: 'veicular',
           title: 'Estética automotiva',
           subtitle: 'Serviços veiculares',
@@ -1162,7 +1191,7 @@ class _VitrineAdminServicosScreenState
         ),
         const SizedBox(height: 20),
         _section(
-          key: const Key('vitrine-admin-sec-residencial'),
+          key: const ValueKey('vitrine-admin-sec-residencial'),
           macro: 'residencial',
           title: 'Higienização residencial',
           subtitle: 'Sofá, colchão, poltrona, tapete e afins',
@@ -1172,7 +1201,7 @@ class _VitrineAdminServicosScreenState
         if (outros.isNotEmpty) ...[
           const SizedBox(height: 20),
           _section(
-            key: const Key('vitrine-admin-sec-outros'),
+            key: const ValueKey('vitrine-admin-sec-outros'),
             macro: 'outros',
             title: 'Outros / sem categoria',
             subtitle: 'Defina categoria no cadastro do serviço',
@@ -1235,12 +1264,13 @@ class _VitrineAdminServicosScreenState
           )
         else
           ReorderableListView.builder(
-            key: Key('vitrine-admin-reorder-$macro'),
+            key: PageStorageKey<String>('vitrine-admin-reorder-$macro'),
             shrinkWrap: true,
+            primary: false,
             physics: const NeverScrollableScrollPhysics(),
             buildDefaultDragHandles: false,
             itemCount: items.length,
-            onReorder: _reordering
+            onReorder: _reorderBusy
                 ? (_, __) {}
                 : (oldIndex, newIndex) =>
                     _onReorderMacro(macro, oldIndex, newIndex),
@@ -1248,6 +1278,7 @@ class _VitrineAdminServicosScreenState
               return Material(
                 elevation: 6,
                 borderRadius: BorderRadius.circular(12),
+                color: Colors.transparent,
                 child: child,
               );
             },
@@ -1269,7 +1300,7 @@ class _VitrineAdminServicosScreenState
     required int index,
     required Key key,
   }) {
-    final busy = _togglingIds.contains(s.id) || _reordering;
+    final busy = _togglingIds.contains(s.id);
     return Card(
       key: key,
       margin: const EdgeInsets.only(bottom: 8),
@@ -1279,7 +1310,9 @@ class _VitrineAdminServicosScreenState
           children: [
             Switch(
               value: s.vitrine,
-              onChanged: busy ? null : (value) => _toggle(s, vitrine: value),
+              onChanged: busy || _reorderBusy
+                  ? null
+                  : (value) => _toggle(s, vitrine: value),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1310,17 +1343,18 @@ class _VitrineAdminServicosScreenState
                 s.vitrineDestaque ? Icons.star : Icons.star_border,
                 color: s.vitrineDestaque ? ClxBrand.cyan : ClxBrand.muted,
               ),
-              onPressed:
-                  busy ? null : () => _toggle(s, destaque: !s.vitrineDestaque),
+              onPressed: busy || _reorderBusy
+                  ? null
+                  : () => _toggle(s, destaque: !s.vitrineDestaque),
             ),
             IconButton(
               tooltip: 'Personalizar serviço',
               icon: const Icon(Icons.tune),
-              onPressed: busy ? null : () => _openEditor(s),
+              onPressed: busy || _reorderBusy ? null : () => _openEditor(s),
             ),
             ReorderableDragStartListener(
               index: index,
-              enabled: !_reordering,
+              enabled: !_reorderBusy,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                 child: Icon(
