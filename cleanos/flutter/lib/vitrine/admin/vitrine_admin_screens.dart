@@ -450,12 +450,20 @@ class _VitrineAdminPersonalizarScreenState
   final _passo = TextEditingController();
   final _antecedencia = TextEditingController();
   final _horizonte = TextEditingController();
+  final _macroResidTitulo = TextEditingController();
+  final _macroResidSub = TextEditingController();
+  final _macroAutoTitulo = TextEditingController();
+  final _macroAutoSub = TextEditingController();
 
   /// Hero saiu da home pública — mantidos só para não apagar no save.
   String _heroTitulo = '';
   String _heroSubtitulo = '';
   String _heroCta = 'Agendar agora';
   bool _heroCtaAtivo = false;
+
+  bool _macroAutoPrimeiro = true;
+  String _macroResidIcone = 'cleaning';
+  String _macroAutoIcone = 'car';
 
   bool _loading = true;
   bool _saving = false;
@@ -485,6 +493,16 @@ class _VitrineAdminPersonalizarScreenState
       _passo.text = '${c.passoMin}';
       _antecedencia.text = '${c.antecedenciaMinutos}';
       _horizonte.text = '${c.horizonteDias}';
+      _macroAutoPrimeiro = c.macroAutoPrimeiro;
+      _macroResidTitulo.text = c.macroResidTitulo;
+      _macroResidSub.text = c.macroResidSubtitulo;
+      _macroResidIcone = c.macroResidIcone.trim().isEmpty
+          ? 'cleaning'
+          : c.macroResidIcone;
+      _macroAutoTitulo.text = c.macroAutoTitulo;
+      _macroAutoSub.text = c.macroAutoSubtitulo;
+      _macroAutoIcone =
+          c.macroAutoIcone.trim().isEmpty ? 'car' : c.macroAutoIcone;
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -520,6 +538,17 @@ class _VitrineAdminPersonalizarScreenState
               antecedenciaMinutos:
                   int.tryParse(_antecedencia.text.trim()) ?? 60,
               horizonteDias: int.tryParse(_horizonte.text.trim()) ?? 14,
+              macroAutoPrimeiro: _macroAutoPrimeiro,
+              macroResidTitulo: _macroResidTitulo.text.trim().isEmpty
+                  ? 'Higienização residencial'
+                  : _macroResidTitulo.text.trim(),
+              macroResidSubtitulo: _macroResidSub.text.trim(),
+              macroResidIcone: _macroResidIcone,
+              macroAutoTitulo: _macroAutoTitulo.text.trim().isEmpty
+                  ? 'Estética automotiva'
+                  : _macroAutoTitulo.text.trim(),
+              macroAutoSubtitulo: _macroAutoSub.text.trim(),
+              macroAutoIcone: _macroAutoIcone,
             ),
           );
       if (!mounted) return;
@@ -548,6 +577,10 @@ class _VitrineAdminPersonalizarScreenState
     _passo.dispose();
     _antecedencia.dispose();
     _horizonte.dispose();
+    _macroResidTitulo.dispose();
+    _macroResidSub.dispose();
+    _macroAutoTitulo.dispose();
+    _macroAutoSub.dispose();
     super.dispose();
   }
 
@@ -634,6 +667,103 @@ class _VitrineAdminPersonalizarScreenState
                   controller: _como,
                   maxLines: 5,
                   decoration: const InputDecoration(labelText: 'Como funciona'),
+                ),
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'O que você procura? (macros da home)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: ClxBrand.navy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Títulos, textos e ícones dos dois cards grandes. '
+                  'Fotos: Mídia com chave categoria_residencial e categoria_auto.',
+                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+                ),
+                SwitchListTile(
+                  key: const Key('vitrine-macro-auto-primeiro'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Estética automotiva primeiro'),
+                  subtitle: Text(
+                    _macroAutoPrimeiro
+                        ? 'Ordem: automotiva → residencial'
+                        : 'Ordem: residencial → automotiva',
+                  ),
+                  value: _macroAutoPrimeiro,
+                  onChanged: (v) => setState(() => _macroAutoPrimeiro = v),
+                ),
+                TextField(
+                  controller: _macroAutoTitulo,
+                  decoration: const InputDecoration(
+                    labelText: 'Título — Estética automotiva',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _macroAutoSub,
+                  decoration: const InputDecoration(
+                    labelText: 'Subtítulo — Estética automotiva',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('macro-auto-ico-$_macroAutoIcone'),
+                  initialValue: _macroAutoIcone,
+                  decoration: const InputDecoration(
+                    labelText: 'Ícone — Estética automotiva',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'car', child: Text('Carro')),
+                    DropdownMenuItem(value: 'garage', child: Text('Garagem')),
+                    DropdownMenuItem(value: 'spray', child: Text('Spray / escova')),
+                    DropdownMenuItem(value: 'home', child: Text('Casa')),
+                    DropdownMenuItem(value: 'cleaning', child: Text('Limpeza')),
+                    DropdownMenuItem(value: 'sofa', child: Text('Sofá')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _macroAutoIcone = v);
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _macroResidTitulo,
+                  decoration: const InputDecoration(
+                    labelText: 'Título — Higienização residencial',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _macroResidSub,
+                  decoration: const InputDecoration(
+                    labelText: 'Subtítulo — Higienização residencial',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('macro-resid-ico-$_macroResidIcone'),
+                  initialValue: _macroResidIcone,
+                  decoration: const InputDecoration(
+                    labelText: 'Ícone — Higienização residencial',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'cleaning',
+                      child: Text('Limpeza (recomendado)'),
+                    ),
+                    DropdownMenuItem(value: 'sofa', child: Text('Sofá')),
+                    DropdownMenuItem(value: 'home', child: Text('Casa')),
+                    DropdownMenuItem(value: 'car', child: Text('Carro')),
+                    DropdownMenuItem(value: 'garage', child: Text('Garagem')),
+                    DropdownMenuItem(value: 'spray', child: Text('Spray / escova')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _macroResidIcone = v);
+                  },
                 ),
                 const SizedBox(height: 20),
                 const Align(

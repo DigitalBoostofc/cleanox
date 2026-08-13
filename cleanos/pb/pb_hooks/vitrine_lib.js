@@ -250,6 +250,14 @@ function defaultConfig() {
     passo_min: 30,
     antecedencia_minutos: 60,
     horizonte_dias: 14,
+    // Macros “O que você procura?”
+    macro_auto_primeiro: true,
+    macro_resid_titulo: "Higienização residencial",
+    macro_resid_subtitulo: "Sofá, colchão, poltrona, tapete e mais",
+    macro_resid_icone: "cleaning",
+    macro_auto_titulo: "Estética automotiva",
+    macro_auto_subtitulo: "Bancos, teto, carpete e pacotes Cleanox",
+    macro_auto_icone: "car",
   };
 }
 
@@ -306,6 +314,28 @@ function getConfig(app) {
           1,
           Math.floor(numCfg(r.get("horizonte_dias"), base.horizonte_dias)),
         ),
+        macro_auto_primeiro: boolCfg(
+          r.get("macro_auto_primeiro"),
+          base.macro_auto_primeiro,
+        ),
+        macro_resid_titulo: String(
+          r.get("macro_resid_titulo") || base.macro_resid_titulo,
+        ),
+        macro_resid_subtitulo: String(
+          r.get("macro_resid_subtitulo") || base.macro_resid_subtitulo,
+        ),
+        macro_resid_icone: String(
+          r.get("macro_resid_icone") || base.macro_resid_icone,
+        ),
+        macro_auto_titulo: String(
+          r.get("macro_auto_titulo") || base.macro_auto_titulo,
+        ),
+        macro_auto_subtitulo: String(
+          r.get("macro_auto_subtitulo") || base.macro_auto_subtitulo,
+        ),
+        macro_auto_icone: String(
+          r.get("macro_auto_icone") || base.macro_auto_icone,
+        ),
       };
     }
   } catch (_) {}
@@ -332,6 +362,12 @@ function saveConfig(app, body) {
     "como_funciona",
     "horario_inicio",
     "horario_fim",
+    "macro_resid_titulo",
+    "macro_resid_subtitulo",
+    "macro_resid_icone",
+    "macro_auto_titulo",
+    "macro_auto_subtitulo",
+    "macro_auto_icone",
   ];
   for (var i = 0; i < keys.length; i++) {
     const k = keys[i];
@@ -351,6 +387,9 @@ function saveConfig(app, body) {
   }
   if (body.hero_cta_ativo != null) {
     rec.set("hero_cta_ativo", boolCfg(body.hero_cta_ativo, true));
+  }
+  if (body.macro_auto_primeiro != null) {
+    rec.set("macro_auto_primeiro", boolCfg(body.macro_auto_primeiro, true));
   }
   app.save(rec);
   return getConfig(app);
