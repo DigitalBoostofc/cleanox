@@ -302,6 +302,7 @@ void main() {
         find.byKey(const Key('vitrine-home-switch-cat-veicular')),
         findsOneWidget,
       );
+      expect(find.text('Ver'), findsWidgets);
       expect(find.textContaining('Estética'), findsWidgets);
       expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
