@@ -82,19 +82,86 @@ class _VitrineCatalogoPersonalizavelState
 
   bool _matchesCategoria(VitrineServico servico, String cat) {
     if (cat.isEmpty) return true;
+    final want = cat.trim().toLowerCase();
     final c = servico.categoria.trim().toLowerCase();
-    if (c == cat) return true;
-    // Fallbacks se cadastro antigo misturar rótulos.
-    if (cat == 'veicular') {
-      return c.contains('veic') ||
+    final g = servico.grupo.trim().toLowerCase();
+    final nome = '${servico.nome} ${servico.tituloComercial}'.toLowerCase();
+
+    if (c == want) return true;
+
+    if (want == 'veicular' || want == 'automotiva' || want == 'auto') {
+      if (c == 'veicular' ||
+          c == 'automotiva' ||
+          c == 'auto' ||
+          c.contains('veic') ||
+          c.contains('auto')) {
+        return true;
+      }
+      // Nunca misturar residencial marcado.
+      if (c == 'residencial' || c.contains('resid') || c.contains('domic')) {
+        return false;
+      }
+      // Fallback só se categoria vazia: planos/avulsos automotivos + nomes típicos.
+      if (c.isEmpty) {
+        if (g == 'plano' ||
+            g == 'promocao' ||
+            g == 'promoção' ||
+            g == 'avulsos' ||
+            g == 'adicional' ||
+            g.contains('auto')) {
+          return true;
+        }
+        return nome.contains('veículo') ||
+            nome.contains('veiculo') ||
+            nome.contains('cleanox') ||
+            nome.contains('banco') ||
+            nome.contains('carpete') ||
+            nome.contains('teto') ||
+            nome.contains('cinto') ||
+            nome.contains('painel') ||
+            nome.contains('porta-malas');
+      }
+      return false;
+    }
+
+    if (want == 'residencial' || want == 'residencia') {
+      if (c == 'residencial' ||
+          c == 'residencia' ||
+          c.contains('resid') ||
+          c.contains('domic')) {
+        return true;
+      }
+      if (c == 'veicular' ||
+          c.contains('veic') ||
           c.contains('auto') ||
-          servico.grupo.toLowerCase().contains('auto');
+          c == 'automotiva') {
+        return false;
+      }
+      const familias = {
+        'sofa',
+        'sofá',
+        'colchao',
+        'colchão',
+        'poltrona',
+        'tapete',
+        'cadeira',
+        'cama',
+        'outros',
+      };
+      if (familias.contains(g) || familias.any(g.contains)) return true;
+      if (c.isEmpty) {
+        return nome.contains('sofá') ||
+            nome.contains('sofa') ||
+            nome.contains('colch') ||
+            nome.contains('cama') ||
+            nome.contains('poltrona') ||
+            nome.contains('tapete') ||
+            nome.contains('cadeira') ||
+            nome.contains('puff');
+      }
+      return false;
     }
-    if (cat == 'residencial') {
-      return c.contains('resid') ||
-          c.contains('domic') ||
-          (!c.contains('veic') && !c.contains('auto'));
-    }
+
     return false;
   }
 
