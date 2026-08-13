@@ -175,10 +175,23 @@ void main() {
           'id': 'sofa1',
           'nome': 'Sofa 3 lugares',
           'descricao': 'Higienizacao',
+          'categoria': 'residencial',
           'grupo': 'sofa',
           'valor_base': 200,
           'tempo_medio_min': 60,
           'vitrine_destaque': true,
+          'vitrine_layout': 'compacto',
+          'ativo': true,
+        },
+        {
+          'id': 'banco1',
+          'nome': 'Bancos automotivos',
+          'descricao': 'Estetica',
+          'categoria': 'veicular',
+          'grupo': 'avulsos',
+          'valor_base': 150,
+          'tempo_medio_min': 45,
+          'vitrine_destaque': false,
           'vitrine_layout': 'compacto',
           'ativo': true,
         },
@@ -284,6 +297,12 @@ void main() {
       expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
       // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
       expect(find.byKey(const Key('vitrine-home-grupo-icon-strip')), findsOneWidget);
+      // Atalho da outra categoria na mesma linha do Voltar.
+      expect(
+        find.byKey(const Key('vitrine-home-switch-cat-veicular')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Estética'), findsWidgets);
       expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
     });

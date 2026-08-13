@@ -822,6 +822,27 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     });
   }
 
+  /// Troca para a outra macro (ex.: residencial ↔ veicular) e abre os grupos.
+  void _switchCategoria(String macro) {
+    _pickCategoria(macro);
+  }
+
+  /// Outra categoria disponível (para atalho no topo do catálogo).
+  String? _outraMacroDisponivel(String atual) {
+    final cur = atual.trim().toLowerCase();
+    final candidatas = <String>[];
+    if (_config.macroAutoPrimeiro) {
+      candidatas.addAll(['veicular', 'residencial']);
+    } else {
+      candidatas.addAll(['residencial', 'veicular']);
+    }
+    for (final m in candidatas) {
+      if (m == cur) continue;
+      if (_servicosNoMacro(m).isNotEmpty) return m;
+    }
+    return null;
+  }
+
   void _pickGrupo(String grupo) {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final subs = _subgruposDoGrupo(cat, grupo);
@@ -1098,28 +1119,72 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return Column(key: key, mainAxisSize: MainAxisSize.min, children: rows);
   }
 
-  Widget _browseBackButton() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(_kChoiceHPad, 4, _kChoiceHPad, 0),
-        child: TextButton.icon(
-          key: const Key('vitrine-home-back'),
-          onPressed: _browseBack,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            visualDensity: VisualDensity.compact,
-            foregroundColor: ClxBrand.navy,
-          ),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
-          label: const Text(
-            'Voltar',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontWeight: FontWeight.w700,
+  Widget _browseBackButton({Widget? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_kChoiceHPad, 4, _kChoiceHPad, 0),
+      child: Row(
+        children: [
+          TextButton.icon(
+            key: const Key('vitrine-home-back'),
+            onPressed: _browseBack,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              visualDensity: VisualDensity.compact,
+              foregroundColor: ClxBrand.navy,
+            ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _switchCategoriaTrailing(String catAtual) {
+    final outra = _outraMacroDisponivel(catAtual);
+    if (outra == null) return const SizedBox.shrink();
+    return TextButton(
+      key: Key('vitrine-home-switch-cat-$outra'),
+      onPressed: () => _switchCategoria(outra),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        visualDensity: VisualDensity.compact,
+        foregroundColor: ClxBrand.cyan,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              _macroTitle(outra),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: kFontFamily,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, size: 18),
+        ],
       ),
     );
   }
@@ -1336,7 +1401,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       key: const Key('vitrine-home-browse-catalogo'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _browseBackButton(),
+        _browseBackButton(
+          trailing: cat.isNotEmpty ? _switchCategoriaTrailing(cat) : null,
+        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
