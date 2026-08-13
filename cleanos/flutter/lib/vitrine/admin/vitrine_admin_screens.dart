@@ -972,7 +972,20 @@ class _VitrineAdminServicosScreenState
           return Center(child: Text('Erro: ${snap.error}'));
         }
         final items = snap.data ?? const <VitrineAdminServico>[];
+        final veicular = [
+          for (final s in items)
+            if (s.macroCategoria == 'veicular') s,
+        ];
+        final residencial = [
+          for (final s in items)
+            if (s.macroCategoria == 'residencial') s,
+        ];
+        final outros = [
+          for (final s in items)
+            if (s.macroCategoria == 'outros') s,
+        ];
         return ListView(
+          key: const Key('vitrine-admin-servicos-list'),
           padding: const EdgeInsets.all(20),
           children: [
             const Text(
@@ -986,70 +999,147 @@ class _VitrineAdminServicosScreenState
             const SizedBox(height: 8),
             const Text(
               'Escolha o formato, a mensagem e a posição de cada serviço. '
+              'Lista separada por categoria (veicular e residencial). '
               'Use o personalizar do serviço para marcar capa / antes / depois '
               'nas fotos já cadastradas em Serviços → Editar → Fotos na Vitrine.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
-            for (final s in items)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                  child: Row(
-                    children: [
-                      Switch(
-                        value: s.vitrine,
-                        onChanged: (value) => _toggle(s, vitrine: value),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              s.vitrineTitulo.isEmpty
-                                  ? s.nome
-                                  : s.vitrineTitulo,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              '${s.grupo.isEmpty ? '—' : s.grupo} · '
-                              '${formatCurrency(s.valorBase)} · '
-                              '${_adminLayoutLabel(s.layout)}'
-                              '${s.vitrineDestaque ? ' · destaque' : ''}',
-                              style: const TextStyle(
-                                color: ClxBrand.muted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Destaque na home',
-                        icon: Icon(
-                          s.vitrineDestaque ? Icons.star : Icons.star_border,
-                          color: s.vitrineDestaque
-                              ? ClxBrand.cyan
-                              : ClxBrand.muted,
-                        ),
-                        onPressed: () =>
-                            _toggle(s, destaque: !s.vitrineDestaque),
-                      ),
-                      IconButton(
-                        tooltip: 'Personalizar serviço',
-                        icon: const Icon(Icons.tune),
-                        onPressed: () => _openEditor(s),
-                      ),
-                    ],
-                  ),
-                ),
+            ..._section(
+              key: const Key('vitrine-admin-sec-veicular'),
+              title: 'Estética automotiva',
+              subtitle: 'Serviços veiculares',
+              items: veicular,
+              emptyHint: 'Nenhum serviço veicular cadastrado.',
+            ),
+            const SizedBox(height: 20),
+            ..._section(
+              key: const Key('vitrine-admin-sec-residencial'),
+              title: 'Higienização residencial',
+              subtitle: 'Sofá, colchão, poltrona, tapete e afins',
+              items: residencial,
+              emptyHint: 'Nenhum serviço residencial cadastrado.',
+            ),
+            if (outros.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ..._section(
+                key: const Key('vitrine-admin-sec-outros'),
+                title: 'Outros / sem categoria',
+                subtitle: 'Defina categoria no cadastro do serviço',
+                items: outros,
+                emptyHint: '',
               ),
+            ],
           ],
         );
       },
+    );
+  }
+
+  List<Widget> _section({
+    required Key key,
+    required String title,
+    required String subtitle,
+    required List<VitrineAdminServico> items,
+    required String emptyHint,
+  }) {
+    return [
+      Container(
+        key: key,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: ClxBrand.navy,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$subtitle · ${items.length} serviço${items.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 10),
+      if (items.isEmpty && emptyHint.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            emptyHint,
+            style: const TextStyle(color: ClxBrand.muted, fontSize: 13),
+          ),
+        ),
+      for (final s in items) _servicoTile(s),
+    ];
+  }
+
+  Widget _servicoTile(VitrineAdminServico s) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+        child: Row(
+          children: [
+            Switch(
+              value: s.vitrine,
+              onChanged: (value) => _toggle(s, vitrine: value),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.vitrineTitulo.isEmpty ? s.nome : s.vitrineTitulo,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '${s.grupo.isEmpty ? '—' : s.grupo} · '
+                    '${formatCurrency(s.valorBase)} · '
+                    '${_adminLayoutLabel(s.layout)}'
+                    '${s.vitrineDestaque ? ' · destaque' : ''}',
+                    style: const TextStyle(
+                      color: ClxBrand.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Destaque na home',
+              icon: Icon(
+                s.vitrineDestaque ? Icons.star : Icons.star_border,
+                color: s.vitrineDestaque ? ClxBrand.cyan : ClxBrand.muted,
+              ),
+              onPressed: () => _toggle(s, destaque: !s.vitrineDestaque),
+            ),
+            IconButton(
+              tooltip: 'Personalizar serviço',
+              icon: const Icon(Icons.tune),
+              onPressed: () => _openEditor(s),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
