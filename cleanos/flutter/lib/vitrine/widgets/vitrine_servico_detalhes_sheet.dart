@@ -4,14 +4,17 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../core/design/tokens.dart';
+import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
 import 'vitrine_ui.dart';
 
-/// Abre painel com capa, título e o que o serviço inclui.
+/// Abre painel com capa, título, detalhes e CTA Adicionar no rodapé.
 Future<void> showVitrineServicoDetalhes(
   BuildContext context, {
   required VitrineServico servico,
   required List<VitrineMidia> media,
+  bool selected = false,
+  VoidCallback? onToggle,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -40,6 +43,8 @@ Future<void> showVitrineServicoDetalhes(
               child: _VitrineServicoDetalhesBody(
                 servico: servico,
                 media: media,
+                selected: selected,
+                onToggle: onToggle,
               ),
             ),
           ),
@@ -53,10 +58,14 @@ class _VitrineServicoDetalhesBody extends StatelessWidget {
   const _VitrineServicoDetalhesBody({
     required this.servico,
     required this.media,
+    required this.selected,
+    this.onToggle,
   });
 
   final VitrineServico servico;
   final List<VitrineMidia> media;
+  final bool selected;
+  final VoidCallback? onToggle;
 
   String get _detalhes {
     final t = servico.descricaoComercial.trim();
@@ -77,6 +86,9 @@ class _VitrineServicoDetalhesBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = _capaUrl;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final showCta = onToggle != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -112,7 +124,7 @@ class _VitrineServicoDetalhesBody extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 28),
+            padding: EdgeInsets.fromLTRB(22, 20, 22, showCta ? 16 : 28),
             children: [
               Text(
                 servico.tituloComercial,
@@ -125,6 +137,19 @@ class _VitrineServicoDetalhesBody extends StatelessWidget {
                   color: ClxBrand.navy,
                 ),
               ),
+              if (servico.valorBase > 0) ...[
+                const SizedBox(height: 10),
+                Text(
+                  formatCurrency(servico.valorBase),
+                  key: Key('vitrine-detalhes-preco-${servico.id}'),
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: ClxBrand.cyan,
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               const Text(
                 'Detalhes',
@@ -150,6 +175,53 @@ class _VitrineServicoDetalhesBody extends StatelessWidget {
             ],
           ),
         ),
+        if (showCta)
+          Container(
+            key: Key('vitrine-detalhes-footer-${servico.id}'),
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x140B1D34),
+                  blurRadius: 16,
+                  offset: Offset(0, -4),
+                ),
+              ],
+            ),
+            child: FilledButton(
+              key: Key(
+                selected
+                    ? 'vitrine-detalhes-remover-${servico.id}'
+                    : 'vitrine-detalhes-adicionar-${servico.id}',
+              ),
+              onPressed: () {
+                onToggle!();
+                Navigator.of(context).maybePop();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    selected ? const Color(0xFF0B1D34) : ClxBrand.cyan,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: Text(
+                selected ? 'Remover do carrinho' : '+ Adicionar',
+                style: const TextStyle(
+                  fontFamily: kFontFamily,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

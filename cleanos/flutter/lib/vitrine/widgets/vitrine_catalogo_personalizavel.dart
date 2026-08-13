@@ -399,6 +399,8 @@ class _VitrineCatalogoPersonalizavelState
                           context,
                           servico: servico,
                           media: widget.bootstrap.midiaDoServico(servico.id),
+                          selected: widget.selectedIds.contains(servico.id),
+                          onToggle: () => widget.onToggle(servico),
                         ),
                       ),
                     ),
