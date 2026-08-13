@@ -608,15 +608,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        VitrineHeroCard(
-          title: _config.heroTitulo,
-          subtitle: _config.heroSubtitulo,
-          cta: _config.heroCta,
-          showCta: _config.heroCtaAtivo,
-          onCta: () => _go(1),
-          imageUrl: _midiaUrl('hero') ?? _midiaUrl('capa'),
-        ),
-        const SizedBox(height: 22),
         const Text(
           'O que você procura?',
           style: TextStyle(
