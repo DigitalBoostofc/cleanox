@@ -670,7 +670,7 @@ class _GridTileCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AspectRatio(
-            aspectRatio: 1.05,
+            aspectRatio: 16 / 9,
             child: GestureDetector(
               onTap: onDetalhes,
               behavior: HitTestBehavior.opaque,
