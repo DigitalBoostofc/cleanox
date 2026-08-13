@@ -485,6 +485,7 @@ class VitrineAdminServico {
     required this.id,
     required this.nome,
     required this.grupo,
+    required this.categoria,
     required this.valorBase,
     required this.vitrine,
     required this.vitrineDestaque,
@@ -501,6 +502,7 @@ class VitrineAdminServico {
   final String id;
   final String nome;
   final String grupo;
+  final String categoria;
   final double valorBase;
   final bool vitrine;
   final bool vitrineDestaque;
@@ -513,11 +515,43 @@ class VitrineAdminServico {
   final VitrinePrecoModo precoModo;
   final int vitrineOrdem;
 
+  /// Macro canônica: `veicular` | `residencial` | `outros`.
+  String get macroCategoria {
+    final c = categoria.trim().toLowerCase();
+    final g = grupo.trim().toLowerCase();
+    if (c == 'veicular' ||
+        c.contains('veic') ||
+        c.contains('auto') ||
+        g.contains('auto')) {
+      return 'veicular';
+    }
+    if (c == 'residencial' ||
+        c.contains('resid') ||
+        c.contains('domic') ||
+        {
+          'sofa',
+          'sofá',
+          'colchao',
+          'colchão',
+          'poltrona',
+          'tapete',
+          'cadeira',
+          'cama',
+        }.any((k) => g.contains(k))) {
+      return 'residencial';
+    }
+    if (c.isEmpty && g.isEmpty) return 'outros';
+    // Cadastro antigo sem categoria: se não parece auto, trata como residencial.
+    if (c.isEmpty) return 'residencial';
+    return 'outros';
+  }
+
   factory VitrineAdminServico.fromJson(Map<String, dynamic> j) =>
       VitrineAdminServico(
         id: '${j['id'] ?? ''}',
         nome: '${j['nome'] ?? ''}',
         grupo: '${j['grupo'] ?? ''}',
+        categoria: '${j['categoria'] ?? ''}',
         valorBase: (j['valor_base'] as num?)?.toDouble() ?? 0,
         vitrine: j['vitrine'] != false,
         vitrineDestaque: j['vitrine_destaque'] == true,
