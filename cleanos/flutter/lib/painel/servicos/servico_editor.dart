@@ -39,6 +39,7 @@ class ServicoEditorScreen extends ConsumerStatefulWidget {
 class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   final TextEditingController _nome = TextEditingController();
   final TextEditingController _tempoMedio = TextEditingController();
+  final TextEditingController _detalhes = TextEditingController();
   final TextEditingController _observacao = TextEditingController();
   final TextEditingController _orientacoesPre = TextEditingController();
   final TextEditingController _orientacoesPos = TextEditingController();
@@ -80,6 +81,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     for (final c in [
       _nome,
       _tempoMedio,
+      _detalhes,
       _observacao,
       _orientacoesPre,
       _orientacoesPos,
@@ -104,6 +106,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   void dispose() {
     _nome.dispose();
     _tempoMedio.dispose();
+    _detalhes.dispose();
     _observacao.dispose();
     _orientacoesPre.dispose();
     _orientacoesPos.dispose();
@@ -138,6 +141,11 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         _tipoValor = s.tipoValor ?? TipoValor.fixo;
         _tempoMedio.text = s.tempoMedioLabel ?? '';
         _status = s.status ?? ServicoStatus.ativo;
+        // Detalhes da Vitrine: preferir vitrine_descricao; fallback descricao.
+        final det = s.vitrineDescricao.trim().isNotEmpty
+            ? s.vitrineDescricao.trim()
+            : (s.descricao ?? '').trim();
+        _detalhes.text = det;
         _observacao.text = s.observacao ?? '';
         _checklist = s.checklistPadrao;
         _adicionaisRelacionados = List<String>.from(s.adicionaisRelacionados);
@@ -188,10 +196,14 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     }
     final tempoLabel = _tempoMedio.text.trim();
     final valorBase = _valorBaseCents / 100;
+    final detalhes = _detalhes.text.trim();
     return <String, dynamic>{
       'categoria': _categoria.wire,
       'grupo': _grupo.wire,
       'nome': _nome.text.trim(),
+      // Sincroniza fallback público (descricao) + campo comercial da Vitrine.
+      'descricao': detalhes,
+      'vitrine_descricao': detalhes,
       'valor_base': valorBase,
       'preco_base': valorBase, // 🔁 legado sincronizado
       'valor_base_max': _tipoValor == TipoValor.faixa
@@ -595,6 +607,15 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             hint: '3h a 4h',
           ),
         ),
+        _textField(
+          label: 'Detalhes (o que o serviço inclui)',
+          controller: _detalhes,
+          errorKey: 'detalhes',
+          hint:
+              'Descreva tudo que entra no serviço. Aparece no “Ver detalhes” da Vitrine.',
+          maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
+        ),
         if (_tipoValor == TipoValor.faixa)
           _twoCol(
             _moneyField(
@@ -671,6 +692,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       categoria: _categoria,
       grupo: _grupo,
       nome: _nome.text,
+      descricao: _detalhes.text,
+      vitrineDescricao: _detalhes.text,
       valorBase: _valorBaseCents / 100,
       valorBaseMax: _tipoValor == TipoValor.faixa
           ? _valorBaseMaxCents / 100
@@ -799,6 +822,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     bool required = false,
     String? errorKey,
     String? hint,
+    int maxLines = 1,
     TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     final err = errorKey == null ? null : _errs[errorKey];
@@ -811,6 +835,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
           TextField(
             controller: controller,
             enabled: !_saving,
+            maxLines: maxLines,
             textCapitalization: textCapitalization,
             onChanged: (_) {
               if (err != null) setState(() => _errs.remove(errorKey));
@@ -819,6 +844,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
               isDense: true,
               hintText: hint,
               errorText: err,
+              alignLabelWithHint: maxLines > 1,
             ),
           ),
         ],

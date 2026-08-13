@@ -692,7 +692,7 @@ function setServicoVitrineConfig(app, id, flags) {
     r.set("vitrine_titulo", textoVitrine(flags.vitrine_titulo, 160));
   }
   if (flags.vitrine_descricao != null) {
-    r.set("vitrine_descricao", textoVitrine(flags.vitrine_descricao, 500));
+    r.set("vitrine_descricao", textoVitrine(flags.vitrine_descricao, 2000));
   }
   if (flags.vitrine_badge != null) {
     r.set("vitrine_badge", textoVitrine(flags.vitrine_badge, 60));
