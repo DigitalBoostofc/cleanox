@@ -1158,6 +1158,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   Widget _switchCategoriaTrailing(String catAtual) {
     final outra = _outraMacroDisponivel(catAtual);
     if (outra == null) return const SizedBox.shrink();
+    // Mesmo tamanho/peso; só o V de "Ver" em maiúscula.
+    const style = TextStyle(
+      fontFamily: kFontFamily,
+      fontWeight: FontWeight.w700,
+      fontSize: 13,
+      height: 1.1,
+    );
     return TextButton(
       key: Key('vitrine-home-switch-cat-$outra'),
       onPressed: () => _switchCategoria(outra),
@@ -1170,26 +1177,18 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Ver',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(width: 4),
           Flexible(
-            child: Text(
-              _macroTitle(outra),
+            child: Text.rich(
+              TextSpan(
+                style: style,
+                children: [
+                  const TextSpan(text: 'Ver '),
+                  TextSpan(text: _macroTitle(outra)),
+                ],
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontFamily: kFontFamily,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
             ),
           ),
           const Icon(Icons.chevron_right_rounded, size: 18),
