@@ -440,9 +440,6 @@ class VitrineAdminPersonalizarScreen extends ConsumerStatefulWidget {
 
 class _VitrineAdminPersonalizarScreenState
     extends ConsumerState<VitrineAdminPersonalizarScreen> {
-  final _titulo = TextEditingController();
-  final _sub = TextEditingController();
-  final _cta = TextEditingController();
   final _wa = TextEditingController();
   final _rodape = TextEditingController();
   final _cidades = TextEditingController();
@@ -453,7 +450,13 @@ class _VitrineAdminPersonalizarScreenState
   final _passo = TextEditingController();
   final _antecedencia = TextEditingController();
   final _horizonte = TextEditingController();
-  bool _heroCtaAtivo = true;
+
+  /// Hero saiu da home pública — mantidos só para não apagar no save.
+  String _heroTitulo = '';
+  String _heroSubtitulo = '';
+  String _heroCta = 'Agendar agora';
+  bool _heroCtaAtivo = false;
+
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -468,9 +471,9 @@ class _VitrineAdminPersonalizarScreenState
     try {
       final c = await ref.read(vitrineAdminApiProvider).adminGetConfig();
       if (!mounted) return;
-      _titulo.text = c.heroTitulo;
-      _sub.text = c.heroSubtitulo;
-      _cta.text = c.heroCta;
+      _heroTitulo = c.heroTitulo;
+      _heroSubtitulo = c.heroSubtitulo;
+      _heroCta = c.heroCta;
       _heroCtaAtivo = c.heroCtaAtivo;
       _wa.text = c.whatsappExibido;
       _rodape.text = c.rodapeMsg;
@@ -502,9 +505,9 @@ class _VitrineAdminPersonalizarScreenState
           .read(vitrineAdminApiProvider)
           .adminSaveConfig(
             VitrineConfig(
-              heroTitulo: _titulo.text.trim(),
-              heroSubtitulo: _sub.text.trim(),
-              heroCta: _cta.text.trim(),
+              heroTitulo: _heroTitulo,
+              heroSubtitulo: _heroSubtitulo,
+              heroCta: _heroCta,
               heroCtaAtivo: _heroCtaAtivo,
               whatsappExibido: _wa.text.trim(),
               rodapeMsg: _rodape.text.trim(),
@@ -535,9 +538,6 @@ class _VitrineAdminPersonalizarScreenState
 
   @override
   void dispose() {
-    _titulo.dispose();
-    _sub.dispose();
-    _cta.dispose();
     _wa.dispose();
     _rodape.dispose();
     _cidades.dispose();
@@ -588,10 +588,11 @@ class _VitrineAdminPersonalizarScreenState
           child: const Padding(
             padding: EdgeInsets.all(14),
             child: Text(
-              'Dica de mídia: em Mídia/fotos use as chaves hero (capa), '
-              'categoria_sofa, categoria_colchao, categoria_poltrona, '
-              'categoria_tapete, categoria_auto, categoria_cadeira. '
-              'Order bumps usam a foto do próprio bump ou chave bump_<id>.',
+              'Dica de mídia: em Mídia/fotos use as chaves '
+              'categoria_residencial, categoria_auto, categoria_sofa, '
+              'categoria_colchao, categoria_poltrona, categoria_tapete, '
+              'categoria_cadeira. Order bumps usam a foto do próprio bump '
+              'ou chave bump_<id>.',
               style: TextStyle(
                 fontFamily: kFontFamily,
                 fontSize: 12,
@@ -607,40 +608,6 @@ class _VitrineAdminPersonalizarScreenState
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                TextField(
-                  controller: _titulo,
-                  decoration: const InputDecoration(
-                    labelText: 'Título do hero',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _sub,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Subtítulo'),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  key: const Key('vitrine-hero-cta-ativo'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Mostrar botão do hero'),
-                  subtitle: Text(
-                    _heroCtaAtivo
-                        ? 'Botão “${_cta.text.trim().isEmpty ? 'Agendar agora' : _cta.text.trim()}” visível na home'
-                        : 'Botão oculto na home da Vitrine',
-                  ),
-                  value: _heroCtaAtivo,
-                  onChanged: (v) => setState(() => _heroCtaAtivo = v),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _cta,
-                  enabled: _heroCtaAtivo,
-                  decoration: const InputDecoration(
-                    labelText: 'Texto do botão',
-                  ),
-                ),
-                const SizedBox(height: 12),
                 TextField(
                   controller: _wa,
                   decoration: const InputDecoration(
