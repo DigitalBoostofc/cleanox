@@ -15,6 +15,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'cliente.dart';
 import 'collections.dart';
 import 'os_execucao.dart';
+import 'ponto_fisico.dart';
 import 'servico.dart';
 import 'user.dart';
 
@@ -31,6 +32,7 @@ class OSExpand with _$OSExpand {
     User? profissional2,
     ServicoPB? servico,
     Cliente? cliente,
+    PontoFisico? pontoFisico,
   }) = _OSExpand;
 }
 
@@ -45,8 +47,14 @@ class OrdemServico with _$OrdemServico {
     /// "Carlos S." — denormalizado por hook.
     @JsonKey(name: 'nome_curto') @Default('') String nomeCurto,
 
-    /// endereco_bairro do cliente — denormalizado por hook.
+    /// endereco_bairro do cliente ou do ponto físico — denormalizado por hook.
     @Default('') String bairro,
+
+    /// Local do serviço: cliente (padrão) | ponto_fisico.
+    @JsonKey(name: 'local_tipo') @Default('cliente') String localTipo,
+
+    /// Relation → pontos_fisicos (quando [localTipo] == ponto_fisico).
+    @JsonKey(name: 'ponto_fisico') @Default('') String pontoFisico,
 
     /// Relation → servicos (ID).
     String? servico,
@@ -172,10 +180,12 @@ class OrdemServico with _$OrdemServico {
     final prof2Rec = _expandOne(record, 'profissional2');
     final servRec = _expandOne(record, 'servico');
     final cliRec = _expandOne(record, 'cliente');
+    final pontoRec = _expandOne(record, 'ponto_fisico');
     if (profRec == null &&
         prof2Rec == null &&
         servRec == null &&
-        cliRec == null) {
+        cliRec == null &&
+        pontoRec == null) {
       return base;
     }
     return base.copyWith(
@@ -184,6 +194,8 @@ class OrdemServico with _$OrdemServico {
         profissional2: prof2Rec == null ? null : User.fromRecord(prof2Rec),
         servico: servRec == null ? null : ServicoPB.fromRecord(servRec),
         cliente: cliRec == null ? null : Cliente.fromRecord(cliRec),
+        pontoFisico:
+            pontoRec == null ? null : PontoFisico.fromRecord(pontoRec),
       ),
     );
   }
@@ -276,6 +288,11 @@ class OrdemServico with _$OrdemServico {
 
   /// OS criada pela vitrine pública (`agendar.cleanox.com.br`).
   bool get isVitrine => canalOrigem.trim().toLowerCase() == 'vitrine';
+
+  /// Serviço no endereço da empresa (não no endereço do cliente).
+  bool get isLocalPontoFisico =>
+      localTipo.trim().toLowerCase() == 'ponto_fisico' &&
+      pontoFisico.trim().isNotEmpty;
 }
 
 /// `duracao_min` do PB → minutos, ou `null` quando "sem duração própria".

@@ -137,6 +137,24 @@ class _BodyState extends ConsumerState<_Body> {
   String? _enderecoCompleto(Cliente? cliente) {
     final liberado = _os.enderecoLiberado;
     if (liberado != null && liberado.isNotEmpty) return liberado;
+    if (_os.isLocalPontoFisico) {
+      final p = _os.expand?.pontoFisico;
+      if (p != null) {
+        final rua = [
+          p.enderecoRua,
+          p.enderecoNumero,
+        ].where((s) => s.isNotEmpty).join(', ');
+        final full = [
+          if (p.nome.isNotEmpty) p.nome,
+          if (rua.isNotEmpty) rua,
+          if (p.enderecoComplemento.isNotEmpty) p.enderecoComplemento,
+          if (p.enderecoBairro.isNotEmpty) p.enderecoBairro,
+          if (p.enderecoCidade.isNotEmpty) p.enderecoCidade,
+          if (p.enderecoEstado.isNotEmpty) p.enderecoEstado,
+        ].join(' — ');
+        return full.isEmpty ? null : full;
+      }
+    }
     if (cliente == null) return null;
     final rua = [
       cliente.enderecoRua,

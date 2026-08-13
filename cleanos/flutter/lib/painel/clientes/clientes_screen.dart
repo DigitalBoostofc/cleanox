@@ -20,6 +20,7 @@ import '../../core/models/cliente.dart';
 import 'cliente_form.dart';
 import 'clientes_controller.dart';
 import 'config_atuacao_editor.dart';
+import 'pontos_fisicos_editor.dart';
 
 /// Abaixo desta largura → cards; acima → tabela densa.
 const double _kTableBreakpoint = 720;
@@ -92,6 +93,10 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
     }
   }
 
+  Future<void> _openPontosFisicos() async {
+    await showPontosFisicosEditor(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(clientesControllerProvider);
@@ -104,6 +109,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           onChanged: _onSearchChanged,
           onNovo: () => _openForm(),
           onConfig: canConfig ? _openConfigAtuacao : null,
+          onPontos: canConfig ? _openPontosFisicos : null,
           total: state.totalItems,
         ),
         Expanded(child: _body(state)),
@@ -256,6 +262,7 @@ class _Toolbar extends StatelessWidget {
     required this.onChanged,
     required this.onNovo,
     required this.onConfig,
+    required this.onPontos,
     required this.total,
   });
 
@@ -265,6 +272,9 @@ class _Toolbar extends StatelessWidget {
 
   /// Abre o editor de área de atuação (admin/gerente); `null` esconde o botão.
   final VoidCallback? onConfig;
+
+  /// Abre o cadastro de pontos físicos; `null` esconde o botão.
+  final VoidCallback? onPontos;
   final int total;
 
   @override
@@ -310,6 +320,16 @@ class _Toolbar extends StatelessWidget {
               icon: const Icon(Icons.tune_rounded),
               color: clx.ink2,
               onPressed: onConfig,
+            ),
+          ],
+          if (onPontos != null) ...[
+            const SizedBox(width: ClxSpace.x1),
+            IconButton(
+              key: const Key('clientes-pontos-fisicos'),
+              tooltip: 'Pontos físicos',
+              icon: const Icon(Icons.store_mall_directory_outlined),
+              color: clx.ink2,
+              onPressed: onPontos,
             ),
           ],
           const SizedBox(width: ClxSpace.x3),

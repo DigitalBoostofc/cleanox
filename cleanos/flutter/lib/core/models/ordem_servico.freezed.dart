@@ -21,6 +21,7 @@ mixin _$OSExpand {
   User? get profissional2 => throw _privateConstructorUsedError;
   ServicoPB? get servico => throw _privateConstructorUsedError;
   Cliente? get cliente => throw _privateConstructorUsedError;
+  PontoFisico? get pontoFisico => throw _privateConstructorUsedError;
 
   /// Create a copy of OSExpand
   /// with the given fields replaced by the non-null parameter values.
@@ -39,6 +40,7 @@ abstract class $OSExpandCopyWith<$Res> {
     User? profissional2,
     ServicoPB? servico,
     Cliente? cliente,
+    PontoFisico? pontoFisico,
   });
 
   $UserCopyWith<$Res>? get profissional;
@@ -66,6 +68,7 @@ class _$OSExpandCopyWithImpl<$Res, $Val extends OSExpand>
     Object? profissional2 = freezed,
     Object? servico = freezed,
     Object? cliente = freezed,
+    Object? pontoFisico = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -85,6 +88,10 @@ class _$OSExpandCopyWithImpl<$Res, $Val extends OSExpand>
                 ? _value.cliente
                 : cliente // ignore: cast_nullable_to_non_nullable
                       as Cliente?,
+            pontoFisico: freezed == pontoFisico
+                ? _value.pontoFisico
+                : pontoFisico // ignore: cast_nullable_to_non_nullable
+                      as PontoFisico?,
           )
           as $Val,
     );
@@ -161,6 +168,7 @@ abstract class _$$OSExpandImplCopyWith<$Res>
     User? profissional2,
     ServicoPB? servico,
     Cliente? cliente,
+    PontoFisico? pontoFisico,
   });
 
   @override
@@ -191,6 +199,7 @@ class __$$OSExpandImplCopyWithImpl<$Res>
     Object? profissional2 = freezed,
     Object? servico = freezed,
     Object? cliente = freezed,
+    Object? pontoFisico = freezed,
   }) {
     return _then(
       _$OSExpandImpl(
@@ -210,6 +219,10 @@ class __$$OSExpandImplCopyWithImpl<$Res>
             ? _value.cliente
             : cliente // ignore: cast_nullable_to_non_nullable
                   as Cliente?,
+        pontoFisico: freezed == pontoFisico
+            ? _value.pontoFisico
+            : pontoFisico // ignore: cast_nullable_to_non_nullable
+                  as PontoFisico?,
       ),
     );
   }
@@ -223,6 +236,7 @@ class _$OSExpandImpl implements _OSExpand {
     this.profissional2,
     this.servico,
     this.cliente,
+    this.pontoFisico,
   });
 
   @override
@@ -233,10 +247,12 @@ class _$OSExpandImpl implements _OSExpand {
   final ServicoPB? servico;
   @override
   final Cliente? cliente;
+  @override
+  final PontoFisico? pontoFisico;
 
   @override
   String toString() {
-    return 'OSExpand(profissional: $profissional, profissional2: $profissional2, servico: $servico, cliente: $cliente)';
+    return 'OSExpand(profissional: $profissional, profissional2: $profissional2, servico: $servico, cliente: $cliente, pontoFisico: $pontoFisico)';
   }
 
   @override
@@ -249,12 +265,20 @@ class _$OSExpandImpl implements _OSExpand {
             (identical(other.profissional2, profissional2) ||
                 other.profissional2 == profissional2) &&
             (identical(other.servico, servico) || other.servico == servico) &&
-            (identical(other.cliente, cliente) || other.cliente == cliente));
+            (identical(other.cliente, cliente) || other.cliente == cliente) &&
+            (identical(other.pontoFisico, pontoFisico) ||
+                other.pontoFisico == pontoFisico));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, profissional, profissional2, servico, cliente);
+  int get hashCode => Object.hash(
+    runtimeType,
+    profissional,
+    profissional2,
+    servico,
+    cliente,
+    pontoFisico,
+  );
 
   /// Create a copy of OSExpand
   /// with the given fields replaced by the non-null parameter values.
@@ -271,6 +295,7 @@ abstract class _OSExpand implements OSExpand {
     final User? profissional2,
     final ServicoPB? servico,
     final Cliente? cliente,
+    final PontoFisico? pontoFisico,
   }) = _$OSExpandImpl;
 
   @override
@@ -281,6 +306,8 @@ abstract class _OSExpand implements OSExpand {
   ServicoPB? get servico;
   @override
   Cliente? get cliente;
+  @override
+  PontoFisico? get pontoFisico;
 
   /// Create a copy of OSExpand
   /// with the given fields replaced by the non-null parameter values.
@@ -305,8 +332,16 @@ mixin _$OrdemServico {
   @JsonKey(name: 'nome_curto')
   String get nomeCurto => throw _privateConstructorUsedError;
 
-  /// endereco_bairro do cliente — denormalizado por hook.
+  /// endereco_bairro do cliente ou do ponto físico — denormalizado por hook.
   String get bairro => throw _privateConstructorUsedError;
+
+  /// Local do serviço: cliente (padrão) | ponto_fisico.
+  @JsonKey(name: 'local_tipo')
+  String get localTipo => throw _privateConstructorUsedError;
+
+  /// Relation → pontos_fisicos (quando [localTipo] == ponto_fisico).
+  @JsonKey(name: 'ponto_fisico')
+  String get pontoFisico => throw _privateConstructorUsedError;
 
   /// Relation → servicos (ID).
   String? get servico => throw _privateConstructorUsedError;
@@ -456,6 +491,8 @@ abstract class $OrdemServicoCopyWith<$Res> {
     String cliente,
     @JsonKey(name: 'nome_curto') String nomeCurto,
     String bairro,
+    @JsonKey(name: 'local_tipo') String localTipo,
+    @JsonKey(name: 'ponto_fisico') String pontoFisico,
     String? servico,
     @JsonKey(name: 'tipo_servico_nome') String? tipoServicoNome,
     @JsonKey(name: 'data_hora') String dataHora,
@@ -531,6 +568,8 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
     Object? cliente = null,
     Object? nomeCurto = null,
     Object? bairro = null,
+    Object? localTipo = null,
+    Object? pontoFisico = null,
     Object? servico = freezed,
     Object? tipoServicoNome = freezed,
     Object? dataHora = null,
@@ -586,6 +625,14 @@ class _$OrdemServicoCopyWithImpl<$Res, $Val extends OrdemServico>
             bairro: null == bairro
                 ? _value.bairro
                 : bairro // ignore: cast_nullable_to_non_nullable
+                      as String,
+            localTipo: null == localTipo
+                ? _value.localTipo
+                : localTipo // ignore: cast_nullable_to_non_nullable
+                      as String,
+            pontoFisico: null == pontoFisico
+                ? _value.pontoFisico
+                : pontoFisico // ignore: cast_nullable_to_non_nullable
                       as String,
             servico: freezed == servico
                 ? _value.servico
@@ -783,6 +830,8 @@ abstract class _$$OrdemServicoImplCopyWith<$Res>
     String cliente,
     @JsonKey(name: 'nome_curto') String nomeCurto,
     String bairro,
+    @JsonKey(name: 'local_tipo') String localTipo,
+    @JsonKey(name: 'ponto_fisico') String pontoFisico,
     String? servico,
     @JsonKey(name: 'tipo_servico_nome') String? tipoServicoNome,
     @JsonKey(name: 'data_hora') String dataHora,
@@ -859,6 +908,8 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
     Object? cliente = null,
     Object? nomeCurto = null,
     Object? bairro = null,
+    Object? localTipo = null,
+    Object? pontoFisico = null,
     Object? servico = freezed,
     Object? tipoServicoNome = freezed,
     Object? dataHora = null,
@@ -914,6 +965,14 @@ class __$$OrdemServicoImplCopyWithImpl<$Res>
         bairro: null == bairro
             ? _value.bairro
             : bairro // ignore: cast_nullable_to_non_nullable
+                  as String,
+        localTipo: null == localTipo
+            ? _value.localTipo
+            : localTipo // ignore: cast_nullable_to_non_nullable
+                  as String,
+        pontoFisico: null == pontoFisico
+            ? _value.pontoFisico
+            : pontoFisico // ignore: cast_nullable_to_non_nullable
                   as String,
         servico: freezed == servico
             ? _value.servico
@@ -1076,6 +1135,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
     this.cliente = '',
     @JsonKey(name: 'nome_curto') this.nomeCurto = '',
     this.bairro = '',
+    @JsonKey(name: 'local_tipo') this.localTipo = 'cliente',
+    @JsonKey(name: 'ponto_fisico') this.pontoFisico = '',
     this.servico,
     @JsonKey(name: 'tipo_servico_nome') this.tipoServicoNome,
     @JsonKey(name: 'data_hora') this.dataHora = '',
@@ -1149,10 +1210,20 @@ class _$OrdemServicoImpl extends _OrdemServico {
   @JsonKey(name: 'nome_curto')
   final String nomeCurto;
 
-  /// endereco_bairro do cliente — denormalizado por hook.
+  /// endereco_bairro do cliente ou do ponto físico — denormalizado por hook.
   @override
   @JsonKey()
   final String bairro;
+
+  /// Local do serviço: cliente (padrão) | ponto_fisico.
+  @override
+  @JsonKey(name: 'local_tipo')
+  final String localTipo;
+
+  /// Relation → pontos_fisicos (quando [localTipo] == ponto_fisico).
+  @override
+  @JsonKey(name: 'ponto_fisico')
+  final String pontoFisico;
 
   /// Relation → servicos (ID).
   @override
@@ -1337,7 +1408,7 @@ class _$OrdemServicoImpl extends _OrdemServico {
 
   @override
   String toString() {
-    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, profissional2: $profissional2, execucaoModo: $execucaoModo, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, refazer: $refazer, canalOrigem: $canalOrigem, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
+    return 'OrdemServico(id: $id, cliente: $cliente, nomeCurto: $nomeCurto, bairro: $bairro, localTipo: $localTipo, pontoFisico: $pontoFisico, servico: $servico, tipoServicoNome: $tipoServicoNome, dataHora: $dataHora, duracaoMin: $duracaoMin, profissional: $profissional, profissional2: $profissional2, execucaoModo: $execucaoModo, status: $status, valorServico: $valorServico, enderecoLiberado: $enderecoLiberado, valorPago: $valorPago, formaPagamento: $formaPagamento, formaPagamentoOutro: $formaPagamentoOutro, repasseStatus: $repasseStatus, repasseValor: $repasseValor, avisoACaminhoEm: $avisoACaminhoEm, chegueiEm: $chegueiEm, motivoCancelamento: $motivoCancelamento, canceladoPor: $canceladoPor, canceladoPorNome: $canceladoPorNome, canceladoEm: $canceladoEm, refazer: $refazer, canalOrigem: $canalOrigem, avaliacaoNota: $avaliacaoNota, avaliacaoMotivo: $avaliacaoMotivo, avaliacaoEm: $avaliacaoEm, avaliacaoSolicitadaEm: $avaliacaoSolicitadaEm, observacoes: $observacoes, serviceSnapshot: $serviceSnapshot, checklistExec: $checklistExec, adicionais: $adicionais, observacoesProf: $observacoesProf, descontos: $descontos, relatorioEnviadoEm: $relatorioEnviadoEm, created: $created, updated: $updated, expand: $expand)';
   }
 
   @override
@@ -1350,6 +1421,10 @@ class _$OrdemServicoImpl extends _OrdemServico {
             (identical(other.nomeCurto, nomeCurto) ||
                 other.nomeCurto == nomeCurto) &&
             (identical(other.bairro, bairro) || other.bairro == bairro) &&
+            (identical(other.localTipo, localTipo) ||
+                other.localTipo == localTipo) &&
+            (identical(other.pontoFisico, pontoFisico) ||
+                other.pontoFisico == pontoFisico) &&
             (identical(other.servico, servico) || other.servico == servico) &&
             (identical(other.tipoServicoNome, tipoServicoNome) ||
                 other.tipoServicoNome == tipoServicoNome) &&
@@ -1434,6 +1509,8 @@ class _$OrdemServicoImpl extends _OrdemServico {
     cliente,
     nomeCurto,
     bairro,
+    localTipo,
+    pontoFisico,
     servico,
     tipoServicoNome,
     dataHora,
@@ -1493,6 +1570,8 @@ abstract class _OrdemServico extends OrdemServico {
     final String cliente,
     @JsonKey(name: 'nome_curto') final String nomeCurto,
     final String bairro,
+    @JsonKey(name: 'local_tipo') final String localTipo,
+    @JsonKey(name: 'ponto_fisico') final String pontoFisico,
     final String? servico,
     @JsonKey(name: 'tipo_servico_nome') final String? tipoServicoNome,
     @JsonKey(name: 'data_hora') final String dataHora,
@@ -1565,9 +1644,19 @@ abstract class _OrdemServico extends OrdemServico {
   @JsonKey(name: 'nome_curto')
   String get nomeCurto;
 
-  /// endereco_bairro do cliente — denormalizado por hook.
+  /// endereco_bairro do cliente ou do ponto físico — denormalizado por hook.
   @override
   String get bairro;
+
+  /// Local do serviço: cliente (padrão) | ponto_fisico.
+  @override
+  @JsonKey(name: 'local_tipo')
+  String get localTipo;
+
+  /// Relation → pontos_fisicos (quando [localTipo] == ponto_fisico).
+  @override
+  @JsonKey(name: 'ponto_fisico')
+  String get pontoFisico;
 
   /// Relation → servicos (ID).
   @override

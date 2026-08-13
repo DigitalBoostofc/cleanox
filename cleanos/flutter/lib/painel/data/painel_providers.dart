@@ -25,9 +25,11 @@ import 'pb_config_atuacao_repository.dart';
 import 'pb_disponibilidade_repository.dart';
 import 'pb_painel_evidencias_repository.dart';
 import 'pb_painel_whatsapp_repository.dart';
+import 'pb_pontos_fisicos_repository.dart';
 import 'pb_servicos_repository.dart';
 import 'pb_usuarios_repository.dart';
 import 'whatsapp_config_repository.dart';
+import '../../core/repositories/pontos_fisicos_repository.dart';
 
 /// 🔒 COFRE: CRUD de `clientes` (só o Painel injeta).
 final clientesRepositoryProvider = Provider<ClientesRepository>(
@@ -57,6 +59,11 @@ final disponibilidadeRepositoryProvider = Provider<DisponibilidadeRepository>(
 /// Config de atuação (estado + cidades/bairros) — singleton admin/gerente.
 final configAtuacaoRepositoryProvider = Provider<ConfigAtuacaoRepository>(
   (ref) => PbConfigAtuacaoRepository(ref.watch(pocketBaseProvider)),
+);
+
+/// Pontos físicos (endereços da empresa para OS no local).
+final pontosFisicosRepositoryProvider = Provider<PontosFisicosRepository>(
+  (ref) => PbPontosFisicosRepository(ref.watch(pocketBaseProvider)),
 );
 
 /// Evidências (leitura) da execução — visão admin do laudo.
