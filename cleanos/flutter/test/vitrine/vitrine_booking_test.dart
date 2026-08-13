@@ -96,6 +96,40 @@ void main() {
         ),
         contains('número'),
       );
+      expect(
+        validarDadosVitrine(
+          nome: 'Maria',
+          whatsapp: '(19) 99999-8888',
+          cep: '13010-000',
+          rua: 'Rua das Flores, 100',
+          numero: '',
+          bairro: 'Centro',
+          cidade: 'Campinas',
+          ruaComNumero: true,
+        ),
+        isNull,
+      );
+      expect(
+        validarDadosVitrine(
+          nome: 'Maria',
+          whatsapp: '19999998888',
+          cep: '13010000',
+          rua: 'Rua sem numero',
+          numero: '',
+          bairro: 'Centro',
+          cidade: 'Campinas',
+          ruaComNumero: true,
+        ),
+        contains('número'),
+      );
+    });
+
+    test('splitRuaNumero extrai número do fim', () {
+      expect(splitRuaNumero('Rua A, 12').rua, 'Rua A');
+      expect(splitRuaNumero('Rua A, 12').numero, '12');
+      expect(splitRuaNumero('Av. Brasil 100A').numero, '100A');
+      expect(splitRuaNumero('Rua X n 45').numero, '45');
+      expect(splitRuaNumero('Só rua').numero, isEmpty);
     });
 
     test('payload estruturado sem endereco livre', () {

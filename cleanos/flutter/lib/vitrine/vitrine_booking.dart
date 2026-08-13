@@ -67,7 +67,26 @@ bool cepBrValido(String cep) {
 
 bool telefoneBrValido(String tel) {
   final d = tel.replaceAll(RegExp(r'\D'), '');
-  return d.length >= 10 && d.length <= 13;
+  // DDD + 8 (fixo) ou DDD + 9 (celular).
+  return d.length == 10 || d.length == 11;
+}
+
+/// Separa "Rua das Flores, 123" / "Rua A 100" em rua + número.
+({String rua, String numero}) splitRuaNumero(String raw) {
+  final t = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (t.isEmpty) return (rua: '', numero: '');
+  final m = RegExp(
+    r'^(.*?)(?:,\s*|\s+)(?:n[ºo°\.]?\s*)?(\d+[A-Za-z\-/]*)$',
+    caseSensitive: false,
+  ).firstMatch(t);
+  if (m != null) {
+    final rua = (m.group(1) ?? '').trim();
+    final numero = (m.group(2) ?? '').trim();
+    if (rua.isNotEmpty && numero.isNotEmpty) {
+      return (rua: rua, numero: numero);
+    }
+  }
+  return (rua: t, numero: '');
 }
 
 /// Validação client-side espelhando o backend (campos estruturados).
@@ -80,12 +99,25 @@ String? validarDadosVitrine({
   required String bairro,
   required String cidade,
   String estado = '',
+  /// Se true, [rua] pode ser "Rua, 123" e o número é extraído.
+  bool ruaComNumero = false,
 }) {
   if (nome.trim().isEmpty) return 'Informe o nome completo';
-  if (!telefoneBrValido(whatsapp)) return 'Informe um WhatsApp válido';
+  if (!telefoneBrValido(whatsapp)) {
+    return 'Informe um WhatsApp válido com DDD (11 dígitos)';
+  }
   if (!cepBrValido(cep)) return 'Informe um CEP válido';
-  if (rua.trim().isEmpty) return 'Informe a rua';
-  if (numero.trim().isEmpty) return 'Informe o número';
+  var r = rua.trim();
+  var n = numero.trim();
+  if (ruaComNumero) {
+    final parts = splitRuaNumero(rua);
+    r = parts.rua;
+    n = parts.numero;
+  }
+  if (r.isEmpty) return 'Informe a rua e o número';
+  if (n.isEmpty) {
+    return 'Informe a rua e o número (ex.: Rua das Flores, 123)';
+  }
   if (bairro.trim().isEmpty) return 'Informe o bairro';
   if (cidade.trim().isEmpty) return 'Informe a cidade';
   return null;
