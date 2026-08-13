@@ -170,6 +170,7 @@ function servicoPublico(rec) {
     descricao: String(rec.get("descricao") || ""),
     categoria: String(rec.get("categoria") || ""),
     grupo: String(rec.get("grupo") || ""),
+    subgrupo: String(rec.get("subgrupo") || ""),
     valor_base: Number(rec.get("valor_base") || rec.get("preco_base") || 0),
     valor_base_max: Number(rec.get("valor_base_max") || 0),
     tipo_valor: String(rec.get("tipo_valor") || ""),

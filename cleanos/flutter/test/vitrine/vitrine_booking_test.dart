@@ -175,10 +175,23 @@ void main() {
           'id': 'sofa1',
           'nome': 'Sofa 3 lugares',
           'descricao': 'Higienizacao',
+          'categoria': 'residencial',
           'grupo': 'sofa',
           'valor_base': 200,
           'tempo_medio_min': 60,
           'vitrine_destaque': true,
+          'vitrine_layout': 'compacto',
+          'ativo': true,
+        },
+        {
+          'id': 'banco1',
+          'nome': 'Bancos automotivos',
+          'descricao': 'Estetica',
+          'categoria': 'veicular',
+          'grupo': 'avulsos',
+          'valor_base': 150,
+          'tempo_medio_min': 45,
+          'vitrine_destaque': false,
           'vitrine_layout': 'compacto',
           'ativo': true,
         },
@@ -224,7 +237,9 @@ void main() {
       );
     }
 
-    testWidgets('home sem orçamento e entra em Serviços', (tester) async {
+    testWidgets('home guiada: categorias → grupos → catálogo + carrinho', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(390, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -236,16 +251,59 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
-      // Hero removido — entrada via FAB Agendar da bottom nav.
       expect(find.text('O que você procura?'), findsOneWidget);
-      expect(find.text('Todos os serviços'), findsOneWidget);
-      expect(find.text('SERVIÇOS CLEANOX'), findsOneWidget);
-      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
-      expect(find.byKey(const Key('vitrine-nav-agendar')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-browse-categorias')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
+      expect(find.byKey(const Key('vitrine-home-cat-row')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('vitrine-nav-agendar')));
+      // Categoria residencial (ou veicular se for a disponível no fake)
+      final catResid = find.byKey(const Key('vitrine-home-cat-residencial'));
+      final catVeic = find.byKey(const Key('vitrine-home-cat-veicular'));
+      if (catResid.evaluate().isNotEmpty) {
+        await tester.tap(catResid);
+      } else {
+        await tester.tap(catVeic);
+      }
       await tester.pumpAndSettle();
-      expect(find.text('1 · Serviços'), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-browse-grupos')), findsOneWidget);
+      expect(find.text('Selecione os itens que deseja limpar'), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-grupo-row')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
+
+      // Entra no primeiro grupo
+      final anyGrupo = find.byKey(const Key('vitrine-home-grupo-sofa'));
+      final anyPlano = find.byKey(const Key('vitrine-home-grupo-plano'));
+      final anyAvulso = find.byKey(const Key('vitrine-home-grupo-avulsos'));
+      if (anyGrupo.evaluate().isNotEmpty) {
+        await tester.tap(anyGrupo);
+      } else if (anyPlano.evaluate().isNotEmpty) {
+        await tester.tap(anyPlano);
+      } else if (anyAvulso.evaluate().isNotEmpty) {
+        await tester.tap(anyAvulso);
+      } else {
+        // qualquer card de grupo
+        await tester.tap(find.textContaining('opções').first);
+      }
+      await tester.pumpAndSettle();
+
+      // Catálogo ou subgrupos
+      final cat = find.byKey(const Key('vitrine-home-browse-catalogo'));
+      final subs = find.byKey(const Key('vitrine-home-browse-subgrupos'));
+      expect(cat.evaluate().isNotEmpty || subs.evaluate().isNotEmpty, isTrue);
+      if (subs.evaluate().isNotEmpty) {
+        await tester.tap(find.byKey(const Key('vitrine-home-ver-todos-grupo')));
+        await tester.pumpAndSettle();
+      }
+      expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
+      // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
+      expect(find.byKey(const Key('vitrine-home-grupo-icon-strip')), findsOneWidget);
+      // Atalho da outra categoria na mesma linha do Voltar.
+      expect(
+        find.byKey(const Key('vitrine-home-switch-cat-veicular')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Estética'), findsWidgets);
+      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
     });
 

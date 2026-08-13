@@ -1,7 +1,7 @@
 /// Vitrine pública — autoagendamento Cleanox (sem conta).
 ///
-/// Fluxo: 0 home · 1 serviços · 2 data/hora · 3 dados · 4 revisar · 5 ok
-///         6 como funciona
+/// Fluxo: 0 home (guiado cat→grupo→sub→catálogo) · 1 serviços · 2 data/hora
+///         · 3 dados · 4 revisar · 5 ok · 6 como funciona
 library;
 
 import 'dart:convert';
@@ -66,8 +66,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   String? _cepWarning;
   String? _error;
   VitrineAgendarResult? _ok;
-  String? _categoriaFilter; // residencial | veicular
-  String? _familiaFilter; // sofa | colchao | …
+  String? _categoriaFilter; // residencial | veicular (macro)
+  String? _familiaFilter; // grupo: sofa | plano | …
+  String? _subgrupoFilter; // subgrupo opcional
+  /// 0 categorias · 1 grupos · 2 subgrupos · 3 catálogo filtrado
+  int _homeBrowse = 0;
   String? _buscaFilter; // texto do “Buscar serviço”
   String? _idempotencyKey;
   int _duracaoNoSlot = 0;
@@ -180,15 +183,36 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     if (step == 4) _loadBumps();
   }
 
-  /// FAB Agendar → tela de data/horário (com itens selecionados).
-  void _goAgendar() {
+  /// FAB Carrinho → sheet com itens + Continuar (ou aviso se vazio).
+  Future<void> _openCarrinho() async {
     if (_picked.isEmpty) {
       setState(() {
-        _error = 'Selecione ao menos um serviço para agendar.';
+        _error = 'Adicione ao menos um serviço ao carrinho.';
       });
       return;
     }
-    _go(2);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _CarrinhoSheet(
+          items: List<VitrineServico>.from(_picked),
+          onRemove: (s) {
+            setState(() {
+              _selected.remove(s.id);
+              _error = null;
+            });
+          },
+          onContinuar: () {
+            Navigator.of(ctx).pop();
+            if (_picked.isNotEmpty) _go(2);
+          },
+        );
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   String? _macroOf(VitrineServico s) => vitrineMacroCategoriaOf(
@@ -211,25 +235,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
     });
     return out;
-  }
-
-  List<VitrineServico> _homeServicos({
-    String? macro,
-    bool destaqueOnly = false,
-    bool excludeDestaque = false,
-  }) {
-    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
-    return _sortedServicos(
-      _catalog.where((s) {
-        if (destaqueOnly && !s.vitrineDestaque) return false;
-        if (excludeDestaque && s.vitrineDestaque) return false;
-        if (!_matchBusca(s)) return false;
-        final m = _macroOf(s);
-        if (cat.isNotEmpty && m != cat) return false;
-        if (macro != null && m != macro) return false;
-        return true;
-      }),
-    );
   }
 
   void _toggleServico(VitrineServico servico) {
@@ -534,6 +539,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 _invalidateSlot(clearDia: true);
                 _idempotencyKey = null;
                 _step = 0;
+                _homeBrowse = 0;
+                _categoriaFilter = null;
+                _familiaFilter = null;
+                _subgrupoFilter = null;
+                _buscaFilter = null;
               }),
             );
           }
@@ -580,16 +590,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   child: _body(),
                 ),
               ),
-              if (_step == 1 || (_step == 0 && _picked.isNotEmpty))
-                VitrineStickyBar(
-                  totalLabel:
-                      '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
-                  totalCaption: _total > 0 ? 'Valor estimado' : null,
-                  totalValue: _total > 0 ? formatCurrency(_total) : '—',
-                  buttonLabel: 'Continuar',
-                  onPressed: _picked.isEmpty ? null : () => _go(2),
-                )
-              else if (_step == 2)
+              // Ao adicionar no catálogo: NÃO sticky — só badge no carrinho.
+              if (_step == 2)
                 VitrineStickyBar(
                   buttonLabel: 'Continuar',
                   onPressed: _slot != null ? () => _go(3) : null,
@@ -608,12 +610,22 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   loading: _submitting,
                   onPressed: _submitting ? null : _submit,
                 )
-              else if (_step == 0 || _step == 6)
+              else if (_step == 6 ||
+                  _step == 1 ||
+                  (_step == 0 &&
+                      (_homeBrowse >= 3 || _picked.isNotEmpty)))
                 VitrineBottomNav(
                   index: _navIndex,
+                  cartCount: _picked.length,
                   onTap: (i) {
-                    if (i == 0) _go(0);
-                    if (i == 1) _goAgendar();
+                    if (i == 0) {
+                      setState(() {
+                        _step = 0;
+                        _homeBrowse = 0;
+                        _error = null;
+                      });
+                    }
+                    if (i == 1) _openCarrinho();
                     if (i == 2) _go(6);
                   },
                 ),
@@ -643,218 +655,842 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     }
   }
 
-  // ─── Home ─────────────────────────────────────────────────────────────────
+  // ─── Home (fluxo guiado) ─────────────────────────────────────────────────
+
+  String _labelGrupo(String slug) {
+    switch (slug.trim().toLowerCase()) {
+      case 'plano':
+        return 'Planos';
+      case 'promocao':
+        return 'Promoções';
+      case 'adicional':
+        return 'Adicionais';
+      case 'avulsos':
+        return 'Avulsos';
+      case 'sofa':
+        return 'Sofá';
+      case 'colchao':
+        return 'Colchão';
+      case 'outros':
+        return 'Outros';
+      default:
+        final s = slug.trim();
+        if (s.isEmpty) return 'Outros';
+        return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
+    }
+  }
+
+  String _labelSubgrupo(String slug) {
+    final s = slug.trim();
+    if (s.isEmpty) return 'Geral';
+    return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
+  }
+
+  String _macroTitle(String macro) {
+    if (macro == 'veicular') {
+      final t = _config.macroAutoTitulo.trim();
+      return t.isEmpty ? 'Estética automotiva' : t;
+    }
+    if (macro == 'residencial') {
+      final t = _config.macroResidTitulo.trim();
+      return t.isEmpty ? 'Higienização residencial' : t;
+    }
+    return macro;
+  }
+
+  String _macroSubtitle(String macro) {
+    if (macro == 'veicular') {
+      final t = _config.macroAutoSubtitulo.trim();
+      return t.isEmpty ? 'Bancos, teto, carpete e pacotes Cleanox' : t;
+    }
+    if (macro == 'residencial') {
+      final t = _config.macroResidSubtitulo.trim();
+      return t.isEmpty ? 'Sofá, colchão, poltrona, tapete e mais' : t;
+    }
+    return '';
+  }
+
+  IconData _macroIcon(String macro) {
+    if (macro == 'veicular') return Icons.directions_car_filled_rounded;
+    if (macro == 'residencial') return Icons.chair_rounded;
+    return Icons.cleaning_services_rounded;
+  }
+
+  IconData _iconGrupo(String slug) {
+    switch (slug.trim().toLowerCase()) {
+      case 'sofa':
+        return Icons.weekend_rounded;
+      case 'colchao':
+        return Icons.bed_rounded;
+      case 'plano':
+        return Icons.workspace_premium_rounded;
+      case 'promocao':
+        return Icons.local_offer_rounded;
+      case 'adicional':
+        return Icons.add_circle_outline_rounded;
+      case 'avulsos':
+        return Icons.auto_awesome_rounded;
+      case 'outros':
+        return Icons.more_horiz_rounded;
+      case 'cadeira':
+      case 'poltrona':
+        return Icons.chair_alt_rounded;
+      case 'tapete':
+        return Icons.crop_square_rounded;
+      case 'banco':
+      case 'bancos':
+        return Icons.airline_seat_recline_normal_rounded;
+      case 'teto':
+        return Icons.roofing_rounded;
+      case 'carpete':
+        return Icons.texture_rounded;
+      default:
+        return Icons.grid_view_rounded;
+    }
+  }
+
+  List<VitrineServico> _servicosNoMacro(String macro) {
+    return _sortedServicos(
+      _catalog.where((s) => _macroOf(s) == macro),
+    );
+  }
+
+  List<String> _gruposDoMacro(String macro) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final s in _servicosNoMacro(macro)) {
+      final g = s.grupo.trim().toLowerCase();
+      final key = g.isEmpty ? 'outros' : g;
+      if (seen.add(key)) out.add(key);
+    }
+    out.sort();
+    return out;
+  }
+
+  List<VitrineServico> _servicosNoGrupo(String macro, String grupo) {
+    final g = grupo.trim().toLowerCase();
+    return _sortedServicos(
+      _servicosNoMacro(macro).where((s) {
+        final sg = s.grupo.trim().toLowerCase();
+        final key = sg.isEmpty ? 'outros' : sg;
+        return key == g;
+      }),
+    );
+  }
+
+  List<String> _subgruposDoGrupo(String macro, String grupo) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final s in _servicosNoGrupo(macro, grupo)) {
+      final sub = s.subgrupo.trim().toLowerCase();
+      if (sub.isEmpty) continue;
+      if (seen.add(sub)) out.add(sub);
+    }
+    out.sort();
+    return out;
+  }
+
+  List<VitrineServico> _catalogoFiltradoGuiado() {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final grupo = (_familiaFilter ?? '').trim().toLowerCase();
+    final sub = (_subgrupoFilter ?? '').trim().toLowerCase();
+    return _sortedServicos(
+      _catalog.where((s) {
+        if (!_matchBusca(s)) return false;
+        if (cat.isNotEmpty && _macroOf(s) != cat) return false;
+        if (grupo.isNotEmpty) {
+          final g = s.grupo.trim().toLowerCase();
+          final key = g.isEmpty ? 'outros' : g;
+          if (key != grupo) return false;
+        }
+        if (sub.isNotEmpty) {
+          if (s.subgrupo.trim().toLowerCase() != sub) return false;
+        }
+        return true;
+      }),
+    );
+  }
+
+  void _pickCategoria(String macro) {
+    setState(() {
+      _categoriaFilter = macro;
+      _familiaFilter = null;
+      _subgrupoFilter = null;
+      _buscaFilter = null;
+      _homeBrowse = 1;
+      _error = null;
+    });
+  }
+
+  /// Troca para a outra macro (ex.: residencial ↔ veicular) e abre os grupos.
+  void _switchCategoria(String macro) {
+    _pickCategoria(macro);
+  }
+
+  /// Outra categoria disponível (para atalho no topo do catálogo).
+  String? _outraMacroDisponivel(String atual) {
+    final cur = atual.trim().toLowerCase();
+    final candidatas = <String>[];
+    if (_config.macroAutoPrimeiro) {
+      candidatas.addAll(['veicular', 'residencial']);
+    } else {
+      candidatas.addAll(['residencial', 'veicular']);
+    }
+    for (final m in candidatas) {
+      if (m == cur) continue;
+      if (_servicosNoMacro(m).isNotEmpty) return m;
+    }
+    return null;
+  }
+
+  void _pickGrupo(String grupo) {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final subs = _subgruposDoGrupo(cat, grupo);
+    setState(() {
+      _familiaFilter = grupo;
+      _subgrupoFilter = null;
+      _buscaFilter = null;
+      _homeBrowse = subs.isEmpty ? 3 : 2;
+      _error = null;
+    });
+  }
+
+  void _pickSubgrupo(String sub) {
+    setState(() {
+      _subgrupoFilter = sub;
+      _homeBrowse = 3;
+      _error = null;
+    });
+  }
+
+  void _browseBack() {
+    setState(() {
+      if (_homeBrowse >= 3) {
+        final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+        final grupo = (_familiaFilter ?? '').trim().toLowerCase();
+        final subs = (cat.isEmpty || grupo.isEmpty)
+            ? const <String>[]
+            : _subgruposDoGrupo(cat, grupo);
+        if (subs.isNotEmpty) {
+          _homeBrowse = 2;
+          _subgrupoFilter = null;
+        } else {
+          _homeBrowse = 1;
+          _familiaFilter = null;
+          _subgrupoFilter = null;
+        }
+      } else if (_homeBrowse == 2) {
+        _homeBrowse = 1;
+        _familiaFilter = null;
+        _subgrupoFilter = null;
+      } else if (_homeBrowse == 1) {
+        _homeBrowse = 0;
+        _categoriaFilter = null;
+        _familiaFilter = null;
+        _subgrupoFilter = null;
+      }
+      _buscaFilter = null;
+      _error = null;
+    });
+  }
 
   Widget _home() {
-    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
-    final busca = (_buscaFilter ?? '').trim();
-    final filtrando = cat.isNotEmpty || busca.isNotEmpty;
-
-    final promos = _homeServicos(destaqueOnly: true);
-    final veicular = _homeServicos(
-      macro: 'veicular',
-      excludeDestaque: !filtrando,
-    );
-    final residencial = _homeServicos(
-      macro: 'residencial',
-      excludeDestaque: !filtrando,
-    );
-    final autoPrimeiro = _config.macroAutoPrimeiro;
-
-    Widget sectionTitle(String title) => Padding(
-          padding: const EdgeInsets.only(top: 22, bottom: 8),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: ClxBrand.navy,
-            ),
-          ),
-        );
-
-    Widget catalogBlock({
-      required Key key,
-      required List<VitrineServico> items,
-    }) {
-      if (items.isEmpty) return const SizedBox.shrink();
-      return VitrineCatalogoPersonalizavel(
-        key: key,
-        servicos: items,
-        bootstrap: _bootstrap,
-        selectedIds: _selected,
-        showHeader: false,
-        showCategoryChips: false,
-        onToggle: _toggleServico,
-      );
+    switch (_homeBrowse) {
+      case 1:
+        return _homeGrupos();
+      case 2:
+        return _homeSubgrupos();
+      case 3:
+        return _homeCatalogoFiltrado();
+      default:
+        return _homeCategorias();
     }
+  }
 
-    final sections = <Widget>[];
-    if (!filtrando) {
-      if (promos.isNotEmpty) {
-        sections.add(
-          sectionTitle(
-            _config.homeDestaquesTitulo.trim().isEmpty
-                ? 'Promoções da Semana'
-                : _config.homeDestaquesTitulo.trim(),
-          ),
-        );
-        sections.add(
-          catalogBlock(
-            key: const Key('vitrine-home-promocoes'),
-            items: promos,
-          ),
-        );
-      }
-      if (autoPrimeiro) {
-        if (veicular.isNotEmpty) {
-          sections
-            ..add(sectionTitle('Estética automotiva'))
-            ..add(
-              catalogBlock(
-                key: const Key('vitrine-home-sec-veicular'),
-                items: veicular,
-              ),
-            );
-        }
-        if (residencial.isNotEmpty) {
-          sections
-            ..add(sectionTitle('Higienização residencial'))
-            ..add(
-              catalogBlock(
-                key: const Key('vitrine-home-sec-residencial'),
-                items: residencial,
-              ),
-            );
-        }
-      } else {
-        if (residencial.isNotEmpty) {
-          sections
-            ..add(sectionTitle('Higienização residencial'))
-            ..add(
-              catalogBlock(
-                key: const Key('vitrine-home-sec-residencial'),
-                items: residencial,
-              ),
-            );
-        }
-        if (veicular.isNotEmpty) {
-          sections
-            ..add(sectionTitle('Estética automotiva'))
-            ..add(
-              catalogBlock(
-                key: const Key('vitrine-home-sec-veicular'),
-                items: veicular,
-              ),
-            );
-        }
-      }
+  Widget _homeCategorias() {
+    final macros = <String>[];
+    if (_config.macroAutoPrimeiro) {
+      macros.addAll(['veicular', 'residencial']);
     } else {
-      final filtrados = _homeServicos();
-      sections.add(const SizedBox(height: 16));
-      if (filtrados.isEmpty) {
-        sections.add(
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text(
-              'Nenhum serviço encontrado.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: ClxBrand.muted),
+      macros.addAll(['residencial', 'veicular']);
+    }
+    // Só mostra macro que tem serviço no catálogo.
+    final available = [
+      for (final m in macros)
+        if (_servicosNoMacro(m).isNotEmpty) m,
+    ];
+
+    return LayoutBuilder(
+      key: const Key('vitrine-home-browse-categorias'),
+      builder: (context, constraints) {
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        final cardSide = _choiceCardSide(constraints.maxWidth);
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: _kChoiceHPad,
+              vertical: 16,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: max(0, constraints.maxHeight - 32),
+                maxWidth: maxW,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'O que você procura?',
+                    key: Key('vitrine-home-oqvp'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: ClxBrand.navy,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Escolha o tipo de serviço para começar.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 14,
+                      color: ClxBrand.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  if (available.isEmpty)
+                    const Text(
+                      'Nenhum serviço disponível no momento.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: ClxBrand.muted),
+                    )
+                  else
+                    _squareChoiceGrid(
+                      key: const Key('vitrine-home-cat-row'),
+                      cardSide: cardSide,
+                      cards: [
+                        for (final m in available)
+                          _categoriaSquareCard(
+                            key: Key('vitrine-home-cat-$m'),
+                            title: _macroTitle(m),
+                            subtitle: _macroSubtitle(m),
+                            icon: _macroIcon(m),
+                            onTap: () => _pickCategoria(m),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         );
-      } else {
-        sections.add(
-          catalogBlock(
-            key: ValueKey('vitrine-home-filtrado-$cat-$busca'),
-            items: filtrados,
-          ),
-        );
-      }
-    }
+      },
+    );
+  }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      children: [
-        const Text(
-          'O que você procura?',
-          key: Key('vitrine-home-oqvp'),
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: ClxBrand.navy,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _HomeCatalogHeader(
-          initialQuery: _buscaFilter ?? '',
-          onSearch: (q) {
-            setState(() {
-              _buscaFilter = q.trim().isEmpty ? null : q.trim();
-            });
-          },
-          onClearFilters: () {
-            setState(() {
-              _categoriaFilter = null;
-              _familiaFilter = null;
-              _buscaFilter = null;
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          key: const Key('vitrine-home-category-chips'),
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _HomeCatChip(
-                key: const Key('vitrine-home-chip-veicular'),
-                label: 'Estética automotiva',
-                selected: cat == 'veicular',
-                onTap: () => setState(() {
-                  _categoriaFilter = cat == 'veicular' ? null : 'veicular';
-                  _familiaFilter = null;
-                }),
-              ),
-              const SizedBox(width: 8),
-              _HomeCatChip(
-                key: const Key('vitrine-home-chip-residencial'),
-                label: 'Higienização residencial',
-                selected: cat == 'residencial',
-                onTap: () => setState(() {
-                  _categoriaFilter =
-                      cat == 'residencial' ? null : 'residencial';
-                  _familiaFilter = null;
-                }),
+  Widget _categoriaSquareCard({
+    required Key key,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      key: key,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x140B1D34),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
           ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F7F9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, color: ClxBrand.cyan, size: 30),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    color: ClxBrand.navy,
+                  ),
+                ),
+                if (subtitle.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 11,
+                      height: 1.2,
+                      color: ClxBrand.muted,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
-        ...sections,
-        if (_config.cidadesTexto.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          Text(
-            'Atendemos: ${_config.cidadesTexto}',
-            style: const TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12,
-              color: ClxBrand.muted,
+      ),
+    );
+  }
+
+  /// Mesmo tamanho da 1ª tela (2 colunas). Ímpar: última linha com 1 card no meio.
+  static const double _kChoiceGap = 14;
+  static const double _kChoiceMaxW = 520;
+  static const double _kChoiceMaxSide = 168;
+  static const double _kChoiceHPad = 24;
+
+  double _choiceCardSide(double layoutWidth) {
+    final maxW = min(_kChoiceMaxW, layoutWidth);
+    final usable = maxW - _kChoiceHPad * 2;
+    return min(_kChoiceMaxSide, (usable - _kChoiceGap) / 2);
+  }
+
+  /// Grade 2 colunas; se sobrar 1 card, centraliza na linha de baixo.
+  Widget _squareChoiceGrid({
+    required Key key,
+    required double cardSide,
+    required List<Widget> cards,
+  }) {
+    if (cards.isEmpty) return const SizedBox.shrink();
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: _kChoiceGap));
+      if (i + 1 < cards.length) {
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: cardSide, height: cardSide, child: cards[i]),
+              const SizedBox(width: _kChoiceGap),
+              SizedBox(width: cardSide, height: cardSide, child: cards[i + 1]),
+            ],
+          ),
+        );
+      } else {
+        // Ímpar: card sozinho centralizado (meio entre as duas colunas).
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: cardSide, height: cardSide, child: cards[i]),
+            ],
+          ),
+        );
+      }
+    }
+    return Column(key: key, mainAxisSize: MainAxisSize.min, children: rows);
+  }
+
+  Widget _browseBackButton({Widget? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_kChoiceHPad, 4, _kChoiceHPad, 0),
+      child: Row(
+        children: [
+          TextButton.icon(
+            key: const Key('vitrine-home-back'),
+            onPressed: _browseBack,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              visualDensity: VisualDensity.compact,
+              foregroundColor: ClxBrand.navy,
+            ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(
+                fontFamily: kFontFamily,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing,
+              ),
+            ),
+          ],
         ],
-        if (_config.rodapeMsg.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            _config.rodapeMsg,
-            style: const TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12,
-              color: ClxBrand.muted,
+      ),
+    );
+  }
+
+  Widget _switchCategoriaTrailing(String catAtual) {
+    final outra = _outraMacroDisponivel(catAtual);
+    if (outra == null) return const SizedBox.shrink();
+    return TextButton(
+      key: Key('vitrine-home-switch-cat-$outra'),
+      onPressed: () => _switchCategoria(outra),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        visualDensity: VisualDensity.compact,
+        foregroundColor: ClxBrand.cyan,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              _macroTitle(outra),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: kFontFamily,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
             ),
           ),
+          const Icon(Icons.chevron_right_rounded, size: 18),
         ],
+      ),
+    );
+  }
+
+  Widget _homeGrupos() {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final grupos = _gruposDoMacro(cat);
+
+    return LayoutBuilder(
+      key: const Key('vitrine-home-browse-grupos'),
+      builder: (context, constraints) {
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        // Mesmo tamanho da 1ª tela (sempre fórmula de 2 colunas).
+        final cardSide = _choiceCardSide(constraints.maxWidth);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Fixo no topo, logo abaixo da logo / top bar.
+            _browseBackButton(),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _kChoiceHPad,
+                    vertical: 12,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: max(0, constraints.maxHeight - 72),
+                      maxWidth: maxW,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _macroTitle(cat),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: ClxBrand.cyan,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Selecione os itens que deseja limpar',
+                          key: Key('vitrine-home-selecione-itens'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: ClxBrand.navy,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Toque no grupo para ver as opções.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 14,
+                            color: ClxBrand.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        if (grupos.isEmpty)
+                          const Text(
+                            'Nenhum grupo disponível nesta categoria.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: ClxBrand.muted),
+                          )
+                        else
+                          _squareChoiceGrid(
+                            key: const Key('vitrine-home-grupo-row'),
+                            cardSide: cardSide,
+                            cards: [
+                              for (final g in grupos)
+                                _categoriaSquareCard(
+                                  key: Key('vitrine-home-grupo-$g'),
+                                  title: _labelGrupo(g),
+                                  subtitle:
+                                      '${_servicosNoGrupo(cat, g).length} opções',
+                                  icon: Icons.grid_view_rounded,
+                                  onTap: () => _pickGrupo(g),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _homeSubgrupos() {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final grupo = (_familiaFilter ?? '').trim().toLowerCase();
+    final subs = _subgruposDoGrupo(cat, grupo);
+
+    return LayoutBuilder(
+      key: const Key('vitrine-home-browse-subgrupos'),
+      builder: (context, constraints) {
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        final cardSide = _choiceCardSide(constraints.maxWidth);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _browseBackButton(),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _kChoiceHPad,
+                    vertical: 12,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: max(0, constraints.maxHeight - 72),
+                      maxWidth: maxW,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${_macroTitle(cat)} · ${_labelGrupo(grupo)}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: ClxBrand.cyan,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Escolha o subgrupo',
+                          key: Key('vitrine-home-escolha-subgrupo'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: ClxBrand.navy,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        if (subs.isEmpty)
+                          const Text(
+                            'Nenhum subgrupo nesta opção.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: ClxBrand.muted),
+                          )
+                        else
+                          _squareChoiceGrid(
+                            key: const Key('vitrine-home-sub-row'),
+                            cardSide: cardSide,
+                            cards: [
+                              for (final s in subs)
+                                _categoriaSquareCard(
+                                  key: Key('vitrine-home-sub-$s'),
+                                  title: _labelSubgrupo(s),
+                                  subtitle: 'Ver serviços',
+                                  icon: Icons.layers_rounded,
+                                  onTap: () => _pickSubgrupo(s),
+                                ),
+                            ],
+                          ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          key: const Key('vitrine-home-ver-todos-grupo'),
+                          onPressed: () => setState(() {
+                            _subgrupoFilter = null;
+                            _homeBrowse = 3;
+                          }),
+                          child: const Text('Ver todos deste grupo'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _homeCatalogoFiltrado() {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final grupo = (_familiaFilter ?? '').trim().toLowerCase();
+    final sub = (_subgrupoFilter ?? '').trim().toLowerCase();
+    final items = _catalogoFiltradoGuiado();
+    final titulo = sub.isNotEmpty
+        ? _labelSubgrupo(sub)
+        : (grupo.isNotEmpty ? _labelGrupo(grupo) : _macroTitle(cat));
+    final trilha = [
+      if (cat.isNotEmpty) _macroTitle(cat),
+      if (grupo.isNotEmpty) _labelGrupo(grupo),
+      if (sub.isNotEmpty) _labelSubgrupo(sub),
+    ].join(' · ');
+
+    return Column(
+      key: const Key('vitrine-home-browse-catalogo'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _browseBackButton(
+          trailing: cat.isNotEmpty ? _switchCategoriaTrailing(cat) : null,
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            children: [
+              if (trilha.isNotEmpty)
+                Text(
+                  trilha,
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: ClxBrand.cyan,
+                  ),
+                ),
+              const SizedBox(height: 6),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: ClxBrand.navy,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Toque em Adicionar para montar seu pedido. O carrinho na bolinha soma os itens.',
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 13,
+                  color: ClxBrand.muted,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _HomeCatalogHeader(
+                initialQuery: _buscaFilter ?? '',
+                onSearch: (q) {
+                  setState(() {
+                    _buscaFilter = q.trim().isEmpty ? null : q.trim();
+                  });
+                },
+                onClearFilters: () {
+                  setState(() => _buscaFilter = null);
+                },
+              ),
+              if (cat.isNotEmpty && _gruposDoMacro(cat).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _HomeGrupoIconStrip(
+                  key: const Key('vitrine-home-grupo-icon-strip'),
+                  grupos: _gruposDoMacro(cat),
+                  selected: grupo,
+                  labelOf: _labelGrupo,
+                  iconOf: _iconGrupo,
+                  onSelect: (g) {
+                    setState(() {
+                      _familiaFilter = g;
+                      _subgrupoFilter = null;
+                      _error = null;
+                    });
+                  },
+                ),
+              ],
+              const SizedBox(height: 14),
+              if (items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Nenhum serviço encontrado.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: ClxBrand.muted),
+                  ),
+                )
+              else
+                VitrineCatalogoPersonalizavel(
+                  key: ValueKey(
+                    'vitrine-home-catgrid-$cat-$grupo-$sub-${_buscaFilter ?? ''}',
+                  ),
+                  servicos: items,
+                  bootstrap: _bootstrap,
+                  selectedIds: _selected,
+                  showHeader: false,
+                  showCategoryChips: false,
+                  onToggle: _toggleServico,
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1840,6 +2476,351 @@ class _SuccessBody extends StatelessWidget {
   );
 }
 
+/// Sheet do carrinho: lista itens + Continuar (sem sticky bar no catálogo).
+class _CarrinhoSheet extends StatefulWidget {
+  const _CarrinhoSheet({
+    required this.items,
+    required this.onRemove,
+    required this.onContinuar,
+  });
+
+  final List<VitrineServico> items;
+  final ValueChanged<VitrineServico> onRemove;
+  final VoidCallback onContinuar;
+
+  @override
+  State<_CarrinhoSheet> createState() => _CarrinhoSheetState();
+}
+
+class _CarrinhoSheetState extends State<_CarrinhoSheet> {
+  late List<VitrineServico> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List<VitrineServico>.from(widget.items);
+  }
+
+  double get _total =>
+      _items.fold<double>(0, (s, x) => s + x.valorBase);
+
+  void _remove(VitrineServico s) {
+    setState(() {
+      _items.removeWhere((x) => x.id == s.id);
+    });
+    widget.onRemove(s);
+    if (_items.isEmpty && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final maxH = MediaQuery.sizeOf(context).height * 0.78;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH, maxWidth: 560),
+          child: Material(
+            key: const Key('vitrine-carrinho-sheet'),
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Seu carrinho',
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: ClxBrand.navy,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('vitrine-carrinho-close'),
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final s = _items[i];
+                      final nome = s.tituloComercial.trim().isNotEmpty
+                          ? s.tituloComercial
+                          : s.nome;
+                      return Container(
+                        key: Key('vitrine-carrinho-item-${s.id}'),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nome,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: kFontFamily,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: ClxBrand.navy,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    formatCurrency(s.valorBase),
+                                    style: const TextStyle(
+                                      fontFamily: kFontFamily,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: ClxBrand.cyan,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              key: Key('vitrine-carrinho-remove-${s.id}'),
+                              tooltip: 'Remover',
+                              onPressed: () => _remove(s),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: ClxBrand.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      top: BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${_items.length} item${_items.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontFamily: kFontFamily,
+                                fontSize: 13,
+                                color: ClxBrand.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            formatCurrency(_total),
+                            style: const TextStyle(
+                              fontFamily: kFontFamily,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: ClxBrand.navy,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        key: const Key('vitrine-carrinho-continuar'),
+                        onPressed:
+                            _items.isEmpty ? null : widget.onContinuar,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: ClxBrand.cyan,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        child: const Text(
+                          'Continuar',
+                          style: TextStyle(
+                            fontFamily: kFontFamily,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Linha horizontal rolável (arrastar) com ícones dos grupos da categoria.
+class _HomeGrupoIconStrip extends StatelessWidget {
+  const _HomeGrupoIconStrip({
+    super.key,
+    required this.grupos,
+    required this.selected,
+    required this.labelOf,
+    required this.iconOf,
+    required this.onSelect,
+  });
+
+  final List<String> grupos;
+  final String selected;
+  final String Function(String slug) labelOf;
+  final IconData Function(String slug) iconOf;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 86,
+      child: ListView.separated(
+        key: const Key('vitrine-home-grupo-icons-scroll'),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: grupos.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final g = grupos[i];
+          final on = g == selected.trim().toLowerCase();
+          return _GrupoIconChip(
+            key: Key('vitrine-home-grupo-icon-$g'),
+            label: labelOf(g),
+            icon: iconOf(g),
+            selected: on,
+            onTap: () => onSelect(g),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GrupoIconChip extends StatelessWidget {
+  const _GrupoIconChip({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? ClxBrand.cyan : Colors.white;
+    final fg = selected ? Colors.white : ClxBrand.navy;
+    final border = selected ? ClxBrand.cyan : const Color(0xFFE2E8F0);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 76,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border, width: 1.5),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: ClxBrand.cyan.withValues(alpha: 0.28),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : const [
+                          BoxShadow(
+                            color: Color(0x0F0B1D34),
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                ),
+                child: Icon(icon, size: 24, color: fg),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? ClxBrand.cyan : ClxBrand.navy,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Card navy da home: busca + chips de categoria atualizam a própria home.
 class _HomeCatalogHeader extends StatefulWidget {
@@ -1982,32 +2963,4 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
   }
 }
 
-class _HomeCatChip extends StatelessWidget {
-  const _HomeCatChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    super.key,
-  });
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: ClxBrand.navy,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : ClxBrand.navy,
-        fontWeight: FontWeight.w700,
-      ),
-      side: const BorderSide(color: Color(0xFFDCE5EC)),
-      backgroundColor: Colors.white,
-      showCheckmark: false,
-    );
-  }
-}
