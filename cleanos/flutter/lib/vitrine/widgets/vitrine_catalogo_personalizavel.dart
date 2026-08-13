@@ -446,13 +446,6 @@ class _CatalogHeader extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              if (categoria.isNotEmpty) ...[
-                const SizedBox(height: 7),
-                const Text(
-                  'Filtre por família abaixo ou busque pelo nome do serviço.',
-                  style: TextStyle(color: Colors.white70, height: 1.4),
-                ),
-              ],
               if (onClearCategoria != null) ...[
                 const SizedBox(height: 10),
                 TextButton.icon(
