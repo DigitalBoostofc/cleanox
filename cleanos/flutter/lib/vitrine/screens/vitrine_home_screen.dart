@@ -622,17 +622,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        const VitrineGreeting(),
-        const SizedBox(height: 4),
-        Text(
-          kAppTagline,
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 13,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        const SizedBox(height: 16),
         const Text(
           'O que você procura?',
           style: TextStyle(

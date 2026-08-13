@@ -190,32 +190,6 @@ class VitrineContentFrame extends StatelessWidget {
   }
 }
 
-/// Saudação estável em web/Android, sem depender de fonte de emoji do sistema.
-class VitrineGreeting extends StatelessWidget {
-  const VitrineGreeting({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Olá',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-            letterSpacing: -0.4,
-          ),
-        ),
-        SizedBox(width: 7),
-        Icon(Icons.waving_hand_rounded, size: 25, color: Color(0xFFF59E0B)),
-      ],
-    );
-  }
-}
-
 /// Topbar claro: logo + chip WhatsApp (home pública — sem conta).
 class VitrineLightTopBar extends StatelessWidget {
   const VitrineLightTopBar({super.key, this.whatsapp});
