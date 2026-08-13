@@ -405,6 +405,11 @@ class VitrineNavyHeader extends StatelessWidget {
 
 /// Bottom nav: Início · **Agendar (FAB redondo suspenso)** · Como funciona.
 /// Barra baixa + círculo sobreposto (como o FAB do casco Easypay do painel).
+///
+/// Hit-test: o FAB NÃO usa `Positioned(top: -lift)` dentro de uma barra baixa —
+/// isso deixa a metade de cima do círculo fora do retângulo de toque (só a
+/// parte de baixo clicava). A estrutura é Stack com altura total
+/// `lift + barra + safe`, FAB no topo (y=0) e barra ancorada embaixo.
 class VitrineBottomNav extends StatelessWidget {
   const VitrineBottomNav({
     super.key,
@@ -426,49 +431,57 @@ class VitrineBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    // Espaço extra no topo do widget para o FAB não cortar (Stack overflow).
-    return Padding(
-      padding: const EdgeInsets.only(top: _fabLift),
-      child: Material(
-        elevation: 12,
-        shadowColor: const Color(0x1A0B1D34),
-        color: Colors.transparent,
-        child: Container(
-          height: _barH + bottom,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x140B1D34),
-                blurRadius: 20,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(bottom: bottom),
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                // Itens laterais na barra baixa; vão centralizados verticalmente.
-                Row(
-                  children: [
-                    _sideItem(0, Icons.home_rounded, 'Início'),
-                    const SizedBox(width: _centerSlot),
-                    _sideItem(2, Icons.info_outline_rounded, 'Como funciona'),
+    // Altura total = lift (só o FAB) + barra + safe-area. Tudo dentro do
+    // retângulo recebe hit-test; o círculo não "vaza" para cima do Stack.
+    return SizedBox(
+      height: _fabLift + _barH + bottom,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
+        children: [
+          // Barra branca (só a faixa inferior).
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: _barH + bottom,
+            child: Material(
+              elevation: 12,
+              shadowColor: const Color(0x1A0B1D34),
+              color: Colors.transparent,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x140B1D34),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
                   ],
                 ),
-                // FAB suspenso: metade acima da barra, sobreposto.
-                Positioned(
-                  top: -_fabLift,
-                  child: _agendarFab(),
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottom),
+                  child: Row(
+                    children: [
+                      _sideItem(0, Icons.home_rounded, 'Início'),
+                      const SizedBox(width: _centerSlot),
+                      _sideItem(2, Icons.info_outline_rounded, 'Como funciona'),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          // FAB central: topo do Stack = topo do círculo (clicável inteiro).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Center(child: _agendarFab()),
+          ),
+        ],
       ),
     );
   }
@@ -513,66 +526,74 @@ class VitrineBottomNav extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: const Key('vitrine-nav-agendar'),
         onTap: () => onTap(1),
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(_centerSlot / 2),
         child: SizedBox(
           width: _centerSlot,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: _fabSize,
-                height: _fabSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: on
-                        ? const [
-                            Color(0xFF0B1D34),
-                            Color(0xFF0B8A98),
-                            Color(0xFF0EA5B7),
-                          ]
-                        : const [
-                            Color(0xFF0EA5B7),
-                            Color(0xFF0B8A98),
-                          ],
-                  ),
-                  border: Border.all(color: Colors.white, width: 3.5),
-                  boxShadow: [
-                    // Sombra profunda = “descolado” da barra.
-                    BoxShadow(
-                      color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
-                      blurRadius: 22,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 12),
+              // Hit-box explícita do círculo (centro do toque).
+              SizedBox(
+                width: _fabSize + 8,
+                height: _fabSize + 8,
+                child: Center(
+                  child: Container(
+                    width: _fabSize,
+                    height: _fabSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: on
+                            ? const [
+                                Color(0xFF0B1D34),
+                                Color(0xFF0B8A98),
+                                Color(0xFF0EA5B7),
+                              ]
+                            : const [
+                                Color(0xFF0EA5B7),
+                                Color(0xFF0B8A98),
+                              ],
+                      ),
+                      border: Border.all(color: Colors.white, width: 3.5),
+                      boxShadow: [
+                        // Sombra profunda = "descolado" da barra.
+                        BoxShadow(
+                          color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
+                          blurRadius: 22,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 12),
+                        ),
+                        BoxShadow(
+                          color: ClxBrand.cyan.withValues(alpha: 0.55),
+                          blurRadius: 28,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 10),
+                        ),
+                        BoxShadow(
+                          color: ClxBrand.cyan.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                    BoxShadow(
-                      color: ClxBrand.cyan.withValues(alpha: 0.55),
-                      blurRadius: 28,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 10),
-                    ),
-                    BoxShadow(
-                      color: ClxBrand.cyan.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                // Ícone desenhado (não depende da fonte MaterialIcons no web).
-                child: const Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CustomPaint(
-                      painter: _VitrineFabCalendarPainter(),
+                    // Ícone desenhado (não depende da fonte MaterialIcons no web).
+                    child: const Center(
+                      child: SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CustomPaint(
+                          painter: _VitrineFabCalendarPainter(),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 'Agendar',
                 maxLines: 1,
