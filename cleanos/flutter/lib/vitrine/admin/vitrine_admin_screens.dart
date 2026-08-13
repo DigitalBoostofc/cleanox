@@ -911,11 +911,11 @@ class VitrineAdminServicosScreen extends ConsumerStatefulWidget {
 
 class _VitrineAdminServicosScreenState
     extends ConsumerState<VitrineAdminServicosScreen> {
-  /// Lista local: toggle/estrela atualizam in-place (sem FutureBuilder → scroll
-  /// não volta ao topo).
+  /// Lista local: toggle/estrela/drag atualizam in-place (scroll não zera).
   List<VitrineAdminServico>? _items;
   Object? _error;
   bool _loading = true;
+  bool _reordering = false;
   final _scrollController = ScrollController();
   final _togglingIds = <String>{};
 
@@ -963,17 +963,30 @@ class _VitrineAdminServicosScreenState
     });
   }
 
+  List<VitrineAdminServico> _ofMacro(String macro) {
+    final items = _items ?? const <VitrineAdminServico>[];
+    final filtered = [
+      for (final s in items)
+        if (s.macroCategoria == macro) s,
+    ];
+    filtered.sort((a, b) {
+      final o = a.vitrineOrdem.compareTo(b.vitrineOrdem);
+      if (o != 0) return o;
+      return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+    });
+    return filtered;
+  }
+
   Future<void> _toggle(
     VitrineAdminServico s, {
     bool? vitrine,
     bool? destaque,
   }) async {
-    if (_togglingIds.contains(s.id)) return;
+    if (_togglingIds.contains(s.id) || _reordering) return;
     final next = s.copyWith(
       vitrine: vitrine ?? s.vitrine,
       vitrineDestaque: destaque ?? s.vitrineDestaque,
     );
-    // Otimista: UI muda na hora, scroll permanece.
     _replaceLocal(next);
     setState(() => _togglingIds.add(s.id));
     try {
@@ -984,12 +997,77 @@ class _VitrineAdminServicosScreenState
           );
     } catch (e) {
       if (!mounted) return;
-      _replaceLocal(s); // rollback
+      _replaceLocal(s);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Não foi possível atualizar: $e')),
       );
     } finally {
       if (mounted) setState(() => _togglingIds.remove(s.id));
+    }
+  }
+
+  /// Reordena dentro da categoria e grava `vitrine_ordem` (0..n).
+  /// Essa ordem é a do catálogo público ao clicar no macro.
+  Future<void> _onReorderMacro(
+    String macro,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (_reordering) return;
+    final before = _ofMacro(macro);
+    if (before.isEmpty) return;
+    var target = newIndex;
+    if (target > oldIndex) target -= 1;
+    if (target < 0 || target >= before.length || oldIndex == target) return;
+
+    final moved = [...before];
+    final item = moved.removeAt(oldIndex);
+    moved.insert(target, item);
+
+    // Snapshot para rollback.
+    final snapshot = _items == null ? null : [..._items!];
+    final byId = {for (final s in (_items ?? const <VitrineAdminServico>[])) s.id: s};
+    final updatedMoved = <VitrineAdminServico>[
+      for (var i = 0; i < moved.length; i++)
+        moved[i].copyWith(vitrineOrdem: i),
+    ];
+    for (final s in updatedMoved) {
+      byId[s.id] = s;
+    }
+    setState(() {
+      _reordering = true;
+      _items = byId.values.toList();
+    });
+
+    try {
+      final api = ref.read(vitrineAdminApiProvider);
+      // Só grava quem mudou de ordem.
+      final futures = <Future<void>>[];
+      for (var i = 0; i < updatedMoved.length; i++) {
+        final s = updatedMoved[i];
+        final prev = before.firstWhere((e) => e.id == s.id);
+        if (prev.vitrineOrdem != s.vitrineOrdem) {
+          futures.add(api.adminPatchServico(s.id, vitrineOrdem: s.vitrineOrdem));
+        }
+      }
+      await Future.wait(futures);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ordem salva — vale no site ao abrir a categoria'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      if (snapshot != null) {
+        setState(() => _items = snapshot);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível salvar a ordem: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _reordering = false);
     }
   }
 
@@ -1015,7 +1093,6 @@ class _VitrineAdminServicosScreenState
         ),
       ),
     );
-    // Editor muda vários campos: recarrega dados, mas mantém o offset do scroll.
     if (saved == true && mounted) {
       final offset =
           _scrollController.hasClients ? _scrollController.offset : 0.0;
@@ -1046,19 +1123,9 @@ class _VitrineAdminServicosScreenState
         ),
       );
     }
-    final items = _items ?? const <VitrineAdminServico>[];
-    final veicular = [
-      for (final s in items)
-        if (s.macroCategoria == 'veicular') s,
-    ];
-    final residencial = [
-      for (final s in items)
-        if (s.macroCategoria == 'residencial') s,
-    ];
-    final outros = [
-      for (final s in items)
-        if (s.macroCategoria == 'outros') s,
-    ];
+    final veicular = _ofMacro('veicular');
+    final residencial = _ofMacro('residencial');
+    final outros = _ofMacro('outros');
     return ListView(
       key: const Key('vitrine-admin-servicos-list'),
       controller: _scrollController,
@@ -1074,23 +1141,29 @@ class _VitrineAdminServicosScreenState
         ),
         const SizedBox(height: 8),
         const Text(
-          'Escolha o formato, a mensagem e a posição de cada serviço. '
-          'Lista separada por categoria (veicular e residencial). '
-          'Use o personalizar do serviço para marcar capa / antes / depois '
-          'nas fotos já cadastradas em Serviços → Editar → Fotos na Vitrine.',
+          'Arraste pelo ícone ☰ para definir a ordem de cada categoria. '
+          'Essa ordem é a que aparece no site ao clicar em Estética automotiva '
+          'ou Higienização residencial. '
+          'Use o personalizar para capa/antes/depois e demais campos.',
           style: TextStyle(color: ClxBrand.muted, fontSize: 13),
         ),
+        if (_reordering) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
         const SizedBox(height: 16),
-        ..._section(
+        _section(
           key: const Key('vitrine-admin-sec-veicular'),
+          macro: 'veicular',
           title: 'Estética automotiva',
           subtitle: 'Serviços veiculares',
           items: veicular,
           emptyHint: 'Nenhum serviço veicular cadastrado.',
         ),
         const SizedBox(height: 20),
-        ..._section(
+        _section(
           key: const Key('vitrine-admin-sec-residencial'),
+          macro: 'residencial',
           title: 'Higienização residencial',
           subtitle: 'Sofá, colchão, poltrona, tapete e afins',
           items: residencial,
@@ -1098,8 +1171,9 @@ class _VitrineAdminServicosScreenState
         ),
         if (outros.isNotEmpty) ...[
           const SizedBox(height: 20),
-          ..._section(
+          _section(
             key: const Key('vitrine-admin-sec-outros'),
+            macro: 'outros',
             title: 'Outros / sem categoria',
             subtitle: 'Defina categoria no cadastro do serviço',
             items: outros,
@@ -1110,68 +1184,97 @@ class _VitrineAdminServicosScreenState
     );
   }
 
-  List<Widget> _section({
+  Widget _section({
     required Key key,
+    required String macro,
     required String title,
     required String subtitle,
     required List<VitrineAdminServico> items,
     required String emptyHint,
   }) {
-    return [
-      Container(
-        key: key,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: ClxBrand.navy,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$subtitle · ${items.length} serviço${items.length == 1 ? '' : 's'}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: ClxBrand.navy,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 10),
-      if (items.isEmpty && emptyHint.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(
-            emptyHint,
-            style: const TextStyle(color: ClxBrand.muted, fontSize: 13),
+              const SizedBox(height: 2),
+              Text(
+                '$subtitle · ${items.length} serviço${items.length == 1 ? '' : 's'} · arraste para reordenar',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
-      for (final s in items) _servicoTile(s),
-    ];
+        const SizedBox(height: 10),
+        if (items.isEmpty && emptyHint.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              emptyHint,
+              style: const TextStyle(color: ClxBrand.muted, fontSize: 13),
+            ),
+          )
+        else
+          ReorderableListView.builder(
+            key: Key('vitrine-admin-reorder-$macro'),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: items.length,
+            onReorder: _reordering
+                ? (_, __) {}
+                : (oldIndex, newIndex) =>
+                    _onReorderMacro(macro, oldIndex, newIndex),
+            proxyDecorator: (child, index, animation) {
+              return Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(12),
+                child: child,
+              );
+            },
+            itemBuilder: (context, index) {
+              final s = items[index];
+              return _servicoTile(
+                s,
+                index: index,
+                key: ValueKey('vitrine-admin-servico-${s.id}'),
+              );
+            },
+          ),
+      ],
+    );
   }
 
-  Widget _servicoTile(VitrineAdminServico s) {
-    final busy = _togglingIds.contains(s.id);
+  Widget _servicoTile(
+    VitrineAdminServico s, {
+    required int index,
+    required Key key,
+  }) {
+    final busy = _togglingIds.contains(s.id) || _reordering;
     return Card(
-      key: ValueKey('vitrine-admin-servico-${s.id}'),
+      key: key,
+      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+        padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
         child: Row(
           children: [
             Switch(
@@ -1191,7 +1294,8 @@ class _VitrineAdminServicosScreenState
                     '${s.grupo.isEmpty ? '—' : s.grupo} · '
                     '${formatCurrency(s.valorBase)} · '
                     '${_adminLayoutLabel(s.layout)}'
-                    '${s.vitrineDestaque ? ' · destaque' : ''}',
+                    '${s.vitrineDestaque ? ' · destaque' : ''}'
+                    ' · #${s.vitrineOrdem}',
                     style: const TextStyle(
                       color: ClxBrand.muted,
                       fontSize: 12,
@@ -1212,7 +1316,19 @@ class _VitrineAdminServicosScreenState
             IconButton(
               tooltip: 'Personalizar serviço',
               icon: const Icon(Icons.tune),
-              onPressed: () => _openEditor(s),
+              onPressed: busy ? null : () => _openEditor(s),
+            ),
+            ReorderableDragStartListener(
+              index: index,
+              enabled: !_reordering,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                child: Icon(
+                  Icons.drag_handle,
+                  key: ValueKey('vitrine-admin-drag-${s.id}'),
+                  color: ClxBrand.muted,
+                ),
+              ),
             ),
           ],
         ),
