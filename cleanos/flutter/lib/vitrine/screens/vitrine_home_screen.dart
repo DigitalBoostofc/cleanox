@@ -68,6 +68,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   VitrineAgendarResult? _ok;
   String? _categoriaFilter; // residencial | veicular
   String? _familiaFilter; // sofa | colchao | …
+  String? _buscaFilter; // texto do “Buscar serviço”
   String? _idempotencyKey;
   int _duracaoNoSlot = 0;
 
@@ -560,6 +561,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       setState(() {
                         _categoriaFilter = null;
                         _familiaFilter = null;
+                        _buscaFilter = null;
                       });
                       _go(1);
                     }
@@ -631,6 +633,15 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         _HomeCatalogHeader(
           onOpenCatalog: () {
             setState(() {
+              _categoriaFilter = null;
+              _familiaFilter = null;
+              // mantém _buscaFilter se o usuário já digitou
+            });
+            _go(1);
+          },
+          onSearch: (q) {
+            setState(() {
+              _buscaFilter = q.trim().isEmpty ? null : q.trim();
               _categoriaFilter = null;
               _familiaFilter = null;
             });
@@ -749,18 +760,20 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   Widget _servicos() {
     final catKey = (_categoriaFilter ?? '').trim().toLowerCase();
     final famKey = (_familiaFilter ?? '').trim().toLowerCase();
+    final buscaKey = (_buscaFilter ?? '').trim().toLowerCase();
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         VitrineCatalogoPersonalizavel(
-          // Key força novo State quando o macro muda — filtro não “gruda”.
-          key: ValueKey('vitrine-catalogo-$catKey-$famKey'),
+          // Key força novo State quando o macro/busca muda — filtro não “gruda”.
+          key: ValueKey('vitrine-catalogo-$catKey-$famKey-$buscaKey'),
           servicos: _catalog,
           bootstrap: _bootstrap,
           selectedIds: _selected,
           onToggle: _toggleServico,
           initialCategoria: _categoriaFilter,
           initialGroup: _familiaFilter,
+          initialQuery: _buscaFilter,
         ),
       ],
     );
@@ -1725,66 +1738,117 @@ class _SuccessBody extends StatelessWidget {
 
 
 /// Card navy da home (mesmo visual do header do catálogo) — atalho p/ Serviços.
-class _HomeCatalogHeader extends StatelessWidget {
-  const _HomeCatalogHeader({required this.onOpenCatalog});
+class _HomeCatalogHeader extends StatefulWidget {
+  const _HomeCatalogHeader({
+    required this.onOpenCatalog,
+    required this.onSearch,
+  });
 
   final VoidCallback onOpenCatalog;
+  final ValueChanged<String> onSearch;
+
+  @override
+  State<_HomeCatalogHeader> createState() => _HomeCatalogHeaderState();
+}
+
+class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
+  final _busca = TextEditingController();
+
+  @override
+  void dispose() {
+    _busca.dispose();
+    super.dispose();
+  }
+
+  void _submit([String? raw]) {
+    final q = (raw ?? _busca.text).trim();
+    widget.onSearch(q);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        key: const Key('vitrine-home-catalog-header'),
-        onTap: onOpenCatalog,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: ClxBrand.navy,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'SERVIÇOS CLEANOX',
-                style: TextStyle(
-                  color: ClxBrand.cyan,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                'Todos os serviços',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  height: 1.08,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Campo só visual: toque no card inteiro abre o catálogo.
-              IgnorePointer(
-                child: TextField(
-                  enabled: false,
-                  decoration: InputDecoration(
-                    hintText: 'Buscar serviço',
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+      child: Ink(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: ClxBrand.navy,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              key: const Key('vitrine-home-catalog-header'),
+              onTap: widget.onOpenCatalog,
+              borderRadius: BorderRadius.circular(12),
+              child: const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'SERVIÇOS CLEANOX',
+                      style: TextStyle(
+                        color: ClxBrand.cyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
                     ),
-                  ),
+                    SizedBox(height: 7),
+                    Text(
+                      'Todos os serviços',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        height: 1.08,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('vitrine-home-busca'),
+              controller: _busca,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _submit,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: ClxBrand.navy),
+              decoration: InputDecoration(
+                hintText: 'Buscar serviço',
+                helperText:
+                    'Digite palavras do nome e pressione buscar (ex.: sofá 3)',
+                helperStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 11,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                prefixIcon: IconButton(
+                  tooltip: 'Buscar',
+                  onPressed: _submit,
+                  icon: const Icon(Icons.search, color: ClxBrand.cyan),
+                ),
+                suffixIcon: _busca.text.trim().isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _busca.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.close, color: ClxBrand.muted),
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -10,6 +10,42 @@ import '../vitrine_api.dart';
 /// Intervalo do carrossel automático nas fotos do serviço (Vitrine).
 const Duration kVitrineFotoCarouselInterval = Duration(seconds: 4);
 
+/// Normaliza texto para busca (minúsculas + sem acento).
+String vitrineFoldBusca(String input) {
+  const from =
+      'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
+  const to = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
+  final b = StringBuffer();
+  for (final rune in input.runes) {
+    final ch = String.fromCharCode(rune);
+    final i = from.indexOf(ch);
+    b.write(i >= 0 ? to[i] : ch);
+  }
+  return b.toString().toLowerCase();
+}
+
+/// Busca por **palavras** no nome (e título comercial).
+/// Todas as palavras da query precisam aparecer no nome (ordem livre).
+bool vitrineMatchesBuscaNome({
+  required String nome,
+  required String tituloComercial,
+  required String query,
+}) {
+  final q = query.trim();
+  if (q.isEmpty) return true;
+  final hay = vitrineFoldBusca(
+    '${nome.trim()} ${tituloComercial.trim()}'.trim(),
+  );
+  if (hay.isEmpty) return false;
+  final tokens = vitrineFoldBusca(q)
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty);
+  for (final t in tokens) {
+    if (!hay.contains(t)) return false;
+  }
+  return true;
+}
+
 class VitrineCatalogoPersonalizavel extends StatefulWidget {
   const VitrineCatalogoPersonalizavel({
     required this.servicos,
@@ -18,6 +54,7 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
     required this.onToggle,
     this.initialCategoria,
     this.initialGroup,
+    this.initialQuery,
     this.showHeader = true,
     this.showFamilyChips = true,
     super.key,
@@ -33,6 +70,9 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
 
   /// Família / grupo: sofa, colchao, poltrona… (chip opcional).
   final String? initialGroup;
+
+  /// Texto inicial do campo “Buscar serviço” (ex.: home → catálogo).
+  final String? initialQuery;
 
   /// Card navy “SERVIÇOS CLEANOX” + busca. Home pode omitir se o header for
   /// renderizado à parte.
@@ -51,6 +91,7 @@ class _VitrineCatalogoPersonalizavelState
   String _query = '';
   late String _categoria;
   late String _group;
+  late final TextEditingController _buscaController;
 
   /// Grupos comerciais — não entram como “família” de produto.
   static const _gruposComerciais = {
@@ -67,6 +108,14 @@ class _VitrineCatalogoPersonalizavelState
     super.initState();
     _categoria = (widget.initialCategoria ?? '').trim().toLowerCase();
     _group = (widget.initialGroup ?? '').trim().toLowerCase();
+    _query = (widget.initialQuery ?? '').trim();
+    _buscaController = TextEditingController(text: _query);
+  }
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
   }
 
   @override
@@ -77,6 +126,18 @@ class _VitrineCatalogoPersonalizavelState
     }
     if (oldWidget.initialGroup != widget.initialGroup) {
       _group = (widget.initialGroup ?? '').trim().toLowerCase();
+    }
+    if (oldWidget.initialQuery != widget.initialQuery) {
+      final next = (widget.initialQuery ?? '').trim();
+      if (next != _query) {
+        _query = next;
+        if (_buscaController.text != next) {
+          _buscaController.value = TextEditingValue(
+            text: next,
+            selection: TextSelection.collapsed(offset: next.length),
+          );
+        }
+      }
     }
   }
 
@@ -182,7 +243,6 @@ class _VitrineCatalogoPersonalizavelState
   ];
 
   List<VitrineServico> get _filtered {
-    final query = _query.trim().toLowerCase();
     final byFamily = [
       for (final servico in _byCategoria)
         if (_matchesFamilia(servico, _group)) servico,
@@ -192,11 +252,11 @@ class _VitrineCatalogoPersonalizavelState
         (_group.isNotEmpty && byFamily.isEmpty) ? _byCategoria : byFamily;
     return [
       for (final servico in base)
-        if (query.isEmpty ||
-            servico.tituloComercial.toLowerCase().contains(query) ||
-            servico.descricaoComercial.toLowerCase().contains(query) ||
-            servico.grupo.toLowerCase().contains(query) ||
-            servico.nome.toLowerCase().contains(query))
+        if (vitrineMatchesBuscaNome(
+          nome: servico.nome,
+          tituloComercial: servico.tituloComercial,
+          query: _query,
+        ))
           servico,
     ];
   }
@@ -226,6 +286,7 @@ class _VitrineCatalogoPersonalizavelState
             if (widget.showHeader)
               _CatalogHeader(
                 categoria: _categoria,
+                controller: _buscaController,
                 onSearch: (value) => setState(() => _query = value),
                 onClearCategoria: _categoria.isEmpty
                     ? null
@@ -308,11 +369,13 @@ class _CatalogHeader extends StatelessWidget {
   const _CatalogHeader({
     required this.onSearch,
     required this.categoria,
+    required this.controller,
     this.onClearCategoria,
   });
 
   final ValueChanged<String> onSearch;
   final String categoria;
+  final TextEditingController controller;
   final VoidCallback? onClearCategoria;
 
   @override
@@ -376,13 +439,30 @@ class _CatalogHeader extends StatelessWidget {
           );
           final search = TextField(
             key: const Key('vitrine-catalogo-busca'),
+            controller: controller,
             onChanged: onSearch,
+            textInputAction: TextInputAction.search,
             style: const TextStyle(color: ClxBrand.navy),
             decoration: InputDecoration(
               hintText: 'Buscar serviço',
+              helperText: 'Busca palavras do nome do serviço',
+              helperStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 11,
+              ),
               filled: true,
               fillColor: Colors.white,
               prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
+              suffixIcon: controller.text.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Limpar busca',
+                      onPressed: () {
+                        controller.clear();
+                        onSearch('');
+                      },
+                      icon: const Icon(Icons.close, color: ClxBrand.muted),
+                    ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
