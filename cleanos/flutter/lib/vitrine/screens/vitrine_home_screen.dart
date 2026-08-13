@@ -716,6 +716,39 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return Icons.cleaning_services_rounded;
   }
 
+  IconData _iconGrupo(String slug) {
+    switch (slug.trim().toLowerCase()) {
+      case 'sofa':
+        return Icons.weekend_rounded;
+      case 'colchao':
+        return Icons.bed_rounded;
+      case 'plano':
+        return Icons.workspace_premium_rounded;
+      case 'promocao':
+        return Icons.local_offer_rounded;
+      case 'adicional':
+        return Icons.add_circle_outline_rounded;
+      case 'avulsos':
+        return Icons.auto_awesome_rounded;
+      case 'outros':
+        return Icons.more_horiz_rounded;
+      case 'cadeira':
+      case 'poltrona':
+        return Icons.chair_alt_rounded;
+      case 'tapete':
+        return Icons.crop_square_rounded;
+      case 'banco':
+      case 'bancos':
+        return Icons.airline_seat_recline_normal_rounded;
+      case 'teto':
+        return Icons.roofing_rounded;
+      case 'carpete':
+        return Icons.texture_rounded;
+      default:
+        return Icons.grid_view_rounded;
+    }
+  }
+
   List<VitrineServico> _servicosNoMacro(String macro) {
     return _sortedServicos(
       _catalog.where((s) => _macroOf(s) == macro),
@@ -1349,6 +1382,23 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   setState(() => _buscaFilter = null);
                 },
               ),
+              if (cat.isNotEmpty && _gruposDoMacro(cat).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _HomeGrupoIconStrip(
+                  key: const Key('vitrine-home-grupo-icon-strip'),
+                  grupos: _gruposDoMacro(cat),
+                  selected: grupo,
+                  labelOf: _labelGrupo,
+                  iconOf: _iconGrupo,
+                  onSelect: (g) {
+                    setState(() {
+                      _familiaFilter = g;
+                      _subgrupoFilter = null;
+                      _error = null;
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: 14),
               if (items.isEmpty)
                 const Padding(
@@ -2577,6 +2627,127 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Linha horizontal rolável (arrastar) com ícones dos grupos da categoria.
+class _HomeGrupoIconStrip extends StatelessWidget {
+  const _HomeGrupoIconStrip({
+    super.key,
+    required this.grupos,
+    required this.selected,
+    required this.labelOf,
+    required this.iconOf,
+    required this.onSelect,
+  });
+
+  final List<String> grupos;
+  final String selected;
+  final String Function(String slug) labelOf;
+  final IconData Function(String slug) iconOf;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 86,
+      child: ListView.separated(
+        key: const Key('vitrine-home-grupo-icons-scroll'),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: grupos.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final g = grupos[i];
+          final on = g == selected.trim().toLowerCase();
+          return _GrupoIconChip(
+            key: Key('vitrine-home-grupo-icon-$g'),
+            label: labelOf(g),
+            icon: iconOf(g),
+            selected: on,
+            onTap: () => onSelect(g),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GrupoIconChip extends StatelessWidget {
+  const _GrupoIconChip({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? ClxBrand.cyan : Colors.white;
+    final fg = selected ? Colors.white : ClxBrand.navy;
+    final border = selected ? ClxBrand.cyan : const Color(0xFFE2E8F0);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 76,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border, width: 1.5),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: ClxBrand.cyan.withValues(alpha: 0.28),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : const [
+                          BoxShadow(
+                            color: Color(0x0F0B1D34),
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                ),
+                child: Icon(icon, size: 24, color: fg),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: kFontFamily,
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? ClxBrand.cyan : ClxBrand.navy,
+                ),
+              ),
+            ],
           ),
         ),
       ),

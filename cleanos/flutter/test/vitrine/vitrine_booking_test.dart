@@ -282,6 +282,8 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
+      // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
+      expect(find.byKey(const Key('vitrine-home-grupo-icon-strip')), findsOneWidget);
       expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
     });
