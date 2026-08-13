@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
+import 'vitrine_servico_detalhes_sheet.dart';
 
 /// Intervalo do carrossel automático nas fotos do serviço (Vitrine).
 const Duration kVitrineFotoCarouselInterval = Duration(seconds: 4);
@@ -384,6 +385,11 @@ class _VitrineCatalogoPersonalizavelState
                         selected: widget.selectedIds.contains(servico.id),
                         mobile: mobile,
                         onToggle: () => widget.onToggle(servico),
+                        onDetalhes: () => showVitrineServicoDetalhes(
+                          context,
+                          servico: servico,
+                          media: widget.bootstrap.midiaDoServico(servico.id),
+                        ),
                       ),
                     ),
                 ],
@@ -548,6 +554,7 @@ class _ServiceLayout extends StatelessWidget {
     required this.selected,
     required this.mobile,
     required this.onToggle,
+    required this.onDetalhes,
   });
 
   final VitrineServico servico;
@@ -555,6 +562,7 @@ class _ServiceLayout extends StatelessWidget {
   final bool selected;
   final bool mobile;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
 
   @override
   Widget build(BuildContext context) {
@@ -568,6 +576,7 @@ class _ServiceLayout extends StatelessWidget {
         selected: selected,
         mobile: mobile,
         onToggle: onToggle,
+        onDetalhes: onDetalhes,
       ),
       VitrineServicoLayout.fotografico => _FotograficoCard(
         key: Key('vitrine-layout-fotografico-${servico.id}'),
@@ -575,6 +584,7 @@ class _ServiceLayout extends StatelessWidget {
         media: media,
         selected: selected,
         onToggle: onToggle,
+        onDetalhes: onDetalhes,
       ),
       VitrineServicoLayout.antesDepois => _AntesDepoisCard(
         key: Key('vitrine-layout-antes_depois-${servico.id}'),
@@ -585,6 +595,7 @@ class _ServiceLayout extends StatelessWidget {
         selected: selected,
         mobile: mobile,
         onToggle: onToggle,
+        onDetalhes: onDetalhes,
       ),
       VitrineServicoLayout.compacto => _CompactoCard(
         key: Key('vitrine-layout-compacto-${servico.id}'),
@@ -592,6 +603,7 @@ class _ServiceLayout extends StatelessWidget {
         media: media,
         selected: selected,
         onToggle: onToggle,
+        onDetalhes: onDetalhes,
       ),
     };
   }
@@ -620,6 +632,7 @@ class _DestaqueCard extends StatelessWidget {
     required this.selected,
     required this.mobile,
     required this.onToggle,
+    required this.onDetalhes,
     super.key,
   });
 
@@ -628,18 +641,24 @@ class _DestaqueCard extends StatelessWidget {
   final bool selected;
   final bool mobile;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
 
   @override
   Widget build(BuildContext context) {
     final vertical = _useVerticalCommercialLayout(context, servico, mobile);
-    final photo = _ServicePhotoCarousel(
-      media: media,
-      icon: _groupIcon(servico.grupo),
+    final photo = GestureDetector(
+      onTap: onDetalhes,
+      behavior: HitTestBehavior.opaque,
+      child: _ServicePhotoCarousel(
+        media: media,
+        icon: _groupIcon(servico.grupo),
+      ),
     );
     final content = _ServiceContent(
       servico: servico,
       selected: selected,
       onToggle: onToggle,
+      onDetalhes: onDetalhes,
       prominent: true,
     );
     return _CardShell(
@@ -684,6 +703,7 @@ class _FotograficoCard extends StatelessWidget {
     required this.media,
     required this.selected,
     required this.onToggle,
+    required this.onDetalhes,
     super.key,
   });
 
@@ -691,6 +711,7 @@ class _FotograficoCard extends StatelessWidget {
   final List<VitrineMidia> media;
   final bool selected;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
 
   @override
   Widget build(BuildContext context) => _CardShell(
@@ -700,15 +721,20 @@ class _FotograficoCard extends StatelessWidget {
       children: [
         SizedBox(
           height: 220,
-          child: _ServicePhotoCarousel(
-            media: media,
-            icon: _groupIcon(servico.grupo),
+          child: GestureDetector(
+            onTap: onDetalhes,
+            behavior: HitTestBehavior.opaque,
+            child: _ServicePhotoCarousel(
+              media: media,
+              icon: _groupIcon(servico.grupo),
+            ),
           ),
         ),
         _ServiceContent(
           servico: servico,
           selected: selected,
           onToggle: onToggle,
+          onDetalhes: onDetalhes,
         ),
       ],
     ),
@@ -724,6 +750,7 @@ class _AntesDepoisCard extends StatelessWidget {
     required this.selected,
     required this.mobile,
     required this.onToggle,
+    required this.onDetalhes,
     super.key,
   });
 
@@ -734,17 +761,23 @@ class _AntesDepoisCard extends StatelessWidget {
   final bool selected;
   final bool mobile;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
 
   @override
   Widget build(BuildContext context) {
     final vertical = _useVerticalCommercialLayout(context, servico, mobile);
     final hasPair = before != null && after != null;
-    final photo = hasPair
+    final photoCore = hasPair
         ? _comparison(height: vertical ? (mobile ? 230.0 : 300.0) : null)
         : _ServicePhotoCarousel(
             media: media,
             icon: _groupIcon(servico.grupo),
           );
+    final photo = GestureDetector(
+      onTap: onDetalhes,
+      behavior: HitTestBehavior.opaque,
+      child: photoCore,
+    );
     return _CardShell(
       selected: selected,
       child: vertical
@@ -788,6 +821,7 @@ class _AntesDepoisCard extends StatelessWidget {
     servico: servico,
     selected: selected,
     onToggle: onToggle,
+    onDetalhes: onDetalhes,
     prominent: true,
   );
 }
@@ -798,6 +832,7 @@ class _CompactoCard extends StatelessWidget {
     required this.media,
     required this.selected,
     required this.onToggle,
+    required this.onDetalhes,
     super.key,
   });
 
@@ -805,6 +840,7 @@ class _CompactoCard extends StatelessWidget {
   final List<VitrineMidia> media;
   final bool selected;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
 
   @override
   Widget build(BuildContext context) => _CardShell(
@@ -813,24 +849,27 @@ class _CompactoCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: SizedBox(
-              width: 52,
-              height: 52,
-              child: media.isEmpty
-                  ? Container(
-                      color: const Color(0xFFE8F4F6),
-                      child: Icon(
-                        _groupIcon(servico.grupo),
-                        color: ClxBrand.cyan,
+          GestureDetector(
+            onTap: onDetalhes,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: media.isEmpty
+                    ? Container(
+                        color: const Color(0xFFE8F4F6),
+                        child: Icon(
+                          _groupIcon(servico.grupo),
+                          color: ClxBrand.cyan,
+                        ),
+                      )
+                    : _ServicePhotoCarousel(
+                        media: media,
+                        icon: _groupIcon(servico.grupo),
+                        showDots: false,
                       ),
-                    )
-                  : _ServicePhotoCarousel(
-                      media: media,
-                      icon: _groupIcon(servico.grupo),
-                      showDots: false,
-                    ),
+              ),
             ),
           ),
           const SizedBox(width: 13),
@@ -850,6 +889,20 @@ class _CompactoCard extends StatelessWidget {
                     _priceText(servico),
                     style: const TextStyle(color: ClxBrand.muted, fontSize: 12),
                   ),
+                TextButton(
+                  key: Key('vitrine-detalhes-${servico.id}'),
+                  onPressed: onDetalhes,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: ClxBrand.cyan,
+                  ),
+                  child: const Text(
+                    'Ver detalhes',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
               ],
             ),
           ),
@@ -911,12 +964,14 @@ class _ServiceContent extends StatelessWidget {
     required this.servico,
     required this.selected,
     required this.onToggle,
+    required this.onDetalhes,
     this.prominent = false,
   });
 
   final VitrineServico servico;
   final bool selected;
   final VoidCallback onToggle;
+  final VoidCallback onDetalhes;
   final bool prominent;
 
   @override
@@ -965,7 +1020,25 @@ class _ServiceContent extends StatelessWidget {
             style: const TextStyle(color: ClxBrand.muted, height: 1.45),
           ),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: Key('vitrine-detalhes-${servico.id}'),
+            onPressed: onDetalhes,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: ClxBrand.cyan,
+            ),
+            child: const Text(
+              'Ver detalhes',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         _ServiceActions(
           servico: servico,
           selected: selected,

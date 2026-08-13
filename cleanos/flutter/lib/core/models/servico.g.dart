@@ -117,6 +117,7 @@ _$ServicoPBImpl _$$ServicoPBImplFromJson(Map<String, dynamic> json) =>
       ),
       nome: json['nome'] as String? ?? '',
       descricao: json['descricao'] as String?,
+      vitrineDescricao: json['vitrine_descricao'] as String? ?? '',
       valorBase: (json['valor_base'] as num?)?.toDouble() ?? 0,
       valorBaseMax: (json['valor_base_max'] as num?)?.toDouble(),
       tipoValor: $enumDecodeNullable(
@@ -162,6 +163,7 @@ Map<String, dynamic> _$$ServicoPBImplToJson(
   'grupo': _$GrupoEnumMap[instance.grupo],
   'nome': instance.nome,
   'descricao': instance.descricao,
+  'vitrine_descricao': instance.vitrineDescricao,
   'valor_base': instance.valorBase,
   'valor_base_max': instance.valorBaseMax,
   'tipo_valor': _$TipoValorEnumMap[instance.tipoValor],

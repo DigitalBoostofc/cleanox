@@ -126,6 +126,9 @@ class ServicoPB with _$ServicoPB {
     @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue) Grupo? grupo,
     @Default('') String nome,
     String? descricao,
+
+    /// Texto comercial “o que inclui” na Vitrine (popup Detalhes).
+    @JsonKey(name: 'vitrine_descricao') @Default('') String vitrineDescricao,
     @JsonKey(name: 'valor_base') @Default(0) double valorBase,
     @JsonKey(name: 'valor_base_max') double? valorBaseMax,
     @JsonKey(

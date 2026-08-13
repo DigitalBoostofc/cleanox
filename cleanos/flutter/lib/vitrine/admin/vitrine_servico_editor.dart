@@ -425,11 +425,11 @@ class _EditorFields extends StatelessWidget {
           key: const Key('vitrine-servico-descricao'),
           controller: descricao,
           onChanged: (_) => onChanged(),
-          maxLength: 500,
-          maxLines: 3,
+          maxLength: 2000,
+          maxLines: 6,
           decoration: const InputDecoration(
-            labelText: 'Descrição comercial',
-            hintText: 'Benefício e resultado para o cliente',
+            labelText: 'Descrição comercial / o que inclui',
+            hintText: 'Aparece no Ver detalhes da Vitrine',
           ),
         ),
         TextField(
