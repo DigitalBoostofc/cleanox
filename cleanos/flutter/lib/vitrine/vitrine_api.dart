@@ -576,6 +576,36 @@ class VitrineAdminServico {
     'vitrine_preco_modo': precoModo.apiValue,
     'vitrine_ordem': vitrineOrdem,
   };
+
+  VitrineAdminServico copyWith({
+    bool? vitrine,
+    bool? vitrineDestaque,
+    bool? ativo,
+    VitrineServicoLayout? layout,
+    String? vitrineTitulo,
+    String? vitrineDescricao,
+    String? vitrineBadge,
+    String? vitrineCta,
+    VitrinePrecoModo? precoModo,
+    int? vitrineOrdem,
+  }) =>
+      VitrineAdminServico(
+        id: id,
+        nome: nome,
+        grupo: grupo,
+        categoria: categoria,
+        valorBase: valorBase,
+        vitrine: vitrine ?? this.vitrine,
+        vitrineDestaque: vitrineDestaque ?? this.vitrineDestaque,
+        ativo: ativo ?? this.ativo,
+        layout: layout ?? this.layout,
+        vitrineTitulo: vitrineTitulo ?? this.vitrineTitulo,
+        vitrineDescricao: vitrineDescricao ?? this.vitrineDescricao,
+        vitrineBadge: vitrineBadge ?? this.vitrineBadge,
+        vitrineCta: vitrineCta ?? this.vitrineCta,
+        precoModo: precoModo ?? this.precoModo,
+        vitrineOrdem: vitrineOrdem ?? this.vitrineOrdem,
+      );
 }
 
 class VitrineAgendamentoResumo {
