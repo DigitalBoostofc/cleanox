@@ -196,15 +196,33 @@ void main() {
         grupo: 'auto',
         categoria: 'veicular',
       ),
+      service(
+        'basic',
+        'Cleanox Basic',
+        VitrineServicoLayout.fotografico,
+        grupo: 'plano',
+        categoria: 'veicular',
+      ),
+      service(
+        'colchao',
+        'Colchão casal',
+        VitrineServicoLayout.fotografico,
+        grupo: 'colchao',
+        categoria: 'residencial',
+      ),
     ];
     await pumpCatalog(tester, items: items, initialCategoria: 'residencial');
     expect(find.text('Sofá 3 lugares'), findsOneWidget);
+    expect(find.text('Colchão casal'), findsOneWidget);
     expect(find.text('Bancos automotivos'), findsNothing);
+    expect(find.text('Cleanox Basic'), findsNothing);
     expect(find.text('Higienização residencial'), findsOneWidget);
 
     await pumpCatalog(tester, items: items, initialCategoria: 'veicular');
     expect(find.text('Sofá 3 lugares'), findsNothing);
+    expect(find.text('Colchão casal'), findsNothing);
     expect(find.text('Bancos automotivos'), findsOneWidget);
+    expect(find.text('Cleanox Basic'), findsOneWidget);
     expect(find.text('Estética automotiva'), findsOneWidget);
   });
 

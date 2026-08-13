@@ -555,7 +555,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   index: _navIndex,
                   onTap: (i) {
                     if (i == 0) _go(0);
-                    if (i == 1) _go(1);
+                    if (i == 1) {
+                      // FAB Agendar = catálogo completo (sem filtro de macro).
+                      setState(() {
+                        _categoriaFilter = null;
+                        _familiaFilter = null;
+                      });
+                      _go(1);
+                    }
                     if (i == 2) _go(6);
                   },
                 ),
@@ -735,10 +742,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Serviços ─────────────────────────────────────────────────────────────
 
   Widget _servicos() {
+    final catKey = (_categoriaFilter ?? '').trim().toLowerCase();
+    final famKey = (_familiaFilter ?? '').trim().toLowerCase();
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         VitrineCatalogoPersonalizavel(
+          // Key força novo State quando o macro muda — filtro não “gruda”.
+          key: ValueKey('vitrine-catalogo-$catKey-$famKey'),
           servicos: _catalog,
           bootstrap: _bootstrap,
           selectedIds: _selected,
