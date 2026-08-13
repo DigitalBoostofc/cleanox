@@ -659,10 +659,12 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         const SizedBox(height: 22),
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Pacotes em destaque',
-                style: TextStyle(
+                _config.homeDestaquesTitulo.trim().isEmpty
+                    ? 'Promoções da Semana'
+                    : _config.homeDestaquesTitulo.trim(),
+                style: const TextStyle(
                   fontFamily: kFontFamily,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -678,9 +680,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 });
                 _go(1);
               },
-              child: const Text(
-                'Ver todos',
-                style: TextStyle(
+              child: Text(
+                _config.homeDestaquesCta.trim().isEmpty
+                    ? 'Ver todos'
+                    : _config.homeDestaquesCta.trim(),
+                style: const TextStyle(
                   fontFamily: kFontFamily,
                   fontWeight: FontWeight.w600,
                   color: ClxBrand.cyan,
@@ -696,6 +700,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           bootstrap: _bootstrap,
           selectedIds: _selected,
           showHeader: false,
+          showFamilyChips: false,
           onToggle: (servico) {
             _toggleServico(servico);
             _go(1);

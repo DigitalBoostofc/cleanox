@@ -293,6 +293,8 @@ class VitrineConfig {
     this.macroAutoTitulo = 'Estética automotiva',
     this.macroAutoSubtitulo = 'Bancos, teto, carpete e pacotes Cleanox',
     this.macroAutoIcone = 'car',
+    this.homeDestaquesTitulo = 'Promoções da Semana',
+    this.homeDestaquesCta = 'Ver todos',
   });
 
   final String id;
@@ -317,6 +319,8 @@ class VitrineConfig {
   final String macroAutoTitulo;
   final String macroAutoSubtitulo;
   final String macroAutoIcone;
+  final String homeDestaquesTitulo;
+  final String homeDestaquesCta;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
@@ -346,6 +350,9 @@ class VitrineConfig {
     macroAutoSubtitulo:
         '${j['macro_auto_subtitulo'] ?? 'Bancos, teto, carpete e pacotes Cleanox'}',
     macroAutoIcone: '${j['macro_auto_icone'] ?? 'car'}',
+    homeDestaquesTitulo:
+        '${j['home_destaques_titulo'] ?? 'Promoções da Semana'}',
+    homeDestaquesCta: '${j['home_destaques_cta'] ?? 'Ver todos'}',
   );
 
   Map<String, dynamic> toJson() => {
@@ -370,6 +377,8 @@ class VitrineConfig {
     'macro_auto_titulo': macroAutoTitulo,
     'macro_auto_subtitulo': macroAutoSubtitulo,
     'macro_auto_icone': macroAutoIcone,
+    'home_destaques_titulo': homeDestaquesTitulo,
+    'home_destaques_cta': homeDestaquesCta,
   };
 
   VitrineConfig copyWith({
@@ -394,6 +403,8 @@ class VitrineConfig {
     String? macroAutoTitulo,
     String? macroAutoSubtitulo,
     String? macroAutoIcone,
+    String? homeDestaquesTitulo,
+    String? homeDestaquesCta,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -417,6 +428,8 @@ class VitrineConfig {
     macroAutoTitulo: macroAutoTitulo ?? this.macroAutoTitulo,
     macroAutoSubtitulo: macroAutoSubtitulo ?? this.macroAutoSubtitulo,
     macroAutoIcone: macroAutoIcone ?? this.macroAutoIcone,
+    homeDestaquesTitulo: homeDestaquesTitulo ?? this.homeDestaquesTitulo,
+    homeDestaquesCta: homeDestaquesCta ?? this.homeDestaquesCta,
   );
 }
 
