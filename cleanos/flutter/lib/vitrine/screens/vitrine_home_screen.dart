@@ -4,10 +4,11 @@
 ///         6 como funciona
 library;
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import '../../core/design/tokens.dart';
@@ -61,6 +62,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   VitrineSlot? _slot;
   bool _loadingSlots = false;
   bool _submitting = false;
+  bool _cepLoading = false;
+  String? _cepWarning;
   String? _error;
   VitrineAgendarResult? _ok;
   String? _categoriaFilter; // residencial | veicular
@@ -253,17 +256,95 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
+  void _applyPhoneMask(TextEditingController c, String raw) {
+    final masked = maskPhoneBR(raw);
+    if (masked == c.text) return;
+    c.value = TextEditingValue(
+      text: masked,
+      selection: TextSelection.collapsed(offset: masked.length),
+    );
+  }
+
+  void _applyCepMask(TextEditingController c, String raw) {
+    final masked = maskCEP(raw);
+    if (masked == c.text) return;
+    c.value = TextEditingValue(
+      text: masked,
+      selection: TextSelection.collapsed(offset: masked.length),
+    );
+  }
+
+  /// ViaCEP: completa rua/bairro/cidade/UF ao digitar 8 dígitos.
+  Future<void> _handleCep(String raw) async {
+    _applyCepMask(_cep, raw);
+    if (_cepWarning != null) setState(() => _cepWarning = null);
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 8) return;
+    setState(() => _cepLoading = true);
+    try {
+      final res = await http.get(
+        Uri.parse('https://viacep.com.br/ws/$digits/json/'),
+      );
+      if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (!mounted) return;
+      if (data['erro'] == true) {
+        setState(() => _cepWarning = 'CEP não encontrado.');
+        return;
+      }
+      final logradouro = (data['logradouro'] as String?)?.trim() ?? '';
+      final bairro = (data['bairro'] as String?)?.trim() ?? '';
+      final cidade = (data['localidade'] as String?)?.trim() ?? '';
+      final uf = (data['uf'] as String?)?.trim() ?? '';
+      setState(() {
+        if (logradouro.isNotEmpty) {
+          // Mantém número se o usuário já digitou "Rua, 12".
+          final atual = splitRuaNumero(_rua.text);
+          _rua.text = atual.numero.isEmpty
+              ? logradouro
+              : '$logradouro, ${atual.numero}';
+        }
+        if (bairro.isNotEmpty) _bairro.text = bairro;
+        if (cidade.isNotEmpty) {
+          if (_cidades.isEmpty || _cidades.contains(cidade)) {
+            _cidade.text = cidade;
+          }
+        }
+        if (uf.isNotEmpty && _estado.isEmpty) {
+          _estado = uf.toUpperCase();
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _cepWarning = 'Não foi possível consultar o CEP.');
+      }
+    } finally {
+      if (mounted) setState(() => _cepLoading = false);
+    }
+  }
+
+  ({String rua, String numero}) get _ruaNumero {
+    final parts = splitRuaNumero(_rua.text);
+    if (parts.numero.isNotEmpty) return parts;
+    // Compat: se ainda houver valor no controller antigo de número.
+    final n = _numero.text.trim();
+    if (n.isNotEmpty) return (rua: parts.rua, numero: n);
+    return parts;
+  }
+
   Future<void> _submit() async {
     if (_slot == null || _dia == null || _picked.isEmpty) return;
+    final addr = _ruaNumero;
     final err = validarDadosVitrine(
       nome: _nome.text,
       whatsapp: _whatsapp.text,
       cep: _cep.text,
       rua: _rua.text,
-      numero: _numero.text,
+      numero: addr.numero,
       bairro: _bairro.text,
       cidade: _cidade.text,
       estado: _estado,
+      ruaComNumero: true,
     );
     if (err != null) {
       setState(() => _error = err);
@@ -282,15 +363,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       _submitting = true;
       _error = null;
       _idempotencyKey ??= _newIdempotencyKey();
+      _numero.text = addr.numero;
     });
     try {
       final payload = montarPayloadAgendamento(
         slotToken: _slot!.token,
         nome: _nome.text,
-        whatsapp: _whatsapp.text,
+        whatsapp: onlyDigitsPhone(_whatsapp.text),
         cep: _cep.text,
-        rua: _rua.text,
-        numero: _numero.text,
+        rua: addr.rua,
+        numero: addr.numero,
         bairro: _bairro.text,
         cidade: _cidade.text,
         estado: _estado,
@@ -332,10 +414,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         whatsapp: _whatsapp.text,
         cep: _cep.text,
         rua: _rua.text,
-        numero: _numero.text,
+        numero: _ruaNumero.numero,
         bairro: _bairro.text,
         cidade: _cidade.text,
         estado: _estado,
+        ruaComNumero: true,
       ) ==
       null;
 
@@ -836,43 +919,61 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           label: 'WhatsApp',
           controller: _whatsapp,
           keyboard: TextInputType.phone,
-          formatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (_) => setState(() {}),
+          hint: '(85) 99999-9999',
+          onChanged: (v) {
+            _applyPhoneMask(_whatsapp, v);
+            setState(() {});
+          },
         ),
         VitrineField(
           label: 'CEP',
           controller: _cep,
           keyboard: TextInputType.number,
-          formatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(8),
-          ],
+          hint: '00000-000',
+          onChanged: (v) {
+            _handleCep(v);
+            setState(() {});
+          },
+        ),
+        if (_cepLoading || _cepWarning != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                if (_cepLoading)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                if (_cepLoading) const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _cepLoading
+                        ? 'Buscando endereço…'
+                        : (_cepWarning ?? ''),
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 12,
+                      color: _cepWarning != null
+                          ? Colors.orange.shade800
+                          : ClxBrand.muted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        VitrineField(
+          label: 'Rua e número',
+          controller: _rua,
+          hint: 'Ex.: Rua das Flores, 123',
           onChanged: (_) => setState(() {}),
         ),
         VitrineField(
-          label: 'Rua',
-          controller: _rua,
+          label: 'Complemento (opcional)',
+          controller: _complemento,
           onChanged: (_) => setState(() {}),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: VitrineField(
-                label: 'Número',
-                controller: _numero,
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: VitrineField(
-                label: 'Complemento (opcional)',
-                controller: _complemento,
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-          ],
         ),
         VitrineField(
           label: 'Bairro',
@@ -979,8 +1080,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Revisar e confirmar ──────────────────────────────────────────────────
 
   Widget _revisar() {
+    final addr = _ruaNumero;
     final endereco =
-        '${_rua.text.trim()}, ${_numero.text.trim()}'
+        '${addr.rua}, ${addr.numero}'
         '${_complemento.text.trim().isEmpty ? '' : ' · ${_complemento.text.trim()}'}\n'
         '${_bairro.text.trim()} · ${_cidade.text.trim()}'
         '${_estado.isEmpty ? '' : '-$_estado'}\n'
