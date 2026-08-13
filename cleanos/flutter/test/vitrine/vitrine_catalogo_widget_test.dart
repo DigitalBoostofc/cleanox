@@ -104,27 +104,24 @@ void main() {
     );
   }
 
-  testWidgets('renderiza os quatro formatos editoriais', (tester) async {
-    await pumpCatalog(tester);
+  testWidgets('renderiza grade compacta (2 colunas) para todos os serviços', (
+    tester,
+  ) async {
+    await pumpCatalog(tester, size: const Size(390, 900));
 
-    expect(
-      find.byKey(const Key('vitrine-layout-destaque-hero')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('vitrine-layout-fotografico-photo')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('vitrine-layout-antes_depois-compare')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('vitrine-layout-compacto-compact')),
-      findsOneWidget,
-    );
-    expect(find.text('ANTES'), findsOneWidget);
-    expect(find.text('DEPOIS'), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-catalogo-grid-2')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-layout-grid-hero')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-layout-grid-photo')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-layout-grid-compare')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-layout-grid-compact')), findsOneWidget);
+    // Layouts editoriais largos não forçam 1 coluna no mobile.
+    expect(find.byKey(const Key('vitrine-layout-destaque-hero')), findsNothing);
+    expect(find.text('Ver detalhes'), findsWidgets);
+  });
+
+  testWidgets('desktop largo usa 3 colunas na grade', (tester) async {
+    await pumpCatalog(tester, size: const Size(1200, 900));
+    expect(find.byKey(const Key('vitrine-catalogo-grid-3')), findsOneWidget);
   });
 
   testWidgets('busca filtra sem alterar o fluxo de seleção', (tester) async {
@@ -321,10 +318,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Todos os serviços'), findsOneWidget);
-    expect(
-      find.byKey(const Key('vitrine-layout-destaque-hero')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('vitrine-catalogo-grid-2')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-layout-grid-hero')), findsOneWidget);
   });
 
   testWidgets('CTA longo e texto 2x não estouram no mobile', (tester) async {
