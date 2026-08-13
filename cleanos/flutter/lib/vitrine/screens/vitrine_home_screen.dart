@@ -582,12 +582,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               ),
               if (_step == 1 || (_step == 0 && _picked.isNotEmpty))
                 VitrineStickyBar(
-                  totalLabel: _total > 0
-                      ? '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}'
-                      : '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
-                  totalValue: _total > 0
-                      ? 'Valor estimado ${formatCurrency(_total)}'
-                      : ' ',
+                  totalLabel:
+                      '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}',
+                  totalCaption: _total > 0 ? 'Valor estimado' : null,
+                  totalValue: _total > 0 ? formatCurrency(_total) : '—',
                   buttonLabel: 'Continuar',
                   onPressed: _picked.isEmpty ? null : () => _go(2),
                 )
@@ -603,7 +601,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 )
               else if (_step == 4)
                 VitrineStickyBar(
-                  totalLabel: 'Valor estimado',
+                  totalLabel: 'Resumo',
+                  totalCaption: 'Valor estimado',
                   totalValue: formatCurrency(_total),
                   buttonLabel: 'Confirmar agendamento',
                   loading: _submitting,
