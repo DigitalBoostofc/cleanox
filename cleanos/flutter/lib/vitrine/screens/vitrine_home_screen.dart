@@ -778,6 +778,17 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
+        const Text(
+          'O que você procura?',
+          key: Key('vitrine-home-oqvp'),
+          style: TextStyle(
+            fontFamily: kFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: ClxBrand.navy,
+          ),
+        ),
+        const SizedBox(height: 12),
         _HomeCatalogHeader(
           initialQuery: _buscaFilter ?? '',
           onSearch: (q) {
