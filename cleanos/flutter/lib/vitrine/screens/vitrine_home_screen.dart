@@ -853,22 +853,15 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return LayoutBuilder(
       key: const Key('vitrine-home-browse-categorias'),
       builder: (context, constraints) {
-        final maxW = min(520.0, constraints.maxWidth);
-        // Cards quadrados lado a lado, com gap.
-        final gap = 14.0;
-        final sidePad = 24.0;
-        final usable = maxW - sidePad * 2;
-        final cardSide = available.isEmpty
-            ? 140.0
-            : min(
-                168.0,
-                (usable - gap * (available.length - 1).clamp(0, 99)) /
-                    max(1, available.length),
-              );
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        final cardSide = _choiceCardSide(constraints.maxWidth);
 
         return Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(
+              horizontal: _kChoiceHPad,
+              vertical: 16,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: max(0, constraints.maxHeight - 32),
@@ -907,24 +900,18 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       style: TextStyle(color: ClxBrand.muted),
                     )
                   else
-                    Row(
+                    _squareChoiceGrid(
                       key: const Key('vitrine-home-cat-row'),
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < available.length; i++) ...[
-                          if (i > 0) SizedBox(width: gap),
-                          SizedBox(
-                            width: cardSide,
-                            height: cardSide,
-                            child: _categoriaSquareCard(
-                              key: Key('vitrine-home-cat-${available[i]}'),
-                              title: _macroTitle(available[i]),
-                              subtitle: _macroSubtitle(available[i]),
-                              icon: _macroIcon(available[i]),
-                              onTap: () => _pickCategoria(available[i]),
-                            ),
+                      cardSide: cardSide,
+                      cards: [
+                        for (final m in available)
+                          _categoriaSquareCard(
+                            key: Key('vitrine-home-cat-$m'),
+                            title: _macroTitle(m),
+                            subtitle: _macroSubtitle(m),
+                            icon: _macroIcon(m),
+                            onTap: () => _pickCategoria(m),
                           ),
-                        ],
                       ],
                     ),
                 ],
@@ -1014,6 +1001,54 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
+  /// Mesmo tamanho da 1ª tela (2 colunas). Ímpar: última linha com 1 card no meio.
+  static const double _kChoiceGap = 14;
+  static const double _kChoiceMaxW = 520;
+  static const double _kChoiceMaxSide = 168;
+  static const double _kChoiceHPad = 24;
+
+  double _choiceCardSide(double layoutWidth) {
+    final maxW = min(_kChoiceMaxW, layoutWidth);
+    final usable = maxW - _kChoiceHPad * 2;
+    return min(_kChoiceMaxSide, (usable - _kChoiceGap) / 2);
+  }
+
+  /// Grade 2 colunas; se sobrar 1 card, centraliza na linha de baixo.
+  Widget _squareChoiceGrid({
+    required Key key,
+    required double cardSide,
+    required List<Widget> cards,
+  }) {
+    if (cards.isEmpty) return const SizedBox.shrink();
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: _kChoiceGap));
+      if (i + 1 < cards.length) {
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: cardSide, height: cardSide, child: cards[i]),
+              const SizedBox(width: _kChoiceGap),
+              SizedBox(width: cardSide, height: cardSide, child: cards[i + 1]),
+            ],
+          ),
+        );
+      } else {
+        // Ímpar: card sozinho centralizado (meio entre as duas colunas).
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: cardSide, height: cardSide, child: cards[i]),
+            ],
+          ),
+        );
+      }
+    }
+    return Column(key: key, mainAxisSize: MainAxisSize.min, children: rows);
+  }
+
   Widget _homeGrupos() {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupos = _gruposDoMacro(cat);
@@ -1021,22 +1056,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return LayoutBuilder(
       key: const Key('vitrine-home-browse-grupos'),
       builder: (context, constraints) {
-        final maxW = min(560.0, constraints.maxWidth);
-        const gap = 14.0;
-        const sidePad = 24.0;
-        final usable = maxW - sidePad * 2;
-        // Até 3 colunas em telas largas; 2 no mobile.
-        final cols = usable >= 420 ? 3 : 2;
-        final cardSide = grupos.isEmpty
-            ? 140.0
-            : min(
-                160.0,
-                (usable - gap * (cols - 1)) / cols,
-              );
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        // Mesmo tamanho da 1ª tela (sempre fórmula de 2 colunas).
+        final cardSide = _choiceCardSide(constraints.maxWidth);
 
         return Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(
+              horizontal: _kChoiceHPad,
+              vertical: 12,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: max(0, constraints.maxHeight - 24),
@@ -1095,24 +1124,18 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       style: TextStyle(color: ClxBrand.muted),
                     )
                   else
-                    Wrap(
+                    _squareChoiceGrid(
                       key: const Key('vitrine-home-grupo-row'),
-                      spacing: gap,
-                      runSpacing: gap,
-                      alignment: WrapAlignment.center,
-                      children: [
+                      cardSide: cardSide,
+                      cards: [
                         for (final g in grupos)
-                          SizedBox(
-                            width: cardSide,
-                            height: cardSide,
-                            child: _categoriaSquareCard(
-                              key: Key('vitrine-home-grupo-$g'),
-                              title: _labelGrupo(g),
-                              subtitle:
-                                  '${_servicosNoGrupo(cat, g).length} opções',
-                              icon: Icons.grid_view_rounded,
-                              onTap: () => _pickGrupo(g),
-                            ),
+                          _categoriaSquareCard(
+                            key: Key('vitrine-home-grupo-$g'),
+                            title: _labelGrupo(g),
+                            subtitle:
+                                '${_servicosNoGrupo(cat, g).length} opções',
+                            icon: Icons.grid_view_rounded,
+                            onTap: () => _pickGrupo(g),
                           ),
                       ],
                     ),
@@ -1133,18 +1156,15 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return LayoutBuilder(
       key: const Key('vitrine-home-browse-subgrupos'),
       builder: (context, constraints) {
-        final maxW = min(560.0, constraints.maxWidth);
-        const gap = 14.0;
-        const sidePad = 24.0;
-        final usable = maxW - sidePad * 2;
-        final cols = usable >= 420 ? 3 : 2;
-        final cardSide = subs.isEmpty
-            ? 140.0
-            : min(160.0, (usable - gap * (cols - 1)) / cols);
+        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
+        final cardSide = _choiceCardSide(constraints.maxWidth);
 
         return Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(
+              horizontal: _kChoiceHPad,
+              vertical: 12,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: max(0, constraints.maxHeight - 24),
@@ -1192,23 +1212,17 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       style: TextStyle(color: ClxBrand.muted),
                     )
                   else
-                    Wrap(
+                    _squareChoiceGrid(
                       key: const Key('vitrine-home-sub-row'),
-                      spacing: gap,
-                      runSpacing: gap,
-                      alignment: WrapAlignment.center,
-                      children: [
+                      cardSide: cardSide,
+                      cards: [
                         for (final s in subs)
-                          SizedBox(
-                            width: cardSide,
-                            height: cardSide,
-                            child: _categoriaSquareCard(
-                              key: Key('vitrine-home-sub-$s'),
-                              title: _labelSubgrupo(s),
-                              subtitle: 'Ver serviços',
-                              icon: Icons.layers_rounded,
-                              onTap: () => _pickSubgrupo(s),
-                            ),
+                          _categoriaSquareCard(
+                            key: Key('vitrine-home-sub-$s'),
+                            title: _labelSubgrupo(s),
+                            subtitle: 'Ver serviços',
+                            icon: Icons.layers_rounded,
+                            onTap: () => _pickSubgrupo(s),
                           ),
                       ],
                     ),
