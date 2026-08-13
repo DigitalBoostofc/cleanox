@@ -1,13 +1,24 @@
 import 'package:cleanos/vitrine/admin/vitrine_admin_screens.dart';
+import 'package:cleanos/vitrine/admin/vitrine_midia_repository.dart';
 import 'package:cleanos/vitrine/vitrine_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pocketbase/pocketbase.dart';
+
+class _FakeMidiaRepo extends VitrineMidiaRepository {
+  _FakeMidiaRepo() : super(PocketBase('http://127.0.0.1'));
+
+  @override
+  Future<List<VitrineMidiaItem>> listByServico(String servicoId) async =>
+      const [];
+}
 
 void main() {
   const servico = VitrineAdminServico(
     id: 'svc1',
     nome: 'Sofá 3 lugares',
     grupo: 'sofa',
+    categoria: 'residencial',
     valorBase: 180,
     vitrine: true,
     vitrineDestaque: false,
@@ -24,11 +35,13 @@ void main() {
         home: Scaffold(
           body: VitrineServicoEditorDialog(
             servico: servico,
+            midiaRepo: _FakeMidiaRepo(),
             onSave: (_) async {},
           ),
         ),
       ),
     );
+    await tester.pump();
 
     expect(find.text('Personalizar serviço'), findsOneWidget);
     expect(find.text('Formato visual'), findsOneWidget);
@@ -54,11 +67,13 @@ void main() {
         home: Scaffold(
           body: VitrineServicoEditorDialog(
             servico: servico,
+            midiaRepo: _FakeMidiaRepo(),
             onSave: (draft) async => captured = draft,
           ),
         ),
       ),
     );
+    await tester.pump();
 
     await tester.enterText(
       find.byKey(const Key('vitrine-servico-titulo')),

@@ -163,8 +163,8 @@ class _OSFormState extends ConsumerState<OSForm> {
 
   // Filtro cascata Categoria → Grupo → Serviço (espelha OSFormSection.tsx): os
   // serviços do catálogo são filtrados pela categoria/grupo configurados neles.
-  Categoria? _catFiltro;
-  Grupo? _grupoFiltro;
+  String? _catFiltro;
+  String? _grupoFiltro;
   bool _cascadeInit = false;
 
   bool _saving = false;
@@ -346,25 +346,25 @@ class _OSFormState extends ConsumerState<OSForm> {
 
   /// Categoria do filtro mudou: reseta o grupo e limpa o serviço se ele já não
   /// pertencer à nova categoria (espelha `handleCategoriaChange`).
-  void _onCategoria(Categoria? c, List<ServicoPB> servicos) {
+  void _onCategoria(String? c, List<ServicoPB> servicos) {
     setState(() {
       _catFiltro = c;
       _grupoFiltro = null;
       if (c != null && _servicoId.isNotEmpty) {
         final cur = _servicoAtual(servicos);
-        if (cur?.categoria != null && cur!.categoria != c) _servicoId = '';
+        if (cur != null && cur.categoria.isNotEmpty && cur.categoria != c) _servicoId = '';
       }
     });
   }
 
   /// Grupo do filtro mudou: limpa o serviço se ele já não pertencer ao novo
   /// grupo (espelha `handleGrupoChange`).
-  void _onGrupo(Grupo? g, List<ServicoPB> servicos) {
+  void _onGrupo(String? g, List<ServicoPB> servicos) {
     setState(() {
       _grupoFiltro = g;
       if (g != null && _servicoId.isNotEmpty) {
         final cur = _servicoAtual(servicos);
-        if (cur?.grupo != null && cur!.grupo != g) _servicoId = '';
+        if (cur != null && cur.grupo.isNotEmpty && cur.grupo != g) _servicoId = '';
       }
     });
   }
@@ -375,7 +375,7 @@ class _OSFormState extends ConsumerState<OSForm> {
     if (_cascadeInit || _servicoId.isEmpty || servicos.isEmpty) return;
     _cascadeInit = true;
     final cur = _servicoAtual(servicos);
-    if (cur == null || (cur.categoria == null && cur.grupo == null)) return;
+    if (cur == null || (cur.categoria.isEmpty && cur.grupo.isEmpty)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
@@ -787,22 +787,18 @@ class _OSFormState extends ConsumerState<OSForm> {
   Widget _form(CleanoxColors clx, OrdensLookups lk) {
     _maybeInitCascade(lk.servicos);
     // Cascata Categoria → Grupo → Serviço (mesmo cálculo do OSFormSection.tsx).
-    final categorias = <Categoria>[
-      for (final c in <Categoria>{
-        for (final s in lk.servicos)
-          if (s.categoria != null) s.categoria!,
-      })
-        c,
-    ];
-    final grupos = <Grupo>[
-      for (final g in <Grupo>{
-        for (final s in lk.servicos)
-          if (s.grupo != null &&
-              (_catFiltro == null || s.categoria == _catFiltro))
-            s.grupo!,
-      })
-        g,
-    ];
+    final catSet = <String>{
+      for (final s in lk.servicos)
+        if (s.categoria.trim().isNotEmpty) s.categoria,
+    };
+    final categorias = catSet.toList()..sort();
+    final grupoSet = <String>{
+      for (final s in lk.servicos)
+        if ((_catFiltro == null || s.categoria == _catFiltro) &&
+            s.grupo.trim().isNotEmpty)
+          s.grupo,
+    };
+    final grupos = grupoSet.toList()..sort();
     final servicosFiltrados = [
       for (final s in lk.servicos)
         if ((_catFiltro == null || s.categoria == _catFiltro) &&
@@ -974,22 +970,20 @@ class _OSFormState extends ConsumerState<OSForm> {
           if (categorias.isNotEmpty) ...[
             _label('Categoria'),
             DropdownButtonFormField<String>(
-              key: ValueKey('os-cat-${_catFiltro?.wire ?? ''}'),
-              initialValue: _catFiltro?.wire,
+              key: ValueKey('os-cat-${_catFiltro ?? ''}'),
+              initialValue: _catFiltro,
               isExpanded: true,
               decoration: const InputDecoration(isDense: true),
               hint: const Text('— Todas —'),
               items: [
                 const DropdownMenuItem(value: '', child: Text('— Todas —')),
                 for (final c in categorias)
-                  DropdownMenuItem(value: c.wire, child: Text(categoriaLabel(c))),
+                  DropdownMenuItem(value: c, child: Text(categoriaLabelSlug(c))),
               ],
               onChanged: _saving
                   ? null
                   : (v) => _onCategoria(
-                      (v == null || v.isEmpty)
-                          ? null
-                          : Categoria.values.byName(v),
+                      (v == null || v.isEmpty) ? null : v,
                       lk.servicos,
                     ),
             ),
@@ -1000,20 +994,20 @@ class _OSFormState extends ConsumerState<OSForm> {
           if (grupos.isNotEmpty) ...[
             _label('Grupo'),
             DropdownButtonFormField<String>(
-              key: ValueKey('os-grupo-${_grupoFiltro?.wire ?? ''}'),
-              initialValue: _grupoFiltro?.wire,
+              key: ValueKey('os-grupo-${_grupoFiltro ?? ''}'),
+              initialValue: _grupoFiltro,
               isExpanded: true,
               decoration: const InputDecoration(isDense: true),
               hint: const Text('— Todos —'),
               items: [
                 const DropdownMenuItem(value: '', child: Text('— Todos —')),
                 for (final g in grupos)
-                  DropdownMenuItem(value: g.wire, child: Text(grupoLabel(g))),
+                  DropdownMenuItem(value: g, child: Text(grupoLabelSlug(g))),
               ],
               onChanged: _saving
                   ? null
                   : (v) => _onGrupo(
-                      (v == null || v.isEmpty) ? null : Grupo.values.byName(v),
+                      (v == null || v.isEmpty) ? null : v,
                       lk.servicos,
                     ),
             ),
@@ -1262,8 +1256,8 @@ class _OSFormState extends ConsumerState<OSForm> {
           id: _novoAddId(),
           serviceId: servico.id,
           nome: servico.nome,
-          categoria: servico.categoria,
-          grupo: servico.grupo,
+          categoria: servico.categoriaEnum,
+          grupo: servico.grupoEnum,
           valor: servico.valorBase,
           tipoValor: servico.tipoValor,
           quantidade: 1,

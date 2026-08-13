@@ -105,16 +105,8 @@ _$ServicoPBImpl _$$ServicoPBImplFromJson(Map<String, dynamic> json) =>
     _$ServicoPBImpl(
       id: json['id'] as String,
       slug: json['slug'] as String? ?? '',
-      categoria: $enumDecodeNullable(
-        _$CategoriaEnumMap,
-        json['categoria'],
-        unknownValue: JsonKey.nullForUndefinedEnumValue,
-      ),
-      grupo: $enumDecodeNullable(
-        _$GrupoEnumMap,
-        json['grupo'],
-        unknownValue: JsonKey.nullForUndefinedEnumValue,
-      ),
+      categoria: json['categoria'] as String? ?? '',
+      grupo: json['grupo'] as String? ?? '',
       nome: json['nome'] as String? ?? '',
       descricao: json['descricao'] as String?,
       vitrineDescricao: json['vitrine_descricao'] as String? ?? '',
@@ -160,8 +152,8 @@ Map<String, dynamic> _$$ServicoPBImplToJson(
 ) => <String, dynamic>{
   'id': instance.id,
   'slug': instance.slug,
-  'categoria': _$CategoriaEnumMap[instance.categoria],
-  'grupo': _$GrupoEnumMap[instance.grupo],
+  'categoria': instance.categoria,
+  'grupo': instance.grupo,
   'nome': instance.nome,
   'descricao': instance.descricao,
   'vitrine_descricao': instance.vitrineDescricao,

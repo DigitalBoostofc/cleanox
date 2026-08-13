@@ -16,6 +16,8 @@ import '../../vitrine/admin/vitrine_midia_repository.dart';
 import 'servicos_controller.dart';
 import 'servicos_labels.dart';
 import 'servicos_midia_index.dart';
+import 'taxonomia/servicos_taxonomia_screen.dart';
+import 'taxonomia/taxonomia_providers.dart';
 
 const double _kTableBreakpoint = 820;
 
@@ -380,6 +382,19 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
               onChanged: notifier.setGrupo,
             ),
           ),
+          IconButton(
+            key: const Key('servicos-taxonomia-gear'),
+            tooltip: 'Categorias, grupos e subgrupos',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ServicosTaxonomiaScreen(),
+                ),
+              );
+              ref.invalidate(taxonomiaArvoreProvider);
+            },
+            icon: const Icon(Icons.settings_rounded),
+          ),
           ClxButton(
             label: 'Novo serviço',
             icon: Icons.add_rounded,
@@ -468,9 +483,9 @@ class _GrupoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
-    final grupo = servico.grupo ?? Grupo.outros;
+    final grupo = servico.grupo.isEmpty ? 'outros' : servico.grupo;
     return ClxChip(
-      label: grupoLabel(grupo),
+      label: grupoLabelSlug(grupo),
       color: clx.groupColor(grupo),
       dense: true,
     );
@@ -490,7 +505,7 @@ class _CategoriaGrupo extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            '${categoriaLabel(servico.categoria ?? Categoria.veicular)} /',
+            '${categoriaLabelSlug(servico.categoria.isEmpty ? 'veicular' : servico.categoria)} /',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(
@@ -599,7 +614,7 @@ class _ServicoRow extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    servico.categoria == Categoria.residencial
+                    servico.categoria == 'residencial'
                         ? Icons.home_outlined
                         : Icons.directions_car_outlined,
                     size: 16,
@@ -727,7 +742,7 @@ class _ServicoCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                servico.categoria == Categoria.residencial
+                servico.categoria == 'residencial'
                     ? Icons.home_outlined
                     : Icons.directions_car_outlined,
                 size: 18,

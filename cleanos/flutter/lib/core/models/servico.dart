@@ -121,9 +121,12 @@ class ServicoPB with _$ServicoPB {
   const factory ServicoPB({
     required String id,
     @Default('') String slug,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    Categoria? categoria,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue) Grupo? grupo,
+
+    /// Slug da categoria (taxonomia editável).
+    @Default('') String categoria,
+
+    /// Slug do grupo (taxonomia editável).
+    @Default('') String grupo,
     @Default('') String nome,
     String? descricao,
 
@@ -169,4 +172,20 @@ class ServicoPB with _$ServicoPB {
 
   factory ServicoPB.fromRecord(RecordModel record) =>
       ServicoPB.fromJson(record.toJson());
+
+  Categoria? get categoriaEnum {
+    final w = categoria.trim();
+    for (final c in Categoria.values) {
+      if (c.wire == w) return c;
+    }
+    return null;
+  }
+
+  Grupo? get grupoEnum {
+    final w = grupo.trim();
+    for (final g in Grupo.values) {
+      if (g.wire == w) return g;
+    }
+    return null;
+  }
 }
