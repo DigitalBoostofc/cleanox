@@ -16,7 +16,7 @@ import '../../core/models/servico.dart';
 import '../data/painel_providers.dart';
 
 /// Expand da visão admin — inclui `cliente` (PII liberada ao Painel).
-const String kAdminExecExpand = 'profissional,servico,cliente';
+const String kAdminExecExpand = 'profissional,servico,cliente,ponto_fisico';
 
 /// Payload da execução para a visão admin: a OS + as evidências carregadas.
 class OSExecucaoAdminData {

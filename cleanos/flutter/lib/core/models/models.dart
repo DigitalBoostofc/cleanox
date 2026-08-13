@@ -9,6 +9,7 @@ export 'financeiro.dart';
 export 'ordem_servico.dart';
 export 'os_atividade.dart';
 export 'os_execucao.dart';
+export 'ponto_fisico.dart';
 export 'prof_comissao.dart';
 export 'servico.dart';
 export 'user.dart';

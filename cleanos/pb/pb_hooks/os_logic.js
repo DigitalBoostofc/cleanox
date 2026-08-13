@@ -182,20 +182,68 @@ function buildEndereco(cliente) {
   return parts.join(" - ");
 }
 
+// Endereço de ponto físico (mesma forma do cliente, sem PII de contato).
+function buildEnderecoPonto(ponto) {
+  const parts = [];
+  const nome = String(ponto.get("nome") || "").trim();
+  if (nome) parts.push(nome);
+  const rua = ponto.get("endereco_rua");
+  const num = ponto.get("endereco_numero");
+  if (rua) parts.push(num ? `${rua}, ${num}` : rua);
+  const comp = ponto.get("endereco_complemento");
+  if (comp) parts.push(comp);
+  const bairro = ponto.get("endereco_bairro");
+  if (bairro) parts.push(bairro);
+  const cidade = ponto.get("endereco_cidade");
+  if (cidade) parts.push(cidade);
+  const uf = ponto.get("endereco_estado");
+  if (uf) parts.push(String(uf).toUpperCase());
+  const cep = ponto.get("endereco_cep");
+  if (cep) parts.push("CEP " + cep);
+  return parts.join(" - ");
+}
+
+function isLocalPontoFisico(record) {
+  return String(record.get("local_tipo") || "cliente") === "ponto_fisico";
+}
+
 // denormaliza os campos SEGUROS na OS (nome curto, bairro, nome do serviço).
 // Lê do cofre `clientes` mas só escreve dados não-sensíveis na OS.
+// Se local_tipo=ponto_fisico, bairro vem do ponto (não do cliente).
 // F-402: cliente órfão não trava o save — degrada silenciosamente como já faz para servico.
 function syncDenormalized(app, record) {
+  // Normaliza local_tipo vazio → cliente
+  const lt = String(record.get("local_tipo") || "").trim();
+  if (!lt) record.set("local_tipo", "cliente");
+  if (!isLocalPontoFisico(record)) {
+    record.set("ponto_fisico", "");
+  }
+
   const cid = relId(record.get("cliente"));
   if (cid) {
     try {
       const c = app.findRecordById("clientes", cid);
       record.set("nome_curto", fullName(c.get("nome"), c.get("sobrenome")));
-      record.set("bairro", c.get("endereco_bairro"));
+      if (!isLocalPontoFisico(record)) {
+        record.set("bairro", c.get("endereco_bairro"));
+      }
     } catch (_) {
       /* cliente pode ter sido removido — mantém campos denormalizados como estão */
     }
   }
+
+  if (isLocalPontoFisico(record)) {
+    const pid = relId(record.get("ponto_fisico"));
+    if (pid) {
+      try {
+        const p = app.findRecordById("pontos_fisicos", pid);
+        record.set("bairro", p.get("endereco_bairro") || "");
+      } catch (_) {
+        /* ponto removido */
+      }
+    }
+  }
+
   const sid = relId(record.get("servico"));
   if (sid) {
     try {
@@ -333,10 +381,35 @@ function manageEndereco(app, record) {
     newStatus === "em_andamento" || newStatus === "atribuida";
 
   if (libera) {
-    // Já estava no mesmo status liberador → não re-preenche (F-401).
-    if (oldStatus === newStatus) return;
+    // Já estava no mesmo status liberador → só re-preenche se mudou o local/ponto.
+    if (oldStatus === newStatus) {
+      var localMudou = false;
+      if (orig) {
+        const oldLt = String(orig.get("local_tipo") || "cliente");
+        const newLt = String(record.get("local_tipo") || "cliente");
+        const oldPid = relId(orig.get("ponto_fisico"));
+        const newPid = relId(record.get("ponto_fisico"));
+        localMudou = oldLt !== newLt || oldPid !== newPid;
+      }
+      if (!localMudou) return;
+    }
 
     // Transição para atribuida/em_andamento (ou CREATE nesse status) → preenche
+    if (isLocalPontoFisico(record)) {
+      const pid = relId(record.get("ponto_fisico"));
+      if (!pid) {
+        record.set("endereco_liberado", "");
+        return;
+      }
+      try {
+        const p = app.findRecordById("pontos_fisicos", pid);
+        record.set("endereco_liberado", buildEnderecoPonto(p));
+      } catch (_) {
+        /* ponto não encontrado */
+      }
+      return;
+    }
+
     const cid = relId(record.get("cliente"));
     if (!cid) {
       record.set("endereco_liberado", "");
@@ -594,7 +667,13 @@ function guardOrdemUpdateRequest(e) {
       adicionais: true,
     };
     // Campos relation nunca mudam na correção de pagamento.
-    const relLockedConcl = ["cliente", "servico", "profissional", "profissional2"];
+    const relLockedConcl = [
+      "cliente",
+      "servico",
+      "profissional",
+      "profissional2",
+      "ponto_fisico",
+    ];
     for (let i = 0; i < relLockedConcl.length; i++) {
       const f = relLockedConcl[i];
       if (relId(orig.get(f)) !== relId(e.record.get(f))) {
@@ -653,7 +732,13 @@ function guardOrdemUpdateRequest(e) {
   //    checklist/adicionais/obs (denylist abaixo).
   // F-08: campos relation (cliente, servico, profissional) comparados via relId()
   //       para evitar falsos positivos com String() em valores null/undefined.
-  const relLocked = ["cliente", "servico", "profissional", "profissional2"];
+  const relLocked = [
+    "cliente",
+    "servico",
+    "profissional",
+    "profissional2",
+    "ponto_fisico",
+  ];
   for (let i = 0; i < relLocked.length; i++) {
     const f = relLocked[i];
     if (relId(orig.get(f)) !== relId(e.record.get(f))) {
@@ -663,6 +748,7 @@ function guardOrdemUpdateRequest(e) {
   const locked = [
     "nome_curto",
     "bairro",
+    "local_tipo",
     "tipo_servico_nome",
     "data_hora",
     // duração da OS (agenda): quem remarca/redimensiona é o painel (admin/gerente).
@@ -868,6 +954,8 @@ module.exports = {
   normalizePhone,
   phonesMatch,
   buildEndereco,
+  buildEnderecoPonto,
+  isLocalPontoFisico,
   syncDenormalized,
   fillServiceSnapshot,
   manageEndereco,

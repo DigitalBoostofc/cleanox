@@ -52,6 +52,48 @@ String formatOsCidadeExibicao(Cliente? c) {
   return '$cidade — $uf';
 }
 
+/// Rua/cidade no detalhe respeitando ponto físico (se selecionado na OS).
+String formatOsRuaDaOs(OrdemServico os) {
+  if (os.isLocalPontoFisico) {
+    final p = os.expand?.pontoFisico;
+    if (p == null) return '—';
+    final parts = <String>[
+      if (p.enderecoRua.trim().isNotEmpty) p.enderecoRua.trim(),
+      if (p.enderecoNumero.trim().isNotEmpty) p.enderecoNumero.trim(),
+    ];
+    if (parts.isEmpty) return p.nome.isEmpty ? '—' : p.nome;
+    final rua = parts.join(', ');
+    return p.nome.isEmpty ? rua : '${p.nome} · $rua';
+  }
+  return formatOsRuaExibicao(os.expand?.cliente);
+}
+
+String formatOsCidadeDaOs(OrdemServico os) {
+  if (os.isLocalPontoFisico) {
+    final p = os.expand?.pontoFisico;
+    if (p == null) return '—';
+    final cidade = p.enderecoCidade.trim();
+    final uf = p.enderecoEstado.trim();
+    if (cidade.isEmpty && uf.isEmpty) return '—';
+    if (cidade.isEmpty) return uf;
+    if (uf.isEmpty) return cidade;
+    return '$cidade — $uf';
+  }
+  return formatOsCidadeExibicao(os.expand?.cliente);
+}
+
+String formatOsBairroDaOs(OrdemServico os) {
+  if (os.isLocalPontoFisico) {
+    final p = os.expand?.pontoFisico;
+    final b = (p?.enderecoBairro ?? os.bairro).trim();
+    return b.isEmpty ? '—' : b;
+  }
+  final b = os.bairro.trim();
+  if (b.isNotEmpty) return b;
+  final cb = (os.expand?.cliente?.enderecoBairro ?? '').trim();
+  return cb.isEmpty ? '—' : cb;
+}
+
 class OSDetailResult {
   const OSDetailResult({this.changed = false, this.intent, this.os});
   final bool changed;
@@ -167,10 +209,10 @@ class _OSDetailState extends ConsumerState<OSDetail> {
   bool get _editavel => _os.status != OSStatus.cancelada;
 
   /// Rua + número do cliente (cofre expandido). Painel only.
-  String get _ruaExibicao => formatOsRuaExibicao(_os.expand?.cliente);
+  String get _ruaExibicao => formatOsRuaDaOs(_os);
 
-  /// Cidade (+ UF se houver) do cliente.
-  String get _cidadeExibicao => formatOsCidadeExibicao(_os.expand?.cliente);
+  /// Cidade (+ UF se houver) do cliente ou ponto.
+  String get _cidadeExibicao => formatOsCidadeDaOs(_os);
 
   Future<void> _reatribuir() async {
     // Mexer no profissional de uma OS EM ANDAMENTO rebaixa o status, e o hook do
@@ -221,7 +263,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
               profissional2Id: _selectedProf2,
               modo: _execucaoModo,
             ),
-            expand: 'profissional,profissional2,cliente',
+            expand: 'profissional,profissional2,cliente,ponto_fisico',
           );
     } catch (e) {
       if (mounted) {
@@ -571,10 +613,14 @@ class _OSDetailState extends ConsumerState<OSDetail> {
       children: [
         _section(clx, 'Identificação', [
           _row(clx, 'Cliente', _os.clienteNomeExibicao),
-          // Rua/cidade vêm do cofre expandido (só Painel). Agenda/Ordens já
-          // pedem expand=cliente — admin precisa ver o local sem abrir Editar.
+          _row(
+            clx,
+            'Local',
+            _os.isLocalPontoFisico ? 'Ponto físico' : 'Endereço do cliente',
+          ),
+          // Rua/cidade: cofre do cliente OU ponto expandido (Painel).
           _row(clx, 'Rua', _ruaExibicao),
-          _row(clx, 'Bairro', _os.bairro),
+          _row(clx, 'Bairro', formatOsBairroDaOs(_os)),
           _row(clx, 'Cidade', _cidadeExibicao),
           _row(clx, 'Serviço', _os.tipoServicoNome ?? '—'),
           _row(clx, 'Data / Hora', formatDateTime(_os.dataHora)),

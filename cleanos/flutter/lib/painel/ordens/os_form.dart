@@ -36,6 +36,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/os_execucao.dart';
+import '../../core/models/ponto_fisico.dart';
 import '../../core/models/servico.dart';
 import '../../profissional/os_execucao/add_servico_extra_sheet.dart';
 import '../agenda/agenda_controller.dart' show weekdayIndexOf;
@@ -49,7 +50,7 @@ import 'os_status_rules.dart';
 /// A OS gravada volta com o profissional/cliente expandidos: ela substitui o
 /// registro na lista e alimenta o detalhe, que sem o expand mostraria "—" no
 /// lugar do nome do profissional recém-atribuído.
-const String _kFormExpand = 'profissional,profissional2,cliente';
+const String _kFormExpand = 'profissional,profissional2,cliente,ponto_fisico';
 
 Future<OrdemServico?> showOSForm(BuildContext context, {OrdemServico? editing}) {
   return showDialog<OrdemServico>(
@@ -147,6 +148,12 @@ class _OSFormState extends ConsumerState<OSForm> {
   ExecucaoModo _execucaoModo = ExecucaoModo.solo;
   String _dataDate = ''; // yyyy-MM-dd (BRT)
 
+  /// Local do serviço: `cliente` (padrão) ou `ponto_fisico`.
+  String _localTipo = 'cliente';
+  String _pontoFisicoId = '';
+  List<PontoFisico> _pontos = const [];
+  bool _pontosLoading = false;
+
   /// Duração da OS (min). `null` = ainda não decidida → prefilada, VISÍVEL, com a
   /// duração do profissional quando ele é escolhido (D9).
   int? _duracaoMin;
@@ -214,6 +221,11 @@ class _OSFormState extends ConsumerState<OSForm> {
       if (_profissional2Id.isNotEmpty) {
         _execucaoModo = ExecucaoModo.dupla;
       }
+      _localTipo = os.localTipo.trim().isEmpty ? 'cliente' : os.localTipo.trim();
+      _pontoFisicoId = os.pontoFisico.trim();
+      if (_localTipo == 'ponto_fisico' && _pontoFisicoId.isEmpty) {
+        _localTipo = 'cliente';
+      }
       _observacoes.text = os.observacoes ?? '';
       _extras = List<ServicoAdicionalOS>.from(os.adicionais);
       _incluirExtras = _extras.isNotEmpty;
@@ -238,6 +250,26 @@ class _OSFormState extends ConsumerState<OSForm> {
     _horaFocus.addListener(() {
       if (!_horaFocus.hasFocus) _normalizarHora();
     });
+    _loadPontos();
+  }
+
+  Future<void> _loadPontos() async {
+    setState(() => _pontosLoading = true);
+    try {
+      final list = await ref
+          .read(pontosFisicosRepositoryProvider)
+          .list(somenteAtivos: true);
+      if (!mounted) return;
+      setState(() {
+        _pontos = list;
+        _pontosLoading = false;
+        // Se o ponto salvo ficou inativo e sumiu da lista, ainda assim mantém o id
+        // no dropdown via item fantasma abaixo.
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _pontosLoading = false);
+    }
   }
 
   @override
@@ -498,6 +530,9 @@ class _OSFormState extends ConsumerState<OSForm> {
   Map<String, String> _validate() {
     final errs = <String, String>{};
     if (_clienteId.isEmpty) errs['cliente'] = 'Selecione um cliente';
+    if (_localTipo == 'ponto_fisico' && _pontoFisicoId.isEmpty) {
+      errs['ponto_fisico'] = 'Selecione o ponto físico';
+    }
     // Datas no passado são permitidas: permite registrar OS históricas
     // (atendimentos já feitos que ainda não entraram no sistema).
     if (_dataDate.isEmpty) {
@@ -577,6 +612,10 @@ class _OSFormState extends ConsumerState<OSForm> {
       'execucao_modo': isDupla
           ? ExecucaoModo.dupla.wire
           : ExecucaoModo.solo.wire,
+      'local_tipo': _localTipo == 'ponto_fisico' ? 'ponto_fisico' : 'cliente',
+      'ponto_fisico': _localTipo == 'ponto_fisico' && _pontoFisicoId.isNotEmpty
+          ? _pontoFisicoId
+          : '',
       'observacoes': _observacoes.text.trim(),
       // Sempre envia a lista (mesmo vazia no edit) para poder limpar extras.
       'adicionais': _incluirExtras
@@ -816,6 +855,119 @@ class _OSFormState extends ConsumerState<OSForm> {
               _errs.remove('cliente');
             }),
           ),
+          const SizedBox(height: ClxSpace.x4),
+
+          // Local do serviço (cliente vs ponto físico da empresa).
+          _label('Local do serviço', required: true),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                value: 'cliente',
+                label: Text('Endereço do cliente'),
+                icon: Icon(Icons.home_outlined, size: 18),
+              ),
+              ButtonSegment(
+                value: 'ponto_fisico',
+                label: Text('Ponto físico'),
+                icon: Icon(Icons.store_mall_directory_outlined, size: 18),
+              ),
+            ],
+            selected: {_localTipo == 'ponto_fisico' ? 'ponto_fisico' : 'cliente'},
+            onSelectionChanged: _saving
+                ? null
+                : (s) => setState(() {
+                      _localTipo = s.first;
+                      if (_localTipo != 'ponto_fisico') {
+                        _pontoFisicoId = '';
+                        _errs.remove('ponto_fisico');
+                      }
+                    }),
+          ),
+          if (_localTipo == 'ponto_fisico') ...[
+            const SizedBox(height: ClxSpace.x3),
+            if (_pontosLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              )
+            else ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey('os-ponto-$_pontoFisicoId'),
+                initialValue: _pontoFisicoId.isEmpty
+                    ? null
+                    : _pontoFisicoId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: 'Ponto físico',
+                  errorText: _errs['ponto_fisico'],
+                  helperText: _pontos.isEmpty
+                      ? 'Cadastre em Clientes → ícone de loja (Pontos físicos)'
+                      : 'O endereço da OS será o deste ponto',
+                ),
+                hint: const Text('— Selecionar ponto —'),
+                items: [
+                  for (final p in _pontos)
+                    DropdownMenuItem(
+                      value: p.id,
+                      child: Text(
+                        '${p.nome} · ${p.enderecoResumo}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  // Mantém ponto inativo/excluído da lista ainda selecionável na edição.
+                  if (_pontoFisicoId.isNotEmpty &&
+                      !_pontos.any((p) => p.id == _pontoFisicoId))
+                    DropdownMenuItem(
+                      value: _pontoFisicoId,
+                      child: Text(
+                        widget.editing?.expand?.pontoFisico?.nome ??
+                            'Ponto selecionado',
+                      ),
+                    ),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (v) => setState(() {
+                          _pontoFisicoId = v ?? '';
+                          _errs.remove('ponto_fisico');
+                        }),
+              ),
+              if (_pontoFisicoId.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Builder(
+                  builder: (_) {
+                    PontoFisico? p;
+                    for (final x in _pontos) {
+                      if (x.id == _pontoFisicoId) {
+                        p = x;
+                        break;
+                      }
+                    }
+                    p ??= widget.editing?.expand?.pontoFisico;
+                    if (p == null) return const SizedBox.shrink();
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: clx.bg2,
+                        borderRadius: ClxRadii.rMd,
+                        border: Border.all(color: clx.line),
+                      ),
+                      child: Text(
+                        p.enderecoResumo,
+                        style: TextStyle(
+                          color: clx.ink2,
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ],
           const SizedBox(height: ClxSpace.x4),
 
           // Categoria (filtro cascata) — só aparece se o catálogo tem categorias.

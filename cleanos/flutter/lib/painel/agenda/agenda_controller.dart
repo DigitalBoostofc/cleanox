@@ -479,7 +479,7 @@ class AgendaController extends StateNotifier<AgendaState> {
               dataFim: range.end,
             ),
             sort: 'data_hora',
-            expand: 'profissional,profissional2,cliente',
+            expand: 'profissional,profissional2,cliente,ponto_fisico',
           );
       // Resposta ATRASADA de um load antigo (troca rápida de período/visão, ou
       // um drop que já reescreveu a lista): descarta — nunca sobrescreve o novo.
