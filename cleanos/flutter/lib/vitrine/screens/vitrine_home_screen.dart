@@ -595,11 +595,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Home ─────────────────────────────────────────────────────────────────
 
   Widget _home() {
-    final destaques = _catalog.where((s) => s.vitrineDestaque).take(8).toList();
-    final pkgs = <VitrineServico>[
-      ...destaques,
-      ..._catalog.where((s) => !s.vitrineDestaque),
-    ].take(6).toList();
+    // Promoções da Semana = só serviços com estrela (vitrine_destaque) no admin.
+    final pkgs = _catalog.where((s) => s.vitrineDestaque).toList()
+      ..sort((a, b) {
+        final o = a.vitrineOrdem.compareTo(b.vitrineOrdem);
+        if (o != 0) return o;
+        return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+      });
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -663,56 +665,59 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             _go(1);
           },
         ),
-        const SizedBox(height: 22),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                _config.homeDestaquesTitulo.trim().isEmpty
-                    ? 'Promoções da Semana'
-                    : _config.homeDestaquesTitulo.trim(),
-                style: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: ClxBrand.navy,
+        if (pkgs.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _config.homeDestaquesTitulo.trim().isEmpty
+                      ? 'Promoções da Semana'
+                      : _config.homeDestaquesTitulo.trim(),
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: ClxBrand.navy,
+                  ),
                 ),
               ),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _categoriaFilter = null;
-                  _familiaFilter = null;
-                });
-                _go(1);
-              },
-              child: Text(
-                _config.homeDestaquesCta.trim().isEmpty
-                    ? 'Ver todos'
-                    : _config.homeDestaquesCta.trim(),
-                style: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontWeight: FontWeight.w600,
-                  color: ClxBrand.cyan,
-                  fontSize: 12,
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _categoriaFilter = null;
+                    _familiaFilter = null;
+                  });
+                  _go(1);
+                },
+                child: Text(
+                  _config.homeDestaquesCta.trim().isEmpty
+                      ? 'Ver todos'
+                      : _config.homeDestaquesCta.trim(),
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontWeight: FontWeight.w600,
+                    color: ClxBrand.cyan,
+                    fontSize: 12,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        VitrineCatalogoPersonalizavel(
-          servicos: pkgs,
-          bootstrap: _bootstrap,
-          selectedIds: _selected,
-          showHeader: false,
-          showFamilyChips: false,
-          onToggle: (servico) {
-            _toggleServico(servico);
-            _go(1);
-          },
-        ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          VitrineCatalogoPersonalizavel(
+            key: const Key('vitrine-home-promocoes'),
+            servicos: pkgs,
+            bootstrap: _bootstrap,
+            selectedIds: _selected,
+            showHeader: false,
+            showFamilyChips: false,
+            onToggle: (servico) {
+              _toggleServico(servico);
+              _go(1);
+            },
+          ),
+        ],
         if (_config.cidadesTexto.isNotEmpty) ...[
           const SizedBox(height: 18),
           Text(
