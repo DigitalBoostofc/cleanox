@@ -331,6 +331,8 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
               'status': hasProf
                   ? OSStatus.atribuida.wire
                   : OSStatus.agendada.wire,
+              'local_tipo': os.localTipo,
+              'ponto_fisico': os.pontoFisicoId,
               'observacoes': os.observacoes,
             });
           } catch (_) {
