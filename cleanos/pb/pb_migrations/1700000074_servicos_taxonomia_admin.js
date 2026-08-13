@@ -1,8 +1,8 @@
 /// <reference path="../pb_data/types.d.ts" />
 /**
- * Taxonomia editável de serviços: Categoria → Grupo → Subgrupo.
- * Coleção `servicos_taxonomia` (cofre admin/gerente).
- * `servicos.categoria` / `grupo` viram texto livre (slug da taxonomia).
+ * Taxonomia editável: coleção `servicos_taxonomia`.
+ * Converte `servicos.categoria` / `grupo` de select → text (remove + recria,
+ * sem reutilizar o mesmo field id — PB não permite trocar type no lugar).
  */
 migrate(
   (app) => {
@@ -17,30 +17,89 @@ migrate(
       }
     }
 
-    // ── servicos: categoria/grupo como texto (permite novos slugs) ──────────
+    // ── servicos: select → text (categoria / grupo) ─────────────────────────
     const servicos = app.findCollectionByNameOrId('servicos');
     let mudou = false;
 
-    function toText(name, max) {
+    function selectToText(name, max) {
       const f = servicos.fields.getByName(name);
       if (!f) return;
       if (f.type === 'text') return;
-      const id = f.id;
-      servicos.fields.removeById(id);
+      // Snapshot valores atuais antes de trocar o schema.
+      let rows = [];
+      try {
+        rows = app.findRecordsByFilter('servicos', '', '', 500, 0) || [];
+      } catch (_) {
+        rows = [];
+      }
+      const keep = {};
+      for (let i = 0; i < rows.length; i++) {
+        keep[rows[i].id] = rows[i].getString(name) || '';
+      }
+      servicos.fields.removeById(f.id);
       servicos.fields.add(
-        new TextField({ id: id, name: name, required: false, max: max || 80 }),
+        new TextField({ name: name, required: false, max: max || 80 }),
       );
+      app.save(servicos);
+      // Regrava valores
+      for (const id of Object.keys(keep)) {
+        try {
+          const r = app.findRecordById('servicos', id);
+          r.set(name, keep[id]);
+          app.save(r);
+        } catch (_) {}
+      }
       mudou = true;
     }
-    toText('categoria', 80);
-    toText('grupo', 80);
-    if (!servicos.fields.getByName('subgrupo')) {
-      servicos.fields.add(
+
+    // Só converte se ainda for select (idempotente se já text).
+    try {
+      selectToText('categoria', 80);
+    } catch (e) {
+      console.log('categoria→text: ' + e);
+    }
+    // re-fetch collection after possible save
+    const servicos2 = app.findCollectionByNameOrId('servicos');
+    function selectToText2(name, max) {
+      const f = servicos2.fields.getByName(name);
+      if (!f) return;
+      if (f.type === 'text') return;
+      let rows = [];
+      try {
+        rows = app.findRecordsByFilter('servicos', '', '', 500, 0) || [];
+      } catch (_) {
+        rows = [];
+      }
+      const keep = {};
+      for (let i = 0; i < rows.length; i++) {
+        keep[rows[i].id] = rows[i].getString(name) || '';
+      }
+      servicos2.fields.removeById(f.id);
+      servicos2.fields.add(
+        new TextField({ name: name, required: false, max: max || 80 }),
+      );
+      app.save(servicos2);
+      for (const id of Object.keys(keep)) {
+        try {
+          const r = app.findRecordById('servicos', id);
+          r.set(name, keep[id]);
+          app.save(r);
+        } catch (_) {}
+      }
+    }
+    try {
+      selectToText2('grupo', 80);
+    } catch (e) {
+      console.log('grupo→text: ' + e);
+    }
+
+    const servicos3 = app.findCollectionByNameOrId('servicos');
+    if (!servicos3.fields.getByName('subgrupo')) {
+      servicos3.fields.add(
         new TextField({ name: 'subgrupo', required: false, max: 80 }),
       );
-      mudou = true;
+      app.save(servicos3);
     }
-    if (mudou) app.save(servicos);
 
     // ── coleção taxonomia ───────────────────────────────────────────────────
     if (!tryFind('servtaxonomia0001') && !tryFind('servicos_taxonomia')) {
@@ -57,19 +116,10 @@ migrate(
           values: ['categoria', 'grupo', 'subgrupo'],
         }),
       );
-      c.fields.add(
-        new TextField({ name: 'slug', required: true, max: 80 }),
-      );
-      c.fields.add(
-        new TextField({ name: 'nome', required: true, max: 120 }),
-      );
-      // parent: id do nó pai (categoria←grupo, grupo←subgrupo). Vazio na categoria.
-      c.fields.add(
-        new TextField({ name: 'parent', required: false, max: 32 }),
-      );
-      c.fields.add(
-        new NumberField({ name: 'ordem', required: false, min: 0 }),
-      );
+      c.fields.add(new TextField({ name: 'slug', required: true, max: 80 }));
+      c.fields.add(new TextField({ name: 'nome', required: true, max: 120 }));
+      c.fields.add(new TextField({ name: 'parent', required: false, max: 32 }));
+      c.fields.add(new NumberField({ name: 'ordem', required: false, min: 0 }));
       c.fields.add(new BoolField({ name: 'ativo', required: false }));
       c.fields.add(
         new AutodateField({ name: 'created', onCreate: true, onUpdate: false }),
@@ -110,13 +160,7 @@ migrate(
       }
 
       const veicular = add('categoria', 'veicular', 'Veicular', '', 10);
-      const residencial = add(
-        'categoria',
-        'residencial',
-        'Residencial',
-        '',
-        20,
-      );
+      const residencial = add('categoria', 'residencial', 'Residencial', '', 20);
 
       const gPlano = add('grupo', 'plano', 'Plano', veicular, 10);
       const gPromo = add('grupo', 'promocao', 'Promoção', veicular, 20);
@@ -126,14 +170,11 @@ migrate(
       add('subgrupo', 'essencial', 'Essencial', gPlano, 10);
       add('subgrupo', 'completo', 'Completo', gPlano, 20);
       add('subgrupo', 'premium', 'Premium', gPlano, 30);
-
       add('subgrupo', 'completo_promo', 'Completo (promo)', gPromo, 10);
       add('subgrupo', 'premium_promo', 'Premium (promo)', gPromo, 20);
-
       add('subgrupo', 'muito_sujo', 'Veículo muito sujo', gAdic, 10);
       add('subgrupo', 'deslocamento', 'Taxa de deslocamento', gAdic, 20);
       add('subgrupo', 'outro_adicional', 'Outro adicional', gAdic, 30);
-
       add('subgrupo', 'bancos', 'Bancos', gAvul, 10);
       add('subgrupo', 'teto', 'Teto', gAvul, 20);
       add('subgrupo', 'cintos', 'Cintos', gAvul, 30);
@@ -152,7 +193,6 @@ migrate(
       add('subgrupo', 'sofa_56', '5/6 lugares', gSofa, 40);
       add('subgrupo', 'sofa_retratil', 'Retrátil', gSofa, 50);
       add('subgrupo', 'sofa_outro', 'Outro sofá', gSofa, 60);
-
       add('subgrupo', 'solteiro', 'Solteiro', gColch, 10);
       add('subgrupo', 'casal', 'Casal', gColch, 20);
       add('subgrupo', 'queen', 'Queen', gColch, 30);
@@ -160,7 +200,6 @@ migrate(
       add('subgrupo', 'box_solteiro', 'Cama box solteiro', gColch, 50);
       add('subgrupo', 'box_casal', 'Cama box casal', gColch, 60);
       add('subgrupo', 'colchao_outro', 'Outro colchão/box', gColch, 70);
-
       add('subgrupo', 'poltrona', 'Poltrona', gOut, 10);
       add('subgrupo', 'cadeira', 'Cadeira', gOut, 20);
       add('subgrupo', 'puff', 'Puff', gOut, 30);
