@@ -635,11 +635,15 @@ class _VitrineFabCalendarPainter extends CustomPainter {
 }
 
 /// CTA sticky do mockup (total + botão pill).
+///
+/// Em telas estreitas o total **não** estoura: label com ellipsis e valor com
+/// [FittedBox] (fonte encolhe se precisar).
 class VitrineStickyBar extends StatelessWidget {
   const VitrineStickyBar({
     super.key,
     this.totalLabel,
     this.totalValue,
+    this.totalCaption,
     required this.buttonLabel,
     required this.onPressed,
     this.loading = false,
@@ -647,17 +651,25 @@ class VitrineStickyBar extends StatelessWidget {
 
   final String? totalLabel;
   final String? totalValue;
+
+  /// Texto auxiliar acima do valor (ex.: "Valor estimado").
+  final String? totalCaption;
   final String buttonLabel;
   final VoidCallback? onPressed;
   final bool loading;
 
   @override
   Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final labelSize = scaler.scale(13).clamp(11.0, 16.0);
+    final valueSize = scaler.scale(20).clamp(15.0, 24.0);
+    final captionSize = scaler.scale(11).clamp(10.0, 13.0);
+
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20,
+        16,
         14,
-        20,
+        16,
         MediaQuery.paddingOf(context).bottom + 16,
       ),
       decoration: const BoxDecoration(
@@ -677,62 +689,118 @@ class VitrineStickyBar extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-          if (totalLabel != null && totalValue != null) ...[
-            Row(
-              children: [
-                Text(
-                  totalLabel!,
-                  style: const TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 13,
-                    color: ClxBrand.muted,
-                    fontWeight: FontWeight.w500,
-                  ),
+              if (totalLabel != null && totalValue != null) ...[
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 380;
+                    final label = Text(
+                      totalLabel!,
+                      maxLines: narrow ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: kFontFamily,
+                        fontSize: labelSize,
+                        color: ClxBrand.muted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                    final valueBlock = Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if ((totalCaption ?? '').trim().isNotEmpty)
+                          Text(
+                            totalCaption!.trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontFamily: kFontFamily,
+                              fontSize: captionSize,
+                              color: ClxBrand.muted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            totalValue!,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontFamily: kFontFamily,
+                              fontSize: valueSize,
+                              fontWeight: FontWeight.w800,
+                              color: ClxBrand.navy,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+
+                    if (narrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          label,
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: valueBlock,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(child: label),
+                        const SizedBox(width: 12),
+                        Flexible(child: valueBlock),
+                      ],
+                    );
+                  },
                 ),
-                const Spacer(),
-                Text(
-                  totalValue!,
-                  style: const TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: ClxBrand.navy,
-                  ),
-                ),
+                const SizedBox(height: 12),
               ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: loading ? null : onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: ClxBrand.cyan,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: ClxBrand.cyan.withValues(alpha: 0.35),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(VitrineUi.rPill),
-                ),
-                textStyle: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: loading ? null : onPressed,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: ClxBrand.cyan,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        ClxBrand.cyan.withValues(alpha: 0.35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                    ),
+                    textStyle: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontWeight: FontWeight.w700,
+                      fontSize: scaler.scale(15).clamp(13.0, 18.0),
+                    ),
+                  ),
+                  child: loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          buttonLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                 ),
               ),
-              child: loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(buttonLabel),
-            ),
-          ),
             ],
           ),
         ),
