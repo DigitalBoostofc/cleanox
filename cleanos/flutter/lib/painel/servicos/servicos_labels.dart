@@ -7,6 +7,7 @@ library;
 
 import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
+import '../../core/models/servico_taxonomia.dart';
 
 String categoriaLabel(Categoria c) => switch (c) {
   Categoria.veicular => 'Veicular',
@@ -22,6 +23,10 @@ String grupoLabel(Grupo g) => switch (g) {
   Grupo.colchao => 'Colchão',
   Grupo.outros => 'Outros',
 };
+
+/// Rótulo do subgrupo na árvore (fallback = wire).
+String subgrupoRotulo(Categoria c, Grupo g, String wire) =>
+    subgrupoLabel(c, g, wire) ?? wire;
 
 String tipoValorLabel(TipoValor t) => switch (t) {
   TipoValor.fixo => 'Fixo',
@@ -86,6 +91,7 @@ Map<String, dynamic> servicoToPayload(ServicoPB s) {
   return <String, dynamic>{
     'categoria': (s.categoria ?? Categoria.veicular).wire,
     'grupo': (s.grupo ?? Grupo.outros).wire,
+    'subgrupo': s.subgrupo,
     'nome': s.nome,
     'valor_base': s.valorBase,
     'preco_base': s.valorBase, // 🔁 legado sincronizado

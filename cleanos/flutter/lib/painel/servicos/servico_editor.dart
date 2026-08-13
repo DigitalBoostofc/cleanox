@@ -21,6 +21,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
+import '../../core/models/servico_taxonomia.dart';
 import '../data/painel_providers.dart';
 import 'checklist_editor.dart';
 import 'servicos_labels.dart';
@@ -46,6 +47,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
 
   Categoria _categoria = Categoria.veicular;
   Grupo _grupo = Grupo.plano;
+  String _subgrupo = '';
   TipoValor _tipoValor = TipoValor.fixo;
   ServicoStatus _status = ServicoStatus.ativo;
   int _valorBaseCents = 0;
@@ -134,7 +136,12 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         if (!mounted) return;
         _original = s;
         _categoria = s.categoria ?? Categoria.veicular;
-        _grupo = s.grupo ?? Grupo.outros;
+        _grupo = normalizarGrupoNaCategoria(_categoria, s.grupo);
+        _subgrupo = normalizarSubgrupo(
+          categoria: _categoria,
+          grupo: _grupo,
+          subgrupo: s.subgrupo,
+        );
         _nome.text = s.nome;
         _valorBaseCents = (s.valorBase * 100).round();
         _valorBaseMaxCents = ((s.valorBaseMax ?? 0) * 100).round();
@@ -200,6 +207,11 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     return <String, dynamic>{
       'categoria': _categoria.wire,
       'grupo': _grupo.wire,
+      'subgrupo': normalizarSubgrupo(
+        categoria: _categoria,
+        grupo: _grupo,
+        subgrupo: _subgrupo,
+      ),
       'nome': _nome.text.trim(),
       // Sincroniza fallback público (descricao) + campo comercial da Vitrine.
       'descricao': detalhes,
@@ -556,30 +568,65 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   }
 
   Widget _infoSection(CleanoxColors clx) {
+    final grupos = gruposDaCategoria(_categoria);
+    final subops = subgruposDoGrupo(_categoria, _grupo);
+    // Segurança: valor atual sempre na lista do dropdown.
+    final grupoValue = grupos.contains(_grupo) ? _grupo : grupos.first;
+    final subValue = () {
+      if (subops.isEmpty) return '';
+      for (final o in subops) {
+        if (o.wire == _subgrupo) return _subgrupo;
+      }
+      return subops.first.wire;
+    }();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _dropdownField<Categoria>(
+          label: 'Categoria',
+          value: _categoria,
+          items: Categoria.values,
+          labelOf: categoriaLabel,
+          onChanged: (v) => setState(() {
+            _categoria = v;
+            _grupo = normalizarGrupoNaCategoria(v, _grupo);
+            _subgrupo = normalizarSubgrupo(
+              categoria: v,
+              grupo: _grupo,
+              subgrupo: _subgrupo,
+            );
+            _markDirty();
+          }),
+        ),
         _twoCol(
-          _dropdownField<Categoria>(
-            label: 'Categoria',
-            value: _categoria,
-            items: Categoria.values,
-            labelOf: categoriaLabel,
-            onChanged: (v) => setState(() {
-              _categoria = v;
-              _markDirty();
-            }),
-          ),
           _dropdownField<Grupo>(
             label: 'Grupo',
-            value: _grupo,
-            items: Grupo.values,
+            value: grupoValue,
+            items: grupos,
             labelOf: grupoLabel,
             onChanged: (v) => setState(() {
               _grupo = v;
+              _subgrupo = normalizarSubgrupo(
+                categoria: _categoria,
+                grupo: v,
+                subgrupo: _subgrupo,
+              );
               _markDirty();
             }),
           ),
+          subops.isNotEmpty
+              ? _dropdownField<String>(
+                  label: 'Subgrupo',
+                  value: subValue,
+                  items: [for (final o in subops) o.wire],
+                  labelOf: (w) => subgrupoRotulo(_categoria, _grupo, w),
+                  onChanged: (v) => setState(() {
+                    _subgrupo = v;
+                    _markDirty();
+                  }),
+                )
+              : const SizedBox.shrink(),
         ),
         _textField(
           label: 'Nome do serviço',
@@ -691,6 +738,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       id: widget.servicoId ?? 'preview',
       categoria: _categoria,
       grupo: _grupo,
+      subgrupo: _subgrupo,
       nome: _nome.text,
       descricao: _detalhes.text,
       vitrineDescricao: _detalhes.text,
@@ -1257,7 +1305,8 @@ class _OutrosServicosTable extends StatelessWidget {
                   ),
                   Text(
                     '${categoriaLabel(s.categoria ?? Categoria.veicular)} · '
-                    '${grupoLabel(s.grupo ?? Grupo.outros)}',
+                    '${grupoLabel(s.grupo ?? Grupo.outros)}'
+                    '${(s.subgrupo).trim().isEmpty ? '' : ' · ${subgrupoRotulo(s.categoria ?? Categoria.veicular, s.grupo ?? Grupo.outros, s.subgrupo)}'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.bodySmall?.copyWith(color: clx.ink3),

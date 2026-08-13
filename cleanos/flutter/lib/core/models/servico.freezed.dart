@@ -773,6 +773,9 @@ mixin _$ServicoPB {
   /// Texto comercial “o que inclui” na Vitrine (popup Detalhes).
   @JsonKey(name: 'vitrine_descricao')
   String get vitrineDescricao => throw _privateConstructorUsedError;
+
+  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  String get subgrupo => throw _privateConstructorUsedError;
   @JsonKey(name: 'valor_base')
   double get valorBase => throw _privateConstructorUsedError;
   @JsonKey(name: 'valor_base_max')
@@ -832,6 +835,7 @@ abstract class $ServicoPBCopyWith<$Res> {
     String nome,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
+    String subgrupo,
     @JsonKey(name: 'valor_base') double valorBase,
     @JsonKey(name: 'valor_base_max') double? valorBaseMax,
     @JsonKey(
@@ -879,6 +883,7 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
     Object? nome = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
+    Object? subgrupo = null,
     Object? valorBase = null,
     Object? valorBaseMax = freezed,
     Object? tipoValor = freezed,
@@ -924,6 +929,10 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
             vitrineDescricao: null == vitrineDescricao
                 ? _value.vitrineDescricao
                 : vitrineDescricao // ignore: cast_nullable_to_non_nullable
+                      as String,
+            subgrupo: null == subgrupo
+                ? _value.subgrupo
+                : subgrupo // ignore: cast_nullable_to_non_nullable
                       as String,
             valorBase: null == valorBase
                 ? _value.valorBase
@@ -1009,6 +1018,7 @@ abstract class _$$ServicoPBImplCopyWith<$Res>
     String nome,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
+    String subgrupo,
     @JsonKey(name: 'valor_base') double valorBase,
     @JsonKey(name: 'valor_base_max') double? valorBaseMax,
     @JsonKey(
@@ -1055,6 +1065,7 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
     Object? nome = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
+    Object? subgrupo = null,
     Object? valorBase = null,
     Object? valorBaseMax = freezed,
     Object? tipoValor = freezed,
@@ -1100,6 +1111,10 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
         vitrineDescricao: null == vitrineDescricao
             ? _value.vitrineDescricao
             : vitrineDescricao // ignore: cast_nullable_to_non_nullable
+                  as String,
+        subgrupo: null == subgrupo
+            ? _value.subgrupo
+            : subgrupo // ignore: cast_nullable_to_non_nullable
                   as String,
         valorBase: null == valorBase
             ? _value.valorBase
@@ -1178,6 +1193,7 @@ class _$ServicoPBImpl extends _ServicoPB {
     this.nome = '',
     this.descricao,
     @JsonKey(name: 'vitrine_descricao') this.vitrineDescricao = '',
+    this.subgrupo = '',
     @JsonKey(name: 'valor_base') this.valorBase = 0,
     @JsonKey(name: 'valor_base_max') this.valorBaseMax,
     @JsonKey(
@@ -1228,6 +1244,11 @@ class _$ServicoPBImpl extends _ServicoPB {
   @override
   @JsonKey(name: 'vitrine_descricao')
   final String vitrineDescricao;
+
+  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  @override
+  @JsonKey()
+  final String subgrupo;
   @override
   @JsonKey(name: 'valor_base')
   final double valorBase;
@@ -1292,7 +1313,7 @@ class _$ServicoPBImpl extends _ServicoPB {
 
   @override
   String toString() {
-    return 'ServicoPB(id: $id, slug: $slug, categoria: $categoria, grupo: $grupo, nome: $nome, descricao: $descricao, vitrineDescricao: $vitrineDescricao, valorBase: $valorBase, valorBaseMax: $valorBaseMax, tipoValor: $tipoValor, tempoMedioMin: $tempoMedioMin, tempoMedioLabel: $tempoMedioLabel, status: $status, observacao: $observacao, checklistPadrao: $checklistPadrao, orientacoesPre: $orientacoesPre, orientacoesPos: $orientacoesPos, adicionaisRelacionados: $adicionaisRelacionados, precoBase: $precoBase, ativo: $ativo, created: $created, updated: $updated)';
+    return 'ServicoPB(id: $id, slug: $slug, categoria: $categoria, grupo: $grupo, nome: $nome, descricao: $descricao, vitrineDescricao: $vitrineDescricao, subgrupo: $subgrupo, valorBase: $valorBase, valorBaseMax: $valorBaseMax, tipoValor: $tipoValor, tempoMedioMin: $tempoMedioMin, tempoMedioLabel: $tempoMedioLabel, status: $status, observacao: $observacao, checklistPadrao: $checklistPadrao, orientacoesPre: $orientacoesPre, orientacoesPos: $orientacoesPos, adicionaisRelacionados: $adicionaisRelacionados, precoBase: $precoBase, ativo: $ativo, created: $created, updated: $updated)';
   }
 
   @override
@@ -1310,6 +1331,8 @@ class _$ServicoPBImpl extends _ServicoPB {
                 other.descricao == descricao) &&
             (identical(other.vitrineDescricao, vitrineDescricao) ||
                 other.vitrineDescricao == vitrineDescricao) &&
+            (identical(other.subgrupo, subgrupo) ||
+                other.subgrupo == subgrupo) &&
             (identical(other.valorBase, valorBase) ||
                 other.valorBase == valorBase) &&
             (identical(other.valorBaseMax, valorBaseMax) ||
@@ -1353,6 +1376,7 @@ class _$ServicoPBImpl extends _ServicoPB {
     nome,
     descricao,
     vitrineDescricao,
+    subgrupo,
     valorBase,
     valorBaseMax,
     tipoValor,
@@ -1395,6 +1419,7 @@ abstract class _ServicoPB extends ServicoPB {
     final String nome,
     final String? descricao,
     @JsonKey(name: 'vitrine_descricao') final String vitrineDescricao,
+    final String subgrupo,
     @JsonKey(name: 'valor_base') final double valorBase,
     @JsonKey(name: 'valor_base_max') final double? valorBaseMax,
     @JsonKey(
@@ -1442,6 +1467,10 @@ abstract class _ServicoPB extends ServicoPB {
   @override
   @JsonKey(name: 'vitrine_descricao')
   String get vitrineDescricao;
+
+  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  @override
+  String get subgrupo;
   @override
   @JsonKey(name: 'valor_base')
   double get valorBase;
