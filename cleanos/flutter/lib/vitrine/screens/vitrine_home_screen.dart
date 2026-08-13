@@ -1314,7 +1314,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Toque em Adicionar para montar seu pedido. O Agendar na bolinha soma os itens.',
+                'Toque em Adicionar para montar seu pedido. O carrinho na bolinha soma os itens.',
                 style: TextStyle(
                   fontFamily: kFontFamily,
                   fontSize: 13,

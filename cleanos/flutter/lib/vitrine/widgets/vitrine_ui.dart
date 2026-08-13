@@ -377,7 +377,7 @@ class VitrineNavyHeader extends StatelessWidget {
   }
 }
 
-/// Bottom nav: Início · **Agendar (FAB redondo suspenso)** · Como funciona.
+/// Bottom nav: Início · **Carrinho (FAB redondo suspenso)** · Como funciona.
 /// Barra baixa + círculo sobreposto (como o FAB do casco Easypay do painel).
 ///
 /// Hit-test: o FAB NÃO usa `Positioned(top: -lift)` dentro de uma barra baixa —
@@ -392,11 +392,11 @@ class VitrineBottomNav extends StatelessWidget {
     this.cartCount = 0,
   });
 
-  /// 0 início · 1 agendar · 2 como funciona
+  /// 0 início · 1 carrinho · 2 como funciona
   final int index;
   final ValueChanged<int> onTap;
 
-  /// Itens no “carrinho” (bolinha do FAB Agendar).
+  /// Itens no carrinho (badge vermelho no FAB).
   final int cartCount;
 
   static const double _fabSize = 58;
@@ -457,7 +457,7 @@ class VitrineBottomNav extends StatelessWidget {
             top: 0,
             left: 0,
             right: 0,
-            child: Center(child: _agendarFab()),
+            child: Center(child: _carrinhoFab()),
           ),
         ],
       ),
@@ -498,8 +498,8 @@ class VitrineBottomNav extends StatelessWidget {
     );
   }
 
-  /// Círculo elevado + label pequena "Agendar" (fica na zona da barra).
-  Widget _agendarFab() {
+  /// Círculo elevado + ícone de carrinho + badge de quantidade.
+  Widget _carrinhoFab() {
     final on = index == 1;
     return Material(
       color: Colors.transparent,
@@ -561,13 +561,13 @@ class VitrineBottomNav extends StatelessWidget {
                             ),
                           ],
                         ),
-                        // Ícone desenhado (não depende da fonte MaterialIcons no web).
+                        // Carrinho em stroke branco (não depende de MaterialIcons no web).
                         child: const Center(
                           child: SizedBox(
                             width: 28,
                             height: 28,
                             child: CustomPaint(
-                              painter: _VitrineFabCalendarPainter(),
+                              painter: _VitrineFabCartPainter(),
                             ),
                           ),
                         ),
@@ -606,7 +606,7 @@ class VitrineBottomNav extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Agendar',
+                'Carrinho',
                 maxLines: 1,
                 style: TextStyle(
                   fontFamily: kFontFamily,
@@ -624,47 +624,42 @@ class VitrineBottomNav extends StatelessWidget {
   }
 }
 
-/// Calendário + check em stroke branco — independente de MaterialIcons (web).
-class _VitrineFabCalendarPainter extends CustomPainter {
-  const _VitrineFabCalendarPainter();
+/// Carrinho de compras em stroke branco — independente de MaterialIcons (web).
+class _VitrineFabCartPainter extends CustomPainter {
+  const _VitrineFabCartPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final stroke = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (size.shortestSide * 0.09).clamp(1.8, 2.6)
+      ..strokeWidth = (size.shortestSide * 0.095).clamp(1.8, 2.6)
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
     final w = size.width;
     final h = size.height;
-    final padX = w * 0.12;
-    final top = h * 0.18;
-    final body = RRect.fromRectAndRadius(
-      Rect.fromLTRB(padX, top, w - padX, h * 0.92),
-      Radius.circular(w * 0.14),
-    );
-    canvas.drawRRect(body, stroke);
 
-    // linha do cabeçalho do calendário
-    final headerY = top + (h * 0.92 - top) * 0.30;
-    canvas.drawLine(Offset(padX, headerY), Offset(w - padX, headerY), stroke);
+    // Corpo do carrinho (trapézio arredondado).
+    final basket = Path()
+      ..moveTo(w * 0.18, h * 0.32)
+      ..lineTo(w * 0.88, h * 0.32)
+      ..lineTo(w * 0.78, h * 0.72)
+      ..lineTo(w * 0.28, h * 0.72)
+      ..close();
+    canvas.drawPath(basket, stroke);
 
-    // argolas
-    final ringTop = h * 0.06;
-    final ringBot = top + h * 0.06;
-    final leftX = w * 0.32;
-    final rightX = w * 0.68;
-    canvas.drawLine(Offset(leftX, ringTop), Offset(leftX, ringBot), stroke);
-    canvas.drawLine(Offset(rightX, ringTop), Offset(rightX, ringBot), stroke);
+    // Alça / abertura superior.
+    final handle = Path()
+      ..moveTo(w * 0.22, h * 0.32)
+      ..lineTo(w * 0.30, h * 0.14)
+      ..lineTo(w * 0.52, h * 0.14);
+    canvas.drawPath(handle, stroke);
 
-    // check
-    final check = Path()
-      ..moveTo(w * 0.30, h * 0.62)
-      ..lineTo(w * 0.44, h * 0.74)
-      ..lineTo(w * 0.72, h * 0.48);
-    canvas.drawPath(check, stroke);
+    // Rodinhas.
+    final r = w * 0.075;
+    canvas.drawCircle(Offset(w * 0.36, h * 0.86), r, stroke);
+    canvas.drawCircle(Offset(w * 0.68, h * 0.86), r, stroke);
   }
 
   @override
