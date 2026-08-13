@@ -324,6 +324,8 @@ class _VitrineCatalogoPersonalizavelState
             math.max(0, (w - gap * (cols - 1)) / cols).toDouble();
         // Cards compactos em grade em qualquer largura (otimizado mobile).
         const gridMode = true;
+        final scaler = MediaQuery.textScalerOf(context);
+        final tileH = _gridTileHeight(tileW: tileW, textScaler: scaler);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -381,6 +383,7 @@ class _VitrineCatalogoPersonalizavelState
                   for (final servico in _filtered)
                     SizedBox(
                       width: tileW,
+                      height: tileH,
                       child: _ServiceLayout(
                         servico: servico,
                         bootstrap: widget.bootstrap,
@@ -402,6 +405,31 @@ class _VitrineCatalogoPersonalizavelState
       },
     );
   }
+}
+
+/// Altura única da célula da grade (foto 16:9 + bloco de texto/CTA fixo).
+double _gridTileHeight({
+  required double tileW,
+  required TextScaler textScaler,
+}) {
+  final photoH = tileW * 9 / 16;
+  final titleSize = textScaler.scale(13.5).clamp(12.0, 16.0);
+  final priceSize = textScaler.scale(14.0).clamp(12.5, 17.0);
+  final detailsSize = textScaler.scale(11.5).clamp(10.0, 13.0);
+  final badgeSize = textScaler.scale(9).clamp(8.0, 11.0);
+  // Padding corpo 10+10; badge slot; título 2 linhas; detalhes; preço; gaps; CTA 36.
+  final bodyH = 10 +
+      10 +
+      (badgeSize + 10) + // slot badge (sempre reservado)
+      6 +
+      (titleSize * 1.2 * 2) +
+      4 +
+      (detailsSize * 1.25) +
+      6 +
+      (priceSize * 1.2) +
+      8 +
+      36;
+  return photoH + bodyH;
 }
 
 class _CatalogHeader extends StatelessWidget {
@@ -641,6 +669,7 @@ class _ServiceLayout extends StatelessWidget {
 }
 
 /// Card compacto de grade (2 colunas no mobile) — foto / título / preço / CTA.
+/// Largura e altura vêm do pai ([SizedBox] da grade) para todos ficarem iguais.
 class _GridTileCard extends StatelessWidget {
   const _GridTileCard({
     required this.servico,
@@ -663,12 +692,17 @@ class _GridTileCard extends StatelessWidget {
     final titleSize = scaler.scale(13.5).clamp(12.0, 16.0);
     final priceSize = scaler.scale(14.0).clamp(12.5, 17.0);
     final ctaSize = scaler.scale(12.5).clamp(11.0, 15.0);
+    final detailsSize = scaler.scale(11.5).clamp(10.0, 13.0);
+    final badgeSize = scaler.scale(9).clamp(8.0, 11.0);
+    final price = _priceText(servico);
+    final badge = servico.vitrineBadge.trim();
 
     return _CardShell(
       selected: selected,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Foto 16:9 — mesma proporção em todo card da grade.
           AspectRatio(
             aspectRatio: 16 / 9,
             child: GestureDetector(
@@ -681,126 +715,142 @@ class _GridTileCard extends StatelessWidget {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (servico.vitrineBadge.trim().isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Slot de badge sempre da mesma altura (vazio se não houver).
+                  SizedBox(
+                    height: badgeSize + 10,
+                    child: badge.isEmpty
+                        ? const SizedBox.shrink()
+                        : Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F4F6),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                badge.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: ClxBrand.cyan,
+                                  fontSize: badgeSize,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: .4,
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Título: sempre 2 linhas de altura.
+                  SizedBox(
+                    height: titleSize * 1.2 * 2,
+                    child: Text(
+                      servico.tituloComercial,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: ClxBrand.navy,
+                        fontSize: titleSize,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F4F6),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        servico.vitrineBadge.trim().toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: ClxBrand.cyan,
-                          fontSize: scaler.scale(9).clamp(8.0, 11.0),
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: .4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: detailsSize * 1.25,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        key: Key('vitrine-detalhes-${servico.id}'),
+                        onPressed: onDetalhes,
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          foregroundColor: ClxBrand.cyan,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        child: Text(
+                          'Ver detalhes',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: detailsSize,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                ],
-                Text(
-                  servico.tituloComercial,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: ClxBrand.navy,
-                    fontSize: titleSize,
-                    height: 1.2,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    key: Key('vitrine-detalhes-${servico.id}'),
-                    onPressed: onDetalhes,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      foregroundColor: ClxBrand.cyan,
-                      visualDensity: VisualDensity.compact,
-                    ),
+                  const Spacer(),
+                  SizedBox(
+                    height: priceSize * 1.2,
                     child: Text(
-                      'Ver detalhes',
+                      price.isEmpty ? ' ' : price,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: scaler.scale(11.5).clamp(10.0, 13.0),
+                        color: ClxBrand.navy,
+                        fontSize: priceSize,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                if (_priceText(servico).isNotEmpty)
-                  Text(
-                    _priceText(servico),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: ClxBrand.navy,
-                      fontSize: priceSize,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 36,
-                  child: FilledButton(
-                    key: Key('vitrine-add-${servico.id}'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor:
-                          selected ? const Color(0xFFDC2626) : ClxBrand.cyan,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 36,
+                    child: FilledButton(
+                      key: Key('vitrine-add-${servico.id}'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: selected
+                            ? const Color(0xFFDC2626)
+                            : ClxBrand.cyan,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        textStyle: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: ctaSize,
+                        ),
                       ),
-                      textStyle: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: ctaSize,
-                      ),
-                    ),
-                    onPressed: onToggle,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            selected ? Icons.remove : Icons.add,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            selected
-                                ? 'Remover'
-                                : (servico.ctaComercial.trim().isEmpty
-                                    ? 'Adicionar'
-                                    : servico.ctaComercial),
-                            maxLines: 1,
-                          ),
-                        ],
+                      onPressed: onToggle,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              selected ? Icons.remove : Icons.add,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              selected
+                                  ? 'Remover'
+                                  : (servico.ctaComercial.trim().isEmpty
+                                      ? 'Adicionar'
+                                      : servico.ctaComercial),
+                              maxLines: 1,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

@@ -377,4 +377,24 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('cards da grade têm mesma largura e altura', (tester) async {
+    await pumpCatalog(tester, size: const Size(390, 900));
+    await tester.pumpAndSettle();
+
+    final hero = tester.getSize(find.byKey(const Key('vitrine-layout-grid-hero')));
+    final photo = tester.getSize(find.byKey(const Key('vitrine-layout-grid-photo')));
+    final compare = tester.getSize(find.byKey(const Key('vitrine-layout-grid-compare')));
+    final compact = tester.getSize(find.byKey(const Key('vitrine-layout-grid-compact')));
+
+    expect(hero.width, closeTo(photo.width, 0.5));
+    expect(hero.height, closeTo(photo.height, 0.5));
+    expect(hero.width, closeTo(compare.width, 0.5));
+    expect(hero.height, closeTo(compare.height, 0.5));
+    expect(hero.width, closeTo(compact.width, 0.5));
+    expect(hero.height, closeTo(compact.height, 0.5));
+    expect(hero.width, greaterThan(100));
+    expect(hero.height, greaterThan(hero.width * 0.9));
+  });
+
 }
