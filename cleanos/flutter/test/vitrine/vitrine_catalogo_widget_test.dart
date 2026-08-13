@@ -216,14 +216,19 @@ void main() {
     expect(find.text('Colchão casal'), findsOneWidget);
     expect(find.text('Bancos automotivos'), findsNothing);
     expect(find.text('Cleanox Basic'), findsNothing);
-    expect(find.text('Higienização residencial'), findsOneWidget);
+    expect(find.text('Higienização residencial'), findsWidgets);
+    expect(find.byKey(const Key('vitrine-chip-residencial')), findsOneWidget);
+    expect(find.byKey(const Key('vitrine-chip-veicular')), findsOneWidget);
+    // família antiga não existe mais
+    expect(find.text('Todas as famílias'), findsNothing);
 
     await pumpCatalog(tester, items: items, initialCategoria: 'veicular');
     expect(find.text('Sofá 3 lugares'), findsNothing);
     expect(find.text('Colchão casal'), findsNothing);
     expect(find.text('Bancos automotivos'), findsOneWidget);
     expect(find.text('Cleanox Basic'), findsOneWidget);
-    expect(find.text('Estética automotiva'), findsOneWidget);
+    expect(find.text('Estética automotiva'), findsWidgets);
+    expect(find.byKey(const Key('vitrine-chip-veicular')), findsOneWidget);
   });
 
   testWidgets('sem botão Ver foto; carrossel com 2+ fotos do serviço', (

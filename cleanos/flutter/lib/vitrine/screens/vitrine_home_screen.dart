@@ -180,6 +180,20 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     if (step == 4) _loadBumps();
   }
 
+  void _openCatalogForServico(VitrineServico servico) {
+    final macro = vitrineMacroCategoriaOf(
+      categoria: servico.categoria,
+      grupo: servico.grupo,
+      nome: servico.nome,
+    );
+    setState(() {
+      _categoriaFilter = macro;
+      _familiaFilter = null;
+      _buscaFilter = null;
+    });
+    _go(1);
+  }
+
   void _toggleServico(VitrineServico servico) {
     setState(() {
       if (_selected.contains(servico.id)) {
@@ -722,10 +736,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             bootstrap: _bootstrap,
             selectedIds: _selected,
             showHeader: false,
-            showFamilyChips: false,
+            showCategoryChips: false,
             onToggle: (servico) {
               _toggleServico(servico);
-              _go(1);
+              // Adicionar promoção → catálogo da categoria (veicular/residencial).
+              _openCatalogForServico(servico);
             },
           ),
         ],

@@ -46,6 +46,64 @@ bool vitrineMatchesBuscaNome({
   return true;
 }
 
+/// Macro da vitrine a partir do cadastro do serviço.
+String? vitrineMacroCategoriaOf({
+  required String categoria,
+  required String grupo,
+  required String nome,
+}) {
+  final c = categoria.trim().toLowerCase();
+  final g = grupo.trim().toLowerCase();
+  final n = nome.trim().toLowerCase();
+  if (c == 'veicular' ||
+      c == 'automotiva' ||
+      c == 'auto' ||
+      c.contains('veic') ||
+      c.contains('auto')) {
+    return 'veicular';
+  }
+  if (c == 'residencial' ||
+      c == 'residencia' ||
+      c.contains('resid') ||
+      c.contains('domic')) {
+    return 'residencial';
+  }
+  if (g.contains('auto') ||
+      g == 'plano' ||
+      g == 'promocao' ||
+      g == 'promoção' ||
+      g == 'avulsos' ||
+      g == 'adicional') {
+    return 'veicular';
+  }
+  const fam = {
+    'sofa',
+    'sofá',
+    'colchao',
+    'colchão',
+    'poltrona',
+    'tapete',
+    'cadeira',
+    'cama',
+  };
+  if (fam.contains(g) || fam.any(g.contains)) return 'residencial';
+  if (n.contains('cleanox') ||
+      n.contains('banco') ||
+      n.contains('veículo') ||
+      n.contains('veiculo')) {
+    return 'veicular';
+  }
+  if (n.contains('sofá') ||
+      n.contains('sofa') ||
+      n.contains('colch') ||
+      n.contains('cama') ||
+      n.contains('poltrona') ||
+      n.contains('tapete')) {
+    return 'residencial';
+  }
+  return null;
+}
+
 class VitrineCatalogoPersonalizavel extends StatefulWidget {
   const VitrineCatalogoPersonalizavel({
     required this.servicos,
@@ -56,7 +114,7 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
     this.initialGroup,
     this.initialQuery,
     this.showHeader = true,
-    this.showFamilyChips = true,
+    this.showCategoryChips = true,
     super.key,
   });
 
@@ -68,7 +126,7 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
   /// Macro: `residencial` | `veicular` (categoria do serviço).
   final String? initialCategoria;
 
-  /// Família / grupo: sofa, colchao, poltrona… (chip opcional).
+  /// Legado: grupo/família (não exibido; mantido só p/ deep-links antigos).
   final String? initialGroup;
 
   /// Texto inicial do campo “Buscar serviço” (ex.: home → catálogo).
@@ -78,8 +136,9 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
   /// renderizado à parte.
   final bool showHeader;
 
-  /// Chips “Todas as famílias” / sofa / colchão… Home de destaques omite.
-  final bool showFamilyChips;
+  /// Chips só de categoria: Estética automotiva / Higienização residencial.
+  /// (Sem chips de família sofa/colchão.)
+  final bool showCategoryChips;
 
   @override
   State<VitrineCatalogoPersonalizavel> createState() =>
@@ -92,16 +151,6 @@ class _VitrineCatalogoPersonalizavelState
   late String _categoria;
   late String _group;
   late final TextEditingController _buscaController;
-
-  /// Grupos comerciais — não entram como “família” de produto.
-  static const _gruposComerciais = {
-    'plano',
-    'promocao',
-    'promoção',
-    'adicional',
-    'avulsos',
-    'outros',
-  };
 
   @override
   void initState() {
@@ -261,20 +310,8 @@ class _VitrineCatalogoPersonalizavelState
     ];
   }
 
-  List<String> get _familias {
-    final out = <String>[];
-    for (final servico in _byCategoria) {
-      final g = servico.grupo.trim().toLowerCase();
-      if (g.isEmpty || _gruposComerciais.contains(g)) continue;
-      if (!out.contains(g)) out.add(g);
-    }
-    out.sort();
-    return out;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final familias = _familias;
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 680;
@@ -295,39 +332,32 @@ class _VitrineCatalogoPersonalizavelState
                         _group = '';
                       }),
               ),
-            if (widget.showFamilyChips &&
-                (_categoria.isNotEmpty || familias.isNotEmpty)) ...[
+            if (widget.showCategoryChips) ...[
               SizedBox(height: widget.showHeader ? 14 : 0),
               SingleChildScrollView(
+                key: const Key('vitrine-catalogo-category-chips'),
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    if (_categoria.isNotEmpty) ...[
-                      _FilterChip(
-                        label: _categoria == 'veicular'
-                            ? 'Automotiva'
-                            : 'Residencial',
-                        selected: true,
-                        onTap: () => setState(() {
-                          _categoria = '';
-                          _group = '';
-                        }),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
                     _FilterChip(
-                      label: 'Todas as famílias',
-                      selected: _group.isEmpty,
-                      onTap: () => setState(() => _group = ''),
+                      key: const Key('vitrine-chip-veicular'),
+                      label: 'Estética automotiva',
+                      selected: _categoria == 'veicular',
+                      onTap: () => setState(() {
+                        _categoria = 'veicular';
+                        _group = '';
+                      }),
                     ),
-                    for (final familia in familias) ...[
-                      const SizedBox(width: 8),
-                      _FilterChip(
-                        label: _groupLabel(familia),
-                        selected: _group == familia,
-                        onTap: () => setState(() => _group = familia),
-                      ),
-                    ],
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      key: const Key('vitrine-chip-residencial'),
+                      label: 'Higienização residencial',
+                      selected: _categoria == 'residencial',
+                      onTap: () => setState(() {
+                        _categoria = 'residencial';
+                        _group = '';
+                      }),
+                    ),
                   ],
                 ),
               ),
@@ -493,6 +523,7 @@ class _FilterChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    super.key,
   });
 
   final String label;
@@ -1275,12 +1306,6 @@ String _priceText(VitrineServico servico) => switch (servico.precoModo) {
   VitrinePrecoModo.sobAvaliacao => 'Sob avaliação',
   VitrinePrecoModo.ocultar => '',
 };
-
-String _groupLabel(String group) {
-  final normalized = group.replaceAll('_', ' ').trim();
-  if (normalized.isEmpty) return 'Outros';
-  return '${normalized[0].toUpperCase()}${normalized.substring(1)}';
-}
 
 IconData _groupIcon(String group) {
   final value = group.toLowerCase();
