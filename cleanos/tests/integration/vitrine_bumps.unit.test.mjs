@@ -88,6 +88,55 @@ describe('vitrine_bumps_lib', () => {
     assert.ok(m.some((x) => x.id === 'b4'))
   })
 
+  it('todos_servicos exige todos os ids no carrinho (AND)', () => {
+    const combo = {
+      id: 'b-and',
+      ativo: true,
+      titulo: 'Combo X+Y',
+      gatilho_tipo: 'todos_servicos',
+      gatilho_valores: ['svc-x', 'svc-y'],
+      servico_oferta: 'svc-z',
+      prioridade: 50,
+      preco_promo: 99,
+    }
+    const soX = lib.matchOrderBumps([{ id: 'svc-x', grupo: 'a' }], [combo])
+    assert.equal(soX.length, 0)
+    const both = lib.matchOrderBumps(
+      [
+        { id: 'svc-x', grupo: 'a' },
+        { id: 'svc-y', grupo: 'b' },
+      ],
+      [combo],
+    )
+    assert.equal(both.length, 1)
+    assert.equal(both[0].id, 'b-and')
+  })
+
+  it('todos_grupos exige todos os grupos (AND)', () => {
+    const combo = {
+      id: 'b-g',
+      ativo: true,
+      gatilho_tipo: 'todos_grupos',
+      gatilho_valores: ['sofa', 'colchao'],
+      servico_oferta: 'z',
+      prioridade: 1,
+    }
+    assert.equal(
+      lib.matchOrderBumps([{ id: '1', grupo: 'sofa' }], [combo]).length,
+      0,
+    )
+    assert.equal(
+      lib.matchOrderBumps(
+        [
+          { id: '1', grupo: 'sofa' },
+          { id: '2', grupo: 'colchao' },
+        ],
+        [combo],
+      ).length,
+      1,
+    )
+  })
+
   it('ordena por prioridade desc', () => {
     const m = lib.matchOrderBumps(
       [
