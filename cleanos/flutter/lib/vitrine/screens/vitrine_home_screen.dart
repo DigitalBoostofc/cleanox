@@ -1388,14 +1388,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     final grupo = (_familiaFilter ?? '').trim().toLowerCase();
     final sub = (_subgrupoFilter ?? '').trim().toLowerCase();
     final items = _catalogoFiltradoGuiado();
-    final titulo = sub.isNotEmpty
-        ? _labelSubgrupo(sub)
-        : (grupo.isNotEmpty ? _labelGrupo(grupo) : _macroTitle(cat));
-    final trilha = [
-      if (cat.isNotEmpty) _macroTitle(cat),
-      if (grupo.isNotEmpty) _labelGrupo(grupo),
-      if (sub.isNotEmpty) _labelSubgrupo(sub),
-    ].join(' · ');
 
     return Column(
       key: const Key('vitrine-home-browse-catalogo'),
@@ -1408,36 +1400,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
             children: [
-              if (trilha.isNotEmpty)
-                Text(
-                  trilha,
-                  style: const TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: ClxBrand.cyan,
-                  ),
-                ),
-              const SizedBox(height: 6),
-              Text(
-                titulo,
-                style: const TextStyle(
-                  fontFamily: kFontFamily,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: ClxBrand.navy,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Toque em Adicionar para montar seu pedido. O carrinho na bolinha soma os itens.',
-                style: TextStyle(
-                  fontFamily: kFontFamily,
-                  fontSize: 13,
-                  color: ClxBrand.muted,
-                ),
-              ),
-              const SizedBox(height: 14),
               _HomeCatalogHeader(
                 initialQuery: _buscaFilter ?? '',
                 onSearch: (q) {
