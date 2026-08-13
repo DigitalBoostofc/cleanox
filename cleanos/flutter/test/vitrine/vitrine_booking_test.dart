@@ -240,7 +240,8 @@ void main() {
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
       expect(find.text('O que você procura?'), findsOneWidget);
       expect(find.byKey(const Key('vitrine-home-browse-categorias')), findsOneWidget);
-      expect(find.byKey(const Key('vitrine-nav-agendar')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
+      expect(find.byKey(const Key('vitrine-home-cat-row')), findsOneWidget);
 
       // Categoria residencial (ou veicular se for a disponível no fake)
       final catResid = find.byKey(const Key('vitrine-home-cat-residencial'));
@@ -253,6 +254,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('vitrine-home-browse-grupos')), findsOneWidget);
       expect(find.text('Selecione os itens que deseja limpar'), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-grupo-row')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
 
       // Entra no primeiro grupo
       final anyGrupo = find.byKey(const Key('vitrine-home-grupo-sofa'));

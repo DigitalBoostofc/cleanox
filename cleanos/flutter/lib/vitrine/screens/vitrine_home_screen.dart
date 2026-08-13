@@ -597,7 +597,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   loading: _submitting,
                   onPressed: _submitting ? null : _submit,
                 )
-              else if (_step == 0 || _step == 6)
+              else if ((_step == 0 && _homeBrowse >= 3) || _step == 6)
                 VitrineBottomNav(
                   index: _navIndex,
                   cartCount: _picked.length,
@@ -824,85 +824,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     });
   }
 
-  Widget _guideCard({
-    required Key key,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      key: key,
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0F0B1D34),
-                blurRadius: 16,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F7F9),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: ClxBrand.cyan, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontFamily: kFontFamily,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: ClxBrand.navy,
-                        ),
-                      ),
-                      if (subtitle.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: kFontFamily,
-                            fontSize: 13,
-                            height: 1.25,
-                            color: ClxBrand.muted,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: ClxBrand.muted),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _home() {
     switch (_homeBrowse) {
       case 1:
@@ -929,135 +850,278 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         if (_servicosNoMacro(m).isNotEmpty) m,
     ];
 
-    return ListView(
+    return LayoutBuilder(
       key: const Key('vitrine-home-browse-categorias'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      children: [
-        const Text(
-          'O que você procura?',
-          key: Key('vitrine-home-oqvp'),
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Escolha o tipo de serviço para começar.',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 14,
-            color: ClxBrand.muted,
-          ),
-        ),
-        const SizedBox(height: 18),
-        for (final m in available) ...[
-          _guideCard(
-            key: Key('vitrine-home-cat-$m'),
-            title: _macroTitle(m),
-            subtitle: _macroSubtitle(m),
-            icon: _macroIcon(m),
-            onTap: () => _pickCategoria(m),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_config.cidadesTexto.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(
-            'Atendemos: ${_config.cidadesTexto}',
-            style: const TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12,
-              color: ClxBrand.muted,
+      builder: (context, constraints) {
+        final maxW = min(520.0, constraints.maxWidth);
+        // Cards quadrados lado a lado, com gap.
+        final gap = 14.0;
+        final sidePad = 24.0;
+        final usable = maxW - sidePad * 2;
+        final cardSide = available.isEmpty
+            ? 140.0
+            : min(
+                168.0,
+                (usable - gap * (available.length - 1).clamp(0, 99)) /
+                    max(1, available.length),
+              );
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: max(0, constraints.maxHeight - 32),
+                maxWidth: maxW,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'O que você procura?',
+                    key: Key('vitrine-home-oqvp'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: ClxBrand.navy,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Escolha o tipo de serviço para começar.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 14,
+                      color: ClxBrand.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  if (available.isEmpty)
+                    const Text(
+                      'Nenhum serviço disponível no momento.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: ClxBrand.muted),
+                    )
+                  else
+                    Row(
+                      key: const Key('vitrine-home-cat-row'),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < available.length; i++) ...[
+                          if (i > 0) SizedBox(width: gap),
+                          SizedBox(
+                            width: cardSide,
+                            height: cardSide,
+                            child: _categoriaSquareCard(
+                              key: Key('vitrine-home-cat-${available[i]}'),
+                              title: _macroTitle(available[i]),
+                              subtitle: _macroSubtitle(available[i]),
+                              icon: _macroIcon(available[i]),
+                              onTap: () => _pickCategoria(available[i]),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
-        ],
-        if (_config.rodapeMsg.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            _config.rodapeMsg,
-            style: const TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12,
-              color: ClxBrand.muted,
+        );
+      },
+    );
+  }
+
+  Widget _categoriaSquareCard({
+    required Key key,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      key: key,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x140B1D34),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F7F9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, color: ClxBrand.cyan, size: 30),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    color: ClxBrand.navy,
+                  ),
+                ),
+                if (subtitle.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 11,
+                      height: 1.2,
+                      color: ClxBrand.muted,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 
   Widget _homeGrupos() {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupos = _gruposDoMacro(cat);
-    return ListView(
+
+    return LayoutBuilder(
       key: const Key('vitrine-home-browse-grupos'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            key: const Key('vitrine-home-back'),
-            onPressed: _browseBack,
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Voltar'),
-          ),
-        ),
-        Text(
-          _macroTitle(cat),
-          style: const TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: ClxBrand.cyan,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Selecione os itens que deseja limpar',
-          key: Key('vitrine-home-selecione-itens'),
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Toque no grupo para ver as opções.',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 14,
-            color: ClxBrand.muted,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (grupos.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text(
-              'Nenhum grupo disponível nesta categoria.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: ClxBrand.muted),
+      builder: (context, constraints) {
+        final maxW = min(560.0, constraints.maxWidth);
+        const gap = 14.0;
+        const sidePad = 24.0;
+        final usable = maxW - sidePad * 2;
+        // Até 3 colunas em telas largas; 2 no mobile.
+        final cols = usable >= 420 ? 3 : 2;
+        final cardSide = grupos.isEmpty
+            ? 140.0
+            : min(
+                160.0,
+                (usable - gap * (cols - 1)) / cols,
+              );
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: max(0, constraints.maxHeight - 24),
+                maxWidth: maxW,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: const Key('vitrine-home-back'),
+                      onPressed: _browseBack,
+                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                      label: const Text('Voltar'),
+                    ),
+                  ),
+                  Text(
+                    _macroTitle(cat),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ClxBrand.cyan,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Selecione os itens que deseja limpar',
+                    key: Key('vitrine-home-selecione-itens'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: ClxBrand.navy,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Toque no grupo para ver as opções.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 14,
+                      color: ClxBrand.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  if (grupos.isEmpty)
+                    const Text(
+                      'Nenhum grupo disponível nesta categoria.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: ClxBrand.muted),
+                    )
+                  else
+                    Wrap(
+                      key: const Key('vitrine-home-grupo-row'),
+                      spacing: gap,
+                      runSpacing: gap,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final g in grupos)
+                          SizedBox(
+                            width: cardSide,
+                            height: cardSide,
+                            child: _categoriaSquareCard(
+                              key: Key('vitrine-home-grupo-$g'),
+                              title: _labelGrupo(g),
+                              subtitle:
+                                  '${_servicosNoGrupo(cat, g).length} opções',
+                              icon: Icons.grid_view_rounded,
+                              onTap: () => _pickGrupo(g),
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          )
-        else
-          for (final g in grupos) ...[
-            _guideCard(
-              key: Key('vitrine-home-grupo-$g'),
-              title: _labelGrupo(g),
-              subtitle: '${_servicosNoGrupo(cat, g).length} opções',
-              icon: Icons.grid_view_rounded,
-              onTap: () => _pickGrupo(g),
-            ),
-            const SizedBox(height: 12),
-          ],
-      ],
+          ),
+        );
+      },
     );
   }
 
@@ -1065,60 +1129,104 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupo = (_familiaFilter ?? '').trim().toLowerCase();
     final subs = _subgruposDoGrupo(cat, grupo);
-    return ListView(
+
+    return LayoutBuilder(
       key: const Key('vitrine-home-browse-subgrupos'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            key: const Key('vitrine-home-back'),
-            onPressed: _browseBack,
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Voltar'),
+      builder: (context, constraints) {
+        final maxW = min(560.0, constraints.maxWidth);
+        const gap = 14.0;
+        const sidePad = 24.0;
+        final usable = maxW - sidePad * 2;
+        final cols = usable >= 420 ? 3 : 2;
+        final cardSide = subs.isEmpty
+            ? 140.0
+            : min(160.0, (usable - gap * (cols - 1)) / cols);
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: max(0, constraints.maxHeight - 24),
+                maxWidth: maxW,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: const Key('vitrine-home-back'),
+                      onPressed: _browseBack,
+                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                      label: const Text('Voltar'),
+                    ),
+                  ),
+                  Text(
+                    '${_macroTitle(cat)} · ${_labelGrupo(grupo)}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ClxBrand.cyan,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Escolha o subgrupo',
+                    key: Key('vitrine-home-escolha-subgrupo'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: kFontFamily,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: ClxBrand.navy,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  if (subs.isEmpty)
+                    const Text(
+                      'Nenhum subgrupo nesta opção.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: ClxBrand.muted),
+                    )
+                  else
+                    Wrap(
+                      key: const Key('vitrine-home-sub-row'),
+                      spacing: gap,
+                      runSpacing: gap,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final s in subs)
+                          SizedBox(
+                            width: cardSide,
+                            height: cardSide,
+                            child: _categoriaSquareCard(
+                              key: Key('vitrine-home-sub-$s'),
+                              title: _labelSubgrupo(s),
+                              subtitle: 'Ver serviços',
+                              icon: Icons.layers_rounded,
+                              onTap: () => _pickSubgrupo(s),
+                            ),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    key: const Key('vitrine-home-ver-todos-grupo'),
+                    onPressed: () => setState(() {
+                      _subgrupoFilter = null;
+                      _homeBrowse = 3;
+                    }),
+                    child: const Text('Ver todos deste grupo'),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        Text(
-          '${_macroTitle(cat)} · ${_labelGrupo(grupo)}',
-          style: const TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: ClxBrand.cyan,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Escolha o subgrupo',
-          key: Key('vitrine-home-escolha-subgrupo'),
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: ClxBrand.navy,
-          ),
-        ),
-        const SizedBox(height: 18),
-        for (final s in subs) ...[
-          _guideCard(
-            key: Key('vitrine-home-sub-$s'),
-            title: _labelSubgrupo(s),
-            subtitle: 'Ver serviços',
-            icon: Icons.layers_rounded,
-            onTap: () => _pickSubgrupo(s),
-          ),
-          const SizedBox(height: 12),
-        ],
-        // Atalho: ver todos do grupo
-        TextButton(
-          key: const Key('vitrine-home-ver-todos-grupo'),
-          onPressed: () => setState(() {
-            _subgrupoFilter = null;
-            _homeBrowse = 3;
-          }),
-          child: const Text('Ver todos deste grupo'),
-        ),
-      ],
+        );
+      },
     );
   }
 
