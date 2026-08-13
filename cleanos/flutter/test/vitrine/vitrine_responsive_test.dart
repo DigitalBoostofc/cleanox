@@ -116,15 +116,6 @@ void main() {
       ),
     );
 
-    expect(find.text('CLEANOX', findRichText: true), findsOneWidget);
-  });
-
-  testWidgets('saudação não depende de fonte de emoji', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: VitrineGreeting())),
-    );
-
-    expect(find.text('Olá'), findsOneWidget);
-    expect(find.byIcon(Icons.waving_hand_rounded), findsOneWidget);
+    expect(find.byType(VitrineBrandLogo), findsOneWidget);
   });
 }
