@@ -952,7 +952,35 @@ class VitrineCatItem {
   final String? imageUrl;
 }
 
+/// Mapa de ícones dos macros (editável no CMS por chave).
+IconData vitrineMacroIcon(String key) {
+  switch (key.trim().toLowerCase()) {
+    case 'cleaning':
+    case 'limpeza':
+      return Icons.cleaning_services_outlined;
+    case 'sofa':
+    case 'sofá':
+    case 'weekend':
+      return Icons.weekend_outlined;
+    case 'home':
+    case 'casa':
+      return Icons.home_outlined;
+    case 'car':
+    case 'auto':
+    case 'carro':
+      return Icons.directions_car_outlined;
+    case 'garage':
+    case 'garagem':
+      return Icons.garage_outlined;
+    case 'spray':
+      return Icons.brush_outlined;
+    default:
+      return Icons.category_outlined;
+  }
+}
+
 /// Dois cards grandes: Residencial × Automotiva (“O que você procura?”).
+/// Ordem, textos e ícones vêm do CMS (`VitrineConfig.macro*`).
 class VitrineMacroChoice extends StatelessWidget {
   const VitrineMacroChoice({
     super.key,
@@ -960,12 +988,26 @@ class VitrineMacroChoice extends StatelessWidget {
     required this.onAutomotiva,
     this.residencialImageUrl,
     this.automotivaImageUrl,
+    this.autoPrimeiro = true,
+    this.residencialTitulo = 'Higienização residencial',
+    this.residencialSubtitulo = 'Sofá, colchão, poltrona, tapete e mais',
+    this.residencialIcone = 'cleaning',
+    this.automotivaTitulo = 'Estética automotiva',
+    this.automotivaSubtitulo = 'Bancos, teto, carpete e pacotes Cleanox',
+    this.automotivaIcone = 'car',
   });
 
   final VoidCallback onResidencial;
   final VoidCallback onAutomotiva;
   final String? residencialImageUrl;
   final String? automotivaImageUrl;
+  final bool autoPrimeiro;
+  final String residencialTitulo;
+  final String residencialSubtitulo;
+  final String residencialIcone;
+  final String automotivaTitulo;
+  final String automotivaSubtitulo;
+  final String automotivaIcone;
 
   @override
   Widget build(BuildContext context) {
@@ -974,34 +1016,36 @@ class VitrineMacroChoice extends StatelessWidget {
         final stacked = constraints.maxWidth < 520;
         final residencial = _MacroCard(
           key: const Key('vitrine-macro-residencial'),
-          title: 'Higienização residencial',
-          subtitle: 'Sofá, colchão, poltrona, tapete e mais',
-          icon: Icons.home_outlined,
+          title: residencialTitulo,
+          subtitle: residencialSubtitulo,
+          icon: vitrineMacroIcon(residencialIcone),
           imageUrl: residencialImageUrl,
           onTap: onResidencial,
         );
         final automotiva = _MacroCard(
           key: const Key('vitrine-macro-automotiva'),
-          title: 'Estética automotiva',
-          subtitle: 'Bancos, teto, carpete e pacotes Cleanox',
-          icon: Icons.directions_car_outlined,
+          title: automotivaTitulo,
+          subtitle: automotivaSubtitulo,
+          icon: vitrineMacroIcon(automotivaIcone),
           imageUrl: automotivaImageUrl,
           onTap: onAutomotiva,
         );
+        final first = autoPrimeiro ? automotiva : residencial;
+        final second = autoPrimeiro ? residencial : automotiva;
         if (stacked) {
           return Column(
             children: [
-              residencial,
+              first,
               const SizedBox(height: 12),
-              automotiva,
+              second,
             ],
           );
         }
         return Row(
           children: [
-            Expanded(child: residencial),
+            Expanded(child: first),
             const SizedBox(width: 12),
-            Expanded(child: automotiva),
+            Expanded(child: second),
           ],
         );
       },

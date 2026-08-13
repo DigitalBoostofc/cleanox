@@ -286,6 +286,13 @@ class VitrineConfig {
     this.passoMin = 30,
     this.antecedenciaMinutos = 60,
     this.horizonteDias = 14,
+    this.macroAutoPrimeiro = true,
+    this.macroResidTitulo = 'Higienização residencial',
+    this.macroResidSubtitulo = 'Sofá, colchão, poltrona, tapete e mais',
+    this.macroResidIcone = 'cleaning',
+    this.macroAutoTitulo = 'Estética automotiva',
+    this.macroAutoSubtitulo = 'Bancos, teto, carpete e pacotes Cleanox',
+    this.macroAutoIcone = 'car',
   });
 
   final String id;
@@ -303,6 +310,13 @@ class VitrineConfig {
   final int passoMin;
   final int antecedenciaMinutos;
   final int horizonteDias;
+  final bool macroAutoPrimeiro;
+  final String macroResidTitulo;
+  final String macroResidSubtitulo;
+  final String macroResidIcone;
+  final String macroAutoTitulo;
+  final String macroAutoSubtitulo;
+  final String macroAutoIcone;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
@@ -322,6 +336,16 @@ class VitrineConfig {
     passoMin: (j['passo_min'] as num?)?.toInt() ?? 30,
     antecedenciaMinutos: (j['antecedencia_minutos'] as num?)?.toInt() ?? 60,
     horizonteDias: (j['horizonte_dias'] as num?)?.toInt() ?? 14,
+    macroAutoPrimeiro: _boolCfg(j['macro_auto_primeiro'], true),
+    macroResidTitulo:
+        '${j['macro_resid_titulo'] ?? 'Higienização residencial'}',
+    macroResidSubtitulo:
+        '${j['macro_resid_subtitulo'] ?? 'Sofá, colchão, poltrona, tapete e mais'}',
+    macroResidIcone: '${j['macro_resid_icone'] ?? 'cleaning'}',
+    macroAutoTitulo: '${j['macro_auto_titulo'] ?? 'Estética automotiva'}',
+    macroAutoSubtitulo:
+        '${j['macro_auto_subtitulo'] ?? 'Bancos, teto, carpete e pacotes Cleanox'}',
+    macroAutoIcone: '${j['macro_auto_icone'] ?? 'car'}',
   );
 
   Map<String, dynamic> toJson() => {
@@ -339,6 +363,13 @@ class VitrineConfig {
     'passo_min': passoMin,
     'antecedencia_minutos': antecedenciaMinutos,
     'horizonte_dias': horizonteDias,
+    'macro_auto_primeiro': macroAutoPrimeiro,
+    'macro_resid_titulo': macroResidTitulo,
+    'macro_resid_subtitulo': macroResidSubtitulo,
+    'macro_resid_icone': macroResidIcone,
+    'macro_auto_titulo': macroAutoTitulo,
+    'macro_auto_subtitulo': macroAutoSubtitulo,
+    'macro_auto_icone': macroAutoIcone,
   };
 
   VitrineConfig copyWith({
@@ -356,6 +387,13 @@ class VitrineConfig {
     int? passoMin,
     int? antecedenciaMinutos,
     int? horizonteDias,
+    bool? macroAutoPrimeiro,
+    String? macroResidTitulo,
+    String? macroResidSubtitulo,
+    String? macroResidIcone,
+    String? macroAutoTitulo,
+    String? macroAutoSubtitulo,
+    String? macroAutoIcone,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -372,6 +410,13 @@ class VitrineConfig {
     passoMin: passoMin ?? this.passoMin,
     antecedenciaMinutos: antecedenciaMinutos ?? this.antecedenciaMinutos,
     horizonteDias: horizonteDias ?? this.horizonteDias,
+    macroAutoPrimeiro: macroAutoPrimeiro ?? this.macroAutoPrimeiro,
+    macroResidTitulo: macroResidTitulo ?? this.macroResidTitulo,
+    macroResidSubtitulo: macroResidSubtitulo ?? this.macroResidSubtitulo,
+    macroResidIcone: macroResidIcone ?? this.macroResidIcone,
+    macroAutoTitulo: macroAutoTitulo ?? this.macroAutoTitulo,
+    macroAutoSubtitulo: macroAutoSubtitulo ?? this.macroAutoSubtitulo,
+    macroAutoIcone: macroAutoIcone ?? this.macroAutoIcone,
   );
 }
 

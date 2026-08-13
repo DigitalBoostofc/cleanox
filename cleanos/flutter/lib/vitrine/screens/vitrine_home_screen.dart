@@ -634,6 +634,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               _midiaUrl('categoria_residencial') ?? _midiaUrl('categoria_sofa'),
           automotivaImageUrl:
               _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
+          autoPrimeiro: _config.macroAutoPrimeiro,
+          residencialTitulo: _config.macroResidTitulo,
+          residencialSubtitulo: _config.macroResidSubtitulo,
+          residencialIcone: _config.macroResidIcone,
+          automotivaTitulo: _config.macroAutoTitulo,
+          automotivaSubtitulo: _config.macroAutoSubtitulo,
+          automotivaIcone: _config.macroAutoIcone,
           onResidencial: () {
             setState(() {
               _categoriaFilter = 'residencial';
