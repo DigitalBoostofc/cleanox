@@ -911,16 +911,56 @@ class VitrineAdminServicosScreen extends ConsumerStatefulWidget {
 
 class _VitrineAdminServicosScreenState
     extends ConsumerState<VitrineAdminServicosScreen> {
-  late Future<List<VitrineAdminServico>> _future;
+  /// Lista local: toggle/estrela atualizam in-place (sem FutureBuilder → scroll
+  /// não volta ao topo).
+  List<VitrineAdminServico>? _items;
+  Object? _error;
+  bool _loading = true;
+  final _scrollController = ScrollController();
+  final _togglingIds = <String>{};
 
   @override
   void initState() {
     super.initState();
-    _reload();
+    _load();
   }
 
-  void _reload() {
-    _future = ref.read(vitrineAdminApiProvider).adminListServicos();
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final items = await ref.read(vitrineAdminApiProvider).adminListServicos();
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  void _replaceLocal(VitrineAdminServico updated) {
+    final list = _items;
+    if (list == null) return;
+    setState(() {
+      _items = [
+        for (final s in list)
+          if (s.id == updated.id) updated else s,
+      ];
+    });
   }
 
   Future<void> _toggle(
@@ -928,11 +968,29 @@ class _VitrineAdminServicosScreenState
     bool? vitrine,
     bool? destaque,
   }) async {
-    await ref
-        .read(vitrineAdminApiProvider)
-        .adminPatchServico(s.id, vitrine: vitrine, vitrineDestaque: destaque);
-    if (!mounted) return;
-    setState(_reload);
+    if (_togglingIds.contains(s.id)) return;
+    final next = s.copyWith(
+      vitrine: vitrine ?? s.vitrine,
+      vitrineDestaque: destaque ?? s.vitrineDestaque,
+    );
+    // Otimista: UI muda na hora, scroll permanece.
+    _replaceLocal(next);
+    setState(() => _togglingIds.add(s.id));
+    try {
+      await ref.read(vitrineAdminApiProvider).adminPatchServico(
+            s.id,
+            vitrine: vitrine,
+            vitrineDestaque: destaque,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      _replaceLocal(s); // rollback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível atualizar: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _togglingIds.remove(s.id));
+    }
   }
 
   Future<void> _openEditor(VitrineAdminServico servico) async {
@@ -957,82 +1015,98 @@ class _VitrineAdminServicosScreenState
         ),
       ),
     );
-    if (saved == true && mounted) setState(_reload);
+    // Editor muda vários campos: recarrega dados, mas mantém o offset do scroll.
+    if (saved == true && mounted) {
+      final offset =
+          _scrollController.hasClients ? _scrollController.offset : 0.0;
+      await _load();
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final max = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(offset.clamp(0.0, max));
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return Center(child: Text('Erro: ${snap.error}'));
-        }
-        final items = snap.data ?? const <VitrineAdminServico>[];
-        final veicular = [
-          for (final s in items)
-            if (s.macroCategoria == 'veicular') s,
-        ];
-        final residencial = [
-          for (final s in items)
-            if (s.macroCategoria == 'residencial') s,
-        ];
-        final outros = [
-          for (final s in items)
-            if (s.macroCategoria == 'outros') s,
-        ];
-        return ListView(
-          key: const Key('vitrine-admin-servicos-list'),
-          padding: const EdgeInsets.all(20),
+    if (_loading && _items == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null && _items == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Serviços na vitrine',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: ClxBrand.navy,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Escolha o formato, a mensagem e a posição de cada serviço. '
-              'Lista separada por categoria (veicular e residencial). '
-              'Use o personalizar do serviço para marcar capa / antes / depois '
-              'nas fotos já cadastradas em Serviços → Editar → Fotos na Vitrine.',
-              style: TextStyle(color: ClxBrand.muted, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            ..._section(
-              key: const Key('vitrine-admin-sec-veicular'),
-              title: 'Estética automotiva',
-              subtitle: 'Serviços veiculares',
-              items: veicular,
-              emptyHint: 'Nenhum serviço veicular cadastrado.',
-            ),
-            const SizedBox(height: 20),
-            ..._section(
-              key: const Key('vitrine-admin-sec-residencial'),
-              title: 'Higienização residencial',
-              subtitle: 'Sofá, colchão, poltrona, tapete e afins',
-              items: residencial,
-              emptyHint: 'Nenhum serviço residencial cadastrado.',
-            ),
-            if (outros.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              ..._section(
-                key: const Key('vitrine-admin-sec-outros'),
-                title: 'Outros / sem categoria',
-                subtitle: 'Defina categoria no cadastro do serviço',
-                items: outros,
-                emptyHint: '',
-              ),
-            ],
+            Text('Erro: $_error'),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: _load, child: const Text('Tentar de novo')),
           ],
-        );
-      },
+        ),
+      );
+    }
+    final items = _items ?? const <VitrineAdminServico>[];
+    final veicular = [
+      for (final s in items)
+        if (s.macroCategoria == 'veicular') s,
+    ];
+    final residencial = [
+      for (final s in items)
+        if (s.macroCategoria == 'residencial') s,
+    ];
+    final outros = [
+      for (final s in items)
+        if (s.macroCategoria == 'outros') s,
+    ];
+    return ListView(
+      key: const Key('vitrine-admin-servicos-list'),
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text(
+          'Serviços na vitrine',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: ClxBrand.navy,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Escolha o formato, a mensagem e a posição de cada serviço. '
+          'Lista separada por categoria (veicular e residencial). '
+          'Use o personalizar do serviço para marcar capa / antes / depois '
+          'nas fotos já cadastradas em Serviços → Editar → Fotos na Vitrine.',
+          style: TextStyle(color: ClxBrand.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        ..._section(
+          key: const Key('vitrine-admin-sec-veicular'),
+          title: 'Estética automotiva',
+          subtitle: 'Serviços veiculares',
+          items: veicular,
+          emptyHint: 'Nenhum serviço veicular cadastrado.',
+        ),
+        const SizedBox(height: 20),
+        ..._section(
+          key: const Key('vitrine-admin-sec-residencial'),
+          title: 'Higienização residencial',
+          subtitle: 'Sofá, colchão, poltrona, tapete e afins',
+          items: residencial,
+          emptyHint: 'Nenhum serviço residencial cadastrado.',
+        ),
+        if (outros.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          ..._section(
+            key: const Key('vitrine-admin-sec-outros'),
+            title: 'Outros / sem categoria',
+            subtitle: 'Defina categoria no cadastro do serviço',
+            items: outros,
+            emptyHint: '',
+          ),
+        ],
+      ],
     );
   }
 
@@ -1093,14 +1167,16 @@ class _VitrineAdminServicosScreenState
   }
 
   Widget _servicoTile(VitrineAdminServico s) {
+    final busy = _togglingIds.contains(s.id);
     return Card(
+      key: ValueKey('vitrine-admin-servico-${s.id}'),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
         child: Row(
           children: [
             Switch(
               value: s.vitrine,
-              onChanged: (value) => _toggle(s, vitrine: value),
+              onChanged: busy ? null : (value) => _toggle(s, vitrine: value),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1130,7 +1206,8 @@ class _VitrineAdminServicosScreenState
                 s.vitrineDestaque ? Icons.star : Icons.star_border,
                 color: s.vitrineDestaque ? ClxBrand.cyan : ClxBrand.muted,
               ),
-              onPressed: () => _toggle(s, destaque: !s.vitrineDestaque),
+              onPressed:
+                  busy ? null : () => _toggle(s, destaque: !s.vitrineDestaque),
             ),
             IconButton(
               tooltip: 'Personalizar serviço',
