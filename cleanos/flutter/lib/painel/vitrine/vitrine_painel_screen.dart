@@ -49,7 +49,7 @@ class _VitrineEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -103,7 +103,6 @@ class _VitrineEditor extends StatelessWidget {
               tabAlignment: TabAlignment.start,
               tabs: [
                 Tab(icon: Icon(Icons.edit_outlined), text: 'Conteúdo'),
-                Tab(icon: Icon(Icons.photo_outlined), text: 'Mídia'),
                 Tab(
                   icon: Icon(Icons.cleaning_services_outlined),
                   text: 'Serviços',
@@ -117,7 +116,6 @@ class _VitrineEditor extends StatelessWidget {
             child: TabBarView(
               children: [
                 VitrineAdminPersonalizarScreen(),
-                VitrineAdminMidiaScreen(),
                 VitrineAdminServicosScreen(),
                 VitrineAdminBumpsScreen(),
               ],

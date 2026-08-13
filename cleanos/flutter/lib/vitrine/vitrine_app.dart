@@ -133,9 +133,10 @@ final _vitrineRouterProvider = Provider<GoRouter>((ref) {
                 path: 'personalizar',
                 builder: (_, __) => const VitrineAdminPersonalizarScreen(),
               ),
+              // Legado: /admin/midia → Serviços (fotos ficam no cadastro do serviço).
               GoRoute(
                 path: 'midia',
-                builder: (_, __) => const VitrineAdminMidiaScreen(),
+                redirect: (_, __) => '/admin/servicos',
               ),
               GoRoute(
                 path: 'servicos',
