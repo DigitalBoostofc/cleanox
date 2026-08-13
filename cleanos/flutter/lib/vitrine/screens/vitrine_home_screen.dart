@@ -1110,6 +1110,49 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
         ),
         const SizedBox(height: 14),
+        if (_loadingBumps)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_bumps.isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(VitrineUi.rMd),
+              border: Border.all(color: const Color(0xFFFDBA74)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Oferta exclusiva nesta etapa',
+                  style: TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: ClxBrand.navy,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Preço especial só se você adicionar agora — não aparece no catálogo.',
+                  style: TextStyle(
+                    fontFamily: kFontFamily,
+                    fontSize: 12,
+                    color: ClxBrand.muted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final b in _bumps) _bumpCard(b),
+          const SizedBox(height: 16),
+        ],
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(VitrineUi.rLg),
@@ -1155,7 +1198,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               for (final b in _pickedBumps)
                 _sumRow(
                   '+ ${b.titulo}',
-                  'Serviço adicional',
+                  'Oferta exclusiva',
                   formatCurrency(b.precoPromo),
                 ),
               if (_dia != null && _slot != null)
@@ -1186,36 +1229,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        if (_loadingBumps)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_bumps.isNotEmpty) ...[
-          const Text(
-            'Serviços adicionais',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: ClxBrand.navy,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Opcionais combinados com o que você selecionou',
-            style: TextStyle(
-              fontFamily: kFontFamily,
-              fontSize: 12,
-              color: ClxBrand.muted,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final b in _bumps) _bumpCard(b),
-        ],
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),

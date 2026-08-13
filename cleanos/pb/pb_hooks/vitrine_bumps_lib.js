@@ -4,9 +4,12 @@
  * Um bump é elegível se:
  *  1) ativo
  *  2) carrinho NÃO contém nenhum id em excluir_se
- *  3) gatilho bate:
- *     - qualquer_grupo: algum item do carrinho tem grupo ∈ gatilho_valores
+ *  3) oferta ainda NÃO está no carrinho
+ *  4) gatilho bate:
+ *     - qualquer_grupo: algum item tem grupo ∈ gatilho_valores
+ *     - todos_grupos: todos os grupos de gatilho_valores estão no carrinho
  *     - qualquer_servico: algum id do carrinho ∈ gatilho_valores
+ *     - todos_servicos: todos os ids de gatilho_valores estão no carrinho
  */
 
 /**
@@ -56,37 +59,27 @@ function matchOrderBumps(cartItems, bumps) {
     if (blocked) continue;
 
     const tipo = String(bump.gatilho_tipo || "qualquer_grupo");
-    const vals = toStrArray(bump.gatilho_valores).map(function (v) {
-      return String(v).trim().toLowerCase();
-    });
-    if (!vals.length) continue;
+    const rawVals = toStrArray(bump.gatilho_valores);
+    if (!rawVals.length) continue;
 
     var ok = false;
     if (tipo === "qualquer_servico") {
-      for (var s = 0; s < vals.length; s++) {
-        if (cartIds[vals[s]] || cartIds[String(bump.gatilho_valores[s])]) {
-          ok = true;
-          break;
-        }
-      }
-      // match case-sensitive ids too
-      if (!ok) {
-        const raw = toStrArray(bump.gatilho_valores);
-        for (var r = 0; r < raw.length; r++) {
-          if (cartIds[raw[r]]) {
-            ok = true;
-            break;
-          }
-        }
-      }
+      ok = rawVals.some(function (v) {
+        return !!cartIds[String(v).trim()];
+      });
+    } else if (tipo === "todos_servicos") {
+      ok = rawVals.every(function (v) {
+        return !!cartIds[String(v).trim()];
+      });
+    } else if (tipo === "todos_grupos") {
+      ok = rawVals.every(function (v) {
+        return !!cartGrupos[String(v).trim().toLowerCase()];
+      });
     } else {
       // qualquer_grupo (default)
-      for (var g = 0; g < vals.length; g++) {
-        if (cartGrupos[vals[g]]) {
-          ok = true;
-          break;
-        }
-      }
+      ok = rawVals.some(function (v) {
+        return !!cartGrupos[String(v).trim().toLowerCase()];
+      });
     }
     if (!ok) continue;
     out.push(bump);

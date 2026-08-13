@@ -1019,7 +1019,9 @@ class _VitrineAdminBumpsScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ofertas de serviços adicionais conforme o que o cliente marcou.',
+              'Ofertas exclusivas na tela Revisar. Defina quando aparecer '
+              '(serviço X, ou X e Y) e o preço promocional do serviço ofertado. '
+              'Esse valor só vale se o lead aceitar o bump — não entra no catálogo.',
               style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1027,7 +1029,10 @@ class _VitrineAdminBumpsScreenState
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('Nenhum order bump cadastrado.'),
+                  child: Text(
+                    'Nenhuma oferta. Crie: se o cliente escolher o serviço A, '
+                    'ofereça B com desconto na revisão.',
+                  ),
                 ),
               ),
             for (final b in items)
@@ -1038,10 +1043,12 @@ class _VitrineAdminBumpsScreenState
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   subtitle: Text(
-                    '${b.gatilhoTipo}: ${b.gatilhoValores.join(", ")} · '
+                    '${_bumpRuleLabel(b)} · '
                     '${formatCurrency(b.precoPromo)}'
-                    '${b.ativo ? "" : " · PAUSADO"}',
+                    '${b.precoCheio > b.precoPromo ? ' (de ${formatCurrency(b.precoCheio)})' : ''}'
+                    '${b.ativo ? '' : ' · PAUSADO'}',
                   ),
+                  isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1062,6 +1069,16 @@ class _VitrineAdminBumpsScreenState
       },
     );
   }
+}
+
+String _bumpRuleLabel(VitrineOrderBump b) {
+  final vals = b.gatilhoValores.join(', ');
+  return switch (b.gatilhoTipo) {
+    'todos_servicos' => 'Se tiver TODOS os serviços: $vals',
+    'qualquer_servico' => 'Se tiver QUALQUER serviço: $vals',
+    'todos_grupos' => 'Se tiver TODOS os grupos: $vals',
+    _ => 'Se tiver QUALQUER grupo: $vals',
+  };
 }
 
 class _BumpEditorDialog extends StatefulWidget {
@@ -1085,13 +1102,19 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
   late final TextEditingController _badge;
   late final TextEditingController _cheio;
   late final TextEditingController _promo;
-  late final TextEditingController _gatilho;
+  late final TextEditingController _desconto;
+  late final TextEditingController _grupos;
   late final TextEditingController _prio;
-  String _tipo = 'qualquer_grupo';
+  String _tipo = 'qualquer_servico';
   String? _servicoOferta;
+  final Set<String> _gatilhoServicos = {};
+  final Set<String> _excluir = {};
   bool _ativo = true;
   bool _saving = false;
   String? _error;
+
+  bool get _isServicoRule =>
+      _tipo == 'qualquer_servico' || _tipo == 'todos_servicos';
 
   @override
   void initState() {
@@ -1101,14 +1124,78 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
     _desc = TextEditingController(text: e?.descricao ?? '');
     _badge = TextEditingController(text: e?.badge ?? '');
     _cheio = TextEditingController(
-      text: e != null && e.precoCheio > 0 ? '${e.precoCheio}' : '',
+      text: e != null && e.precoCheio > 0 ? _fmt(e.precoCheio) : '',
     );
-    _promo = TextEditingController(text: e != null ? '${e.precoPromo}' : '');
-    _gatilho = TextEditingController(text: e?.gatilhoValores.join(', ') ?? '');
+    _promo = TextEditingController(
+      text: e != null ? _fmt(e.precoPromo) : '',
+    );
+    _desconto = TextEditingController(
+      text: e != null && e.precoCheio > 0 && e.precoPromo < e.precoCheio
+          ? _fmt(((1 - e.precoPromo / e.precoCheio) * 100))
+          : '',
+    );
+    _tipo = e?.gatilhoTipo ?? 'qualquer_servico';
+    if (_tipo == 'qualquer_grupo' || _tipo == 'todos_grupos') {
+      _grupos = TextEditingController(text: e?.gatilhoValores.join(', ') ?? '');
+    } else {
+      _grupos = TextEditingController();
+      _gatilhoServicos.addAll(e?.gatilhoValores ?? const []);
+    }
+    _excluir.addAll(e?.excluirSe ?? const []);
     _prio = TextEditingController(text: '${e?.prioridade ?? 10}');
-    _tipo = e?.gatilhoTipo ?? 'qualquer_grupo';
     _servicoOferta = e?.servicoOferta;
     _ativo = e?.ativo ?? true;
+    if ((_servicoOferta ?? '').isNotEmpty && _cheio.text.isEmpty) {
+      _syncCheioFromOferta();
+    }
+  }
+
+  String _fmt(double v) {
+    if (v == v.roundToDouble()) return '${v.round()}';
+    return v.toStringAsFixed(2);
+  }
+
+  double _parse(String t) =>
+      double.tryParse(t.trim().replaceAll(',', '.')) ?? 0;
+
+  String _nomeOferta(String? id) {
+    if (id == null || id.isEmpty) return 'Oferta';
+    for (final s in widget.servicos) {
+      if (s.id == id) return s.nome;
+    }
+    return 'Oferta';
+  }
+
+  void _syncCheioFromOferta() {
+    final id = _servicoOferta;
+    if (id == null) return;
+    for (final s in widget.servicos) {
+      if (s.id == id && s.valorBase > 0) {
+        _cheio.text = _fmt(s.valorBase);
+        _recalcFromDesconto();
+        break;
+      }
+    }
+  }
+
+  void _recalcFromDesconto() {
+    final cheio = _parse(_cheio.text);
+    final pct = _parse(_desconto.text);
+    if (cheio <= 0 || pct <= 0) return;
+    final promo = (cheio * (1 - pct / 100)).clamp(0, cheio);
+    _promo.text = _fmt(promo.toDouble());
+    if (_badge.text.trim().isEmpty ||
+        RegExp(r'^[−\-]?\d+%?$').hasMatch(_badge.text.trim())) {
+      _badge.text = '−${pct.round()}%';
+    }
+  }
+
+  void _recalcFromPromo() {
+    final cheio = _parse(_cheio.text);
+    final promo = _parse(_promo.text);
+    if (cheio <= 0 || promo <= 0 || promo >= cheio) return;
+    final pct = ((1 - promo / cheio) * 100);
+    _desconto.text = _fmt(pct);
   }
 
   @override
@@ -1118,7 +1205,8 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
     _badge.dispose();
     _cheio.dispose();
     _promo.dispose();
-    _gatilho.dispose();
+    _desconto.dispose();
+    _grupos.dispose();
     _prio.dispose();
     super.dispose();
   }
@@ -1128,25 +1216,46 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
       setState(() => _error = 'Escolha o serviço da oferta');
       return;
     }
+    final List<String> vals;
+    if (_isServicoRule) {
+      vals = _gatilhoServicos.toList();
+      if (vals.isEmpty) {
+        setState(() => _error = 'Marque ao menos um serviço gatilho');
+        return;
+      }
+    } else {
+      vals = _grupos.text
+          .split(RegExp(r'[,;]'))
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (vals.isEmpty) {
+        setState(() => _error = 'Informe ao menos um grupo gatilho');
+        return;
+      }
+    }
+    final promo = _parse(_promo.text);
+    if (promo <= 0) {
+      setState(() => _error = 'Informe o preço promo (ou % de desconto)');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final vals = _gatilho.text
-          .split(RegExp(r'[,;]'))
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
       await widget.onSave({
-        'titulo': _titulo.text.trim(),
+        'titulo': _titulo.text.trim().isEmpty
+            ? _nomeOferta(_servicoOferta)
+            : _titulo.text.trim(),
         'descricao': _desc.text.trim(),
         'badge': _badge.text.trim(),
         'servico_oferta': _servicoOferta,
-        'preco_cheio': double.tryParse(_cheio.text.replaceAll(',', '.')) ?? 0,
-        'preco_promo': double.tryParse(_promo.text.replaceAll(',', '.')) ?? 0,
+        'preco_cheio': _parse(_cheio.text),
+        'preco_promo': promo,
         'gatilho_tipo': _tipo,
         'gatilho_valores': vals,
+        'excluir_se': _excluir.toList(),
         'prioridade': int.tryParse(_prio.text) ?? 10,
         'ativo': _ativo,
       });
@@ -1164,39 +1273,45 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'Novo order bump' : 'Editar bump'),
+      title: Text(widget.existing == null ? 'Nova oferta (order bump)' : 'Editar oferta'),
       content: SizedBox(
-        width: 420,
+        width: 520,
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: _titulo,
-                decoration: const InputDecoration(labelText: 'Título'),
+              const Text(
+                '1) Serviço em oferta (preço exclusivo na revisão)',
+                style: TextStyle(fontWeight: FontWeight.w700, color: ClxBrand.navy),
               ),
-              TextField(
-                controller: _desc,
-                decoration: const InputDecoration(labelText: 'Descrição'),
-              ),
-              TextField(
-                controller: _badge,
-                decoration: const InputDecoration(
-                  labelText: 'Badge (ex.: −39%)',
-                ),
-              ),
+              const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 // ignore: deprecated_member_use
                 value: _servicoOferta,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Serviço ofertado',
                 ),
                 items: [
                   for (final s in widget.servicos)
-                    DropdownMenuItem(value: s.id, child: Text(s.nome)),
+                    DropdownMenuItem(
+                      value: s.id,
+                      child: Text(
+                        '${s.nome} · ${formatCurrency(s.valorBase)}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                 ],
-                onChanged: (v) => setState(() => _servicoOferta = v),
+                onChanged: (v) => setState(() {
+                  _servicoOferta = v;
+                  _syncCheioFromOferta();
+                  if (_titulo.text.trim().isEmpty) {
+                    _titulo.text = _nomeOferta(v);
+                  }
+                }),
               ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -1204,8 +1319,32 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
                       controller: _cheio,
                       decoration: const InputDecoration(
                         labelText: 'Preço cheio',
+                        helperText: 'De',
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        _recalcFromDesconto();
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _desconto,
+                      decoration: const InputDecoration(
+                        labelText: '% desconto',
+                        helperText: 'Gera preço promo',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        _recalcFromDesconto();
+                        setState(() {});
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1214,44 +1353,143 @@ class _BumpEditorDialogState extends State<_BumpEditorDialog> {
                       controller: _promo,
                       decoration: const InputDecoration(
                         labelText: 'Preço promo',
+                        helperText: 'Só no bump',
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        _recalcFromPromo();
+                        setState(() {});
+                      },
                     ),
                   ),
                 ],
               ),
-              DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _tipo,
-                decoration: const InputDecoration(labelText: 'Tipo de gatilho'),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'qualquer_grupo',
-                    child: Text('Se tiver grupo…'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'qualquer_servico',
-                    child: Text('Se tiver serviço id…'),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _tipo = v ?? _tipo),
+              TextField(
+                controller: _titulo,
+                decoration: const InputDecoration(labelText: 'Título na tela'),
               ),
               TextField(
-                controller: _gatilho,
-                decoration: InputDecoration(
-                  labelText: _tipo == 'qualquer_grupo'
-                      ? 'Grupos (ex.: sofa, colchao)'
-                      : 'IDs de serviço (separados por vírgula)',
+                controller: _desc,
+                decoration: const InputDecoration(
+                  labelText: 'Descrição (opcional)',
                 ),
               ),
               TextField(
+                controller: _badge,
+                decoration: const InputDecoration(
+                  labelText: 'Badge (ex.: −30%)',
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '2) Quando mostrar (combinações E / OU)',
+                style: TextStyle(fontWeight: FontWeight.w700, color: ClxBrand.navy),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _tipo,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Regra'),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'qualquer_servico',
+                    child: Text('Se tiver QUALQUER destes serviços (OU)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'todos_servicos',
+                    child: Text('Se tiver TODOS estes serviços (E)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'qualquer_grupo',
+                    child: Text('Se tiver QUALQUER destes grupos (OU)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'todos_grupos',
+                    child: Text('Se tiver TODOS estes grupos (E)'),
+                  ),
+                ],
+                onChanged: (v) => setState(() {
+                  _tipo = v ?? _tipo;
+                }),
+              ),
+              const SizedBox(height: 8),
+              if (_isServicoRule) ...[
+                Text(
+                  _tipo == 'todos_servicos'
+                      ? 'Marque os serviços que precisam estar TODOS no carrinho:'
+                      : 'Marque os serviços que disparam a oferta (basta 1):',
+                  style: const TextStyle(fontSize: 12, color: ClxBrand.muted),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final s in widget.servicos)
+                      FilterChip(
+                        label: Text(s.nome, style: const TextStyle(fontSize: 12)),
+                        selected: _gatilhoServicos.contains(s.id),
+                        onSelected: (on) => setState(() {
+                          if (on) {
+                            _gatilhoServicos.add(s.id);
+                          } else {
+                            _gatilhoServicos.remove(s.id);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ] else
+                TextField(
+                  controller: _grupos,
+                  decoration: InputDecoration(
+                    labelText: _tipo == 'todos_grupos'
+                        ? 'Grupos (todos) — ex.: sofa, colchao'
+                        : 'Grupos (qualquer) — ex.: sofa, colchao',
+                    helperText: 'Use o campo Grupo do cadastro de Serviços',
+                  ),
+                ),
+              const SizedBox(height: 12),
+              const Text(
+                'Não mostrar se o carrinho já tiver (opcional):',
+                style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final s in widget.servicos)
+                    FilterChip(
+                      label: Text(s.nome, style: const TextStyle(fontSize: 11)),
+                      selected: _excluir.contains(s.id),
+                      onSelected: (on) => setState(() {
+                        if (on) {
+                          _excluir.add(s.id);
+                        } else {
+                          _excluir.remove(s.id);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
                 controller: _prio,
-                decoration: const InputDecoration(labelText: 'Prioridade'),
+                decoration: const InputDecoration(
+                  labelText: 'Prioridade (maior aparece primeiro)',
+                ),
                 keyboardType: TextInputType.number,
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Ativo'),
+                subtitle: const Text(
+                  'Oferta exclusiva: preço promo só vale se aceitar o bump',
+                ),
                 value: _ativo,
                 onChanged: (v) => setState(() => _ativo = v),
               ),
