@@ -180,18 +180,56 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     if (step == 4) _loadBumps();
   }
 
-  void _openCatalogForServico(VitrineServico servico) {
-    final macro = vitrineMacroCategoriaOf(
-      categoria: servico.categoria,
-      grupo: servico.grupo,
-      nome: servico.nome,
-    );
-    setState(() {
-      _categoriaFilter = macro;
-      _familiaFilter = null;
-      _buscaFilter = null;
+  /// FAB Agendar → tela de data/horário (com itens selecionados).
+  void _goAgendar() {
+    if (_picked.isEmpty) {
+      setState(() {
+        _error = 'Selecione ao menos um serviço para agendar.';
+      });
+      return;
+    }
+    _go(2);
+  }
+
+  String? _macroOf(VitrineServico s) => vitrineMacroCategoriaOf(
+        categoria: s.categoria,
+        grupo: s.grupo,
+        nome: s.nome,
+      );
+
+  bool _matchBusca(VitrineServico s) => vitrineMatchesBuscaNome(
+        nome: s.nome,
+        tituloComercial: s.tituloComercial,
+        query: _buscaFilter ?? '',
+      );
+
+  List<VitrineServico> _sortedServicos(Iterable<VitrineServico> list) {
+    final out = list.toList();
+    out.sort((a, b) {
+      final o = a.vitrineOrdem.compareTo(b.vitrineOrdem);
+      if (o != 0) return o;
+      return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
     });
-    _go(1);
+    return out;
+  }
+
+  List<VitrineServico> _homeServicos({
+    String? macro,
+    bool destaqueOnly = false,
+    bool excludeDestaque = false,
+  }) {
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    return _sortedServicos(
+      _catalog.where((s) {
+        if (destaqueOnly && !s.vitrineDestaque) return false;
+        if (excludeDestaque && s.vitrineDestaque) return false;
+        if (!_matchBusca(s)) return false;
+        final m = _macroOf(s);
+        if (cat.isNotEmpty && m != cat) return false;
+        if (macro != null && m != macro) return false;
+        return true;
+      }),
+    );
   }
 
   void _toggleServico(VitrineServico servico) {
@@ -507,7 +545,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               else if (_step >= 1 && _step <= 4)
                 VitrineLightStepHeader(
                   stepLabel: _stepLabel,
-                  onBack: () => _go(_step == 1 ? 0 : _step - 1),
+                  onBack: () {
+                    if (_step == 1 || _step == 2) {
+                      _go(0);
+                    } else {
+                      _go(_step - 1);
+                    }
+                  },
                 ),
               if (_error != null)
                 Material(
@@ -536,7 +580,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   child: _body(),
                 ),
               ),
-              if (_step == 1)
+              if (_step == 1 || (_step == 0 && _picked.isNotEmpty))
                 VitrineStickyBar(
                   totalLabel: _total > 0
                       ? '${_picked.length} item${_picked.length == 1 ? '' : 's'} selecionado${_picked.length == 1 ? '' : 's'}'
@@ -570,15 +614,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   index: _navIndex,
                   onTap: (i) {
                     if (i == 0) _go(0);
-                    if (i == 1) {
-                      // FAB Agendar = catálogo completo (sem filtro de macro).
-                      setState(() {
-                        _categoriaFilter = null;
-                        _familiaFilter = null;
-                        _buscaFilter = null;
-                      });
-                      _go(1);
-                    }
+                    if (i == 1) _goAgendar();
                     if (i == 2) _go(6);
                   },
                 ),
@@ -611,128 +647,182 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   // ─── Home ─────────────────────────────────────────────────────────────────
 
   Widget _home() {
-    // Promoções da Semana = só serviços com estrela (vitrine_destaque) no admin.
-    final pkgs = _catalog.where((s) => s.vitrineDestaque).toList()
-      ..sort((a, b) {
-        final o = a.vitrineOrdem.compareTo(b.vitrineOrdem);
-        if (o != 0) return o;
-        return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
-      });
+    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
+    final busca = (_buscaFilter ?? '').trim();
+    final filtrando = cat.isNotEmpty || busca.isNotEmpty;
+
+    final promos = _homeServicos(destaqueOnly: true);
+    final veicular = _homeServicos(
+      macro: 'veicular',
+      excludeDestaque: !filtrando,
+    );
+    final residencial = _homeServicos(
+      macro: 'residencial',
+      excludeDestaque: !filtrando,
+    );
+    final autoPrimeiro = _config.macroAutoPrimeiro;
+
+    Widget sectionTitle(String title) => Padding(
+          padding: const EdgeInsets.only(top: 22, bottom: 8),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontFamily: kFontFamily,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: ClxBrand.navy,
+            ),
+          ),
+        );
+
+    Widget catalogBlock({
+      required Key key,
+      required List<VitrineServico> items,
+    }) {
+      if (items.isEmpty) return const SizedBox.shrink();
+      return VitrineCatalogoPersonalizavel(
+        key: key,
+        servicos: items,
+        bootstrap: _bootstrap,
+        selectedIds: _selected,
+        showHeader: false,
+        showCategoryChips: false,
+        onToggle: _toggleServico,
+      );
+    }
+
+    final sections = <Widget>[];
+    if (!filtrando) {
+      if (promos.isNotEmpty) {
+        sections.add(
+          sectionTitle(
+            _config.homeDestaquesTitulo.trim().isEmpty
+                ? 'Promoções da Semana'
+                : _config.homeDestaquesTitulo.trim(),
+          ),
+        );
+        sections.add(
+          catalogBlock(
+            key: const Key('vitrine-home-promocoes'),
+            items: promos,
+          ),
+        );
+      }
+      if (autoPrimeiro) {
+        if (veicular.isNotEmpty) {
+          sections
+            ..add(sectionTitle('Estética automotiva'))
+            ..add(
+              catalogBlock(
+                key: const Key('vitrine-home-sec-veicular'),
+                items: veicular,
+              ),
+            );
+        }
+        if (residencial.isNotEmpty) {
+          sections
+            ..add(sectionTitle('Higienização residencial'))
+            ..add(
+              catalogBlock(
+                key: const Key('vitrine-home-sec-residencial'),
+                items: residencial,
+              ),
+            );
+        }
+      } else {
+        if (residencial.isNotEmpty) {
+          sections
+            ..add(sectionTitle('Higienização residencial'))
+            ..add(
+              catalogBlock(
+                key: const Key('vitrine-home-sec-residencial'),
+                items: residencial,
+              ),
+            );
+        }
+        if (veicular.isNotEmpty) {
+          sections
+            ..add(sectionTitle('Estética automotiva'))
+            ..add(
+              catalogBlock(
+                key: const Key('vitrine-home-sec-veicular'),
+                items: veicular,
+              ),
+            );
+        }
+      }
+    } else {
+      final filtrados = _homeServicos();
+      sections.add(const SizedBox(height: 16));
+      if (filtrados.isEmpty) {
+        sections.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'Nenhum serviço encontrado.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ClxBrand.muted),
+            ),
+          ),
+        );
+      } else {
+        sections.add(
+          catalogBlock(
+            key: ValueKey('vitrine-home-filtrado-$cat-$busca'),
+            items: filtrados,
+          ),
+        );
+      }
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        const Text(
-          'O que você procura?',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: ClxBrand.navy,
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Card navy “Todos os serviços” + busca — logo abaixo do título.
         _HomeCatalogHeader(
-          onOpenCatalog: () {
-            setState(() {
-              _categoriaFilter = null;
-              _familiaFilter = null;
-              // mantém _buscaFilter se o usuário já digitou
-            });
-            _go(1);
-          },
+          initialQuery: _buscaFilter ?? '',
           onSearch: (q) {
             setState(() {
               _buscaFilter = q.trim().isEmpty ? null : q.trim();
+            });
+          },
+          onClearFilters: () {
+            setState(() {
               _categoriaFilter = null;
               _familiaFilter = null;
+              _buscaFilter = null;
             });
-            _go(1);
           },
         ),
-        const SizedBox(height: 18),
-        VitrineMacroChoice(
-          residencialImageUrl:
-              _midiaUrl('categoria_residencial') ?? _midiaUrl('categoria_sofa'),
-          automotivaImageUrl:
-              _midiaUrl('categoria_auto') ?? _midiaUrl('automovel'),
-          autoPrimeiro: _config.macroAutoPrimeiro,
-          residencialTitulo: _config.macroResidTitulo,
-          residencialSubtitulo: _config.macroResidSubtitulo,
-          residencialIcone: _config.macroResidIcone,
-          automotivaTitulo: _config.macroAutoTitulo,
-          automotivaSubtitulo: _config.macroAutoSubtitulo,
-          automotivaIcone: _config.macroAutoIcone,
-          onResidencial: () {
-            setState(() {
-              _categoriaFilter = 'residencial';
-              _familiaFilter = null;
-            });
-            _go(1);
-          },
-          onAutomotiva: () {
-            setState(() {
-              _categoriaFilter = 'veicular';
-              _familiaFilter = null;
-            });
-            _go(1);
-          },
-        ),
-        if (pkgs.isNotEmpty) ...[
-          const SizedBox(height: 22),
-          Row(
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          key: const Key('vitrine-home-category-chips'),
+          scrollDirection: Axis.horizontal,
+          child: Row(
             children: [
-              Expanded(
-                child: Text(
-                  _config.homeDestaquesTitulo.trim().isEmpty
-                      ? 'Promoções da Semana'
-                      : _config.homeDestaquesTitulo.trim(),
-                  style: const TextStyle(
-                    fontFamily: kFontFamily,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: ClxBrand.navy,
-                  ),
-                ),
+              _HomeCatChip(
+                key: const Key('vitrine-home-chip-veicular'),
+                label: 'Estética automotiva',
+                selected: cat == 'veicular',
+                onTap: () => setState(() {
+                  _categoriaFilter = cat == 'veicular' ? null : 'veicular';
+                  _familiaFilter = null;
+                }),
               ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _categoriaFilter = null;
-                    _familiaFilter = null;
-                  });
-                  _go(1);
-                },
-                child: Text(
-                  _config.homeDestaquesCta.trim().isEmpty
-                      ? 'Ver todos'
-                      : _config.homeDestaquesCta.trim(),
-                  style: const TextStyle(
-                    fontFamily: kFontFamily,
-                    fontWeight: FontWeight.w600,
-                    color: ClxBrand.cyan,
-                    fontSize: 12,
-                  ),
-                ),
+              const SizedBox(width: 8),
+              _HomeCatChip(
+                key: const Key('vitrine-home-chip-residencial'),
+                label: 'Higienização residencial',
+                selected: cat == 'residencial',
+                onTap: () => setState(() {
+                  _categoriaFilter =
+                      cat == 'residencial' ? null : 'residencial';
+                  _familiaFilter = null;
+                }),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          VitrineCatalogoPersonalizavel(
-            key: const Key('vitrine-home-promocoes'),
-            servicos: pkgs,
-            bootstrap: _bootstrap,
-            selectedIds: _selected,
-            showHeader: false,
-            showCategoryChips: false,
-            onToggle: (servico) {
-              _toggleServico(servico);
-              // Adicionar promoção → catálogo da categoria (veicular/residencial).
-              _openCatalogForServico(servico);
-            },
-          ),
-        ],
+        ),
+        ...sections,
         if (_config.cidadesTexto.isNotEmpty) ...[
           const SizedBox(height: 18),
           Text(
@@ -1741,22 +1831,42 @@ class _SuccessBody extends StatelessWidget {
 }
 
 
-/// Card navy da home (mesmo visual do header do catálogo) — atalho p/ Serviços.
+/// Card navy da home: busca + chips de categoria atualizam a própria home.
 class _HomeCatalogHeader extends StatefulWidget {
   const _HomeCatalogHeader({
-    required this.onOpenCatalog,
     required this.onSearch,
+    required this.onClearFilters,
+    this.initialQuery = '',
   });
 
-  final VoidCallback onOpenCatalog;
   final ValueChanged<String> onSearch;
+  final VoidCallback onClearFilters;
+  final String initialQuery;
 
   @override
   State<_HomeCatalogHeader> createState() => _HomeCatalogHeaderState();
 }
 
 class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
-  final _busca = TextEditingController();
+  late final TextEditingController _busca;
+
+  @override
+  void initState() {
+    super.initState();
+    _busca = TextEditingController(text: widget.initialQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeCatalogHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialQuery != widget.initialQuery &&
+        _busca.text != widget.initialQuery) {
+      _busca.value = TextEditingValue(
+        text: widget.initialQuery,
+        selection: TextSelection.collapsed(offset: widget.initialQuery.length),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -1764,9 +1874,8 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
     super.dispose();
   }
 
-  void _submit([String? raw]) {
-    final q = (raw ?? _busca.text).trim();
-    widget.onSearch(q);
+  void _emit([String? raw]) {
+    widget.onSearch((raw ?? _busca.text).trim());
   }
 
   @override
@@ -1784,7 +1893,11 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
           children: [
             InkWell(
               key: const Key('vitrine-home-catalog-header'),
-              onTap: widget.onOpenCatalog,
+              onTap: () {
+                _busca.clear();
+                setState(() {});
+                widget.onClearFilters();
+              },
               borderRadius: BorderRadius.circular(12),
               child: const Padding(
                 padding: EdgeInsets.only(bottom: 4),
@@ -1819,30 +1932,30 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
               key: const Key('vitrine-home-busca'),
               controller: _busca,
               textInputAction: TextInputAction.search,
-              onSubmitted: _submit,
-              onChanged: (_) => setState(() {}),
+              onSubmitted: _emit,
+              onChanged: (v) {
+                setState(() {});
+                // Filtra na própria home ao digitar.
+                _emit(v);
+              },
               style: const TextStyle(color: ClxBrand.navy),
               decoration: InputDecoration(
                 hintText: 'Buscar serviço',
-                helperText:
-                    'Digite palavras do nome e pressione buscar (ex.: sofá 3)',
+                helperText: 'Busca palavras do nome do serviço',
                 helperStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
                   fontSize: 11,
                 ),
                 filled: true,
                 fillColor: Colors.white,
-                prefixIcon: IconButton(
-                  tooltip: 'Buscar',
-                  onPressed: _submit,
-                  icon: const Icon(Icons.search, color: ClxBrand.cyan),
-                ),
+                prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
                 suffixIcon: _busca.text.trim().isEmpty
                     ? null
                     : IconButton(
                         onPressed: () {
                           _busca.clear();
                           setState(() {});
+                          _emit('');
                         },
                         icon: const Icon(Icons.close, color: ClxBrand.muted),
                       ),
@@ -1855,6 +1968,36 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HomeCatChip extends StatelessWidget {
+  const _HomeCatChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      selectedColor: ClxBrand.navy,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : ClxBrand.navy,
+        fontWeight: FontWeight.w700,
+      ),
+      side: const BorderSide(color: Color(0xFFDCE5EC)),
+      backgroundColor: Colors.white,
+      showCheckmark: false,
     );
   }
 }
