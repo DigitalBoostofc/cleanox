@@ -238,6 +238,9 @@ void main() {
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
       // Hero removido — entrada via FAB Agendar da bottom nav.
       expect(find.text('O que você procura?'), findsOneWidget);
+      expect(find.text('Todos os serviços'), findsOneWidget);
+      expect(find.text('SERVIÇOS CLEANOX'), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.byKey(const Key('vitrine-nav-agendar')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('vitrine-nav-agendar')));

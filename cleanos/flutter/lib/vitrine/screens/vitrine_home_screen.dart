@@ -618,6 +618,17 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        // Card navy “Todos os serviços” + busca — logo abaixo do título.
+        _HomeCatalogHeader(
+          onOpenCatalog: () {
+            setState(() {
+              _categoriaFilter = null;
+              _familiaFilter = null;
+            });
+            _go(1);
+          },
+        ),
+        const SizedBox(height: 18),
         VitrineMacroChoice(
           residencialImageUrl:
               _midiaUrl('categoria_residencial') ?? _midiaUrl('categoria_sofa'),
@@ -677,6 +688,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           servicos: pkgs,
           bootstrap: _bootstrap,
           selectedIds: _selected,
+          showHeader: false,
           onToggle: (servico) {
             _toggleServico(servico);
             _go(1);
@@ -1681,4 +1693,77 @@ class _SuccessBody extends StatelessWidget {
       ],
     ),
   );
+}
+
+
+/// Card navy da home (mesmo visual do header do catálogo) — atalho p/ Serviços.
+class _HomeCatalogHeader extends StatelessWidget {
+  const _HomeCatalogHeader({required this.onOpenCatalog});
+
+  final VoidCallback onOpenCatalog;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('vitrine-home-catalog-header'),
+        onTap: onOpenCatalog,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: ClxBrand.navy,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'SERVIÇOS CLEANOX',
+                style: TextStyle(
+                  color: ClxBrand.cyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Todos os serviços',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  height: 1.08,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Use os chips de família (sofá, colchão…) para refinar.',
+                style: TextStyle(color: Colors.white70, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              // Campo só visual: toque no card inteiro abre o catálogo.
+              IgnorePointer(
+                child: TextField(
+                  enabled: false,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar serviço',
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
