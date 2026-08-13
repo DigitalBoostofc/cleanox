@@ -20,7 +20,6 @@ class VitrineAdminShell extends ConsumerWidget {
       label: 'Personalizar',
       icon: Icons.edit_outlined,
     ),
-    (path: '/admin/midia', label: 'Mídia', icon: Icons.photo_outlined),
     (path: '/admin/servicos', label: 'Serviços', icon: Icons.list_alt_outlined),
     (
       path: '/admin/order-bumps',
