@@ -389,11 +389,15 @@ class VitrineBottomNav extends StatelessWidget {
     super.key,
     required this.index,
     required this.onTap,
+    this.cartCount = 0,
   });
 
   /// 0 início · 1 agendar · 2 como funciona
   final int index;
   final ValueChanged<int> onTap;
+
+  /// Itens no “carrinho” (bolinha do FAB Agendar).
+  final int cartCount;
 
   static const double _fabSize = 58;
   /// Quanto o FAB sobe por cima da barra (flutuação forte).
@@ -513,57 +517,90 @@ class VitrineBottomNav extends StatelessWidget {
                 width: _fabSize + 8,
                 height: _fabSize + 8,
                 child: Center(
-                  child: Container(
-                    width: _fabSize,
-                    height: _fabSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: on
-                            ? const [
-                                Color(0xFF0B1D34),
-                                Color(0xFF0B8A98),
-                                Color(0xFF0EA5B7),
-                              ]
-                            : const [
-                                Color(0xFF0EA5B7),
-                                Color(0xFF0B8A98),
-                              ],
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: _fabSize,
+                        height: _fabSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: on
+                                ? const [
+                                    Color(0xFF0B1D34),
+                                    Color(0xFF0B8A98),
+                                    Color(0xFF0EA5B7),
+                                  ]
+                                : const [
+                                    Color(0xFF0EA5B7),
+                                    Color(0xFF0B8A98),
+                                  ],
+                          ),
+                          border: Border.all(color: Colors.white, width: 3.5),
+                          boxShadow: [
+                            // Sombra profunda = "descolado" da barra.
+                            BoxShadow(
+                              color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
+                              blurRadius: 22,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 12),
+                            ),
+                            BoxShadow(
+                              color: ClxBrand.cyan.withValues(alpha: 0.55),
+                              blurRadius: 28,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 10),
+                            ),
+                            BoxShadow(
+                              color: ClxBrand.cyan.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        // Ícone desenhado (não depende da fonte MaterialIcons no web).
+                        child: const Center(
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CustomPaint(
+                              painter: _VitrineFabCalendarPainter(),
+                            ),
+                          ),
+                        ),
                       ),
-                      border: Border.all(color: Colors.white, width: 3.5),
-                      boxShadow: [
-                        // Sombra profunda = "descolado" da barra.
-                        BoxShadow(
-                          color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
-                          blurRadius: 22,
-                          spreadRadius: 0,
-                          offset: const Offset(0, 12),
+                      if (cartCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            key: const Key('vitrine-nav-cart-badge'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 20),
+                            child: Text(
+                              cartCount > 99 ? '99+' : '$cartCount',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
                         ),
-                        BoxShadow(
-                          color: ClxBrand.cyan.withValues(alpha: 0.55),
-                          blurRadius: 28,
-                          spreadRadius: 1,
-                          offset: const Offset(0, 10),
-                        ),
-                        BoxShadow(
-                          color: ClxBrand.cyan.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    // Ícone desenhado (não depende da fonte MaterialIcons no web).
-                    child: const Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CustomPaint(
-                          painter: _VitrineFabCalendarPainter(),
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ),

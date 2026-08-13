@@ -224,7 +224,9 @@ void main() {
       );
     }
 
-    testWidgets('home sem orçamento e entra em Serviços', (tester) async {
+    testWidgets('home guiada: categorias → grupos → catálogo + carrinho', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(390, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -236,16 +238,48 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
-      // Hero removido — entrada via FAB Agendar da bottom nav.
       expect(find.text('O que você procura?'), findsOneWidget);
-      expect(find.text('Todos os serviços'), findsOneWidget);
-      expect(find.text('SERVIÇOS CLEANOX'), findsOneWidget);
-      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-browse-categorias')), findsOneWidget);
       expect(find.byKey(const Key('vitrine-nav-agendar')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('vitrine-nav-agendar')));
+      // Categoria residencial (ou veicular se for a disponível no fake)
+      final catResid = find.byKey(const Key('vitrine-home-cat-residencial'));
+      final catVeic = find.byKey(const Key('vitrine-home-cat-veicular'));
+      if (catResid.evaluate().isNotEmpty) {
+        await tester.tap(catResid);
+      } else {
+        await tester.tap(catVeic);
+      }
       await tester.pumpAndSettle();
-      expect(find.text('1 · Serviços'), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-browse-grupos')), findsOneWidget);
+      expect(find.text('Selecione os itens que deseja limpar'), findsOneWidget);
+
+      // Entra no primeiro grupo
+      final anyGrupo = find.byKey(const Key('vitrine-home-grupo-sofa'));
+      final anyPlano = find.byKey(const Key('vitrine-home-grupo-plano'));
+      final anyAvulso = find.byKey(const Key('vitrine-home-grupo-avulsos'));
+      if (anyGrupo.evaluate().isNotEmpty) {
+        await tester.tap(anyGrupo);
+      } else if (anyPlano.evaluate().isNotEmpty) {
+        await tester.tap(anyPlano);
+      } else if (anyAvulso.evaluate().isNotEmpty) {
+        await tester.tap(anyAvulso);
+      } else {
+        // qualquer card de grupo
+        await tester.tap(find.textContaining('opções').first);
+      }
+      await tester.pumpAndSettle();
+
+      // Catálogo ou subgrupos
+      final cat = find.byKey(const Key('vitrine-home-browse-catalogo'));
+      final subs = find.byKey(const Key('vitrine-home-browse-subgrupos'));
+      expect(cat.evaluate().isNotEmpty || subs.evaluate().isNotEmpty, isTrue);
+      if (subs.evaluate().isNotEmpty) {
+        await tester.tap(find.byKey(const Key('vitrine-home-ver-todos-grupo')));
+        await tester.pumpAndSettle();
+      }
+      expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
+      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
     });
 

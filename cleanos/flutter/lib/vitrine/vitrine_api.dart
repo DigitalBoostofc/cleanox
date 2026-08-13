@@ -45,6 +45,7 @@ class VitrineServico {
     required this.descricao,
     required this.categoria,
     required this.grupo,
+    this.subgrupo = '',
     required this.valorBase,
     required this.valorBaseMax,
     required this.tempoMedioMin,
@@ -65,6 +66,7 @@ class VitrineServico {
   final String descricao;
   final String categoria;
   final String grupo;
+  final String subgrupo;
   final double valorBase;
   final double valorBaseMax;
   final int tempoMedioMin;
@@ -92,6 +94,7 @@ class VitrineServico {
     descricao: '${j['descricao'] ?? ''}',
     categoria: '${j['categoria'] ?? ''}',
     grupo: '${j['grupo'] ?? ''}',
+    subgrupo: '${j['subgrupo'] ?? ''}',
     valorBase: (j['valor_base'] as num?)?.toDouble() ?? 0,
     valorBaseMax: (j['valor_base_max'] as num?)?.toDouble() ?? 0,
     tempoMedioMin: (j['tempo_medio_min'] as num?)?.toInt() ?? 0,
