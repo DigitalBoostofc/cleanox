@@ -1738,11 +1738,6 @@ class _HomeCatalogHeader extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 7),
-              const Text(
-                'Use os chips de família (sofá, colchão…) para refinar.',
-                style: TextStyle(color: Colors.white70, height: 1.4),
-              ),
               const SizedBox(height: 16),
               // Campo só visual: toque no card inteiro abre o catálogo.
               IgnorePointer(
