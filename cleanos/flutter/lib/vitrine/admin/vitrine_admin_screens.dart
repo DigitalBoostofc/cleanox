@@ -454,6 +454,8 @@ class _VitrineAdminPersonalizarScreenState
   final _macroResidSub = TextEditingController();
   final _macroAutoTitulo = TextEditingController();
   final _macroAutoSub = TextEditingController();
+  final _homeDestaquesTitulo = TextEditingController();
+  final _homeDestaquesCta = TextEditingController();
 
   /// Hero saiu da home pública — mantidos só para não apagar no save.
   String _heroTitulo = '';
@@ -503,6 +505,8 @@ class _VitrineAdminPersonalizarScreenState
       _macroAutoSub.text = c.macroAutoSubtitulo;
       _macroAutoIcone =
           c.macroAutoIcone.trim().isEmpty ? 'car' : c.macroAutoIcone;
+      _homeDestaquesTitulo.text = c.homeDestaquesTitulo;
+      _homeDestaquesCta.text = c.homeDestaquesCta;
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -549,6 +553,12 @@ class _VitrineAdminPersonalizarScreenState
                   : _macroAutoTitulo.text.trim(),
               macroAutoSubtitulo: _macroAutoSub.text.trim(),
               macroAutoIcone: _macroAutoIcone,
+              homeDestaquesTitulo: _homeDestaquesTitulo.text.trim().isEmpty
+                  ? 'Promoções da Semana'
+                  : _homeDestaquesTitulo.text.trim(),
+              homeDestaquesCta: _homeDestaquesCta.text.trim().isEmpty
+                  ? 'Ver todos'
+                  : _homeDestaquesCta.text.trim(),
             ),
           );
       if (!mounted) return;
@@ -581,6 +591,8 @@ class _VitrineAdminPersonalizarScreenState
     _macroResidSub.dispose();
     _macroAutoTitulo.dispose();
     _macroAutoSub.dispose();
+    _homeDestaquesTitulo.dispose();
+    _homeDestaquesCta.dispose();
     super.dispose();
   }
 
@@ -764,6 +776,39 @@ class _VitrineAdminPersonalizarScreenState
                   onChanged: (v) {
                     if (v != null) setState(() => _macroResidIcone = v);
                   },
+                ),
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Promoções / destaques (home)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: ClxBrand.navy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Título e link da seção abaixo dos macros na home. '
+                  'Na home os chips de família ficam ocultos.',
+                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('vitrine-home-destaques-titulo'),
+                  controller: _homeDestaquesTitulo,
+                  decoration: const InputDecoration(
+                    labelText: 'Título da seção (ex.: Promoções da Semana)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('vitrine-home-destaques-cta'),
+                  controller: _homeDestaquesCta,
+                  decoration: const InputDecoration(
+                    labelText: 'Texto do botão (ex.: Ver todos)',
+                  ),
                 ),
                 const SizedBox(height: 20),
                 const Align(

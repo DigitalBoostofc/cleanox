@@ -19,6 +19,7 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
     this.initialCategoria,
     this.initialGroup,
     this.showHeader = true,
+    this.showFamilyChips = true,
     super.key,
   });
 
@@ -36,6 +37,9 @@ class VitrineCatalogoPersonalizavel extends StatefulWidget {
   /// Card navy “SERVIÇOS CLEANOX” + busca. Home pode omitir se o header for
   /// renderizado à parte.
   final bool showHeader;
+
+  /// Chips “Todas as famílias” / sofa / colchão… Home de destaques omite.
+  final bool showFamilyChips;
 
   @override
   State<VitrineCatalogoPersonalizavel> createState() =>
@@ -163,7 +167,8 @@ class _VitrineCatalogoPersonalizavelState
                         _group = '';
                       }),
               ),
-            if (_categoria.isNotEmpty || familias.isNotEmpty) ...[
+            if (widget.showFamilyChips &&
+                (_categoria.isNotEmpty || familias.isNotEmpty)) ...[
               SizedBox(height: widget.showHeader ? 14 : 0),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
