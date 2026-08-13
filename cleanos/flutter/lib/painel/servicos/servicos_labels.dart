@@ -24,6 +24,26 @@ String grupoLabel(Grupo g) => switch (g) {
   Grupo.outros => 'Outros',
 };
 
+/// Labels por slug (taxonomia dinâmica / valores livres).
+String categoriaLabelSlug(String slug) {
+  final w = slug.trim();
+  for (final c in Categoria.values) {
+    if (c.wire == w) return categoriaLabel(c);
+  }
+  if (w.isEmpty) return '—';
+  return w[0].toUpperCase() + w.substring(1);
+}
+
+String grupoLabelSlug(String slug) {
+  final w = slug.trim();
+  for (final g in Grupo.values) {
+    if (g.wire == w) return grupoLabel(g);
+  }
+  if (w.isEmpty) return '—';
+  return w[0].toUpperCase() + w.substring(1);
+}
+
+
 /// Rótulo do subgrupo na árvore (fallback = wire).
 String subgrupoRotulo(Categoria c, Grupo g, String wire) =>
     subgrupoLabel(c, g, wire) ?? wire;
@@ -89,8 +109,8 @@ String formatValorServico(ServicoPB s) {
 /// `slug` é (re)gerado na camada de dados. Não inclui id/created/updated.
 Map<String, dynamic> servicoToPayload(ServicoPB s) {
   return <String, dynamic>{
-    'categoria': (s.categoria ?? Categoria.veicular).wire,
-    'grupo': (s.grupo ?? Grupo.outros).wire,
+    'categoria': s.categoria.isEmpty ? Categoria.veicular.wire : s.categoria,
+    'grupo': s.grupo.isEmpty ? Grupo.outros.wire : s.grupo,
     'subgrupo': s.subgrupo,
     'nome': s.nome,
     'valor_base': s.valorBase,

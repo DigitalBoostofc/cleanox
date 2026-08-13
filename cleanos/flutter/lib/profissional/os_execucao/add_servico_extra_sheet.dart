@@ -34,8 +34,8 @@ class _AddServicoExtraSheet extends ConsumerStatefulWidget {
 class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
   List<ServicoPB>? _servicos;
   String? _loadError;
-  Categoria? _categoria;
-  Grupo? _grupo;
+  String? _categoria;
+  String? _grupo;
   ServicoPB? _selecionado;
 
   @override
@@ -58,24 +58,24 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
     }
   }
 
-  List<Categoria> get _categorias {
+  List<String> get _categorias {
     final s = _servicos;
     if (s == null) return const [];
-    final set = <Categoria>{};
+    final set = <String>{};
     for (final it in s) {
-      if (it.categoria != null) set.add(it.categoria!);
+      if (it.categoria.trim().isNotEmpty) set.add(it.categoria);
     }
-    return Categoria.values.where(set.contains).toList();
+    final list = set.toList()..sort(); return list;
   }
 
-  List<Grupo> get _grupos {
+  List<String> get _grupos {
     final s = _servicos;
     if (s == null || _categoria == null) return const [];
-    final set = <Grupo>{};
+    final set = <String>{};
     for (final it in s) {
-      if (it.categoria == _categoria && it.grupo != null) set.add(it.grupo!);
+      if (it.categoria == _categoria && it.grupo.trim().isNotEmpty) set.add(it.grupo);
     }
-    return Grupo.values.where(set.contains).toList();
+    final list = set.toList()..sort(); return list;
   }
 
   List<ServicoPB> get _filtrados {
@@ -155,8 +155,8 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
           else ...[
             _label(context, 'Categoria'),
             const SizedBox(height: ClxSpace.x1),
-            DropdownButtonFormField<Categoria>(
-              key: ValueKey('cat-${_categoria?.name ?? 'none'}'),
+            DropdownButtonFormField<String>(
+              key: ValueKey('cat-${_categoria ?? 'none'}'),
               initialValue: _categoria,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -165,7 +165,7 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
               hint: const Text('Selecione'),
               items: [
                 for (final c in _categorias)
-                  DropdownMenuItem(value: c, child: Text(categoriaLabel(c))),
+                  DropdownMenuItem(value: c, child: Text(categoriaLabelSlug(c))),
               ],
               onChanged: (v) => setState(() {
                 _categoria = v;
@@ -176,9 +176,9 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
             const SizedBox(height: ClxSpace.x3),
             _label(context, 'Grupo'),
             const SizedBox(height: ClxSpace.x1),
-            DropdownButtonFormField<Grupo>(
+            DropdownButtonFormField<String>(
               key: ValueKey(
-                'grp-${_categoria?.name ?? 'x'}-${_grupo?.name ?? 'none'}',
+                'grp-${_categoria ?? 'x'}-${_grupo ?? 'none'}',
               ),
               initialValue: _grupo,
               decoration: const InputDecoration(
@@ -188,7 +188,7 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
               hint: const Text('Selecione'),
               items: [
                 for (final g in _grupos)
-                  DropdownMenuItem(value: g, child: Text(grupoLabel(g))),
+                  DropdownMenuItem(value: g, child: Text(grupoLabelSlug(g))),
               ],
               onChanged: _categoria == null
                   ? null
@@ -202,7 +202,7 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
             const SizedBox(height: ClxSpace.x1),
             DropdownButtonFormField<ServicoPB>(
               key: ValueKey(
-                'svc-${_grupo?.name ?? 'x'}-${_selecionado?.id ?? 'none'}',
+                'svc-${_grupo ?? 'x'}-${_selecionado?.id ?? 'none'}',
               ),
               initialValue: _selecionado,
               isExpanded: true,

@@ -21,11 +21,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
-import '../../core/models/servico_taxonomia.dart';
 import '../data/painel_providers.dart';
 import 'checklist_editor.dart';
 import 'servicos_labels.dart';
 import 'servico_vitrine_fotos.dart';
+import 'taxonomia/taxonomia_models.dart';
+import 'taxonomia/taxonomia_providers.dart';
 
 class ServicoEditorScreen extends ConsumerStatefulWidget {
   const ServicoEditorScreen({super.key, this.servicoId});
@@ -45,8 +46,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   final TextEditingController _orientacoesPre = TextEditingController();
   final TextEditingController _orientacoesPos = TextEditingController();
 
-  Categoria _categoria = Categoria.veicular;
-  Grupo _grupo = Grupo.plano;
+  String _categoria = 'veicular';
+  String _grupo = 'plano';
   String _subgrupo = '';
   TipoValor _tipoValor = TipoValor.fixo;
   ServicoStatus _status = ServicoStatus.ativo;
@@ -135,13 +136,9 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         final s = await repo.getOne(id);
         if (!mounted) return;
         _original = s;
-        _categoria = s.categoria ?? Categoria.veicular;
-        _grupo = normalizarGrupoNaCategoria(_categoria, s.grupo);
-        _subgrupo = normalizarSubgrupo(
-          categoria: _categoria,
-          grupo: _grupo,
-          subgrupo: s.subgrupo,
-        );
+        _categoria = s.categoria.isEmpty ? 'veicular' : s.categoria;
+        _grupo = s.grupo.isEmpty ? 'plano' : s.grupo;
+        _subgrupo = s.subgrupo;
         _nome.text = s.nome;
         _valorBaseCents = (s.valorBase * 100).round();
         _valorBaseMaxCents = ((s.valorBaseMax ?? 0) * 100).round();
@@ -205,13 +202,9 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     final valorBase = _valorBaseCents / 100;
     final detalhes = _detalhes.text.trim();
     return <String, dynamic>{
-      'categoria': _categoria.wire,
-      'grupo': _grupo.wire,
-      'subgrupo': normalizarSubgrupo(
-        categoria: _categoria,
-        grupo: _grupo,
-        subgrupo: _subgrupo,
-      ),
+      'categoria': _categoria,
+      'grupo': _grupo,
+      'subgrupo': _subgrupo,
       'nome': _nome.text.trim(),
       // Sincroniza fallback público (descricao) + campo comercial da Vitrine.
       'descricao': detalhes,
@@ -568,134 +561,208 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   }
 
   Widget _infoSection(CleanoxColors clx) {
-    final grupos = gruposDaCategoria(_categoria);
-    final subops = subgruposDoGrupo(_categoria, _grupo);
-    // Segurança: valor atual sempre na lista do dropdown.
-    final grupoValue = grupos.contains(_grupo) ? _grupo : grupos.first;
-    final subValue = () {
-      if (subops.isEmpty) return '';
-      for (final o in subops) {
-        if (o.wire == _subgrupo) return _subgrupo;
-      }
-      return subops.first.wire;
-    }();
+    final taxAsync = ref.watch(taxonomiaArvoreProvider);
+    return taxAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: Spinner(size: 22)),
+      ),
+      error: (_, __) => ErrorBanner(
+        message: 'Não foi possível carregar categorias/grupos.',
+        onRetry: () => ref.invalidate(taxonomiaArvoreProvider),
+      ),
+      data: (arvore) {
+        final cats = arvore.categorias;
+        if (cats.isEmpty) {
+          return Text(
+            'Nenhuma categoria cadastrada. Use a engrenagem na lista de Serviços.',
+            style: TextStyle(color: clx.ink3),
+          );
+        }
+        TaxonomiaNo catNo = cats.first;
+        for (final c in cats) {
+          if (c.slug == _categoria) {
+            catNo = c;
+            break;
+          }
+        }
+        final grupos = arvore.gruposDe(catNo.id);
+        TaxonomiaNo? grupoNo;
+        if (grupos.isNotEmpty) {
+          grupoNo = grupos.first;
+          for (final g in grupos) {
+            if (g.slug == _grupo) {
+              grupoNo = g;
+              break;
+            }
+          }
+        }
+        final subs = grupoNo == null
+            ? const <TaxonomiaNo>[]
+            : arvore.subgruposDe(grupoNo.id);
+        var subSlug = _subgrupo;
+        if (subs.isNotEmpty && !subs.any((s) => s.slug == subSlug)) {
+          subSlug = subs.first.slug;
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _dropdownField<Categoria>(
-          label: 'Categoria',
-          value: _categoria,
-          items: Categoria.values,
-          labelOf: categoriaLabel,
-          onChanged: (v) => setState(() {
-            _categoria = v;
-            _grupo = normalizarGrupoNaCategoria(v, _grupo);
-            _subgrupo = normalizarSubgrupo(
-              categoria: v,
-              grupo: _grupo,
-              subgrupo: _subgrupo,
-            );
-            _markDirty();
-          }),
-        ),
-        _twoCol(
-          _dropdownField<Grupo>(
-            label: 'Grupo',
-            value: grupoValue,
-            items: grupos,
-            labelOf: grupoLabel,
-            onChanged: (v) => setState(() {
-              _grupo = v;
-              _subgrupo = normalizarSubgrupo(
-                categoria: _categoria,
-                grupo: v,
-                subgrupo: _subgrupo,
-              );
-              _markDirty();
-            }),
-          ),
-          subops.isNotEmpty
-              ? _dropdownField<String>(
-                  label: 'Subgrupo',
-                  value: subValue,
-                  items: [for (final o in subops) o.wire],
-                  labelOf: (w) => subgrupoRotulo(_categoria, _grupo, w),
-                  onChanged: (v) => setState(() {
-                    _subgrupo = v;
+        // Alinha estado se slug inválido caiu no primeiro.
+        if (_categoria != catNo.slug ||
+            (grupoNo != null && _grupo != grupoNo.slug) ||
+            _subgrupo != subSlug) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _categoria = catNo.slug;
+              _grupo = grupoNo?.slug ?? '';
+              _subgrupo = subSlug;
+            });
+          });
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _dropdownField<String>(
+              label: 'Categoria',
+              value: catNo.slug,
+              items: [for (final c in cats) c.slug],
+              labelOf: (slug) {
+                for (final c in cats) {
+                  if (c.slug == slug) return c.nome;
+                }
+                return slug;
+              },
+              onChanged: (slug) => setState(() {
+                _categoria = slug;
+                TaxonomiaNo? next;
+                for (final c in cats) {
+                  if (c.slug == slug) next = c;
+                }
+                final gs = next == null
+                    ? const <TaxonomiaNo>[]
+                    : arvore.gruposDe(next.id);
+                _grupo = gs.isEmpty ? '' : gs.first.slug;
+                final ss = gs.isEmpty
+                    ? const <TaxonomiaNo>[]
+                    : arvore.subgruposDe(gs.first.id);
+                _subgrupo = ss.isEmpty ? '' : ss.first.slug;
+                _markDirty();
+              }),
+            ),
+            _twoCol(
+              _dropdownField<String>(
+                label: 'Grupo',
+                value: grupoNo?.slug ?? (grupos.isEmpty ? '' : grupos.first.slug),
+                items: [for (final g in grupos) g.slug],
+                labelOf: (slug) {
+                  for (final g in grupos) {
+                    if (g.slug == slug) return g.nome;
+                  }
+                  return slug;
+                },
+                onChanged: grupos.isEmpty
+                    ? (_) {}
+                    : (slug) => setState(() {
+                          _grupo = slug;
+                          TaxonomiaNo? gNo;
+                          for (final g in grupos) {
+                            if (g.slug == slug) gNo = g;
+                          }
+                          final ss = gNo == null
+                              ? const <TaxonomiaNo>[]
+                              : arvore.subgruposDe(gNo.id);
+                          _subgrupo = ss.isEmpty ? '' : ss.first.slug;
+                          _markDirty();
+                        }),
+              ),
+              subs.isNotEmpty
+                  ? _dropdownField<String>(
+                      label: 'Subgrupo',
+                      value: subSlug,
+                      items: [for (final s in subs) s.slug],
+                      labelOf: (slug) {
+                        for (final s in subs) {
+                          if (s.slug == slug) return s.nome;
+                        }
+                        return slug;
+                      },
+                      onChanged: (slug) => setState(() {
+                        _subgrupo = slug;
+                        _markDirty();
+                      }),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            _textField(
+              label: 'Nome do serviço',
+              required: true,
+              controller: _nome,
+              errorKey: 'nome',
+              hint: 'Cleanox Premium',
+              textCapitalization: TextCapitalization.words,
+            ),
+            _twoCol(
+              _dropdownField<TipoValor>(
+                label: 'Tipo de valor',
+                value: _tipoValor,
+                items: TipoValor.values,
+                labelOf: tipoValorLabel,
+                onChanged: (v) => setState(() {
+                  _tipoValor = v;
+                  if (v != TipoValor.faixa) _errs.remove('valorMax');
+                  _markDirty();
+                }),
+              ),
+              _textFieldRaw(
+                label: 'Tempo médio',
+                controller: _tempoMedio,
+                hint: '3h a 4h',
+              ),
+            ),
+            _textField(
+              label: 'Detalhes (o que o serviço inclui)',
+              controller: _detalhes,
+              errorKey: 'detalhes',
+              hint:
+                  'Descreva tudo que entra no serviço. Aparece no “Ver detalhes” da Vitrine.',
+              maxLines: 6,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            if (_tipoValor == TipoValor.faixa)
+              _twoCol(
+                _moneyField(
+                  label: 'Valor mínimo',
+                  cents: _valorBaseCents,
+                  onChanged: (c) => setState(() {
+                    _valorBaseCents = c;
                     _markDirty();
                   }),
-                )
-              : const SizedBox.shrink(),
-        ),
-        _textField(
-          label: 'Nome do serviço',
-          required: true,
-          controller: _nome,
-          errorKey: 'nome',
-          hint: 'Cleanox Premium',
-          textCapitalization: TextCapitalization.words,
-        ),
-        _twoCol(
-          _dropdownField<TipoValor>(
-            label: 'Tipo de valor',
-            value: _tipoValor,
-            items: TipoValor.values,
-            labelOf: tipoValorLabel,
-            onChanged: (v) => setState(() {
-              _tipoValor = v;
-              if (v != TipoValor.faixa) _errs.remove('valorMax');
-              _markDirty();
-            }),
-          ),
-          _textFieldRaw(
-            label: 'Tempo médio',
-            controller: _tempoMedio,
-            hint: '3h a 4h',
-          ),
-        ),
-        _textField(
-          label: 'Detalhes (o que o serviço inclui)',
-          controller: _detalhes,
-          errorKey: 'detalhes',
-          hint:
-              'Descreva tudo que entra no serviço. Aparece no “Ver detalhes” da Vitrine.',
-          maxLines: 6,
-          textCapitalization: TextCapitalization.sentences,
-        ),
-        if (_tipoValor == TipoValor.faixa)
-          _twoCol(
-            _moneyField(
-              label: 'Valor mínimo',
-              cents: _valorBaseCents,
-              onChanged: (c) => setState(() {
-                _valorBaseCents = c;
-                _markDirty();
-              }),
-            ),
-            _moneyField(
-              label: 'Valor máximo',
-              cents: _valorBaseMaxCents,
-              errorKey: 'valorMax',
-              onChanged: (c) => setState(() {
-                _valorBaseMaxCents = c;
-                _errs.remove('valorMax');
-                _markDirty();
-              }),
-            ),
-          )
-        else
-          _moneyField(
-            label: 'Valor base',
-            cents: _valorBaseCents,
-            onChanged: (c) => setState(() {
-              _valorBaseCents = c;
-              _markDirty();
-            }),
-          ),
-        const SizedBox(height: ClxSpace.x2),
-        _statusRow(clx),
-      ],
+                ),
+                _moneyField(
+                  label: 'Valor máximo',
+                  cents: _valorBaseMaxCents,
+                  errorKey: 'valorMax',
+                  onChanged: (c) => setState(() {
+                    _valorBaseMaxCents = c;
+                    _errs.remove('valorMax');
+                    _markDirty();
+                  }),
+                ),
+              )
+            else
+              _moneyField(
+                label: 'Valor base',
+                cents: _valorBaseCents,
+                onChanged: (c) => setState(() {
+                  _valorBaseCents = c;
+                  _markDirty();
+                }),
+              ),
+            const SizedBox(height: ClxSpace.x2),
+            _statusRow(clx),
+          ],
+        );
+      },
     );
   }
 
@@ -1134,7 +1201,7 @@ class _PreviewOS extends StatelessWidget {
                   borderRadius: ClxRadii.rMd,
                 ),
                 child: Icon(
-                  _categoriaIcon(servico.categoria),
+                  _categoriaIcon(servico.categoriaEnum),
                   size: 22,
                   color: clx.primary,
                 ),
@@ -1290,7 +1357,7 @@ class _OutrosServicosTable extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
         child: Row(
           children: [
-            Icon(_categoriaIcon(s.categoria), size: 16, color: clx.ink3),
+            Icon(_categoriaIcon(s.categoriaEnum), size: 16, color: clx.ink3),
             const SizedBox(width: ClxSpace.x2),
             Expanded(
               flex: 3,
@@ -1304,9 +1371,9 @@ class _OutrosServicosTable extends StatelessWidget {
                     style: tt.titleSmall?.copyWith(color: clx.ink),
                   ),
                   Text(
-                    '${categoriaLabel(s.categoria ?? Categoria.veicular)} · '
-                    '${grupoLabel(s.grupo ?? Grupo.outros)}'
-                    '${(s.subgrupo).trim().isEmpty ? '' : ' · ${subgrupoRotulo(s.categoria ?? Categoria.veicular, s.grupo ?? Grupo.outros, s.subgrupo)}'}',
+                    '${categoriaLabelSlug(s.categoria.isEmpty ? 'veicular' : s.categoria)} · '
+                    '${grupoLabelSlug(s.grupo.isEmpty ? 'outros' : s.grupo)}'
+                    '${s.subgrupo.trim().isEmpty ? '' : ' · ${s.subgrupo}'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.bodySmall?.copyWith(color: clx.ink3),

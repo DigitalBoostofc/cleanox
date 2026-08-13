@@ -763,10 +763,12 @@ ServicoPB _$ServicoPBFromJson(Map<String, dynamic> json) {
 mixin _$ServicoPB {
   String get id => throw _privateConstructorUsedError;
   String get slug => throw _privateConstructorUsedError;
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  Categoria? get categoria => throw _privateConstructorUsedError;
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  Grupo? get grupo => throw _privateConstructorUsedError;
+
+  /// Slug da categoria (taxonomia editável).
+  String get categoria => throw _privateConstructorUsedError;
+
+  /// Slug do grupo (taxonomia editável).
+  String get grupo => throw _privateConstructorUsedError;
   String get nome => throw _privateConstructorUsedError;
   String? get descricao => throw _privateConstructorUsedError;
 
@@ -829,9 +831,8 @@ abstract class $ServicoPBCopyWith<$Res> {
   $Res call({
     String id,
     String slug,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    Categoria? categoria,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue) Grupo? grupo,
+    String categoria,
+    String grupo,
     String nome,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
@@ -878,8 +879,8 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
   $Res call({
     Object? id = null,
     Object? slug = null,
-    Object? categoria = freezed,
-    Object? grupo = freezed,
+    Object? categoria = null,
+    Object? grupo = null,
     Object? nome = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
@@ -910,14 +911,14 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
                 ? _value.slug
                 : slug // ignore: cast_nullable_to_non_nullable
                       as String,
-            categoria: freezed == categoria
+            categoria: null == categoria
                 ? _value.categoria
                 : categoria // ignore: cast_nullable_to_non_nullable
-                      as Categoria?,
-            grupo: freezed == grupo
+                      as String,
+            grupo: null == grupo
                 ? _value.grupo
                 : grupo // ignore: cast_nullable_to_non_nullable
-                      as Grupo?,
+                      as String,
             nome: null == nome
                 ? _value.nome
                 : nome // ignore: cast_nullable_to_non_nullable
@@ -1012,9 +1013,8 @@ abstract class _$$ServicoPBImplCopyWith<$Res>
   $Res call({
     String id,
     String slug,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    Categoria? categoria,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue) Grupo? grupo,
+    String categoria,
+    String grupo,
     String nome,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
@@ -1060,8 +1060,8 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? slug = null,
-    Object? categoria = freezed,
-    Object? grupo = freezed,
+    Object? categoria = null,
+    Object? grupo = null,
     Object? nome = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
@@ -1092,14 +1092,14 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
             ? _value.slug
             : slug // ignore: cast_nullable_to_non_nullable
                   as String,
-        categoria: freezed == categoria
+        categoria: null == categoria
             ? _value.categoria
             : categoria // ignore: cast_nullable_to_non_nullable
-                  as Categoria?,
-        grupo: freezed == grupo
+                  as String,
+        grupo: null == grupo
             ? _value.grupo
             : grupo // ignore: cast_nullable_to_non_nullable
-                  as Grupo?,
+                  as String,
         nome: null == nome
             ? _value.nome
             : nome // ignore: cast_nullable_to_non_nullable
@@ -1187,9 +1187,8 @@ class _$ServicoPBImpl extends _ServicoPB {
   const _$ServicoPBImpl({
     required this.id,
     this.slug = '',
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    this.categoria,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue) this.grupo,
+    this.categoria = '',
+    this.grupo = '',
     this.nome = '',
     this.descricao,
     @JsonKey(name: 'vitrine_descricao') this.vitrineDescricao = '',
@@ -1228,12 +1227,16 @@ class _$ServicoPBImpl extends _ServicoPB {
   @override
   @JsonKey()
   final String slug;
+
+  /// Slug da categoria (taxonomia editável).
   @override
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  final Categoria? categoria;
+  @JsonKey()
+  final String categoria;
+
+  /// Slug do grupo (taxonomia editável).
   @override
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  final Grupo? grupo;
+  @JsonKey()
+  final String grupo;
   @override
   @JsonKey()
   final String nome;
@@ -1412,10 +1415,8 @@ abstract class _ServicoPB extends ServicoPB {
   const factory _ServicoPB({
     required final String id,
     final String slug,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    final Categoria? categoria,
-    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-    final Grupo? grupo,
+    final String categoria,
+    final String grupo,
     final String nome,
     final String? descricao,
     @JsonKey(name: 'vitrine_descricao') final String vitrineDescricao,
@@ -1452,12 +1453,14 @@ abstract class _ServicoPB extends ServicoPB {
   String get id;
   @override
   String get slug;
+
+  /// Slug da categoria (taxonomia editável).
   @override
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  Categoria? get categoria;
+  String get categoria;
+
+  /// Slug do grupo (taxonomia editável).
   @override
-  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
-  Grupo? get grupo;
+  String get grupo;
   @override
   String get nome;
   @override

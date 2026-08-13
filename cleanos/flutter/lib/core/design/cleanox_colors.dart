@@ -105,16 +105,27 @@ class CleanoxColors extends ThemeExtension<CleanoxColors> {
     OSStatus.cancelada => statusCanceladaBg,
   };
 
-  /// Cor do chip de um grupo de serviço.
-  Color groupColor(Grupo g) => switch (g) {
-    Grupo.plano => groupPlano,
-    Grupo.promocao => groupPromocao,
-    Grupo.adicional => groupAdicional,
-    Grupo.avulsos => groupAvulsos,
-    Grupo.sofa => groupSofa,
-    Grupo.colchao => groupColchao,
-    Grupo.outros => groupOutros,
-  };
+  /// Cor do chip de um grupo de serviço (enum ou slug).
+  Color groupColor(Object g) {
+    final Grupo? e = g is Grupo
+        ? g
+        : () {
+            final w = g.toString().trim();
+            for (final x in Grupo.values) {
+              if (x.wire == w || x.name == w) return x;
+            }
+            return null;
+          }();
+    return switch (e) {
+      Grupo.plano => groupPlano,
+      Grupo.promocao => groupPromocao,
+      Grupo.adicional => groupAdicional,
+      Grupo.avulsos => groupAvulsos,
+      Grupo.sofa => groupSofa,
+      Grupo.colchao => groupColchao,
+      Grupo.outros || null => groupOutros,
+    };
+  }
 
   /// Modo claro — paleta oficial Cleanox em toda a ferramenta.
   /// #0B1D34 · #0EA5B7 · #22D3EE · #F5F7FA · #7B8794

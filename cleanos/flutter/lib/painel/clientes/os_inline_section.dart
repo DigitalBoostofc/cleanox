@@ -63,8 +63,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   bool _duracaoTocada = false;
 
   // Filtro cascata Categoria → Grupo → Serviço.
-  Categoria? _catFiltro;
-  Grupo? _grupoFiltro;
+  String? _catFiltro;
+  String? _grupoFiltro;
 
   final Map<String, String> _errs = {};
 
@@ -211,7 +211,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     return null;
   }
 
-  void _onCategoria(Categoria? c, List<ServicoPB> servicos) {
+  void _onCategoria(String? c, List<ServicoPB> servicos) {
     setState(() {
       _catFiltro = c;
       _grupoFiltro = null;
@@ -222,7 +222,7 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     });
   }
 
-  void _onGrupo(Grupo? g, List<ServicoPB> servicos) {
+  void _onGrupo(String? g, List<ServicoPB> servicos) {
     setState(() {
       _grupoFiltro = g;
       if (g != null && _servicoId.isNotEmpty) {
@@ -370,22 +370,18 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
 
   Widget _dataForm(CleanoxColors clx, dynamic lk) {
     final servicos = lk.servicos as List<ServicoPB>;
-    final categorias = <Categoria>[
-      for (final c in <Categoria>{
-        for (final s in servicos)
-          if (s.categoria != null) s.categoria!,
-      })
-        c,
-    ];
-    final grupos = <Grupo>[
-      for (final g in <Grupo>{
-        for (final s in servicos)
-          if (s.grupo != null &&
-              (_catFiltro == null || s.categoria == _catFiltro))
-            s.grupo!,
-      })
-        g,
-    ];
+    final catSet = <String>{
+      for (final s in servicos)
+        if (s.categoria.trim().isNotEmpty) s.categoria,
+    };
+    final categorias = catSet.toList()..sort();
+    final grupoSet = <String>{
+      for (final s in servicos)
+        if ((_catFiltro == null || s.categoria == _catFiltro) &&
+            s.grupo.trim().isNotEmpty)
+          s.grupo,
+    };
+    final grupos = grupoSet.toList()..sort();
     final servicosFiltrados = [
       for (final s in servicos)
         if ((_catFiltro == null || s.categoria == _catFiltro) &&
@@ -499,20 +495,20 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
         if (categorias.isNotEmpty) ...[
           _label('Categoria'),
           DropdownButtonFormField<String>(
-            key: ValueKey('os-inline-cat-${_catFiltro?.wire ?? ''}'),
-            initialValue: _catFiltro?.wire,
+            key: ValueKey('os-inline-cat-${_catFiltro ?? ''}'),
+            initialValue: _catFiltro,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true),
             hint: const Text('— Todas —'),
             items: [
               const DropdownMenuItem(value: '', child: Text('— Todas —')),
               for (final c in categorias)
-                DropdownMenuItem(value: c.wire, child: Text(categoriaLabel(c))),
+                DropdownMenuItem(value: c, child: Text(categoriaLabelSlug(c))),
             ],
             onChanged: !widget.enabled
                 ? null
                 : (v) => _onCategoria(
-                    (v == null || v.isEmpty) ? null : Categoria.values.byName(v),
+                    (v == null || v.isEmpty) ? null : v,
                     servicos,
                   ),
           ),
@@ -521,20 +517,20 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
         if (grupos.isNotEmpty) ...[
           _label('Grupo'),
           DropdownButtonFormField<String>(
-            key: ValueKey('os-inline-grupo-${_grupoFiltro?.wire ?? ''}'),
-            initialValue: _grupoFiltro?.wire,
+            key: ValueKey('os-inline-grupo-${_grupoFiltro ?? ''}'),
+            initialValue: _grupoFiltro,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true),
             hint: const Text('— Todos —'),
             items: [
               const DropdownMenuItem(value: '', child: Text('— Todos —')),
               for (final g in grupos)
-                DropdownMenuItem(value: g.wire, child: Text(grupoLabel(g))),
+                DropdownMenuItem(value: g, child: Text(grupoLabelSlug(g))),
             ],
             onChanged: !widget.enabled
                 ? null
                 : (v) => _onGrupo(
-                    (v == null || v.isEmpty) ? null : Grupo.values.byName(v),
+                    (v == null || v.isEmpty) ? null : v,
                     servicos,
                   ),
           ),

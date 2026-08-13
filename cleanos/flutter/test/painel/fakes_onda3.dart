@@ -19,8 +19,8 @@ import 'package:pocketbase/pocketbase.dart';
 ServicoPB fakeServico({
   required String id,
   String nome = 'Higienização de Sofá',
-  Categoria categoria = Categoria.residencial,
-  Grupo grupo = Grupo.sofa,
+  String categoria = 'residencial',
+  String grupo = 'sofa',
   double valorBase = 150,
   TipoValor tipoValor = TipoValor.fixo,
   ServicoStatus status = ServicoStatus.ativo,
