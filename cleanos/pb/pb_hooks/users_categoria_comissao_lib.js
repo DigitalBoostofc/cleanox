@@ -196,12 +196,7 @@ function _aindaReferenciada(app, collection, filter, params) {
 
 function backfillUsersCategoriaComissao(app) {
   var equipe = resolverRaizEquipe(app);
-  var users = [];
-  try {
-    users = app.findRecordsByFilter("users", "", "", 500, 0) || [];
-  } catch (_) {
-    users = [];
-  }
+  var users = app.findRecordsByFilter("users", "", "", 500, 0) || [];
   var alterados = 0;
   for (var i = 0; i < users.length; i++) {
     var user = users[i];

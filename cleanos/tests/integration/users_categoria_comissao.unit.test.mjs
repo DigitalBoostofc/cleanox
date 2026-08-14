@@ -560,6 +560,18 @@ describe('backfillUsersCategoriaComissao (mig 76)', () => {
     assert.notEqual(comReceita.get('categoria_comissao'), 'cat_rec')
   })
 
+  it('erro ao listar users propaga e não marca sucesso vazio', () => {
+    const app = mockApp({ categorias: [EQUIPE] })
+    app.findRecordsByFilter = (collection) => {
+      if (collection === 'users') throw new Error('listagem users falhou')
+      return []
+    }
+    assert.throws(
+      () => lib.backfillUsersCategoriaComissao(app),
+      /listagem users falhou/,
+    )
+  })
+
   it('profissional sem nome e sem vínculo válido aborta o backfill', () => {
     const user = userRec(
       {
