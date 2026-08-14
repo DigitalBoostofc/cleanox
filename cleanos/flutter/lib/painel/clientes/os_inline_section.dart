@@ -171,8 +171,12 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           .list(somenteAtivos: true);
       if (!mounted) return;
       setState(() {
-        _pontos = list;
+        _pontos = pontosFisicosUnicos(list);
         _pontosLoading = false;
+        if (_localTipo == 'ponto_fisico') {
+          _pontoFisicoId =
+              idPontoFisicoPadrao(pontos: _pontos, atual: _pontoFisicoId) ?? '';
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -422,6 +426,13 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
                     if (_localTipo != 'ponto_fisico') {
                       _pontoFisicoId = '';
                       _errs.remove('ponto_fisico');
+                    } else {
+                      _pontoFisicoId =
+                          idPontoFisicoPadrao(
+                            pontos: _pontos,
+                            atual: _pontoFisicoId,
+                          ) ??
+                          '';
                     }
                   }),
         ),
@@ -463,38 +474,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
                         _errs.remove('ponto_fisico');
                       }),
             ),
-          if (_pontoFisicoId.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Builder(
-              builder: (_) {
-                PontoFisico? p;
-                for (final x in _pontos) {
-                  if (x.id == _pontoFisicoId) {
-                    p = x;
-                    break;
-                  }
-                }
-                if (p == null) return const SizedBox.shrink();
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: clx.bg2,
-                    borderRadius: ClxRadii.rMd,
-                    border: Border.all(color: clx.line),
-                  ),
-                  child: Text(
-                    p.enderecoResumo,
-                    style: TextStyle(
-                      color: clx.ink2,
-                      fontSize: 13,
-                      height: 1.35,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
         ],
         const SizedBox(height: ClxSpace.x4),
         if (categorias.isNotEmpty) ...[

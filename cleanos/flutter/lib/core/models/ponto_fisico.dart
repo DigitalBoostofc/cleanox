@@ -100,3 +100,28 @@ class PontoFisico {
     observacoes: observacoes ?? this.observacoes,
   );
 }
+
+/// Remove ids vazios e entradas repetidas, na ordem original.
+List<PontoFisico> pontosFisicosUnicos(Iterable<PontoFisico> pontos) {
+  final seen = <String>{};
+  final out = <PontoFisico>[];
+  for (final p in pontos) {
+    final id = p.id.trim();
+    if (id.isEmpty || !seen.add(id)) continue;
+    out.add(p);
+  }
+  return out;
+}
+
+/// Ponto a pré-selecionar: se já há escolha, mantém. Se ainda não há e só
+/// existe um cadastrado, usa esse. Com zero ou vários, não inventa escolha.
+String? idPontoFisicoPadrao({
+  required Iterable<PontoFisico> pontos,
+  String? atual,
+}) {
+  final current = (atual ?? '').trim();
+  if (current.isNotEmpty) return current;
+  final unicos = pontosFisicosUnicos(pontos);
+  if (unicos.length == 1) return unicos.single.id;
+  return null;
+}
