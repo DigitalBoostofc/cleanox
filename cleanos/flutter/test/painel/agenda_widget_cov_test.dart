@@ -104,8 +104,8 @@ void main() {
 
   group('Visão SEMANA (regressão de altura infinita)', () {
     testWidgets('semana vazia: grade renderiza sem exceção', (tester) async {
-      // Default do controller já é a visão semana.
       await pumpAgenda(tester);
+      await selecionarVisao(tester, 'Semana');
 
       // Cabeçalho de dias presente; nenhum crash de layout.
       expect(find.text('Seg'), findsWidgets);
@@ -139,6 +139,7 @@ void main() {
           ),
         ],
       );
+      await selecionarVisao(tester, 'Semana');
 
       expect(find.textContaining('Qua Cliente'), findsWidgets);
       expectNoFatalLayoutException(tester);
@@ -159,6 +160,7 @@ void main() {
             ),
         ];
         await pumpAgenda(tester, seed: seed);
+        await selecionarVisao(tester, 'Semana');
 
         // Renderizou a pilha sem exceção fatal — IntrinsicHeight segura;
         // overflow 1px nos cards densos é filtrado (day_column).
@@ -215,7 +217,7 @@ void main() {
   });
 
   group('Alternância entre visões', () {
-    testWidgets('Semana → Dia → Mês → Semana em sequência sem exceção', (
+    testWidgets('Dia → Semana → Mês → Dia em sequência sem exceção', (
       tester,
     ) async {
       await pumpAgenda(
@@ -230,20 +232,20 @@ void main() {
         ],
       );
 
-      // Começa em SEMANA (default).
-      expect(find.text('Seg'), findsWidgets);
+      // Começa em DIA (default).
+      expect(find.text('13h'), findsOneWidget);
       expectNoFatalLayoutException(tester);
 
-      await selecionarVisao(tester, 'Dia');
-      expect(find.text('13h'), findsOneWidget);
+      await selecionarVisao(tester, 'Semana');
+      expect(find.text('Seg'), findsWidgets);
       expectNoFatalLayoutException(tester);
 
       await selecionarVisao(tester, 'Mês');
       expect(find.text('Dom'), findsWidgets);
       expectNoFatalLayoutException(tester);
 
-      await selecionarVisao(tester, 'Semana');
-      expect(find.text('Seg'), findsWidgets);
+      await selecionarVisao(tester, 'Dia');
+      expect(find.text('13h'), findsOneWidget);
       expectNoFatalLayoutException(tester);
     });
   });
