@@ -710,64 +710,17 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return '';
   }
 
-  IconData _macroIcon(String macro) {
-    // Preferir chave CMS; fallbacks sólidos (sem *_rounded — somem no web).
+  VitrineChoiceGlyph _macroGlyph(String macro) {
     if (macro == 'veicular') {
-      return vitrineMacroIcon(_config.macroAutoIcone);
+      return vitrineMacroGlyph(_config.macroAutoIcone);
     }
     if (macro == 'residencial') {
-      return vitrineMacroIcon(_config.macroResidIcone);
+      return vitrineMacroGlyph(_config.macroResidIcone);
     }
-    return Icons.cleaning_services;
+    return VitrineChoiceGlyph.clean;
   }
 
-  IconData _iconGrupo(String slug) {
-    switch (slug.trim().toLowerCase()) {
-      case 'sofa':
-      case 'sofá':
-      case 'sofaa':
-        return Icons.weekend;
-      case 'colchao':
-      case 'colchão':
-      case 'colchoes':
-      case 'colchões':
-        return Icons.hotel;
-      case 'plano':
-      case 'planos':
-        return Icons.star;
-      case 'promocao':
-      case 'promoção':
-      case 'promo':
-        return Icons.local_offer;
-      case 'adicional':
-      case 'adicionais':
-        return Icons.add_circle_outline;
-      case 'avulsos':
-      case 'avulso':
-        return Icons.auto_awesome;
-      case 'outros':
-      case 'outro':
-        return Icons.more_horiz;
-      case 'cadeira':
-      case 'cadeiras':
-      case 'poltrona':
-      case 'poltronas':
-        return Icons.event_seat;
-      case 'tapete':
-      case 'tapetes':
-        return Icons.layers;
-      case 'banco':
-      case 'bancos':
-        return Icons.airline_seat_recline_normal;
-      case 'teto':
-        return Icons.roofing;
-      case 'carpete':
-      case 'carpetes':
-        return Icons.texture;
-      default:
-        return Icons.grid_view;
-    }
-  }
+  VitrineChoiceGlyph _glyphGrupo(String slug) => vitrineGrupoGlyph(slug);
 
   List<VitrineServico> _servicosNoMacro(String macro) {
     return _sortedServicos(
@@ -999,7 +952,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                             key: Key('vitrine-home-cat-$m'),
                             title: _macroTitle(m),
                             subtitle: _macroSubtitle(m),
-                            icon: _macroIcon(m),
+                            glyph: _macroGlyph(m),
                             onTap: () => _pickCategoria(m),
                           ),
                       ],
@@ -1017,7 +970,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     required Key key,
     required String title,
     required String subtitle,
-    required IconData icon,
+    required VitrineChoiceGlyph glyph,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -1050,11 +1003,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   height: 56,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F7F9),
+                    color: ClxBrand.cyan.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  // Navy no fundo cyan claro — *_rounded sumiam no web.
-                  child: Icon(icon, color: ClxBrand.navy, size: 30),
+                  child: VitrineChoiceIcon(
+                    glyph: glyph,
+                    size: 30,
+                    color: ClxBrand.cyan,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -1301,7 +1257,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                                   title: _labelGrupo(g),
                                   subtitle:
                                       '${_servicosNoGrupo(cat, g).length} opções',
-                                  icon: _iconGrupo(g),
+                                  glyph: _glyphGrupo(g),
                                   onTap: () => _pickGrupo(g),
                                 ),
                             ],
@@ -1387,7 +1343,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                                   key: Key('vitrine-home-sub-$s'),
                                   title: _labelSubgrupo(s),
                                   subtitle: 'Ver serviços',
-                                  icon: Icons.layers,
+                                  glyph: VitrineChoiceGlyph.layers,
                                   onTap: () => _pickSubgrupo(s),
                                 ),
                             ],
@@ -1448,7 +1404,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   grupos: _gruposDoMacro(cat),
                   selected: grupo,
                   labelOf: _labelGrupo,
-                  iconOf: _iconGrupo,
+                  glyphOf: _glyphGrupo,
                   onSelect: (g) {
                     setState(() {
                       _familiaFilter = g;
@@ -2700,14 +2656,14 @@ class _HomeGrupoIconStrip extends StatelessWidget {
     required this.grupos,
     required this.selected,
     required this.labelOf,
-    required this.iconOf,
+    required this.glyphOf,
     required this.onSelect,
   });
 
   final List<String> grupos;
   final String selected;
   final String Function(String slug) labelOf;
-  final IconData Function(String slug) iconOf;
+  final VitrineChoiceGlyph Function(String slug) glyphOf;
   final ValueChanged<String> onSelect;
 
   @override
@@ -2727,7 +2683,7 @@ class _HomeGrupoIconStrip extends StatelessWidget {
           return _GrupoIconChip(
             key: Key('vitrine-home-grupo-icon-$g'),
             label: labelOf(g),
-            icon: iconOf(g),
+            glyph: glyphOf(g),
             selected: on,
             onTap: () => onSelect(g),
           );
@@ -2741,21 +2697,23 @@ class _GrupoIconChip extends StatelessWidget {
   const _GrupoIconChip({
     super.key,
     required this.label,
-    required this.icon,
+    required this.glyph,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
+  final VitrineChoiceGlyph glyph;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bg = selected ? ClxBrand.cyan : Colors.white;
-    final fg = selected ? Colors.white : ClxBrand.navy;
-    final border = selected ? ClxBrand.cyan : const Color(0xFFE2E8F0);
+    // Paleta marca: selecionado = fundo cyan + glifo branco;
+    // idle = fundo cyan 12% + glifo cyan (nunca branco em fundo claro).
+    final bg = selected ? ClxBrand.cyan : ClxBrand.cyan.withValues(alpha: 0.12);
+    final fg = selected ? Colors.white : ClxBrand.cyan;
+    final border = selected ? ClxBrand.cyan : ClxBrand.cyan.withValues(alpha: 0.28);
 
     return Material(
       color: Colors.transparent,
@@ -2771,6 +2729,7 @@ class _GrupoIconChip extends StatelessWidget {
                 duration: const Duration(milliseconds: 160),
                 width: 48,
                 height: 48,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: bg,
                   borderRadius: BorderRadius.circular(14),
@@ -2791,7 +2750,7 @@ class _GrupoIconChip extends StatelessWidget {
                           ),
                         ],
                 ),
-                child: Icon(icon, size: 24, color: fg),
+                child: VitrineChoiceIcon(glyph: glyph, size: 24, color: fg),
               ),
               const SizedBox(height: 6),
               Text(
