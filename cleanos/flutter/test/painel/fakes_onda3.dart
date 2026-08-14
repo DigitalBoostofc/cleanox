@@ -140,7 +140,23 @@ class FakeServicosFull implements ServicosRepository {
   Future<ServicoPB> update(String id, Map<String, dynamic> data) async {
     updateCount++;
     lastUpdate = data;
-    return fakeServico(id: id, nome: (data['nome'] as String?) ?? 'Serviço');
+    final current = seed.cast<ServicoPB?>().firstWhere(
+      (s) => s!.id == id,
+      orElse: () => null,
+    );
+    final updated = (current ?? fakeServico(id: id)).copyWith(
+      nome: (data['nome'] as String?) ?? current?.nome ?? 'Serviço',
+      categoria: (data['categoria'] as String?) ?? current?.categoria ?? '',
+      grupo: (data['grupo'] as String?) ?? current?.grupo ?? '',
+    );
+    seed = [
+      for (final s in seed)
+        if (s.id == id) updated else s,
+    ];
+    if (!seed.any((s) => s.id == id)) {
+      seed = [...seed, updated];
+    }
+    return updated;
   }
 
   @override

@@ -133,7 +133,7 @@ class ServicoPB with _$ServicoPB {
     /// Texto comercial “o que inclui” na Vitrine (popup Detalhes).
     @JsonKey(name: 'vitrine_descricao') @Default('') String vitrineDescricao,
 
-    /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+    /// Campo legado no PB. Não aparece na UI nem controla o fluxo.
     @Default('') String subgrupo,
     @JsonKey(name: 'valor_base') @Default(0) double valorBase,
     @JsonKey(name: 'valor_base_max') double? valorBaseMax,

@@ -1,6 +1,6 @@
 /// Vitrine pública — autoagendamento Cleanox (sem conta).
 ///
-/// Fluxo: 0 home (guiado cat→grupo→sub→catálogo) · 1 serviços · 2 data/hora
+/// Fluxo: 0 home (guiado cat→grupo→catálogo) · 1 serviços · 2 data/hora
 ///         · 3 dados · 4 revisar · 5 ok · 6 como funciona
 library;
 
@@ -68,8 +68,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   VitrineAgendarResult? _ok;
   String? _categoriaFilter; // residencial | veicular (macro)
   String? _familiaFilter; // grupo: sofa | plano | …
-  String? _subgrupoFilter; // subgrupo opcional
-  /// 0 categorias · 1 grupos · 2 subgrupos · 3 catálogo filtrado
+  /// 0 categorias · 1 grupos · 2 catálogo filtrado
   int _homeBrowse = 0;
   String? _buscaFilter; // texto do “Buscar serviço”
   String? _idempotencyKey;
@@ -542,7 +541,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 _homeBrowse = 0;
                 _categoriaFilter = null;
                 _familiaFilter = null;
-                _subgrupoFilter = null;
                 _buscaFilter = null;
               }),
             );
@@ -613,7 +611,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               else if (_step == 6 ||
                   _step == 1 ||
                   (_step == 0 &&
-                      (_homeBrowse >= 3 || _picked.isNotEmpty)))
+                      (_homeBrowse >= 2 || _picked.isNotEmpty)))
                 VitrineBottomNav(
                   index: _navIndex,
                   cartCount: _picked.length,
@@ -678,12 +676,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         if (s.isEmpty) return 'Outros';
         return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
     }
-  }
-
-  String _labelSubgrupo(String slug) {
-    final s = slug.trim();
-    if (s.isEmpty) return 'Geral';
-    return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
   }
 
   String _macroTitle(String macro) {
@@ -751,22 +743,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  List<String> _subgruposDoGrupo(String macro, String grupo) {
-    final seen = <String>{};
-    final out = <String>[];
-    for (final s in _servicosNoGrupo(macro, grupo)) {
-      final sub = s.subgrupo.trim().toLowerCase();
-      if (sub.isEmpty) continue;
-      if (seen.add(sub)) out.add(sub);
-    }
-    out.sort();
-    return out;
-  }
-
   List<VitrineServico> _catalogoFiltradoGuiado() {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupo = (_familiaFilter ?? '').trim().toLowerCase();
-    final sub = (_subgrupoFilter ?? '').trim().toLowerCase();
     return _sortedServicos(
       _catalog.where((s) {
         if (!_matchBusca(s)) return false;
@@ -775,9 +754,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           final g = s.grupo.trim().toLowerCase();
           final key = g.isEmpty ? 'outros' : g;
           if (key != grupo) return false;
-        }
-        if (sub.isNotEmpty) {
-          if (s.subgrupo.trim().toLowerCase() != sub) return false;
         }
         return true;
       }),
@@ -788,7 +764,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     setState(() {
       _categoriaFilter = macro;
       _familiaFilter = null;
-      _subgrupoFilter = null;
       _buscaFilter = null;
       _homeBrowse = 1;
       _error = null;
@@ -817,50 +792,23 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 
   void _pickGrupo(String grupo) {
-    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
-    final subs = _subgruposDoGrupo(cat, grupo);
     setState(() {
       _familiaFilter = grupo;
-      _subgrupoFilter = null;
       _buscaFilter = null;
-      _homeBrowse = subs.isEmpty ? 3 : 2;
-      _error = null;
-    });
-  }
-
-  void _pickSubgrupo(String sub) {
-    setState(() {
-      _subgrupoFilter = sub;
-      _homeBrowse = 3;
+      _homeBrowse = 2;
       _error = null;
     });
   }
 
   void _browseBack() {
     setState(() {
-      if (_homeBrowse >= 3) {
-        final cat = (_categoriaFilter ?? '').trim().toLowerCase();
-        final grupo = (_familiaFilter ?? '').trim().toLowerCase();
-        final subs = (cat.isEmpty || grupo.isEmpty)
-            ? const <String>[]
-            : _subgruposDoGrupo(cat, grupo);
-        if (subs.isNotEmpty) {
-          _homeBrowse = 2;
-          _subgrupoFilter = null;
-        } else {
-          _homeBrowse = 1;
-          _familiaFilter = null;
-          _subgrupoFilter = null;
-        }
-      } else if (_homeBrowse == 2) {
+      if (_homeBrowse >= 2) {
         _homeBrowse = 1;
         _familiaFilter = null;
-        _subgrupoFilter = null;
       } else if (_homeBrowse == 1) {
         _homeBrowse = 0;
         _categoriaFilter = null;
         _familiaFilter = null;
-        _subgrupoFilter = null;
       }
       _buscaFilter = null;
       _error = null;
@@ -872,8 +820,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       case 1:
         return _homeGrupos();
       case 2:
-        return _homeSubgrupos();
-      case 3:
         return _homeCatalogoFiltrado();
       default:
         return _homeCategorias();
@@ -1274,105 +1220,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     );
   }
 
-  Widget _homeSubgrupos() {
-    final cat = (_categoriaFilter ?? '').trim().toLowerCase();
-    final grupo = (_familiaFilter ?? '').trim().toLowerCase();
-    final subs = _subgruposDoGrupo(cat, grupo);
-
-    return LayoutBuilder(
-      key: const Key('vitrine-home-browse-subgrupos'),
-      builder: (context, constraints) {
-        final maxW = min(_kChoiceMaxW, constraints.maxWidth);
-        final cardSide = _choiceCardSide(constraints.maxWidth);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _browseBackButton(),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _kChoiceHPad,
-                    vertical: 12,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: max(0, constraints.maxHeight - 72),
-                      maxWidth: maxW,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${_macroTitle(cat)} · ${_labelGrupo(grupo)}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: kFontFamily,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: ClxBrand.cyan,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Escolha o subgrupo',
-                          key: Key('vitrine-home-escolha-subgrupo'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: kFontFamily,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: ClxBrand.navy,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        if (subs.isEmpty)
-                          const Text(
-                            'Nenhum subgrupo nesta opção.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: ClxBrand.muted),
-                          )
-                        else
-                          _squareChoiceGrid(
-                            key: const Key('vitrine-home-sub-row'),
-                            cardSide: cardSide,
-                            cards: [
-                              for (final s in subs)
-                                _categoriaSquareCard(
-                                  key: Key('vitrine-home-sub-$s'),
-                                  title: _labelSubgrupo(s),
-                                  subtitle: 'Ver serviços',
-                                  glyph: VitrineChoiceGlyph.layers,
-                                  onTap: () => _pickSubgrupo(s),
-                                ),
-                            ],
-                          ),
-                        const SizedBox(height: 16),
-                        TextButton(
-                          key: const Key('vitrine-home-ver-todos-grupo'),
-                          onPressed: () => setState(() {
-                            _subgrupoFilter = null;
-                            _homeBrowse = 3;
-                          }),
-                          child: const Text('Ver todos deste grupo'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _homeCatalogoFiltrado() {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupo = (_familiaFilter ?? '').trim().toLowerCase();
-    final sub = (_subgrupoFilter ?? '').trim().toLowerCase();
     final items = _catalogoFiltradoGuiado();
 
     return Column(
@@ -1408,7 +1258,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   onSelect: (g) {
                     setState(() {
                       _familiaFilter = g;
-                      _subgrupoFilter = null;
                       _error = null;
                     });
                   },
@@ -1427,7 +1276,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               else
                 VitrineCatalogoPersonalizavel(
                   key: ValueKey(
-                    'vitrine-home-catgrid-$cat-$grupo-$sub-${_buscaFilter ?? ''}',
+                    'vitrine-home-catgrid-$cat-$grupo-${_buscaFilter ?? ''}',
                   ),
                   servicos: items,
                   bootstrap: _bootstrap,

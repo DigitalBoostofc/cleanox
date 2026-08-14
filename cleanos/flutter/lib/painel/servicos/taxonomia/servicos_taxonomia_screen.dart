@@ -1,10 +1,14 @@
-/// Editor da taxonomia Categoria → Grupo → Subgrupo (engrenagem em Serviços).
+/// Editor da taxonomia Categoria → Grupo → Serviço (engrenagem em Serviços).
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/design.dart';
+import '../../../core/models/servico.dart';
+import '../servico_editor.dart';
+import '../servicos_labels.dart';
 import 'taxonomia_models.dart';
 import 'taxonomia_providers.dart';
 import 'taxonomia_repository.dart';
@@ -46,7 +50,7 @@ class _ServicosTaxonomiaScreenState
       final siblings = switch (tipo) {
         TaxonomiaTipo.categoria => arvore.categorias,
         TaxonomiaTipo.grupo => arvore.gruposDe(parent),
-        TaxonomiaTipo.subgrupo => arvore.subgruposDe(parent),
+        TaxonomiaTipo.subgrupo => const <TaxonomiaNo>[],
       };
       final ordem =
           siblings.isEmpty ? 10 : (siblings.map((e) => e.ordem).reduce(
@@ -116,8 +120,8 @@ class _ServicosTaxonomiaScreenState
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir?'),
         content: Text(
-          'Excluir "${no.nome}" também remove os itens filhos '
-          '(grupos/subgrupos). Serviços já cadastrados mantêm o slug antigo.',
+          'Excluir "${no.nome}" também remove os grupos filhos. '
+          'Serviços já cadastrados mantêm o slug antigo.',
         ),
         actions: [
           TextButton(
@@ -164,7 +168,7 @@ class _ServicosTaxonomiaScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Categorias, grupos e subgrupos'),
+        title: const Text('Categorias, grupos e serviços'),
         actions: [
           IconButton(
             tooltip: 'Recarregar',
@@ -192,9 +196,20 @@ class _ServicosTaxonomiaScreenState
                   grupos.any((g) => g.id == _grupoId)
               ? _grupoId
               : (grupos.isEmpty ? null : grupos.first.id);
-          final subs = grupoId == null
-              ? <TaxonomiaNo>[]
-              : arvore.subgruposDe(grupoId);
+          String catSlug = '';
+          for (final c in cats) {
+            if (c.id == catId) {
+              catSlug = c.slug;
+              break;
+            }
+          }
+          String grupoSlug = '';
+          for (final g in grupos) {
+            if (g.id == grupoId) {
+              grupoSlug = g.slug;
+              break;
+            }
+          }
 
           return Stack(
             children: [
@@ -204,6 +219,7 @@ class _ServicosTaxonomiaScreenState
                   final cols = wide
                       ? [
                           _coluna(
+                            key: const Key('taxonomia-col-categorias'),
                             titulo: 'Categorias',
                             items: cats,
                             selectedId: catId,
@@ -218,6 +234,7 @@ class _ServicosTaxonomiaScreenState
                             ),
                           ),
                           _coluna(
+                            key: const Key('taxonomia-col-grupos'),
                             titulo: 'Grupos',
                             items: grupos,
                             selectedId: grupoId,
@@ -231,19 +248,11 @@ class _ServicosTaxonomiaScreenState
                                       titulo: 'Novo grupo',
                                     ),
                           ),
-                          _coluna(
-                            titulo: 'Subgrupos',
-                            items: subs,
-                            selectedId: null,
+                          _servicosColuna(
+                            key: const Key('taxonomia-col-servicos'),
                             enabled: grupoId != null,
-                            onSelect: (_) {},
-                            onAdd: grupoId == null
-                                ? null
-                                : () => _add(
-                                      tipo: TaxonomiaTipo.subgrupo,
-                                      parent: grupoId,
-                                      titulo: 'Novo subgrupo',
-                                    ),
+                            categoriaSlug: catSlug,
+                            grupoSlug: grupoSlug,
                           ),
                         ]
                       : null;
@@ -268,6 +277,7 @@ class _ServicosTaxonomiaScreenState
                     padding: const EdgeInsets.all(ClxSpace.x4),
                     children: [
                       _coluna(
+                        key: const Key('taxonomia-col-categorias'),
                         titulo: 'Categorias',
                         items: cats,
                         selectedId: catId,
@@ -284,6 +294,7 @@ class _ServicosTaxonomiaScreenState
                       ),
                       const SizedBox(height: 12),
                       _coluna(
+                        key: const Key('taxonomia-col-grupos'),
                         titulo: 'Grupos',
                         items: grupos,
                         selectedId: grupoId,
@@ -299,19 +310,11 @@ class _ServicosTaxonomiaScreenState
                         compact: true,
                       ),
                       const SizedBox(height: 12),
-                      _coluna(
-                        titulo: 'Subgrupos',
-                        items: subs,
-                        selectedId: null,
+                      _servicosColuna(
+                        key: const Key('taxonomia-col-servicos'),
                         enabled: grupoId != null,
-                        onSelect: (_) {},
-                        onAdd: grupoId == null
-                            ? null
-                            : () => _add(
-                                  tipo: TaxonomiaTipo.subgrupo,
-                                  parent: grupoId,
-                                  titulo: 'Novo subgrupo',
-                                ),
+                        categoriaSlug: catSlug,
+                        grupoSlug: grupoSlug,
                         compact: true,
                       ),
                     ],
@@ -332,7 +335,35 @@ class _ServicosTaxonomiaScreenState
     );
   }
 
+  Future<void> _editServico(
+    ServicoPB s, {
+    required String categoriaSlug,
+    required String grupoSlug,
+  }) async {
+    final bool? saved;
+    if (GoRouter.maybeOf(context) != null) {
+      saved = await context.push<bool>('/painel/servicos/${s.id}');
+    } else {
+      saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => ServicoEditorScreen(servicoId: s.id),
+        ),
+      );
+    }
+    if (!mounted) return;
+    ref.invalidate(
+      servicosDoGrupoProvider((
+        categoria: categoriaSlug,
+        grupo: grupoSlug,
+      )),
+    );
+    if (saved == true) {
+      showClxToast(context, 'Serviço atualizado.', type: ToastType.success);
+    }
+  }
+
   Widget _coluna({
+    Key? key,
     required String titulo,
     required List<TaxonomiaNo> items,
     required String? selectedId,
@@ -343,6 +374,7 @@ class _ServicosTaxonomiaScreenState
   }) {
     final clx = context.clx;
     return Card(
+      key: key,
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -439,6 +471,152 @@ class _ServicosTaxonomiaScreenState
         itemBuilder: (_) => const [
           PopupMenuItem(value: 'edit', child: Text('Editar')),
           PopupMenuItem(value: 'del', child: Text('Excluir')),
+        ],
+      ),
+    );
+  }
+
+  Widget _servicosColuna({
+    Key? key,
+    required bool enabled,
+    required String categoriaSlug,
+    required String grupoSlug,
+    bool compact = false,
+  }) {
+    final clx = context.clx;
+    final async = !enabled || categoriaSlug.isEmpty || grupoSlug.isEmpty
+        ? null
+        : ref.watch(
+            servicosDoGrupoProvider((
+              categoria: categoriaSlug,
+              grupo: grupoSlug,
+            )),
+          );
+
+    Widget body;
+    if (!enabled) {
+      body = Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Selecione o grupo.',
+          style: TextStyle(color: clx.ink3),
+        ),
+      );
+    } else if (async == null) {
+      body = Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Selecione o grupo.',
+          style: TextStyle(color: clx.ink3),
+        ),
+      );
+    } else {
+      body = async.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: Spinner(size: 22)),
+        ),
+        error: (_, __) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: ErrorBanner(
+            message: 'Não foi possível carregar os serviços.',
+            onRetry: () => ref.invalidate(
+              servicosDoGrupoProvider((
+                categoria: categoriaSlug,
+                grupo: grupoSlug,
+              )),
+            ),
+          ),
+        ),
+        data: (items) {
+          if (items.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Nenhum serviço neste grupo.',
+                style: TextStyle(color: clx.ink3),
+              ),
+            );
+          }
+          final tiles = [
+            for (final s in items)
+              _servicoTile(
+                s,
+                categoriaSlug: categoriaSlug,
+                grupoSlug: grupoSlug,
+              ),
+          ];
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: tiles,
+            );
+          }
+          return ListView(children: tiles);
+        },
+      );
+    }
+
+    return Card(
+      key: key,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+            child: Text(
+              'Serviços',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: clx.ink,
+                  ),
+            ),
+          ),
+          const Divider(height: 1),
+          if (compact) body else Expanded(child: body),
+        ],
+      ),
+    );
+  }
+
+  Widget _servicoTile(
+    ServicoPB s, {
+    required String categoriaSlug,
+    required String grupoSlug,
+  }) {
+    final clx = context.clx;
+    return Padding(
+      key: Key('taxonomia-servico-${s.id}'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            s.nome.isEmpty ? '—' : s.nome,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            formatValorServico(s),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: clx.ink3, fontSize: 12),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: Key('taxonomia-servico-editar-${s.id}'),
+              onPressed: () => _editServico(
+                s,
+                categoriaSlug: categoriaSlug,
+                grupoSlug: grupoSlug,
+              ),
+              child: const Text('Editar serviço'),
+            ),
+          ),
         ],
       ),
     );

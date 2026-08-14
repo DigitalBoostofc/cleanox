@@ -44,7 +44,7 @@ String grupoLabelSlug(String slug) {
 }
 
 
-/// Rótulo do subgrupo na árvore (fallback = wire).
+/// Rótulo legado do subgrupo (fallback = wire). Sem uso no fluxo atual.
 String subgrupoRotulo(Categoria c, Grupo g, String wire) =>
     subgrupoLabel(c, g, wire) ?? wire;
 
