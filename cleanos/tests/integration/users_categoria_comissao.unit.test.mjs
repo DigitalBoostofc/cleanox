@@ -403,20 +403,28 @@ describe('compensarSubcategoriaOrfa', () => {
 describe('hook users_categoria_comissao.pb.js', () => {
   const registered = {}
   globalThis.onRecordCreate = (fn) => {
-    registered.create = fn
+    registered.modelCreate = fn
   }
   globalThis.onRecordUpdate = (fn) => {
-    registered.update = fn
+    registered.modelUpdate = fn
+  }
+  globalThis.onRecordCreateRequest = (fn) => {
+    registered.createRequest = fn
+  }
+  globalThis.onRecordUpdateRequest = (fn) => {
+    registered.updateRequest = fn
   }
   globalThis.onRecordAfterCreateError = (fn) => {
     registered.afterCreateError = fn
   }
   require('../../pb/pb_hooks/users_categoria_comissao.pb.js')
 
-  it('não registra AfterCreateError (apagaria sub reutilizada)', () => {
+  it('registra só request hooks (não intercepta app.save de migrate/seed)', () => {
+    assert.equal(registered.modelCreate, undefined)
+    assert.equal(registered.modelUpdate, undefined)
     assert.equal(registered.afterCreateError, undefined)
-    assert.equal(typeof registered.create, 'function')
-    assert.equal(typeof registered.update, 'function')
+    assert.equal(typeof registered.createRequest, 'function')
+    assert.equal(typeof registered.updateRequest, 'function')
   })
 
   it('create falho após reutilizar Equipe→nome não apaga a sub preexistente', () => {
@@ -434,7 +442,7 @@ describe('hook users_categoria_comissao.pb.js', () => {
 
     assert.throws(
       () =>
-        registered.create({
+        registered.createRequest({
           app,
           record: user,
           next: () => {
