@@ -4,11 +4,13 @@
 ///   flutter run -d chrome --dart-define=PB_URL=http://127.0.0.1:8090 \
 ///     -t lib/main_painel.dart
 /// Produção (default de PB_URL já é https://app.cleanox.com.br):
-///   flutter build web --release -t lib/main_painel.dart
+///   flutter build web --release -t lib/main_painel.dart --pwa-strategy=none
 ///
 /// O binário compartilha o core; o roteamento por papel garante que só
 /// admin/gerente cheguem em /painel (profissional é redirecionado a /app).
 library;
+
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -66,10 +68,9 @@ Future<void> main() async {
   };
 
   try {
-    await PbClient.init();
+    await PbClient.init(autoRefresh: false);
   } catch (e, st) {
     debugPrint('PbClient.init falhou: $e\n$st');
-    // Ainda sobe o app — login pode funcionar com sessão limpa.
     try {
       await PbClient.init(autoRefresh: false);
     } catch (_) {
@@ -78,4 +79,7 @@ Future<void> main() async {
   }
 
   runApp(const ProviderScope(child: CleanosApp(surface: AppSurface.painel)));
+  if (PbClient.isReady) {
+    unawaited(PbClient.instance.refreshSessionOnBoot());
+  }
 }

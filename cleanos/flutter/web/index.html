@@ -162,11 +162,11 @@
         }
         if (btn) btn.style.display = 'inline-block';
         if (spin) spin.style.display = 'none';
-      }, 20000);
+      }, 45000);
 
-      // Limpa Service Workers/caches legados (v5 — Flutter SW travava o boot).
+      // Limpa Service Workers/caches legados (v7 — Flutter SW travava o boot).
       // Build usa --pwa-strategy=none; isto limpa SWs antigos UMA vez e recarrega.
-      var KEY = 'cleanos_sw_purge_v6';
+      var KEY = 'cleanos_sw_purge_v7';
       if (!('serviceWorker' in navigator)) return;
       if (localStorage.getItem(KEY) === '1') return;
       var hadController = !!navigator.serviceWorker.controller;
