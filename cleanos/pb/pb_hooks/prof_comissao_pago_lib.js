@@ -148,96 +148,27 @@ function _sqlUpdateLancMeta(app, id, fields) {
 }
 
 /**
- * Resolve categoria de despesa da comissão/repasse.
+ * Resolve categoria de despesa da comissão/repasse/bonificação.
  * Retorna { categoriaId, subcategoriaId }.
  *
- * Canônico (dono 2026-07-24): só a raiz **"Equipe"** (sem subcategorias
- * Comissões/Profissionais). Subs legadas, se ainda existirem, são ignoradas
- * (migração 1700000047 remove e re-aponta lançamentos).
+ * Canônico: users.categoria_comissao (se válida) ou Equipe → nome.
+ * Sem Equipe (nome ou catdequipe00001) NÃO cai na primeira despesa raiz.
  */
 function acharCategoriaComissao(app, profNome, profId) {
-  const configurada = _categoriaConfiguradaProf(app, profId);
+  const catLib = require(`${__hooks}/users_categoria_comissao_lib.js`);
+  const configurada = catLib.resolverCategoriaConfigurada(app, profId);
   if (configurada) return configurada;
-  // 1) Raiz Equipe
   try {
-    const equipe = app.findFirstRecordByFilter(
-      "fin_categorias",
-      "tipo = 'despesa' && nome = 'Equipe' && (parent_id = '' || parent_id = null)",
-    );
-    if (equipe) {
-      return _acharOuCriarSubcategoriaProf(app, equipe.id, profNome);
+    const nome = String(profNome || "").trim();
+    if (!nome) {
+      const equipe = catLib.resolverRaizEquipe(app);
+      return { categoriaId: equipe.id, subcategoriaId: null };
     }
-  } catch (_) {}
-
-  // 2) Fallback: id canônico do seed
-  try {
-    const e = app.findRecordById("fin_categorias", "catdequipe00001");
-    if (e) return _acharOuCriarSubcategoriaProf(app, e.id, profNome);
-  } catch (_) {}
-
-  // 3) Fallback: 1ª despesa raiz
-  try {
-    const list = app.findRecordsByFilter(
-      "fin_categorias",
-      "tipo = 'despesa' && (parent_id = '' || parent_id = null)",
-      "nome",
-      1,
-      0,
-      {},
-    );
-    if (list && list.length > 0) {
-      return _acharOuCriarSubcategoriaProf(app, list[0].id, profNome);
-    }
-  } catch (_) {}
-  return null;
-}
-
-function _categoriaConfiguradaProf(app, profId) {
-  const id = String(profId || "").trim();
-  if (!id) return null;
-  try {
-    const user = app.findRecordById("users", id);
-    const selectedId = String(user.get("categoria_comissao") || "").trim();
-    if (!selectedId) return null;
-    const selected = app.findRecordById("fin_categorias", selectedId);
-    if (String(selected.get("tipo") || "") !== "despesa") return null;
-    const parentId = String(selected.get("parent_id") || "").trim();
-    if (!parentId) return { categoriaId: selected.id, subcategoriaId: null };
-    return { categoriaId: parentId, subcategoriaId: selected.id };
-  } catch (_) {
-    return null;
-  }
-}
-
-function _acharOuCriarSubcategoriaProf(app, equipeId, profNome) {
-  const nome = String(profNome || "").trim();
-  if (!nome) return { categoriaId: equipeId, subcategoriaId: null };
-  const safeNome = nome.replace(/'/g, "\\'");
-  try {
-    const sub = app.findFirstRecordByFilter(
-      "fin_categorias",
-      "tipo = 'despesa' && parent_id = '" +
-        equipeId +
-        "' && nome = '" +
-        safeNome +
-        "'",
-    );
-    if (sub) return { categoriaId: equipeId, subcategoriaId: sub.id };
-  } catch (_) {}
-  try {
-    const col = app.findCollectionByNameOrId("fin_categorias");
-    const sub = new Record(col);
-    sub.set("nome", nome);
-    sub.set("tipo", "despesa");
-    sub.set("parent_id", equipeId);
-    sub.set("icone", "");
-    sub.set("cor", "");
-    sub.set("arquivada", false);
-    app.save(sub);
-    return { categoriaId: equipeId, subcategoriaId: sub.id };
+    const out = catLib.garantirSubcategoriaEquipe(app, nome);
+    return { categoriaId: out.equipeId, subcategoriaId: out.subId };
   } catch (err) {
-    console.log("[comissao-pago] subcategoria profissional: " + err);
-    return { categoriaId: equipeId, subcategoriaId: null };
+    console.log("[comissao-pago] categoria Equipe: " + err);
+    return null;
   }
 }
 

@@ -112,4 +112,55 @@ describe('categoria de comissão por profissional', () => {
       subcategoriaId: 'cat_marketing',
     })
   })
+
+  it('usa o vínculo configurado tanto para comissão quanto para bonificação', () => {
+    const app = {
+      findRecordById(collection, id) {
+        if (collection === 'users' && id === 'prof1') {
+          return category(id, { categoria_comissao: 'cat_joao' })
+        }
+        if (collection === 'fin_categorias' && id === 'cat_joao') {
+          return category(id, {
+            tipo: 'despesa',
+            nome: 'João Pedro',
+            parent_id: 'catdequipe00001',
+          })
+        }
+        throw new Error('not found')
+      },
+    }
+
+    const comissao = acharCategoriaComissao(app, 'João Pedro', 'prof1')
+    const bonificacao = acharCategoriaComissao(app, 'João Pedro', 'prof1')
+    assert.deepEqual(comissao, bonificacao)
+    assert.deepEqual(comissao, {
+      categoriaId: 'catdequipe00001',
+      subcategoriaId: 'cat_joao',
+    })
+  })
+
+  it('sem Equipe não cai na primeira despesa raiz', () => {
+    const marketing = category('cat_mkt', {
+      tipo: 'despesa',
+      nome: 'Marketing',
+      parent_id: '',
+    })
+    const app = {
+      findFirstRecordByFilter() {
+        throw new Error('not found')
+      },
+      findRecordById() {
+        throw new Error('not found')
+      },
+      findRecordsByFilter() {
+        return [marketing]
+      },
+      findCollectionByNameOrId: () => ({ name: 'fin_categorias' }),
+      save() {
+        throw new Error('não deve criar subcategoria sob raiz aleatória')
+      },
+    }
+
+    assert.equal(acharCategoriaComissao(app, 'João Pedro'), null)
+  })
 })

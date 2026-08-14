@@ -17,12 +17,9 @@ import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
-import '../../core/models/financeiro.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/usuarios_repository.dart';
 import '../data/painel_providers.dart';
-import '../financeiro/fin_categoria_picker.dart';
-import '../financeiro/fin_providers.dart';
 
 String roleLabel(Role r) => switch (r) {
   Role.admin => 'Admin',
@@ -81,9 +78,6 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
   /// Cor na agenda (`#RRGGBB`). Só relevante para profissional.
   Color? _corAgenda;
 
-  /// Categoria compartilhada por comissão e bonificação.
-  String? _categoriaComissaoId;
-
   bool get _isEdit => widget.editing != null;
 
   @override
@@ -100,12 +94,17 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
         ..addAll(u.roles.isEmpty ? [u.role] : u.roles);
       _ativo = u.ativo;
       _corAgenda = parseHexCorAgenda(u.corAgenda);
-      _categoriaComissaoId = u.categoriaComissaoId;
     }
+    _nome.addListener(_onNomeChanged);
+  }
+
+  void _onNomeChanged() {
+    if (_roles.contains(Role.profissional) && mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _nome.removeListener(_onNomeChanged);
     _nome.dispose();
     _email.dispose();
     _whatsapp.dispose();
@@ -192,10 +191,6 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'roles': _roles.map((r) => r.wire).toList(),
             'whatsapp': _whatsapp.text.trim(),
             'cor_agenda': corWire,
-            'categoria_comissao':
-                _roles.contains(Role.profissional)
-                    ? (_categoriaComissaoId ?? '')
-                    : '',
             'ativo': _ativo,
           },
           avatar: avatar,
@@ -211,10 +206,6 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
             'whatsapp': _whatsapp.text.trim(),
             'ativo': _ativo,
             'cor_agenda': corWire,
-            'categoria_comissao':
-                _roles.contains(Role.profissional)
-                    ? (_categoriaComissaoId ?? '')
-                    : '',
             'password': _senha.text,
             'passwordConfirm': _senhaConfirm.text,
             'emailVisibility': true,
@@ -444,7 +435,7 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
                 ),
                 if (_roles.contains(Role.profissional)) _corAgendaField(clx),
                 if (_roles.contains(Role.profissional))
-                  _categoriaComissaoField(clx),
+                  _categoriaAutomaticaNote(clx),
                 _field(
                   label: 'WhatsApp',
                   controller: _whatsapp,
@@ -575,56 +566,18 @@ class _UsuarioFormState extends ConsumerState<UsuarioForm> {
     );
   }
 
-  Widget _categoriaComissaoField(CleanoxColors clx) {
-    final state = ref.watch(finCategoriasProvider);
-    return state.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.only(bottom: ClxSpace.x4),
-        child: LinearProgressIndicator(minHeight: 2),
-      ),
-      error: (_, __) => Padding(
-        padding: const EdgeInsets.only(bottom: ClxSpace.x4),
-        child: Text(
-          'Não foi possível carregar as categorias financeiras.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: clx.warning,
-              ),
-        ),
-      ),
-      data: (categorias) {
-        final despesas = categorias
-            .where((c) => c.tipo == TipoLancamento.despesa && !c.arquivada)
-            .toList();
-        final selected = _categoriaComissaoId == null
-            ? null
-            : despesas.where((c) => c.id == _categoriaComissaoId).firstOrNull;
-        final selectedIsSub = selected?.parentId != null;
-        return Column(
-          children: [
-            FinCategoriaTreePicker(
-              categorias: despesas,
-              categoriaId: selectedIsSub
-                  ? selected!.parentId
-                  : _categoriaComissaoId,
-              subcategoriaId: selectedIsSub ? _categoriaComissaoId : null,
-              label: 'Categoria de comissão e bonificação',
-              onChanged: (categoriaId, subcategoriaId) => setState(
-                () => _categoriaComissaoId = subcategoriaId ?? categoriaId,
-              ),
+  Widget _categoriaAutomaticaNote(CleanoxColors clx) {
+    final nome = _nome.text.trim();
+    final destino = nome.isEmpty ? '…' : nome;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x4),
+      child: Text(
+        'Financeiro: Equipe → $destino (configurado automaticamente)',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: clx.ink3,
+              height: 1.35,
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Usada para novas comissões e bonificações deste profissional. '
-                'Em branco, mantém o padrão Equipe → profissional.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: clx.ink3,
-                    ),
-              ),
-            ),
-          ],
-        );
-      },
+      ),
     );
   }
 
