@@ -190,7 +190,8 @@ function _aindaReferenciada(app, collection, filter, params) {
     var list = app.findRecordsByFilter(collection, filter, "", 1, 0, params);
     return !!(list && list.length);
   } catch (_) {
-    return false;
+    // Fail closed: sem comprovar que não há referência, não é seguro apagar.
+    return true;
   }
 }
 
@@ -230,7 +231,37 @@ function compensarSubcategoriaOrfa(app, result) {
     return;
   }
   if (
-    _aindaReferenciada(app, "fin_lancamentos", "subcategoria_id = {:id}", {
+    _aindaReferenciada(
+      app,
+      "fin_categorias",
+      "parent_id = {:id}",
+      { id: subId },
+    )
+  ) {
+    return;
+  }
+  if (
+    _aindaReferenciada(
+      app,
+      "fin_lancamentos",
+      "categoria_id = {:id} || subcategoria_id = {:id}",
+      { id: subId },
+    )
+  ) {
+    return;
+  }
+  if (
+    _aindaReferenciada(
+      app,
+      "fin_series",
+      "categoria_id = {:id} || subcategoria_id = {:id}",
+      { id: subId },
+    )
+  ) {
+    return;
+  }
+  if (
+    _aindaReferenciada(app, "fin_limites", "categoria_id = {:id}", {
       id: subId,
     })
   ) {

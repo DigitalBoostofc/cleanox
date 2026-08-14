@@ -118,6 +118,10 @@ function mockApp({ categorias = [], users = [], lancamentos = [] } = {}) {
         return lancamentos
       }
       if (collection === 'fin_categorias') {
+        if (/parent_id = {:id}/.test(filter)) {
+          const id = typeof arguments[5] === 'object' ? arguments[5]?.id : ''
+          return cats.filter((c) => String(c.get('parent_id') || '') === id)
+        }
         return cats.filter((c) => c.get('tipo') === 'despesa' && !c.get('parent_id'))
       }
       return []
@@ -396,6 +400,44 @@ describe('compensarSubcategoriaOrfa', () => {
     const app = mockApp({ categorias: [EQUIPE, joao] })
     lib.compensarSubcategoriaOrfa(app, { subId: 'cat_joao' })
     lib.compensarSubcategoriaOrfa(app, { created: 'true', subId: 'cat_joao' })
+    assert.deepEqual(app.deleted, [])
+  })
+
+  it('falha ao consultar referências significa não apagar', () => {
+    const orfa = rec('sub_nova', {
+      tipo: 'despesa',
+      nome: 'João Pedro',
+      parent_id: 'catdequipe00001',
+    })
+    const app = mockApp({ categorias: [EQUIPE, orfa] })
+    const originalFind = app.findRecordsByFilter.bind(app)
+    app.findRecordsByFilter = (collection, ...args) => {
+      if (collection === 'users') throw new Error('consulta indisponível')
+      return originalFind(collection, ...args)
+    }
+
+    lib.compensarSubcategoriaOrfa(app, { created: true, subId: 'sub_nova' })
+
+    assert.deepEqual(app.deleted, [])
+  })
+
+  it('não apaga subcategoria referenciada por fin_series', () => {
+    const orfa = rec('sub_nova', {
+      tipo: 'despesa',
+      nome: 'João Pedro',
+      parent_id: 'catdequipe00001',
+    })
+    const app = mockApp({ categorias: [EQUIPE, orfa] })
+    const originalFind = app.findRecordsByFilter.bind(app)
+    app.findRecordsByFilter = (collection, ...args) => {
+      if (collection === 'fin_series') {
+        return [rec('serie_1', { subcategoria_id: 'sub_nova' })]
+      }
+      return originalFind(collection, ...args)
+    }
+
+    lib.compensarSubcategoriaOrfa(app, { created: true, subId: 'sub_nova' })
+
     assert.deepEqual(app.deleted, [])
   })
 })
