@@ -711,41 +711,61 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 
   IconData _macroIcon(String macro) {
-    if (macro == 'veicular') return Icons.directions_car_filled_rounded;
-    if (macro == 'residencial') return Icons.chair_rounded;
-    return Icons.cleaning_services_rounded;
+    // Preferir chave CMS; fallbacks sólidos (sem *_rounded — somem no web).
+    if (macro == 'veicular') {
+      return vitrineMacroIcon(_config.macroAutoIcone);
+    }
+    if (macro == 'residencial') {
+      return vitrineMacroIcon(_config.macroResidIcone);
+    }
+    return Icons.cleaning_services;
   }
 
   IconData _iconGrupo(String slug) {
     switch (slug.trim().toLowerCase()) {
       case 'sofa':
-        return Icons.weekend_rounded;
+      case 'sofá':
+      case 'sofaa':
+        return Icons.weekend;
       case 'colchao':
-        return Icons.bed_rounded;
+      case 'colchão':
+      case 'colchoes':
+      case 'colchões':
+        return Icons.hotel;
       case 'plano':
-        return Icons.workspace_premium_rounded;
+      case 'planos':
+        return Icons.star;
       case 'promocao':
-        return Icons.local_offer_rounded;
+      case 'promoção':
+      case 'promo':
+        return Icons.local_offer;
       case 'adicional':
-        return Icons.add_circle_outline_rounded;
+      case 'adicionais':
+        return Icons.add_circle_outline;
       case 'avulsos':
-        return Icons.auto_awesome_rounded;
+      case 'avulso':
+        return Icons.auto_awesome;
       case 'outros':
-        return Icons.more_horiz_rounded;
+      case 'outro':
+        return Icons.more_horiz;
       case 'cadeira':
+      case 'cadeiras':
       case 'poltrona':
-        return Icons.chair_alt_rounded;
+      case 'poltronas':
+        return Icons.event_seat;
       case 'tapete':
-        return Icons.crop_square_rounded;
+      case 'tapetes':
+        return Icons.layers;
       case 'banco':
       case 'bancos':
-        return Icons.airline_seat_recline_normal_rounded;
+        return Icons.airline_seat_recline_normal;
       case 'teto':
-        return Icons.roofing_rounded;
+        return Icons.roofing;
       case 'carpete':
-        return Icons.texture_rounded;
+      case 'carpetes':
+        return Icons.texture;
       default:
-        return Icons.grid_view_rounded;
+        return Icons.grid_view;
     }
   }
 
@@ -1028,11 +1048,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 Container(
                   width: 56,
                   height: 56,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: const Color(0xFFE8F7F9),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: ClxBrand.cyan, size: 30),
+                  // Navy no fundo cyan claro — *_rounded sumiam no web.
+                  child: Icon(icon, color: ClxBrand.navy, size: 30),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -1279,7 +1301,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                                   title: _labelGrupo(g),
                                   subtitle:
                                       '${_servicosNoGrupo(cat, g).length} opções',
-                                  icon: Icons.grid_view_rounded,
+                                  icon: Icons.grid_view,
                                   onTap: () => _pickGrupo(g),
                                 ),
                             ],
@@ -1365,7 +1387,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                                   key: Key('vitrine-home-sub-$s'),
                                   title: _labelSubgrupo(s),
                                   subtitle: 'Ver serviços',
-                                  icon: Icons.layers_rounded,
+                                  icon: Icons.layers,
                                   onTap: () => _pickSubgrupo(s),
                                 ),
                             ],
