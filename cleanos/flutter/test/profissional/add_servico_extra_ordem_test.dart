@@ -5,7 +5,6 @@ import 'package:cleanos/painel/servicos/taxonomia/taxonomia_providers.dart';
 import 'package:cleanos/painel/servicos/taxonomia/taxonomia_repository.dart';
 import 'package:cleanos/profissional/os_execucao/add_servico_extra_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 

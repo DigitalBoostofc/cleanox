@@ -1,8 +1,9 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 // Persiste a sequência inteira em uma única transação. A rota exige que o
-// payload contenha exatamente todos os irmãos ativos do escopo, impedindo
-// colisões por atualização parcial ou por uma tela desatualizada.
+// payload contenha exatamente todo o escopo exibido: nós ativos da taxonomia
+// ou todos os serviços irmãos (inclusive inativos). Isso impede colisões por
+// atualização parcial ou por uma tela desatualizada.
 routerAdd("POST", "/api/cleanos/catalogo/reordenar", (e) => {
   const lib = require(`${__hooks}/catalogo_ordem_lib.js`);
 
@@ -23,27 +24,10 @@ routerAdd("POST", "/api/cleanos/catalogo/reordenar", (e) => {
       ? "servicos_taxonomia"
       : "servicos";
     const primeiro = txApp.findRecordById(collection, payload.ids[0]);
-    let scope;
-
-    if (payload.kind === "taxonomia") {
-      scope = txApp.findAllRecords(
-        collection,
-        $dbx.hashExp({
-          tipo: primeiro.getString("tipo"),
-          parent: primeiro.getString("parent"),
-          ativo: true,
-        })
-      );
-    } else {
-      scope = txApp.findAllRecords(
-        collection,
-        $dbx.hashExp({
-          categoria: primeiro.getString("categoria"),
-          grupo: primeiro.getString("grupo"),
-          ativo: true,
-        })
-      );
-    }
+    const scope = txApp.findAllRecords(
+      collection,
+      $dbx.hashExp(lib.scopeFilter(payload.kind, primeiro))
+    );
 
     if (!lib.hasExactIds(payload.ids, scope)) {
       throw new BadRequestError(

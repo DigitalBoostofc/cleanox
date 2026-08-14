@@ -178,6 +178,8 @@ void main() {
         seed: [
           fakeServico(id: 'svc1', nome: 'Primeiro', ordem: 10),
           fakeServico(id: 'svc2', nome: 'Segundo', ordem: 20),
+          fakeServico(id: 'svc3', nome: 'Inativo', ordem: 30)
+              .copyWith(ativo: false),
         ],
       );
       final taxonomia = _FakeTaxonomiaRepository();
@@ -199,7 +201,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(taxonomia.reorders.single.kind, 'servicos');
-      expect(taxonomia.reorders.single.ids, ['svc2', 'svc1']);
+      expect(taxonomia.reorders.single.ids, ['svc2', 'svc1', 'svc3']);
     });
 
     testWidgets('mobile empilha as três áreas em cards, sem tabela',

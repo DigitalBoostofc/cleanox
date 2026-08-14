@@ -27,4 +27,27 @@ describe('ordem atômica do catálogo', () => {
     assert.equal(lib.hasExactIds(['a'], records), false)
     assert.equal(lib.hasExactIds(['a', 'c'], records), false)
   })
+
+  it('inclui inativos no escopo de serviços e só ativos na taxonomia', () => {
+    const record = {
+      getString(field) {
+        return {
+          categoria: 'residencial',
+          grupo: 'sofa',
+          tipo: 'grupo',
+          parent: 'categoria-id',
+        }[field] || ''
+      },
+    }
+
+    assert.deepEqual(lib.scopeFilter('servicos', record), {
+      categoria: 'residencial',
+      grupo: 'sofa',
+    })
+    assert.deepEqual(lib.scopeFilter('taxonomia', record), {
+      tipo: 'grupo',
+      parent: 'categoria-id',
+      ativo: true,
+    })
+  })
 })

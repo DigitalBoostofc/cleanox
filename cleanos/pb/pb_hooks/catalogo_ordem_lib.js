@@ -30,4 +30,18 @@ function orderAt(index) {
   return (Number(index) + 1) * 10;
 }
 
-module.exports = { parsePayload, hasExactIds, orderAt };
+function scopeFilter(kind, first) {
+  if (kind === "servicos") {
+    return {
+      categoria: first.getString("categoria"),
+      grupo: first.getString("grupo"),
+    };
+  }
+  return {
+    tipo: first.getString("tipo"),
+    parent: first.getString("parent"),
+    ativo: true,
+  };
+}
+
+module.exports = { parsePayload, hasExactIds, orderAt, scopeFilter };

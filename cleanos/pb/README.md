@@ -540,8 +540,9 @@ Todas as rotas exigem `Authorization: <token>` (mesmo formato das outras rotas P
 
 Persiste atomicamente a sequência operacional de categorias/grupos ou serviços.
 O corpo usa `kind` (`taxonomia` ou `servicos`) e `ids` na ordem desejada. A
-lista deve conter exatamente todos os irmãos ativos do mesmo escopo; payload
-parcial, duplicado ou misturando escopos retorna `400` sem alterar registros.
+lista deve conter exatamente os nós ativos irmãos, no caso da taxonomia, ou
+todos os serviços irmãos, inclusive inativos. Payload parcial, duplicado ou
+misturando escopos retorna `400` sem alterar registros.
 
 ```json
 { "kind": "servicos", "ids": ["id-do-primeiro", "id-do-segundo"] }
