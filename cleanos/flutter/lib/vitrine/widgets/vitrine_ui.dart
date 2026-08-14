@@ -1027,29 +1027,31 @@ class VitrineCatItem {
 }
 
 /// Mapa de ícones dos macros (editável no CMS por chave).
+/// Preferir ícones "filled" clássicos — vários *_rounded/_outlined somem no
+/// Flutter web mesmo com --no-tree-shake-icons (glifo ausente no OTF).
 IconData vitrineMacroIcon(String key) {
   switch (key.trim().toLowerCase()) {
     case 'cleaning':
     case 'limpeza':
-      return Icons.cleaning_services_outlined;
+      return Icons.cleaning_services;
     case 'sofa':
     case 'sofá':
     case 'weekend':
-      return Icons.weekend_outlined;
+      return Icons.weekend;
     case 'home':
     case 'casa':
-      return Icons.home_outlined;
+      return Icons.home;
     case 'car':
     case 'auto':
     case 'carro':
-      return Icons.directions_car_outlined;
+      return Icons.directions_car;
     case 'garage':
     case 'garagem':
-      return Icons.garage_outlined;
+      return Icons.garage;
     case 'spray':
-      return Icons.brush_outlined;
+      return Icons.brush;
     default:
-      return Icons.category_outlined;
+      return Icons.category;
   }
 }
 
