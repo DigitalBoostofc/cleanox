@@ -29,9 +29,16 @@ import 'taxonomia/taxonomia_models.dart';
 import 'taxonomia/taxonomia_providers.dart';
 
 class ServicoEditorScreen extends ConsumerStatefulWidget {
-  const ServicoEditorScreen({super.key, this.servicoId});
+  const ServicoEditorScreen({
+    super.key,
+    this.servicoId,
+    this.initialCategoria,
+    this.initialGrupo,
+  });
 
   final String? servicoId;
+  final String? initialCategoria;
+  final String? initialGrupo;
 
   @override
   ConsumerState<ServicoEditorScreen> createState() =>
@@ -79,6 +86,12 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   @override
   void initState() {
     super.initState();
+    if (!_isEdit) {
+      final categoria = widget.initialCategoria?.trim() ?? '';
+      final grupo = widget.initialGrupo?.trim() ?? '';
+      if (categoria.isNotEmpty) _categoria = categoria;
+      if (grupo.isNotEmpty) _grupo = grupo;
+    }
     // Listeners: atualizam a pré-visualização AO VIVO e marcam alterações pendentes.
     for (final c in [
       _nome,
@@ -250,8 +263,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       } else {
         await repo.create(payload);
       }
-      _dirty = false;
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) await _popEditor(true);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -297,10 +309,21 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     return ok == true;
   }
 
+  /// Libera o [PopScope] em um frame antes de remover a rota.
+  ///
+  /// Sem esse frame intermediário, o widget ainda mantém `canPop: false` e o
+  /// `maybePop` dispara novamente `onPopInvokedWithResult`, criando um ciclo de
+  /// tentativas de saída que congela a interface.
+  Future<void> _popEditor([bool? result]) async {
+    if (!mounted) return;
+    setState(() => _dirty = false);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop(result);
+  }
+
   Future<void> _cancelar() async {
     if (await _confirmarSaida() && mounted) {
-      _dirty = false;
-      Navigator.of(context).maybePop();
+      await _popEditor();
     }
   }
 
@@ -337,10 +360,8 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final navigator = Navigator.of(context);
         if (await _confirmarSaida()) {
-          _dirty = false;
-          navigator.maybePop();
+          await _popEditor();
         }
       },
       child: Scaffold(
