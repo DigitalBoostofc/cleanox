@@ -27,6 +27,9 @@ class Collections {
 
   /// Notificações in-app (menções @) — dono da notificação.
   static const String notificacoes = 'notificacoes';
+
+  /// Tarefas/compromissos internos na Agenda (não são OS).
+  static const String agendaCompromissos = 'agenda_compromissos';
 }
 
 /* ---- Módulo Financeiro ---- */

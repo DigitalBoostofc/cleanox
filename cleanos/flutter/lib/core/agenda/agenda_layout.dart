@@ -13,6 +13,7 @@ library;
 
 import '../formatters/formatters.dart';
 import '../models/collections.dart';
+import '../models/agenda_compromisso.dart';
 import '../models/disponibilidade.dart';
 import '../models/ordem_servico.dart';
 
@@ -182,6 +183,27 @@ Intervalo intervaloDaOs(OrdemServico os, [Disponibilidade? dispProf]) {
     label: os.nomeCurto,
     // Colunas lado a lado: mesmo profissional → mesma coluna no aglomerado.
     groupKey: (os.profissional ?? '').trim(),
+  );
+}
+
+/// Prefixo para não colidir o id do compromisso com o de uma OS na grade.
+const String kAgendaIdTarefa = 't:';
+
+Intervalo intervaloDoCompromisso(AgendaCompromisso c) {
+  final utc = parsePbUtc(c.dataHora);
+  final start = utc == null
+      ? 0
+      : (() {
+          final brt = utc.subtract(kBrtOffset);
+          return brt.hour * 60 + brt.minute;
+        })();
+  final dur = c.duracaoMin < kDuracaoMinimaMin ? kDuracaoMinimaMin : c.duracaoMin;
+  return Intervalo(
+    id: '$kAgendaIdTarefa${c.id}',
+    startMin: start,
+    endMin: start + dur,
+    label: c.titulo,
+    groupKey: c.profissional,
   );
 }
 

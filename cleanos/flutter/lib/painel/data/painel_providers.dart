@@ -30,6 +30,8 @@ import 'pb_servicos_repository.dart';
 import 'pb_usuarios_repository.dart';
 import 'whatsapp_config_repository.dart';
 import '../../core/repositories/pontos_fisicos_repository.dart';
+import '../../core/repositories/agenda_compromissos_repository.dart';
+import 'pb_agenda_compromissos_repository.dart';
 
 /// 🔒 COFRE: CRUD de `clientes` (só o Painel injeta).
 final clientesRepositoryProvider = Provider<ClientesRepository>(
@@ -65,6 +67,12 @@ final configAtuacaoRepositoryProvider = Provider<ConfigAtuacaoRepository>(
 final pontosFisicosRepositoryProvider = Provider<PontosFisicosRepository>(
   (ref) => PbPontosFisicosRepository(ref.watch(pocketBaseProvider)),
 );
+
+/// Tarefas/compromissos internos da Agenda.
+final agendaCompromissosRepositoryProvider =
+    Provider<AgendaCompromissosRepository>(
+      (ref) => PbAgendaCompromissosRepository(ref.watch(pocketBaseProvider)),
+    );
 
 /// Evidências (leitura) da execução — visão admin do laudo.
 final painelEvidenciasRepositoryProvider = Provider<EvidenciasRepository>(
