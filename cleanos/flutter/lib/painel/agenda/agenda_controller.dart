@@ -257,7 +257,7 @@ class AgendaState {
     required this.anchor,
     required this.selectedDay,
     required this.hoje,
-    this.view = AgendaView.semana,
+    this.view = AgendaView.dia,
     this.profissionais = const [],
     this.osList = const [],
     this.dispByProf = const {},

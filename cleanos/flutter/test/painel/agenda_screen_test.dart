@@ -65,12 +65,12 @@ void main() {
   });
 
   group('AgendaScreen (calendário)', () {
-    // OS de HOJE (BRT) para cair na janela visível (semana/dia) de forma
+    // OS de HOJE (BRT) para cair na janela visível de forma
     // determinística, independente da data em que o teste roda.
     String hojeAs(String hhmm) =>
         localInputToPBDate('${todayLocalDate()}T$hhmm');
 
-    testWidgets('semana: renderiza o evento da OS na janela visível', (
+    testWidgets('abre por padrão no Dia de hoje e renderiza a OS', (
       tester,
     ) async {
       ignoreBenignAgendaOverflows();
@@ -102,12 +102,16 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // No chip da semana o texto é 'HH:mm Nome' — casa por substring.
+      final viewSelector = tester.widget<SegmentedButton<AgendaView>>(
+        find.byType(SegmentedButton<AgendaView>),
+      );
+      expect(viewSelector.selected, {AgendaView.dia});
+      expect(find.textContaining('— Hoje'), findsOneWidget);
       expect(find.textContaining('Carlos S.'), findsWidgets);
       expectNoFatalLayoutException(tester);
     });
 
-    testWidgets('semana vazia: grade renderiza sem eventos', (tester) async {
+    testWidgets('dia de hoje vazio: grade renderiza sem eventos', (tester) async {
       await pumpPainel(
         tester,
         const AgendaScreen(),
@@ -122,8 +126,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Cabeçalho da grade (dias da semana) presente; nenhum evento.
-      expect(find.text('Seg'), findsWidgets);
+      expect(find.textContaining('— Hoje'), findsOneWidget);
       expect(find.textContaining('Carlos S.'), findsNothing);
     });
 
