@@ -30,6 +30,7 @@ import '../data/painel_providers.dart';
 import '../ordens/ordens_controller.dart' show ordensLookupsProvider;
 import '../ordens/os_form.dart' show kDuracaoOpcoes;
 import '../servicos/servicos_labels.dart';
+import '../servicos/taxonomia/taxonomia_models.dart';
 
 class OsInlineSection extends ConsumerStatefulWidget {
   const OsInlineSection({super.key, required this.enabled});
@@ -374,14 +375,18 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
       for (final s in servicos)
         if (s.categoria.trim().isNotEmpty) s.categoria,
     };
-    final categorias = catSet.toList()..sort();
+    final categorias = ordenarCategoriasDisponiveis(catSet, lk.taxonomia);
     final grupoSet = <String>{
       for (final s in servicos)
         if ((_catFiltro == null || s.categoria == _catFiltro) &&
             s.grupo.trim().isNotEmpty)
           s.grupo,
     };
-    final grupos = grupoSet.toList()..sort();
+    final grupos = ordenarGruposDisponiveis(
+      grupoSet,
+      lk.taxonomia,
+      _catFiltro,
+    );
     final servicosFiltrados = [
       for (final s in servicos)
         if ((_catFiltro == null || s.categoria == _catFiltro) &&

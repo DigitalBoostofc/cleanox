@@ -59,7 +59,7 @@ class TaxonomiaRepository {
     return TaxonomiaNo.fromRecord(r.toJson());
   }
 
-  /// Renumera todos os irmãos ativos do escopo em uma transação server-side.
+  /// Renumera o escopo exibido: taxonomia ativa ou todos os serviços irmãos.
   Future<void> reorderCatalog({
     required String kind,
     required List<String> ids,
