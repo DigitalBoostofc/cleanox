@@ -1,6 +1,8 @@
 /// Componentes de UI da vitrine — alinhados aos mockups mobile Cleanox.
 library;
 
+import 'dart:math' show cos, sin;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1026,33 +1028,460 @@ class VitrineCatItem {
   final String? imageUrl;
 }
 
-/// Mapa de ícones dos macros (editável no CMS por chave).
-/// Preferir ícones "filled" clássicos — vários *_rounded/_outlined somem no
-/// Flutter web mesmo com --no-tree-shake-icons (glifo ausente no OTF).
-IconData vitrineMacroIcon(String key) {
+/// Glifos desenhados (CustomPaint) — Material Icons some no Flutter web.
+enum VitrineChoiceGlyph {
+  car,
+  clean,
+  sofa,
+  bed,
+  chair,
+  seat,
+  layers,
+  star,
+  offer,
+  add,
+  sparkle,
+  more,
+  roof,
+  texture,
+  grid,
+  home,
+  category,
+  brush,
+  garage,
+}
+
+/// Mapa CMS de macros → glifo.
+VitrineChoiceGlyph vitrineMacroGlyph(String key) {
   switch (key.trim().toLowerCase()) {
     case 'cleaning':
     case 'limpeza':
-      return Icons.cleaning_services;
+      return VitrineChoiceGlyph.clean;
     case 'sofa':
     case 'sofá':
     case 'weekend':
-      return Icons.weekend;
+      return VitrineChoiceGlyph.sofa;
     case 'home':
     case 'casa':
-      return Icons.home;
+      return VitrineChoiceGlyph.home;
     case 'car':
     case 'auto':
     case 'carro':
-      return Icons.directions_car;
+      return VitrineChoiceGlyph.car;
     case 'garage':
     case 'garagem':
-      return Icons.garage;
+      return VitrineChoiceGlyph.garage;
     case 'spray':
+      return VitrineChoiceGlyph.brush;
+    default:
+      return VitrineChoiceGlyph.category;
+  }
+}
+
+/// Mapa de grupo/slug da taxonomia → glifo representativo.
+VitrineChoiceGlyph vitrineGrupoGlyph(String slug) {
+  switch (slug.trim().toLowerCase()) {
+    case 'sofa':
+    case 'sofá':
+    case 'sofaa':
+      return VitrineChoiceGlyph.sofa;
+    case 'colchao':
+    case 'colchão':
+    case 'colchoes':
+    case 'colchões':
+      return VitrineChoiceGlyph.bed;
+    case 'plano':
+    case 'planos':
+      return VitrineChoiceGlyph.star;
+    case 'promocao':
+    case 'promoção':
+    case 'promo':
+      return VitrineChoiceGlyph.offer;
+    case 'adicional':
+    case 'adicionais':
+      return VitrineChoiceGlyph.add;
+    case 'avulsos':
+    case 'avulso':
+      return VitrineChoiceGlyph.sparkle;
+    case 'outros':
+    case 'outro':
+      return VitrineChoiceGlyph.more;
+    case 'cadeira':
+    case 'cadeiras':
+    case 'poltrona':
+    case 'poltronas':
+      return VitrineChoiceGlyph.chair;
+    case 'tapete':
+    case 'tapetes':
+      return VitrineChoiceGlyph.layers;
+    case 'banco':
+    case 'bancos':
+      return VitrineChoiceGlyph.seat;
+    case 'teto':
+      return VitrineChoiceGlyph.roof;
+    case 'carpete':
+    case 'carpetes':
+      return VitrineChoiceGlyph.texture;
+    default:
+      return VitrineChoiceGlyph.grid;
+  }
+}
+
+/// Compat: ainda expõe IconData para telas legadas — preferir [VitrineChoiceIcon].
+IconData vitrineMacroIcon(String key) {
+  switch (vitrineMacroGlyph(key)) {
+    case VitrineChoiceGlyph.clean:
+      return Icons.cleaning_services;
+    case VitrineChoiceGlyph.sofa:
+      return Icons.weekend;
+    case VitrineChoiceGlyph.home:
+      return Icons.home;
+    case VitrineChoiceGlyph.car:
+      return Icons.directions_car;
+    case VitrineChoiceGlyph.garage:
+      return Icons.garage;
+    case VitrineChoiceGlyph.brush:
       return Icons.brush;
     default:
       return Icons.category;
   }
+}
+
+/// Ícone de escolha na paleta Cleanox (navy/cyan) — não depende da fonte Material.
+class VitrineChoiceIcon extends StatelessWidget {
+  const VitrineChoiceIcon({
+    super.key,
+    required this.glyph,
+    this.color = ClxBrand.cyan,
+    this.size = 28,
+  });
+
+  final VitrineChoiceGlyph glyph;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _VitrineChoiceGlyphPainter(glyph: glyph, color: color),
+      ),
+    );
+  }
+}
+
+class _VitrineChoiceGlyphPainter extends CustomPainter {
+  _VitrineChoiceGlyphPainter({required this.glyph, required this.color});
+
+  final VitrineChoiceGlyph glyph;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * 0.09
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final s = size.shortestSide;
+    final o = Offset(size.width / 2, size.height / 2);
+
+    switch (glyph) {
+      case VitrineChoiceGlyph.car:
+        _car(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.clean:
+        _clean(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.sofa:
+        _sofa(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.bed:
+        _bed(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.chair:
+        _chair(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.seat:
+        _seat(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.layers:
+        _layers(canvas, o, s, p);
+      case VitrineChoiceGlyph.star:
+        _star(canvas, o, s, fill);
+      case VitrineChoiceGlyph.offer:
+        _offer(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.add:
+        _add(canvas, o, s, p);
+      case VitrineChoiceGlyph.sparkle:
+        _sparkle(canvas, o, s, p);
+      case VitrineChoiceGlyph.more:
+        _more(canvas, o, s, fill);
+      case VitrineChoiceGlyph.roof:
+        _roof(canvas, o, s, p);
+      case VitrineChoiceGlyph.texture:
+        _texture(canvas, o, s, p);
+      case VitrineChoiceGlyph.grid:
+        _grid(canvas, o, s, p);
+      case VitrineChoiceGlyph.home:
+        _home(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.category:
+        _category(canvas, o, s, p);
+      case VitrineChoiceGlyph.brush:
+        _brush(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.garage:
+        _garage(canvas, o, s, p);
+    }
+  }
+
+  void _car(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    final body = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: o.translate(0, s * 0.02), width: s * 0.72, height: s * 0.34),
+      Radius.circular(s * 0.08),
+    );
+    c.drawRRect(body, p);
+    final cabin = Path()
+      ..moveTo(o.dx - s * 0.18, o.dy - s * 0.05)
+      ..lineTo(o.dx - s * 0.08, o.dy - s * 0.28)
+      ..lineTo(o.dx + s * 0.12, o.dy - s * 0.28)
+      ..lineTo(o.dx + s * 0.22, o.dy - s * 0.05)
+      ..close();
+    c.drawPath(cabin, p);
+    c.drawCircle(Offset(o.dx - s * 0.22, o.dy + s * 0.22), s * 0.09, fill);
+    c.drawCircle(Offset(o.dx + s * 0.22, o.dy + s * 0.22), s * 0.09, fill);
+  }
+
+  void _clean(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    // sparkles / limpeza
+    c.drawCircle(o, s * 0.08, fill);
+    for (final a in [0.0, 1.0, 2.0, 3.0]) {
+      final rad = a * 3.14159 / 2;
+      final d = Offset(cos(rad), sin(rad));
+      c.drawLine(o + d * s * 0.16, o + d * s * 0.34, p);
+    }
+    c.drawLine(
+      Offset(o.dx - s * 0.28, o.dy + s * 0.28),
+      Offset(o.dx + s * 0.28, o.dy + s * 0.28),
+      p,
+    );
+  }
+
+  void _sofa(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    final seat = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: o.translate(0, s * 0.06), width: s * 0.7, height: s * 0.28),
+      Radius.circular(s * 0.08),
+    );
+    c.drawRRect(seat, p);
+    final back = RRect.fromRectAndRadius(
+      Rect.fromLTWH(o.dx - s * 0.35, o.dy - s * 0.28, s * 0.7, s * 0.22),
+      Radius.circular(s * 0.08),
+    );
+    c.drawRRect(back, p);
+    c.drawLine(
+      Offset(o.dx - s * 0.28, o.dy + s * 0.2),
+      Offset(o.dx - s * 0.28, o.dy + s * 0.32),
+      p,
+    );
+    c.drawLine(
+      Offset(o.dx + s * 0.28, o.dy + s * 0.2),
+      Offset(o.dx + s * 0.28, o.dy + s * 0.32),
+      p,
+    );
+  }
+
+  void _bed(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    // headboard
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(o.dx - s * 0.34, o.dy - s * 0.3, s * 0.14, s * 0.46),
+        Radius.circular(s * 0.04),
+      ),
+      p,
+    );
+    // mattress
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(o.dx - s * 0.2, o.dy - s * 0.06, s * 0.54, s * 0.22),
+        Radius.circular(s * 0.06),
+      ),
+      p,
+    );
+    // legs
+    c.drawLine(Offset(o.dx - s * 0.12, o.dy + s * 0.16), Offset(o.dx - s * 0.12, o.dy + s * 0.3), p);
+    c.drawLine(Offset(o.dx + s * 0.28, o.dy + s * 0.16), Offset(o.dx + s * 0.28, o.dy + s * 0.3), p);
+  }
+
+  void _chair(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: o.translate(0, s * 0.04), width: s * 0.42, height: s * 0.2),
+        Radius.circular(s * 0.05),
+      ),
+      p,
+    );
+    c.drawLine(Offset(o.dx - s * 0.18, o.dy - s * 0.28), Offset(o.dx - s * 0.18, o.dy + s * 0.05), p);
+    c.drawLine(Offset(o.dx - s * 0.18, o.dy - s * 0.28), Offset(o.dx + s * 0.16, o.dy - s * 0.28), p);
+    c.drawLine(Offset(o.dx - s * 0.14, o.dy + s * 0.14), Offset(o.dx - s * 0.14, o.dy + s * 0.3), p);
+    c.drawLine(Offset(o.dx + s * 0.14, o.dy + s * 0.14), Offset(o.dx + s * 0.14, o.dy + s * 0.3), p);
+  }
+
+  void _seat(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: o, width: s * 0.55, height: s * 0.28),
+        Radius.circular(s * 0.08),
+      ),
+      p,
+    );
+    c.drawLine(Offset(o.dx - s * 0.22, o.dy - s * 0.02), Offset(o.dx - s * 0.22, o.dy - s * 0.28), p);
+  }
+
+  void _layers(Canvas c, Offset o, double s, Paint p) {
+    for (var i = 0; i < 3; i++) {
+      final dy = (i - 1) * s * 0.14;
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: o.translate(0, dy), width: s * 0.62 - i * s * 0.06, height: s * 0.12),
+          Radius.circular(s * 0.04),
+        ),
+        p,
+      );
+    }
+  }
+
+  void _star(Canvas c, Offset o, double s, Paint fill) {
+    final path = Path();
+    for (var i = 0; i < 5; i++) {
+      final a = -3.14159 / 2 + i * 2 * 3.14159 / 5;
+      final a2 = a + 3.14159 / 5;
+      final outer = Offset(o.dx + cos(a) * s * 0.34, o.dy + sin(a) * s * 0.34);
+      final inner = Offset(o.dx + cos(a2) * s * 0.14, o.dy + sin(a2) * s * 0.14);
+      if (i == 0) {
+        path.moveTo(outer.dx, outer.dy);
+      } else {
+        path.lineTo(outer.dx, outer.dy);
+      }
+      path.lineTo(inner.dx, inner.dy);
+    }
+    path.close();
+    c.drawPath(path, fill);
+  }
+
+  void _offer(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    final path = Path()
+      ..moveTo(o.dx - s * 0.08, o.dy - s * 0.32)
+      ..lineTo(o.dx + s * 0.28, o.dy - s * 0.08)
+      ..lineTo(o.dx + s * 0.08, o.dy + s * 0.32)
+      ..lineTo(o.dx - s * 0.28, o.dy + s * 0.08)
+      ..close();
+    c.drawPath(path, p);
+    c.drawCircle(Offset(o.dx - s * 0.06, o.dy - s * 0.08), s * 0.05, fill);
+  }
+
+  void _add(Canvas c, Offset o, double s, Paint p) {
+    c.drawCircle(o, s * 0.32, p);
+    c.drawLine(Offset(o.dx - s * 0.16, o.dy), Offset(o.dx + s * 0.16, o.dy), p);
+    c.drawLine(Offset(o.dx, o.dy - s * 0.16), Offset(o.dx, o.dy + s * 0.16), p);
+  }
+
+  void _sparkle(Canvas c, Offset o, double s, Paint p) {
+    c.drawLine(Offset(o.dx, o.dy - s * 0.32), Offset(o.dx, o.dy + s * 0.32), p);
+    c.drawLine(Offset(o.dx - s * 0.32, o.dy), Offset(o.dx + s * 0.32, o.dy), p);
+    c.drawLine(Offset(o.dx - s * 0.2, o.dy - s * 0.2), Offset(o.dx + s * 0.2, o.dy + s * 0.2), p);
+    c.drawLine(Offset(o.dx + s * 0.2, o.dy - s * 0.2), Offset(o.dx - s * 0.2, o.dy + s * 0.2), p);
+  }
+
+  void _more(Canvas c, Offset o, double s, Paint fill) {
+    c.drawCircle(Offset(o.dx - s * 0.22, o.dy), s * 0.07, fill);
+    c.drawCircle(o, s * 0.07, fill);
+    c.drawCircle(Offset(o.dx + s * 0.22, o.dy), s * 0.07, fill);
+  }
+
+  void _roof(Canvas c, Offset o, double s, Paint p) {
+    final path = Path()
+      ..moveTo(o.dx - s * 0.34, o.dy + s * 0.05)
+      ..lineTo(o.dx, o.dy - s * 0.28)
+      ..lineTo(o.dx + s * 0.34, o.dy + s * 0.05)
+      ..close();
+    c.drawPath(path, p);
+    c.drawLine(Offset(o.dx - s * 0.22, o.dy + s * 0.05), Offset(o.dx - s * 0.22, o.dy + s * 0.28), p);
+    c.drawLine(Offset(o.dx + s * 0.22, o.dy + s * 0.05), Offset(o.dx + s * 0.22, o.dy + s * 0.28), p);
+  }
+
+  void _texture(Canvas c, Offset o, double s, Paint p) {
+    for (var i = -2; i <= 2; i++) {
+      c.drawLine(
+        Offset(o.dx - s * 0.28, o.dy + i * s * 0.1),
+        Offset(o.dx + s * 0.28, o.dy + i * s * 0.1),
+        p,
+      );
+    }
+  }
+
+  void _grid(Canvas c, Offset o, double s, Paint p) {
+    final gap = s * 0.08;
+    final cell = s * 0.22;
+    for (var y = 0; y < 2; y++) {
+      for (var x = 0; x < 2; x++) {
+        final cx = o.dx - cell - gap / 2 + x * (cell + gap) + cell / 2;
+        final cy = o.dy - cell - gap / 2 + y * (cell + gap) + cell / 2;
+        c.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(cx, cy), width: cell, height: cell),
+            Radius.circular(s * 0.04),
+          ),
+          p,
+        );
+      }
+    }
+  }
+
+  void _home(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    final path = Path()
+      ..moveTo(o.dx - s * 0.3, o.dy)
+      ..lineTo(o.dx, o.dy - s * 0.3)
+      ..lineTo(o.dx + s * 0.3, o.dy)
+      ..lineTo(o.dx + s * 0.3, o.dy + s * 0.28)
+      ..lineTo(o.dx - s * 0.3, o.dy + s * 0.28)
+      ..close();
+    c.drawPath(path, p);
+    c.drawRect(Rect.fromCenter(center: o.translate(0, s * 0.14), width: s * 0.14, height: s * 0.2), p);
+  }
+
+  void _category(Canvas c, Offset o, double s, Paint p) {
+    c.drawCircle(Offset(o.dx - s * 0.14, o.dy - s * 0.14), s * 0.12, p);
+    c.drawCircle(Offset(o.dx + s * 0.14, o.dy - s * 0.14), s * 0.12, p);
+    c.drawCircle(Offset(o.dx - s * 0.14, o.dy + s * 0.14), s * 0.12, p);
+    c.drawCircle(Offset(o.dx + s * 0.14, o.dy + s * 0.14), s * 0.12, p);
+  }
+
+  void _brush(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    c.drawLine(Offset(o.dx - s * 0.1, o.dy + s * 0.28), Offset(o.dx + s * 0.22, o.dy - s * 0.2), p);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: o.translate(s * 0.18, -s * 0.22), width: s * 0.22, height: s * 0.16),
+        Radius.circular(s * 0.04),
+      ),
+      fill,
+    );
+  }
+
+  void _garage(Canvas c, Offset o, double s, Paint p) {
+    c.drawRect(Rect.fromCenter(center: o.translate(0, s * 0.04), width: s * 0.62, height: s * 0.48), p);
+    c.drawLine(Offset(o.dx - s * 0.31, o.dy - s * 0.2), Offset(o.dx + s * 0.31, o.dy - s * 0.2), p);
+    for (var i = -1; i <= 1; i++) {
+      c.drawLine(
+        Offset(o.dx - s * 0.2, o.dy + i * s * 0.1),
+        Offset(o.dx + s * 0.2, o.dy + i * s * 0.1),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _VitrineChoiceGlyphPainter oldDelegate) =>
+      oldDelegate.glyph != glyph || oldDelegate.color != color;
 }
 
 /// Dois cards grandes: Residencial × Automotiva (“O que você procura?”).
@@ -1094,7 +1523,7 @@ class VitrineMacroChoice extends StatelessWidget {
           key: const Key('vitrine-macro-residencial'),
           title: residencialTitulo,
           subtitle: residencialSubtitulo,
-          icon: vitrineMacroIcon(residencialIcone),
+          glyph: vitrineMacroGlyph(residencialIcone),
           imageUrl: residencialImageUrl,
           onTap: onResidencial,
         );
@@ -1102,7 +1531,7 @@ class VitrineMacroChoice extends StatelessWidget {
           key: const Key('vitrine-macro-automotiva'),
           title: automotivaTitulo,
           subtitle: automotivaSubtitulo,
-          icon: vitrineMacroIcon(automotivaIcone),
+          glyph: vitrineMacroGlyph(automotivaIcone),
           imageUrl: automotivaImageUrl,
           onTap: onAutomotiva,
         );
@@ -1134,14 +1563,14 @@ class _MacroCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.glyph,
     required this.onTap,
     this.imageUrl,
   });
 
   final String title;
   final String subtitle;
-  final IconData icon;
+  final VitrineChoiceGlyph glyph;
   final VoidCallback onTap;
   final String? imageUrl;
 
@@ -1164,6 +1593,7 @@ class _MacroCard extends StatelessWidget {
               Container(
                 width: 64,
                 height: 64,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: ClxBrand.cyan.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(18),
@@ -1173,13 +1603,17 @@ class _MacroCard extends StatelessWidget {
                     ? Image.network(
                         imageUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          icon,
+                        errorBuilder: (_, __, ___) => VitrineChoiceIcon(
+                          glyph: glyph,
                           size: 30,
                           color: ClxBrand.cyan,
                         ),
                       )
-                    : Icon(icon, size: 30, color: ClxBrand.cyan),
+                    : VitrineChoiceIcon(
+                        glyph: glyph,
+                        size: 30,
+                        color: ClxBrand.cyan,
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(
