@@ -1301,7 +1301,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                                   title: _labelGrupo(g),
                                   subtitle:
                                       '${_servicosNoGrupo(cat, g).length} opções',
-                                  icon: Icons.grid_view,
+                                  icon: _iconGrupo(g),
                                   onTap: () => _pickGrupo(g),
                                 ),
                             ],
