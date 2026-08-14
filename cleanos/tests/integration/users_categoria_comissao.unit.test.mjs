@@ -362,4 +362,88 @@ describe('compensarSubcategoriaOrfa', () => {
     lib.compensarSubcategoriaOrfa(app, { created: false, subId: 'cat_joao' })
     assert.deepEqual(app.deleted, [])
   })
+
+  it('sub preexistente reutilizada + falha de create nunca é deletada', () => {
+    const joao = rec('cat_joao', {
+      tipo: 'despesa',
+      nome: 'João Pedro',
+      parent_id: 'catdequipe00001',
+    })
+    const app = mockApp({ categorias: [EQUIPE, joao] })
+    const user = userRec({
+      role: 'profissional',
+      roles: ['profissional'],
+      name: 'João Pedro',
+      categoria_comissao: '',
+    })
+
+    const out = lib.aplicarCategoriaNoCreate(app, user)
+    assert.equal(out.created, false)
+    assert.equal(out.subId, 'cat_joao')
+
+    // Espelha o catch de e.next() (email duplicado, etc.).
+    lib.compensarSubcategoriaOrfa(app, out)
+    assert.deepEqual(app.deleted, [])
+    assert.ok(app.cats.some((c) => c.id === 'cat_joao'))
+  })
+
+  it('não trata created omitido/forçado como órfã desta tentativa', () => {
+    const joao = rec('cat_joao', {
+      tipo: 'despesa',
+      nome: 'João Pedro',
+      parent_id: 'catdequipe00001',
+    })
+    const app = mockApp({ categorias: [EQUIPE, joao] })
+    lib.compensarSubcategoriaOrfa(app, { subId: 'cat_joao' })
+    lib.compensarSubcategoriaOrfa(app, { created: 'true', subId: 'cat_joao' })
+    assert.deepEqual(app.deleted, [])
+  })
+})
+
+describe('hook users_categoria_comissao.pb.js', () => {
+  const registered = {}
+  globalThis.onRecordCreate = (fn) => {
+    registered.create = fn
+  }
+  globalThis.onRecordUpdate = (fn) => {
+    registered.update = fn
+  }
+  globalThis.onRecordAfterCreateError = (fn) => {
+    registered.afterCreateError = fn
+  }
+  require('../../pb/pb_hooks/users_categoria_comissao.pb.js')
+
+  it('não registra AfterCreateError (apagaria sub reutilizada)', () => {
+    assert.equal(registered.afterCreateError, undefined)
+    assert.equal(typeof registered.create, 'function')
+    assert.equal(typeof registered.update, 'function')
+  })
+
+  it('create falho após reutilizar Equipe→nome não apaga a sub preexistente', () => {
+    const joao = rec('cat_joao', {
+      tipo: 'despesa',
+      nome: 'João Pedro',
+      parent_id: 'catdequipe00001',
+    })
+    const app = mockApp({ categorias: [EQUIPE, joao] })
+    const user = userRec({
+      role: 'profissional',
+      roles: ['profissional'],
+      name: 'João Pedro',
+    })
+
+    assert.throws(
+      () =>
+        registered.create({
+          app,
+          record: user,
+          next: () => {
+            throw new Error('email duplicado')
+          },
+        }),
+      /email duplicado/,
+    )
+    assert.deepEqual(app.deleted, [])
+    assert.ok(app.cats.some((c) => c.id === 'cat_joao'))
+  })
 })

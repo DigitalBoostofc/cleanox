@@ -8,8 +8,10 @@
  *   - onRecordCreate BEFORE e.next(): valida e pode gravar a subcategoria.
  *   - e.next() persiste o usuário na própria transação e comita (R3).
  *   - e.next() dentro de runInTransaction deadlocka — não usamos.
- *   - Se o create do auth falhar depois da sub ter sido gravada, compensamos
- *     a órfã (idempotente: retry reutiliza pelo nome).
+ *   - Se o create do auth falhar depois de CRIAR a sub nesta tentativa,
+ *     o catch de e.next() apaga só essa órfã (created:true). Sub reutilizada
+ *     nunca é apagada. Sem onRecordAfterCreateError: ele não sabe se a sub
+ *     nasceu agora e apagaria Equipe→nome pré-existente sem vínculo.
  */
 
 onRecordCreate((e) => {
@@ -26,15 +28,5 @@ onRecordCreate((e) => {
 onRecordUpdate((e) => {
   const lib = require(`${__hooks}/users_categoria_comissao_lib.js`);
   lib.aplicarCategoriaNoUpdate(e.app, e.record);
-  e.next();
-}, "users");
-
-onRecordAfterCreateError((e) => {
-  const lib = require(`${__hooks}/users_categoria_comissao_lib.js`);
-  try {
-    lib.compensarPeloRecord(e.app, e.record);
-  } catch (err) {
-    console.error("[users-cat] compensação pós-erro (ignorada): " + err);
-  }
   e.next();
 }, "users");

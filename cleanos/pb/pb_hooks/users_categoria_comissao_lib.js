@@ -189,7 +189,8 @@ function _aindaReferenciada(app, collection, filter, params) {
 }
 
 function compensarSubcategoriaOrfa(app, result) {
-  if (!result || !result.created) return;
+  // Só a sub CRIADA nesta tentativa. created:false = reutilizada: não apagar.
+  if (!result || result.created !== true) return;
   var subId = String(result.subId || "").trim();
   if (!subId) return;
   if (
@@ -210,13 +211,6 @@ function compensarSubcategoriaOrfa(app, result) {
   } catch (_) {}
 }
 
-function compensarPeloRecord(app, record) {
-  if (!record) return;
-  var subId = String(record.get("categoria_comissao") || "").trim();
-  if (!subId) return;
-  compensarSubcategoriaOrfa(app, { created: true, subId: subId });
-}
-
 module.exports = {
   EQUIPE_CANONICAL_ID: EQUIPE_CANONICAL_ID,
   temPapelProfissional: temPapelProfissional,
@@ -227,5 +221,4 @@ module.exports = {
   aplicarCategoriaNoCreate: aplicarCategoriaNoCreate,
   aplicarCategoriaNoUpdate: aplicarCategoriaNoUpdate,
   compensarSubcategoriaOrfa: compensarSubcategoriaOrfa,
-  compensarPeloRecord: compensarPeloRecord,
 };
