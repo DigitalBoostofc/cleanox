@@ -96,6 +96,71 @@ void main() {
       expect(find.text('Nenhum serviço cadastrado'), findsOneWidget);
     });
 
+    testWidgets('grupo do filtro só mostra grupos da categoria selecionada', (
+      tester,
+    ) async {
+      final arvore = TaxonomiaArvore(const [
+        TaxonomiaNo(
+          id: 'c-vei',
+          tipo: TaxonomiaTipo.categoria,
+          slug: 'veicular',
+          nome: 'Veicular',
+          parent: '',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'c-res',
+          tipo: TaxonomiaTipo.categoria,
+          slug: 'residencial',
+          nome: 'Residencial',
+          parent: '',
+          ordem: 20,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'g-int',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'higienizacao_interna',
+          nome: 'Higienização Interna',
+          parent: 'c-vei',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'g-sof',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'sofa',
+          nome: 'Sofá',
+          parent: 'c-res',
+          ordem: 10,
+          ativo: true,
+        ),
+      ]);
+      await pumpPainel(
+        tester,
+        const ServicosListScreen(),
+        overrides: [
+          ...painelOverrides(user: painelUser()),
+          servicosRepositoryProvider.overrideWithValue(FakeServicosFull()),
+          taxonomiaArvoreProvider.overrideWith((ref) async => arvore),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('servicos-filtro-categoria')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Veicular').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('servicos-filtro-grupo-veicular')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Higienização Interna').hitTestable(), findsWidgets);
+      expect(find.text('Sofá').hitTestable(), findsNothing);
+    });
+
     testWidgets('erro: banner com retry', (tester) async {
       await pumpPainel(
         tester,

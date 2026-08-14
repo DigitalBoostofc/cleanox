@@ -57,4 +57,79 @@ void main() {
       ['zulu', 'alfa-grupo'],
     );
   });
+
+  test('filtro de grupo só lista os grupos da categoria escolhida', () {
+    final arvore = TaxonomiaArvore(const [
+      TaxonomiaNo(
+        id: 'c-vei',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'veicular',
+        nome: 'Veicular',
+        parent: '',
+        ordem: 10,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'c-res',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'residencial',
+        nome: 'Residencial',
+        parent: '',
+        ordem: 20,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'g-int',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'higienizacao_interna',
+        nome: 'Higienização Interna',
+        parent: 'c-vei',
+        ordem: 10,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'g-pla',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'plano',
+        nome: 'Plano',
+        parent: 'c-vei',
+        ordem: 20,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'g-sof',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'sofa',
+        nome: 'Sofá',
+        parent: 'c-res',
+        ordem: 10,
+        ativo: true,
+      ),
+    ]);
+
+    expect(gruposDoFiltroServicos(categoriaSlug: null, arvore: arvore), isEmpty);
+    expect(
+      gruposDoFiltroServicos(categoriaSlug: 'veicular', arvore: arvore),
+      ['higienizacao_interna', 'plano'],
+    );
+    expect(
+      gruposDoFiltroServicos(categoriaSlug: 'residencial', arvore: arvore),
+      ['sofa'],
+    );
+    expect(
+      gruposDoFiltroServicos(categoriaSlug: 'veicular', arvore: arvore),
+      isNot(contains('sofa')),
+    );
+  });
+
+  test('filtro de grupo cai no fallback estático sem árvore', () {
+    expect(
+      gruposDoFiltroServicos(categoriaSlug: 'veicular'),
+      ['plano', 'promocao', 'adicional', 'avulsos'],
+    );
+    expect(
+      gruposDoFiltroServicos(categoriaSlug: 'residencial'),
+      ['sofa', 'colchao', 'outros'],
+    );
+  });
 }

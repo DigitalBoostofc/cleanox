@@ -5,6 +5,7 @@
 library;
 
 import '../../../core/models/servico.dart';
+import '../../../core/models/servico_taxonomia.dart';
 
 enum TaxonomiaTipo {
   categoria,
@@ -179,6 +180,32 @@ class TaxonomiaArvore {
         return slug;
     }
   }
+}
+
+/// Grupos do filtro da lista de Serviços para a [categoriaSlug] selecionada.
+///
+/// Sem categoria: vazio (a UI fica só em "Todos os grupos").
+/// Com árvore: grupos ativos daquela categoria.
+/// Sem árvore: fallback estático [gruposDaCategoria].
+List<String> gruposDoFiltroServicos({
+  required String? categoriaSlug,
+  TaxonomiaArvore? arvore,
+}) {
+  final slug = (categoriaSlug ?? '').trim();
+  if (slug.isEmpty) return const [];
+  final cat = arvore?.categoriaBySlug(slug);
+  if (cat != null) {
+    return [for (final g in arvore!.gruposDe(cat.id)) g.slug];
+  }
+  Categoria? catEnum;
+  for (final c in Categoria.values) {
+    if (c.wire == slug) {
+      catEnum = c;
+      break;
+    }
+  }
+  if (catEnum == null) return const [];
+  return [for (final g in gruposDaCategoria(catEnum)) g.wire];
 }
 
 /// Ordena slugs disponíveis pela sequência configurada das categorias.
