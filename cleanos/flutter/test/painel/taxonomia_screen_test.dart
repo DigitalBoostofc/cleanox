@@ -126,7 +126,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Categorias e grupos'), findsOneWidget);
+      expect(find.text('Categorias, grupos e serviços'), findsOneWidget);
       expect(find.text('Categorias'), findsOneWidget);
       expect(find.text('Grupos'), findsOneWidget);
       expect(find.text('Serviços'), findsOneWidget);

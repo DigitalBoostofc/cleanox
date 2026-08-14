@@ -168,7 +168,7 @@ class _ServicosTaxonomiaScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Categorias e grupos'),
+        title: const Text('Categorias, grupos e serviços'),
         actions: [
           IconButton(
             tooltip: 'Recarregar',

@@ -384,7 +384,7 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
           ),
           IconButton(
             key: const Key('servicos-taxonomia-gear'),
-            tooltip: 'Categorias e grupos',
+            tooltip: 'Categorias, grupos e serviços',
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
