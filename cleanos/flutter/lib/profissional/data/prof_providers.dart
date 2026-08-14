@@ -14,6 +14,8 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/repositories/evidencias_repository.dart';
 import '../../core/repositories/repo_types.dart';
 import '../../core/repositories/whatsapp_repository.dart';
+import '../../core/repositories/agenda_compromissos_repository.dart';
+import '../../painel/data/pb_agenda_compromissos_repository.dart';
 import '../../core/storage/local_store_keys.dart';
 import 'pb_evidencias_repository.dart';
 import 'pb_tracking_repository.dart';
@@ -58,6 +60,12 @@ final whatsappRepositoryProvider = Provider<WhatsAppRepository>(
 final trackingRepositoryProvider = Provider<TrackingRepository>(
   (ref) => PbTrackingRepository(ref.watch(pocketBaseProvider)),
 );
+
+/// Tarefas/compromissos do profissional (só as dele; concluir via update).
+final agendaCompromissosRepositoryProvider =
+    Provider<AgendaCompromissosRepository>(
+      (ref) => PbAgendaCompromissosRepository(ref.watch(pocketBaseProvider)),
+    );
 
 /// Realtime da coleção `ordens_servico` (SSE). A tela de serviços dedupe
 /// fetch×realtime por id. Fica em StreamProvider.autoDispose (cancela a SSE ao
