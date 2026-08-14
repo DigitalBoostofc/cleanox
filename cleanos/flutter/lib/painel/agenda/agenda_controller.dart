@@ -30,6 +30,7 @@ import '../../core/agenda/agenda_drag.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
+import '../../core/models/agenda_compromisso.dart';
 import '../../core/models/disponibilidade.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
@@ -260,6 +261,7 @@ class AgendaState {
     this.view = AgendaView.dia,
     this.profissionais = const [],
     this.osList = const [],
+    this.compromissos = const [],
     this.dispByProf = const {},
     this.pendentes = const {},
     this.loading = true,
@@ -284,6 +286,7 @@ class AgendaState {
 
   final List<User> profissionais;
   final List<OrdemServico> osList;
+  final List<AgendaCompromisso> compromissos;
 
   /// Disponibilidade por profissional — alimenta o fallback de duração (D9):
   /// OS > profissional > 60. Sem isso, OS antiga (sem `duracao_min`) desenharia
@@ -318,6 +321,14 @@ class AgendaState {
     return list.toList();
   }
 
+  List<AgendaCompromisso> get filteredCompromissos {
+    Iterable<AgendaCompromisso> list = compromissos;
+    if (filterProfId != null) {
+      list = list.where((c) => c.profissional == filterProfId);
+    }
+    return list.toList();
+  }
+
   /// OS de um [dia] específico (relógio BRT).
   List<OrdemServico> eventsForDay(DateTime dia) => filteredOs.where((o) {
     final brt = agendaEventBrt(o);
@@ -332,6 +343,13 @@ class AgendaState {
     return brt != null && sameDay(brt, dia) && agendaEventHour(o) == hour;
   }).toList();
 
+  List<AgendaCompromisso> compromissosForDay(DateTime dia) =>
+      filteredCompromissos.where((c) {
+        final utc = parsePbUtc(c.dataHora);
+        if (utc == null) return false;
+        return sameDay(utc.subtract(kBrtOffset), dia);
+      }).toList();
+
   AgendaState copyWith({
     AgendaView? view,
     DateTime? anchor,
@@ -339,6 +357,7 @@ class AgendaState {
     DateTime? hoje,
     List<User>? profissionais,
     List<OrdemServico>? osList,
+    List<AgendaCompromisso>? compromissos,
     Map<String, Disponibilidade>? dispByProf,
     Set<String>? pendentes,
     bool? loading,
@@ -352,6 +371,7 @@ class AgendaState {
     hoje: hoje ?? this.hoje,
     profissionais: profissionais ?? this.profissionais,
     osList: osList ?? this.osList,
+    compromissos: compromissos ?? this.compromissos,
     dispByProf: dispByProf ?? this.dispByProf,
     pendentes: pendentes ?? this.pendentes,
     loading: loading ?? this.loading,
@@ -469,7 +489,7 @@ class AgendaController extends StateNotifier<AgendaState> {
     state = state.copyWith(loading: true, error: null);
     try {
       final range = _loadRange();
-      final res = await _ref
+      final osFuture = _ref
           .read(ordensRepositoryProvider)
           .list(
             page: 1,
@@ -481,11 +501,21 @@ class AgendaController extends StateNotifier<AgendaState> {
             sort: 'data_hora',
             expand: 'profissional,profissional2,cliente,ponto_fisico',
           );
+      final res = await osFuture;
+      List<AgendaCompromisso> tarefas = const [];
+      try {
+        tarefas = await _ref
+            .read(agendaCompromissosRepositoryProvider)
+            .list(dataInicio: range.start, dataFim: range.end);
+      } catch (_) {
+        /* coleção ainda não migrada / teste sem o provider */
+      }
       // Resposta ATRASADA de um load antigo (troca rápida de período/visão, ou
       // um drop que já reescreveu a lista): descarta — nunca sobrescreve o novo.
       if (!mounted || seq != _loadSeq) return;
       state = state.copyWith(
         osList: _preservandoPendentes(res.items),
+        compromissos: tarefas,
         loading: false,
         error: null,
       );

@@ -24,10 +24,13 @@ import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/disponibilidade.dart';
+import '../../core/models/agenda_compromisso.dart';
 import '../../core/models/ordem_servico.dart';
+import 'compromisso_form.dart';
 import '../ordens/os_detail.dart';
 import '../ordens/os_form.dart';
 import 'agenda_controller.dart';
+import '../data/painel_providers.dart';
 import 'ajuste_sheet.dart';
 import 'day_column.dart';
 
@@ -274,6 +277,19 @@ class _Toolbar extends ConsumerWidget {
             icon: const Icon(Icons.refresh_rounded),
             onPressed: notifier.load,
           ),
+          ClxButton(
+            label: 'Nova tarefa',
+            variant: ClxButtonVariant.ghost,
+            icon: Icons.task_alt_outlined,
+            onPressed: () async {
+              final ok = await showCompromissoForm(
+                context,
+                dia: state.selectedDay,
+                profissionalId: state.filterProfId,
+              );
+              if (ok) notifier.load();
+            },
+          ),
           // Filtro de profissional (só ativos — profissionaisFilter).
           SizedBox(
             // 260: "Todos os profissionais" + prefixIcon cabem sem cortar.
@@ -453,6 +469,10 @@ class _Body extends ConsumerWidget {
 
     final notifier = ref.read(agendaControllerProvider.notifier);
 
+    Future<void> openTarefa(AgendaCompromisso t) async {
+      await _abrirTarefa(context, ref, t);
+    }
+
     /// FASE 3 (APK / web estreita): long-press no card → sheet de ajuste (D3).
     /// Sem grade nem arraste no celular (R4) — os steppers de ±15 fazem o papel.
     void ajustarOS(OrdemServico os) {
@@ -503,6 +523,7 @@ class _Body extends ConsumerWidget {
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onTapTarefa: openTarefa,
                     notifier: notifier,
                   );
           case AgendaView.mes:
@@ -533,6 +554,7 @@ class _Body extends ConsumerWidget {
                     state: state,
                     today: today,
                     onTap: openOS,
+                    onTapTarefa: openTarefa,
                     notifier: notifier,
                   );
         }
@@ -565,6 +587,11 @@ List<Intervalo> _ocupadosDoDia(
           o.status != OSStatus.cancelada)
         if (agendaEventBrt(o) case final brt? when sameDay(brt, dia))
           intervaloDaOs(o, disp),
+    for (final t in state.compromissos)
+      if (t.profissional == prof && t.status != StatusCompromisso.concluida)
+        if (parsePbUtc(t.dataHora) case final utc?
+            when sameDay(utc.subtract(kBrtOffset), dia))
+          intervaloDoCompromisso(t),
   ];
 }
 
@@ -575,11 +602,13 @@ class _WeekView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    required this.onTapTarefa,
     required this.notifier,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<AgendaCompromisso> onTapTarefa;
   final AgendaController notifier;
 
   @override
@@ -588,13 +617,15 @@ class _WeekView extends StatelessWidget {
     final ws = startOfWeek(state.anchor);
     final days = [for (var i = 0; i < 7; i++) addDays(ws, i)];
     final eventosPorDia = [for (final d in days) state.eventsForDay(d)];
+    final tarefasPorDia = [for (final d in days) state.compromissosForDay(d)];
     // Janela ÚNICA para os 7 dias: sem isso as linhas de hora não alinham entre
     // as colunas (um evento às 5h num dia deslocaria só aquela coluna).
     final janela = janelaCompartilhada([
-      for (final eventos in eventosPorDia)
+      for (var i = 0; i < days.length; i++)
         [
-          for (final os in eventos)
+          for (final os in eventosPorDia[i])
             intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+          for (final t in tarefasPorDia[i]) intervaloDoCompromisso(t),
         ],
     ]);
 
@@ -626,7 +657,9 @@ class _WeekView extends StatelessWidget {
                     child: DayColumn(
                       day: days[i],
                       events: eventosPorDia[i],
+                      tarefas: tarefasPorDia[i],
                       onTap: onTap,
+                      onTapTarefa: onTapTarefa,
                       dayStart: janela.inicio,
                       dayEnd: janela.fim,
                       dispByProf: state.dispByProf,
@@ -920,11 +953,13 @@ class _DayView extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onTap,
+    required this.onTapTarefa,
     required this.notifier,
   });
   final AgendaState state;
   final DateTime today;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<AgendaCompromisso> onTapTarefa;
   final AgendaController notifier;
 
   @override
@@ -933,10 +968,12 @@ class _DayView extends StatelessWidget {
     final day = state.anchor;
     final isToday = sameDay(day, today);
     final events = state.eventsForDay(day);
+    final tarefas = state.compromissosForDay(day);
     final janela = janelaCompartilhada([
       [
         for (final os in events)
           intervaloDaOs(os, state.dispByProf[os.profissional ?? '']),
+        for (final t in tarefas) intervaloDoCompromisso(t),
       ],
     ]);
 
@@ -971,7 +1008,9 @@ class _DayView extends StatelessWidget {
                   child: DayColumn(
                     day: day,
                     events: events,
+                    tarefas: tarefas,
                     onTap: onTap,
+                    onTapTarefa: onTapTarefa,
                     dayStart: janela.inicio,
                     dayEnd: janela.fim,
                     dispByProf: state.dispByProf,
@@ -1220,9 +1259,9 @@ class _MobileDayView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: ClxSpace.x3),
-        if (events.isEmpty)
+        if (events.isEmpty && state.compromissosForDay(day).isEmpty)
           const _EmptyDay()
-        else
+        else ...[
           for (final os in events)
             _AgendaMiniCard(
               os: os,
@@ -1231,6 +1270,9 @@ class _MobileDayView extends StatelessWidget {
               easypay: easypay,
               disp: state.dispByProf[os.profissional ?? ''],
             ),
+          for (final t in state.compromissosForDay(day))
+            _TarefaMiniCard(tarefa: t),
+        ],
       ],
     );
   }
@@ -1536,4 +1578,116 @@ class _EmptyDay extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TarefaMiniCard extends ConsumerWidget {
+  const _TarefaMiniCard({required this.tarefa});
+  final AgendaCompromisso tarefa;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clx = context.clx;
+    final utc = parsePbUtc(tarefa.dataHora);
+    final brt = utc?.subtract(kBrtOffset);
+    final hora = brt == null
+        ? ''
+        : '${brt.hour.toString().padLeft(2, '0')}:${brt.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+      child: Material(
+        color: const Color(0xFFFFF4D6),
+        borderRadius: ClxRadii.rMd,
+        child: InkWell(
+          onTap: () => _abrirTarefa(context, ref, tarefa),
+          borderRadius: ClxRadii.rMd,
+          child: Container(
+            padding: const EdgeInsets.all(ClxSpace.x3),
+            decoration: BoxDecoration(
+              borderRadius: ClxRadii.rMd,
+              border: Border.all(color: const Color(0xFFE0A106)),
+            ),
+            child: Text(
+              [
+                if (hora.isNotEmpty) hora,
+                tarefa.titulo,
+                if (tarefa.concluida) '(concluída)',
+              ].join(' · '),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: clx.ink,
+                fontWeight: FontWeight.w700,
+                decoration: tarefa.concluida ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _abrirTarefa(
+  BuildContext context,
+  WidgetRef ref,
+  AgendaCompromisso t,
+) async {
+  final repo = ref.read(agendaCompromissosRepositoryProvider);
+  final notifier = ref.read(agendaControllerProvider.notifier);
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.titulo,
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (t.descricao.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(t.descricao),
+              ],
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () async {
+                  await repo.update(t.id, {
+                    'status': t.concluida
+                        ? StatusCompromisso.pendente.wire
+                        : StatusCompromisso.concluida.wire,
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  notifier.load();
+                },
+                child: Text(t.concluida ? 'Reabrir' : 'Marcar concluída'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final ok = await showCompromissoForm(context, editing: t);
+                  if (ok) notifier.load();
+                },
+                child: const Text('Editar'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () async {
+                  await repo.delete(t.id);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  notifier.load();
+                },
+                child: const Text('Excluir'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

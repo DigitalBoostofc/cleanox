@@ -34,6 +34,7 @@ import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/disponibilidade.dart';
+import '../../core/models/agenda_compromisso.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
 
@@ -166,6 +167,7 @@ class DayColumn extends StatefulWidget {
     super.key,
     required this.day,
     required this.events,
+    this.tarefas = const [],
     required this.onTap,
     required this.dayStart,
     required this.dayEnd,
@@ -179,6 +181,7 @@ class DayColumn extends StatefulWidget {
     this.permiteCrossDay = false,
     this.onMover,
     this.onRedimensionar,
+    this.onTapTarefa,
   });
 
   /// Dia (date-only, BRT) desta coluna.
@@ -186,8 +189,9 @@ class DayColumn extends StatefulWidget {
 
   /// OS que COMEÇAM neste dia (o recorte da fração pós-meia-noite é do layout).
   final List<OrdemServico> events;
-
+  final List<AgendaCompromisso> tarefas;
   final ValueChanged<OrdemServico> onTap;
+  final ValueChanged<AgendaCompromisso>? onTapTarefa;
 
   /// Janela desenhada, COMPARTILHADA entre as colunas (senão as linhas de hora
   /// da semana não alinham). Ver [janelaCompartilhada].
@@ -323,8 +327,14 @@ class _DayColumnState extends State<DayColumn> {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final porId = {for (final os in widget.events) os.id: os};
+    final tarefasPorId = {
+      for (final t in widget.tarefas) '$kAgendaIdTarefa${t.id}': t,
+    };
     final layout = layoutDayEvents(
-      [for (final os in widget.events) intervaloDaOs(os, _dispDe(os))],
+      [
+        for (final os in widget.events) intervaloDaOs(os, _dispDe(os)),
+        for (final t in widget.tarefas) intervaloDoCompromisso(t),
+      ],
       dayStart: widget.dayStart,
       dayEnd: widget.dayEnd,
       maxColunas: widget.maxColunas,
@@ -367,7 +377,9 @@ class _DayColumnState extends State<DayColumn> {
               // Blocos posicionados por minuto.
               for (final p in layout.eventos)
                 if (porId[p.id] != null)
-                  _blocoPosicionado(p, porId[p.id]!, largura),
+                  _blocoPosicionado(p, porId[p.id]!, largura)
+                else if (tarefasPorId[p.id] != null)
+                  _blocoTarefa(p, tarefasPorId[p.id]!, largura),
 
               // Excedente do aglomerado ("+N") — R4: abre a LISTA, não espreme
               // mais colunas ilegíveis.
@@ -428,6 +440,63 @@ class _DayColumnState extends State<DayColumn> {
         onDragEnd: _dragEnd,
         onMover: widget.onMover,
         onRedimensionar: widget.onRedimensionar,
+      ),
+    );
+  }
+
+  Widget _blocoTarefa(
+    EventoPosicionado p,
+    AgendaCompromisso tarefa,
+    double larguraTotal,
+  ) {
+    final larguraCol = larguraTotal / p.columnCount;
+    final altura = (p.duracaoMin * kAgendaPxPorMin).clamp(
+      kAgendaAlturaMinBlocoPx,
+      double.infinity,
+    );
+    return Positioned(
+      top: (p.startMin - widget.dayStart) * kAgendaPxPorMin,
+      left: p.column * larguraCol,
+      width: larguraCol,
+      height: altura,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 2, bottom: 1),
+        child: Material(
+          color: const Color(0xFFFFF4D6),
+          borderRadius: ClxRadii.rSm,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTapTarefa == null
+                ? null
+                : () => widget.onTapTarefa!(tarefa),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: tarefa.concluida
+                        ? const Color(0xFF7A8A6A)
+                        : const Color(0xFFE0A106),
+                    width: 3,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              alignment: Alignment.topLeft,
+              child: Text(
+                '${faixaHoraria(p.startMin, p.duracaoMin)} · ${tarefa.titulo}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: const Color(0xFF3D2E00),
+                  fontWeight: FontWeight.w700,
+                  decoration: tarefa.concluida
+                      ? TextDecoration.lineThrough
+                      : null,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
