@@ -3,6 +3,15 @@
  * Não entra em test:unit. Timeout explícito; finally mata o PB.
  *
  *   node --test --test-timeout=45000 integration/users_categoria_comissao.live.test.mjs
+ *
+ * Fixture: copia pb_migrations excluindo os seeds históricos
+ * 1700000002_seed.js e 1700000015_seed_financeiro.js. Equipe é criada
+ * depois via API. Baseline que bloqueia migrate sem esses seeds (cópia
+ * temp only, repo intacto):
+ *   - 1700000057: IDs de prod (parafusadeira)
+ *   - 1700000058: exige Equipe do seed 0015
+ * Sem no-op dessas duas, o migrate para antes de 0059 (campo
+ * users.categoria_comissao). 0047 só loga e segue.
  */
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -124,27 +133,14 @@ describe('PB 0.39.4 live API (fixture)', { skip: !pbBin, timeout: HARD_MS }, () 
     await cp(path.join(repo, 'pb/pb_hooks'), path.join(tmp, 'pb_hooks'), { recursive: true })
     await cp(path.join(repo, 'pb/pb_migrations'), path.join(tmp, 'pb_migrations'), { recursive: true })
     await rm(path.join(tmp, 'pb_migrations/1700000002_seed.js'), { force: true })
-    await writeFile(
-      path.join(tmp, 'pb_migrations/1700000015_seed_financeiro.js'),
-      `migrate((app) => {
-  const cats = app.findCollectionByNameOrId("fin_categorias");
-  let equipe = null;
-  try { equipe = app.findRecordById("fin_categorias", "catdequipe00001"); } catch (_) {}
-  if (!equipe) {
-    equipe = new Record(cats);
-    equipe.id = "catdequipe00001";
-    equipe.set("nome", "Equipe");
-    equipe.set("tipo", "despesa");
-    equipe.set("parent_id", "");
-    equipe.set("icone", "users");
-    equipe.set("cor", "#F59E0B");
-    equipe.set("arquivada", false);
-    app.save(equipe);
-  }
-}, (app) => {});`,
-    )
+    await rm(path.join(tmp, 'pb_migrations/1700000015_seed_financeiro.js'), { force: true })
+    // Baseline: sem 0015 o migrate para em 0057/0058. No-op só na cópia temp.
     await writeFile(
       path.join(tmp, 'pb_migrations/1700000057_corrigir_parafusadeira_agosto.js'),
+      'migrate((app) => {}, (app) => {});',
+    )
+    await writeFile(
+      path.join(tmp, 'pb_migrations/1700000058_comissao_subcategoria_profissional.js'),
       'migrate((app) => {}, (app) => {});',
     )
     const bin = path.join(tmp, 'pocketbase')
@@ -169,13 +165,16 @@ describe('PB 0.39.4 live API (fixture)', { skip: !pbBin, timeout: HARD_MS }, () 
       })
       assert.equal(auth.status, 200, JSON.stringify(auth.body))
       tok = auth.body.token
-      const q = new URLSearchParams({
-        filter: "nome='Equipe' && tipo='despesa'",
-        perPage: '1',
+      const equipe = await api('POST', '/api/collections/fin_categorias/records', tok, {
+        nome: 'Equipe',
+        tipo: 'despesa',
+        parent_id: '',
+        icone: 'users',
+        cor: '#F59E0B',
+        arquivada: false,
       })
-      const equipe = await api('GET', `/api/collections/fin_categorias/records?${q}`, tok)
-      assert.ok(equipe.body?.items?.length, 'fixture Equipe ausente')
-      equipeId = equipe.body.items[0].id
+      assert.equal(equipe.status, 200, JSON.stringify(equipe.body))
+      equipeId = equipe.body.id
     } catch (err) {
       await cleanup()
       throw err
