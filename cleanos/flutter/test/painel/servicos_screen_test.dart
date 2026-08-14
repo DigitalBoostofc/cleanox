@@ -225,5 +225,56 @@ void main() {
       expect(find.text('Grupo'), findsWidgets);
       expect(find.text('Subgrupo'), findsNothing);
     });
+
+    testWidgets('descartar alterações fecha o editor sem travar', (tester) async {
+      final repo = FakeServicosFull(
+        seed: [fakeServico(id: 'x', nome: 'Sofá 2 lugares')],
+      );
+      await pumpPainel(
+        tester,
+        Builder(
+          builder: (context) => Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ServicoEditorScreen(servicoId: 'x'),
+                ),
+              ),
+              child: const Text('Abrir editor'),
+            ),
+          ),
+        ),
+        overrides: _editorOverrides(repo),
+      );
+
+      await tester.tap(find.text('Abrir editor'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Sofá 2 lugares'),
+        'Sofá alterado',
+      );
+      await tester.pump();
+
+      final cancelar = tester.widget<ClxButton>(
+        find.byWidgetPredicate(
+          (w) => w is ClxButton && w.label == 'Cancelar',
+        ),
+      );
+      cancelar.onPressed?.call();
+      await tester.pumpAndSettle();
+      expect(find.text('Alterações não salvas'), findsOneWidget);
+
+      final descartar = tester.widget<ClxButton>(
+        find.byWidgetPredicate(
+          (w) => w is ClxButton && w.label == 'Descartar alterações',
+        ),
+      );
+      descartar.onPressed?.call();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ServicoEditorScreen), findsNothing);
+      expect(find.text('Abrir editor'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
