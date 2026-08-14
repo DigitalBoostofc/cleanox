@@ -191,5 +191,43 @@ void main() {
       expect(find.text('Sofá'), findsOneWidget);
       expect(find.byKey(const Key('taxonomia-col-servicos')), findsOneWidget);
     });
+
+    testWidgets(
+        'Adicionar serviço abre criação com categoria e grupo selecionados',
+        (tester) async {
+      final repo = FakeServicosFull();
+      await pumpPainel(
+        tester,
+        const ServicosTaxonomiaScreen(),
+        size: const Size(1800, 1200),
+        overrides: _overrides(repo),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final adicionar = find.byKey(
+        const Key('taxonomia-servico-adicionar'),
+      );
+      expect(adicionar, findsOneWidget);
+      await tester.tap(adicionar);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(ServicoEditorScreen), findsOneWidget);
+      await tester.enterText(find.byType(TextField).first, 'Sofá novo');
+      final salvar = tester.widget<ClxButton>(
+        find.byWidgetPredicate(
+          (w) => w is ClxButton && w.label == 'Salvar',
+        ),
+      );
+      salvar.onPressed?.call();
+      await tester.pump();
+      await tester.pump();
+
+      expect(repo.createCount, 1);
+      expect(repo.lastCreate?['nome'], 'Sofá novo');
+      expect(repo.lastCreate?['categoria'], 'residencial');
+      expect(repo.lastCreate?['grupo'], 'sofa');
+    });
   });
 }

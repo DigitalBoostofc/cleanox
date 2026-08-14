@@ -150,7 +150,10 @@ StatefulShellRoute painelShellRoute(
                 path: 'novo',
                 name: 'painel-servico-novo',
                 parentNavigatorKey: rootNavigatorKey,
-                builder: (context, state) => const ServicoEditorScreen(),
+                builder: (context, state) => ServicoEditorScreen(
+                  initialCategoria: state.uri.queryParameters['categoria'],
+                  initialGrupo: state.uri.queryParameters['grupo'],
+                ),
               ),
               GoRoute(
                 path: ':id',

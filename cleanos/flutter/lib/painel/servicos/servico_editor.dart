@@ -29,9 +29,16 @@ import 'taxonomia/taxonomia_models.dart';
 import 'taxonomia/taxonomia_providers.dart';
 
 class ServicoEditorScreen extends ConsumerStatefulWidget {
-  const ServicoEditorScreen({super.key, this.servicoId});
+  const ServicoEditorScreen({
+    super.key,
+    this.servicoId,
+    this.initialCategoria,
+    this.initialGrupo,
+  });
 
   final String? servicoId;
+  final String? initialCategoria;
+  final String? initialGrupo;
 
   @override
   ConsumerState<ServicoEditorScreen> createState() =>
@@ -79,6 +86,12 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   @override
   void initState() {
     super.initState();
+    if (!_isEdit) {
+      final categoria = widget.initialCategoria?.trim() ?? '';
+      final grupo = widget.initialGrupo?.trim() ?? '';
+      if (categoria.isNotEmpty) _categoria = categoria;
+      if (grupo.isNotEmpty) _grupo = grupo;
+    }
     // Listeners: atualizam a pré-visualização AO VIVO e marcam alterações pendentes.
     for (final c in [
       _nome,

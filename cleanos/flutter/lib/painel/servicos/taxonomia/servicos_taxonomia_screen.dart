@@ -362,6 +362,42 @@ class _ServicosTaxonomiaScreenState
     }
   }
 
+  Future<void> _addServico({
+    required String categoriaSlug,
+    required String grupoSlug,
+  }) async {
+    final bool? saved;
+    if (GoRouter.maybeOf(context) != null) {
+      final uri = Uri(
+        path: '/painel/servicos/novo',
+        queryParameters: {
+          'categoria': categoriaSlug,
+          'grupo': grupoSlug,
+        },
+      );
+      saved = await context.push<bool>(uri.toString());
+    } else {
+      saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => ServicoEditorScreen(
+            initialCategoria: categoriaSlug,
+            initialGrupo: grupoSlug,
+          ),
+        ),
+      );
+    }
+    if (!mounted) return;
+    ref.invalidate(
+      servicosDoGrupoProvider((
+        categoria: categoriaSlug,
+        grupo: grupoSlug,
+      )),
+    );
+    if (saved == true) {
+      showClxToast(context, 'Serviço adicionado.', type: ToastType.success);
+    }
+  }
+
   Widget _coluna({
     Key? key,
     required String titulo,
@@ -565,12 +601,31 @@ class _ServicosTaxonomiaScreenState
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
-            child: Text(
-              'Serviços',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: clx.ink,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Serviços',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: clx.ink,
+                        ),
                   ),
+                ),
+                IconButton(
+                  key: const Key('taxonomia-servico-adicionar'),
+                  tooltip: 'Adicionar serviço',
+                  onPressed: enabled &&
+                          categoriaSlug.isNotEmpty &&
+                          grupoSlug.isNotEmpty
+                      ? () => _addServico(
+                            categoriaSlug: categoriaSlug,
+                            grupoSlug: grupoSlug,
+                          )
+                      : null,
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
             ),
           ),
           const Divider(height: 1),
