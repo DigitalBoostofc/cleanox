@@ -48,7 +48,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
 
   String _categoria = 'veicular';
   String _grupo = 'plano';
-  String _subgrupo = '';
   TipoValor _tipoValor = TipoValor.fixo;
   ServicoStatus _status = ServicoStatus.ativo;
   int _valorBaseCents = 0;
@@ -138,7 +137,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
         _original = s;
         _categoria = s.categoria.isEmpty ? 'veicular' : s.categoria;
         _grupo = s.grupo.isEmpty ? 'plano' : s.grupo;
-        _subgrupo = s.subgrupo;
         _nome.text = s.nome;
         _valorBaseCents = (s.valorBase * 100).round();
         _valorBaseMaxCents = ((s.valorBaseMax ?? 0) * 100).round();
@@ -204,7 +202,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     return <String, dynamic>{
       'categoria': _categoria,
       'grupo': _grupo,
-      'subgrupo': _subgrupo,
       'nome': _nome.text.trim(),
       // Sincroniza fallback público (descricao) + campo comercial da Vitrine.
       'descricao': detalhes,
@@ -597,24 +594,15 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
             }
           }
         }
-        final subs = grupoNo == null
-            ? const <TaxonomiaNo>[]
-            : arvore.subgruposDe(grupoNo.id);
-        var subSlug = _subgrupo;
-        if (subs.isNotEmpty && !subs.any((s) => s.slug == subSlug)) {
-          subSlug = subs.first.slug;
-        }
 
         // Alinha estado se slug inválido caiu no primeiro.
         if (_categoria != catNo.slug ||
-            (grupoNo != null && _grupo != grupoNo.slug) ||
-            _subgrupo != subSlug) {
+            (grupoNo != null && _grupo != grupoNo.slug)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             setState(() {
               _categoria = catNo.slug;
               _grupo = grupoNo?.slug ?? '';
-              _subgrupo = subSlug;
             });
           });
         }
@@ -642,56 +630,25 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                     ? const <TaxonomiaNo>[]
                     : arvore.gruposDe(next.id);
                 _grupo = gs.isEmpty ? '' : gs.first.slug;
-                final ss = gs.isEmpty
-                    ? const <TaxonomiaNo>[]
-                    : arvore.subgruposDe(gs.first.id);
-                _subgrupo = ss.isEmpty ? '' : ss.first.slug;
                 _markDirty();
               }),
             ),
-            _twoCol(
-              _dropdownField<String>(
-                label: 'Grupo',
-                value: grupoNo?.slug ?? (grupos.isEmpty ? '' : grupos.first.slug),
-                items: [for (final g in grupos) g.slug],
-                labelOf: (slug) {
-                  for (final g in grupos) {
-                    if (g.slug == slug) return g.nome;
-                  }
-                  return slug;
-                },
-                onChanged: grupos.isEmpty
-                    ? (_) {}
-                    : (slug) => setState(() {
-                          _grupo = slug;
-                          TaxonomiaNo? gNo;
-                          for (final g in grupos) {
-                            if (g.slug == slug) gNo = g;
-                          }
-                          final ss = gNo == null
-                              ? const <TaxonomiaNo>[]
-                              : arvore.subgruposDe(gNo.id);
-                          _subgrupo = ss.isEmpty ? '' : ss.first.slug;
-                          _markDirty();
-                        }),
-              ),
-              subs.isNotEmpty
-                  ? _dropdownField<String>(
-                      label: 'Subgrupo',
-                      value: subSlug,
-                      items: [for (final s in subs) s.slug],
-                      labelOf: (slug) {
-                        for (final s in subs) {
-                          if (s.slug == slug) return s.nome;
-                        }
-                        return slug;
-                      },
-                      onChanged: (slug) => setState(() {
-                        _subgrupo = slug;
+            _dropdownField<String>(
+              label: 'Grupo',
+              value: grupoNo?.slug ?? (grupos.isEmpty ? '' : grupos.first.slug),
+              items: [for (final g in grupos) g.slug],
+              labelOf: (slug) {
+                for (final g in grupos) {
+                  if (g.slug == slug) return g.nome;
+                }
+                return slug;
+              },
+              onChanged: grupos.isEmpty
+                  ? (_) {}
+                  : (slug) => setState(() {
+                        _grupo = slug;
                         _markDirty();
                       }),
-                    )
-                  : const SizedBox.shrink(),
             ),
             _textField(
               label: 'Nome do serviço',
@@ -805,7 +762,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       id: widget.servicoId ?? 'preview',
       categoria: _categoria,
       grupo: _grupo,
-      subgrupo: _subgrupo,
       nome: _nome.text,
       descricao: _detalhes.text,
       vitrineDescricao: _detalhes.text,
@@ -1372,8 +1328,7 @@ class _OutrosServicosTable extends StatelessWidget {
                   ),
                   Text(
                     '${categoriaLabelSlug(s.categoria.isEmpty ? 'veicular' : s.categoria)} · '
-                    '${grupoLabelSlug(s.grupo.isEmpty ? 'outros' : s.grupo)}'
-                    '${s.subgrupo.trim().isEmpty ? '' : ' · ${s.subgrupo}'}',
+                    '${grupoLabelSlug(s.grupo.isEmpty ? 'outros' : s.grupo)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.bodySmall?.copyWith(color: clx.ink3),

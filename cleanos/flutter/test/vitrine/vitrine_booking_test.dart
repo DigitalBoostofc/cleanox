@@ -286,14 +286,8 @@ void main() {
       }
       await tester.pumpAndSettle();
 
-      // Catálogo ou subgrupos
-      final cat = find.byKey(const Key('vitrine-home-browse-catalogo'));
-      final subs = find.byKey(const Key('vitrine-home-browse-subgrupos'));
-      expect(cat.evaluate().isNotEmpty || subs.evaluate().isNotEmpty, isTrue);
-      if (subs.evaluate().isNotEmpty) {
-        await tester.tap(find.byKey(const Key('vitrine-home-ver-todos-grupo')));
-        await tester.pumpAndSettle();
-      }
+      expect(find.byKey(const Key('vitrine-home-browse-subgrupos')), findsNothing);
+      expect(find.text('Escolha o subgrupo'), findsNothing);
       expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
       // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
       expect(find.byKey(const Key('vitrine-home-grupo-icon-strip')), findsOneWidget);
@@ -306,6 +300,72 @@ void main() {
       expect(find.textContaining('Estética'), findsWidgets);
       expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
+    });
+
+    testWidgets('grupo com subgrupo legado vai direto ao catálogo', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      http.Response jsonOk(Object body) => http.Response(
+        jsonEncode(body),
+        200,
+        headers: const {'content-type': 'application/json; charset=utf-8'},
+      );
+      final api = VitrineApi(
+        client: MockClient((req) async {
+          final path = req.url.path;
+          if (path.contains('/servicos')) {
+            return jsonOk({
+              'items': [
+                {
+                  'id': 'sofa1',
+                  'nome': 'Sofa 3 lugares',
+                  'descricao': 'Higienizacao',
+                  'categoria': 'residencial',
+                  'grupo': 'sofa',
+                  'subgrupo': 'sofa_3',
+                  'valor_base': 200,
+                  'tempo_medio_min': 60,
+                  'ativo': true,
+                },
+              ],
+            });
+          }
+          if (path.contains('/bootstrap') || path.endsWith('/config')) {
+            return jsonOk({
+              'config': {
+                'hero_titulo': 'Agende seu servico',
+                'hero_cta': 'Agendar agora',
+              },
+              'midia': [],
+              'atuacao': {
+                'estado': 'SP',
+                'cidades': ['Campinas'],
+              },
+            });
+          }
+          if (path.contains('/order-bumps')) return jsonOk({'items': []});
+          return http.Response('{}', 404);
+        }),
+        baseUrl: 'http://test.local',
+      );
+
+      await tester.pumpWidget(MaterialApp(home: VitrineHomeScreen(api: api)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('vitrine-home-cat-residencial')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('vitrine-home-grupo-sofa')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('vitrine-home-browse-subgrupos')), findsNothing);
+      expect(find.text('Escolha o subgrupo'), findsNothing);
+      expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
+      expect(find.text('Sofa 3 lugares'), findsWidgets);
     });
 
     testWidgets('como funciona usa copy de autoagendamento', (tester) async {

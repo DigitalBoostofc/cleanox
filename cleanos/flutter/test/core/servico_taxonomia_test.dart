@@ -12,10 +12,23 @@ void main() {
     expect(r, isNot(contains(Grupo.plano)));
   });
 
-  test('subgrupos mudam com o grupo (fallback estático)', () {
-    final bancos = subgruposDoGrupo(Categoria.veicular, Grupo.avulsos);
-    expect(bancos.map((e) => e.wire), contains('bancos'));
-    final sofa = subgruposDoGrupo(Categoria.residencial, Grupo.sofa);
-    expect(sofa.map((e) => e.wire), contains('sofa_3'));
+  test('hierarquia de produto para em grupo (serviço não exige subgrupo)', () {
+    expect(
+      grupoPertenceACategoria(Categoria.veicular, Grupo.avulsos),
+      isTrue,
+    );
+    expect(
+      grupoPertenceACategoria(Categoria.residencial, Grupo.plano),
+      isFalse,
+    );
+    // Helpers de subgrupo permanecem só por compatibilidade do campo legado.
+    expect(
+      normalizarSubgrupo(
+        categoria: Categoria.veicular,
+        grupo: Grupo.avulsos,
+        subgrupo: '',
+      ),
+      isNotEmpty,
+    );
   });
 }

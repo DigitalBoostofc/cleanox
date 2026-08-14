@@ -1,7 +1,7 @@
-/// Taxonomia de serviços: Categoria → Grupo → Subgrupo.
+/// Taxonomia de serviços: Categoria → Grupo → Serviço.
 ///
-/// Regra de produto: cada categoria tem seus grupos; cada grupo tem seus
-/// subgrupos. O cadastro do serviço só oferece opções válidas nessa árvore.
+/// Fallback estático de grupos por categoria (editor/lista quando a árvore
+/// dinâmica ainda não carregou). Subgrupo é legado e não entra no fluxo.
 library;
 
 import 'servico.dart';

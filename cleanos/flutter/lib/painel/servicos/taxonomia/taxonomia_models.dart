@@ -1,4 +1,7 @@
 /// Nó da taxonomia editável (coleção `servicos_taxonomia`).
+///
+/// Hierarquia visível: Categoria → Grupo → Serviço. `TaxonomiaTipo.subgrupo`
+/// permanece só para parsear registros legados; a UI não cria nem edita.
 library;
 
 enum TaxonomiaTipo {
@@ -65,7 +68,7 @@ class TaxonomiaNo {
   }
 }
 
-/// Árvore em memória: categorias → grupos → subgrupos.
+/// Árvore em memória: categorias → grupos. Subgrupos legados são ignorados na UI.
 class TaxonomiaArvore {
   TaxonomiaArvore(this.nos);
 

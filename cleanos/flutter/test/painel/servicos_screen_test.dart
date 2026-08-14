@@ -1,17 +1,59 @@
 /// servicos_screen_test.dart — Lista + editor + checklist do catálogo de Serviços.
 library;
 
+import 'package:cleanos/core/auth/auth_providers.dart';
 import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/models/servico.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
 import 'package:cleanos/painel/servicos/checklist_editor.dart';
 import 'package:cleanos/painel/servicos/servico_editor.dart';
 import 'package:cleanos/painel/servicos/servicos_list_screen.dart';
+import 'package:cleanos/painel/servicos/taxonomia/taxonomia_models.dart';
+import 'package:cleanos/painel/servicos/taxonomia/taxonomia_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import 'fakes_onda3.dart';
 import 'painel_test_helpers.dart';
+
+TaxonomiaArvore _arvoreEditor() => TaxonomiaArvore(const [
+      TaxonomiaNo(
+        id: 'c1',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'residencial',
+        nome: 'Residencial',
+        parent: '',
+        ordem: 1,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'g1',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'sofa',
+        nome: 'Sofá',
+        parent: 'c1',
+        ordem: 1,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 's1',
+        tipo: TaxonomiaTipo.subgrupo,
+        slug: 'premium',
+        nome: 'Premium',
+        parent: 'g1',
+        ordem: 1,
+        ativo: true,
+      ),
+    ]);
+
+List<Override> _editorOverrides(FakeServicosFull repo) => [
+      ...painelOverrides(user: painelUser()),
+      pocketBaseProvider.overrideWithValue(PocketBase('http://127.0.0.1:9')),
+      servicosRepositoryProvider.overrideWithValue(repo),
+      taxonomiaArvoreProvider.overrideWith((ref) async => _arvoreEditor()),
+    ];
 
 void main() {
   group('ServicosListScreen', () {
@@ -78,11 +120,9 @@ void main() {
       await pumpPainel(
         tester,
         const ServicoEditorScreen(),
-        overrides: [
-          ...painelOverrides(user: painelUser()),
-          servicosRepositoryProvider.overrideWithValue(repo),
-        ],
+        overrides: _editorOverrides(repo),
       );
+      await tester.pump();
       await tester.pump();
 
       await tester.tap(find.text('Salvar'));
@@ -99,11 +139,10 @@ void main() {
       await pumpPainel(
         tester,
         const ServicoEditorScreen(),
-        overrides: [
-          ...painelOverrides(user: painelUser()),
-          servicosRepositoryProvider.overrideWithValue(repo),
-        ],
+        size: const Size(1400, 1600),
+        overrides: _editorOverrides(repo),
       );
+      await tester.pump();
       await tester.pump();
 
       // Nome (primeiro TextField do formulário).
@@ -158,10 +197,7 @@ void main() {
       await pumpPainel(
         tester,
         const ServicoEditorScreen(servicoId: 'x'),
-        overrides: [
-          ...painelOverrides(user: painelUser()),
-          servicosRepositoryProvider.overrideWithValue(repo),
-        ],
+        overrides: _editorOverrides(repo),
       );
       await tester.pump(); // dispara _load
       await tester.pump();
@@ -173,6 +209,21 @@ void main() {
       );
       // Item de checklist carregado.
       expect(find.widgetWithText(TextField, 'Passo 1'), findsOneWidget);
+    });
+
+    testWidgets('editor não mostra seletor de subgrupo', (tester) async {
+      final repo = FakeServicosFull();
+      await pumpPainel(
+        tester,
+        const ServicoEditorScreen(),
+        overrides: _editorOverrides(repo),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Categoria'), findsWidgets);
+      expect(find.text('Grupo'), findsWidgets);
+      expect(find.text('Subgrupo'), findsNothing);
     });
   });
 }

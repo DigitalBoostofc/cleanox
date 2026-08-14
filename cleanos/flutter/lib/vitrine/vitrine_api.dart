@@ -45,7 +45,7 @@ class VitrineServico {
     required this.descricao,
     required this.categoria,
     required this.grupo,
-    this.subgrupo = '',
+    this.subgrupo = '', // legado: parse da API; a vitrine não filtra por ele
     required this.valorBase,
     required this.valorBaseMax,
     required this.tempoMedioMin,

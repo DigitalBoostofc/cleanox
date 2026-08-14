@@ -60,7 +60,7 @@ class TaxonomiaRepository {
   }
 
   Future<void> delete(String id) async {
-    // Apaga filhos primeiro (grupos/subgrupos).
+    // Apaga filhos primeiro (grupos e, se existirem, nós legados).
     final arvore = await load();
     final filhos = [
       for (final n in arvore.nos)
