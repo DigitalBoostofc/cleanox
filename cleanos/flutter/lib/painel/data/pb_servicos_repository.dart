@@ -30,7 +30,7 @@ class PbServicosRepository implements ServicosRepository {
     // Conjunto pequeno e fechado (catálogo ativo para dropdowns) → getFullList OK.
     final recs = await _col.getFullList(
       filter: _pb.filter('ativo = true'),
-      sort: 'nome',
+      sort: 'categoria,grupo,ordem,nome',
     );
     return recs.map(ServicoPB.fromRecord).toList();
   }
@@ -65,18 +65,26 @@ class PbServicosRepository implements ServicosRepository {
 
   @override
   Future<ServicoPB> create(Map<String, dynamic> data) async {
+    final body = <String, dynamic>{...data};
+    final ordemInformada = body['ordem'];
+    if (ordemInformada is! num || ordemInformada <= 0) {
+      body['ordem'] = await _nextOrder(
+        categoria: '${body['categoria'] ?? ''}',
+        grupo: '${body['grupo'] ?? ''}',
+      );
+    }
     // A UI manda os campos de domínio; garantimos um `slug` único aqui (espelha
     // `createServico`). Se o payload já trouxer slug, respeitamos.
-    var slug = (data['slug'] as String?)?.trim() ?? '';
+    var slug = (body['slug'] as String?)?.trim() ?? '';
     if (slug.isEmpty) {
-      final base = slugify((data['nome'] as String?) ?? '');
+      final base = slugify((body['nome'] as String?) ?? '');
       final taken = await _takenSlugs();
       slug = _nextFreeSlug(base, taken);
       // Retry defensivo contra a corrida entre _takenSlugs() e create(): o índice
       // parcial de `slug` rejeita duplicatas com 400 → reescolhe e tenta de novo.
       for (var attempt = 0; ; attempt++) {
         try {
-          final rec = await _col.create(body: {...data, 'slug': slug});
+          final rec = await _col.create(body: {...body, 'slug': slug});
           return ServicoPB.fromRecord(rec);
         } on ClientException catch (e) {
           if (attempt < 3 && _isSlugConflict(e)) {
@@ -88,18 +96,50 @@ class PbServicosRepository implements ServicosRepository {
         }
       }
     }
-    final rec = await _col.create(body: {...data, 'slug': slug});
+    final rec = await _col.create(body: {...body, 'slug': slug});
     return ServicoPB.fromRecord(rec);
   }
 
   @override
   Future<ServicoPB> update(String id, Map<String, dynamic> data) async {
-    final rec = await _col.update(id, body: data);
+    final body = Map<String, dynamic>.from(data);
+    if (!body.containsKey('ordem') &&
+        (body.containsKey('categoria') || body.containsKey('grupo'))) {
+      final atual = await getOne(id);
+      final categoria = '${body['categoria'] ?? atual.categoria}';
+      final grupo = '${body['grupo'] ?? atual.grupo}';
+      if (categoria != atual.categoria || grupo != atual.grupo) {
+        body['ordem'] = await _nextOrder(
+          categoria: categoria,
+          grupo: grupo,
+        );
+      }
+    }
+    final rec = await _col.update(id, body: body);
     return ServicoPB.fromRecord(rec);
   }
 
   @override
   Future<void> delete(String id) => _col.delete(id);
+
+  Future<int> _nextOrder({
+    required String categoria,
+    required String grupo,
+  }) async {
+    final page = await _col.getList(
+      page: 1,
+      perPage: 1,
+      filter: _pb.filter(
+        'categoria = {:categoria} && grupo = {:grupo}',
+        {'categoria': categoria, 'grupo': grupo},
+      ),
+      sort: '-ordem',
+      fields: 'ordem',
+    );
+    if (page.items.isEmpty) return 10;
+    final atual = (page.items.first.data['ordem'] as num?)?.toInt() ?? 0;
+    return atual + 10;
+  }
 
   /// Slugs já em uso (o índice parcial ignora os vazios). Campo único → payload leve.
   Future<Set<String>> _takenSlugs() async {

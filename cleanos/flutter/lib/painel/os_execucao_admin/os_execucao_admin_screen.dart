@@ -797,10 +797,6 @@ class _BodyState extends ConsumerState<_Body> {
                   style: tt.bodyMedium?.copyWith(color: clx.ink3),
                 );
               }
-              final ordenados = [...servicos]
-                ..sort((a, b) => a.nome.toLowerCase().compareTo(
-                      b.nome.toLowerCase(),
-                    ));
               return Row(
                 children: [
                   Expanded(
@@ -809,7 +805,7 @@ class _BodyState extends ConsumerState<_Body> {
                       decoration: const InputDecoration(isDense: true),
                       hint: const Text('Selecione o serviço…'),
                       items: [
-                        for (final s in ordenados)
+                        for (final s in servicos)
                           DropdownMenuItem(
                             value: s,
                             child: Text(

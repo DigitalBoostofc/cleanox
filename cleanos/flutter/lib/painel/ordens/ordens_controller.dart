@@ -23,6 +23,8 @@ import '../../core/models/user.dart';
 import '../../core/repositories/repo_types.dart';
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
+import '../servicos/taxonomia/taxonomia_models.dart';
+import '../servicos/taxonomia/taxonomia_providers.dart';
 
 const int kOrdensPerPage = 30;
 
@@ -443,9 +445,14 @@ final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
 
 /// Lookups de Nova OS: catálogo ativo de serviços + profissionais.
 class OrdensLookups {
-  const OrdensLookups({required this.servicos, required this.profissionais});
+  const OrdensLookups({
+    required this.servicos,
+    required this.profissionais,
+    this.taxonomia,
+  });
   final List<ServicoPB> servicos;
   final List<User> profissionais;
+  final TaxonomiaArvore? taxonomia;
 }
 
 final ordensLookupsProvider = FutureProvider.autoDispose<OrdensLookups>((
@@ -457,5 +464,15 @@ final ordensLookupsProvider = FutureProvider.autoDispose<OrdensLookups>((
           .list(sort: 'nome,name'))
       .where((u) => u.hasRole(Role.profissional) && u.ativo)
       .toList();
-  return OrdensLookups(servicos: servicos, profissionais: profs);
+  TaxonomiaArvore? taxonomia;
+  try {
+    taxonomia = await ref.watch(taxonomiaRepositoryProvider).load();
+  } catch (_) {
+    // O formulário continua funcional com fallback alfabético.
+  }
+  return OrdensLookups(
+    servicos: ordenarServicosDoCatalogo(servicos, taxonomia),
+    profissionais: profs,
+    taxonomia: taxonomia,
+  );
 });

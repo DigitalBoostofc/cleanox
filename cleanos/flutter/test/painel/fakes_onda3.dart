@@ -21,6 +21,7 @@ ServicoPB fakeServico({
   String nome = 'Higienização de Sofá',
   String categoria = 'residencial',
   String grupo = 'sofa',
+  int ordem = 0,
   double valorBase = 150,
   TipoValor tipoValor = TipoValor.fixo,
   ServicoStatus status = ServicoStatus.ativo,
@@ -31,6 +32,7 @@ ServicoPB fakeServico({
   nome: nome,
   categoria: categoria,
   grupo: grupo,
+  ordem: ordem,
   valorBase: valorBase,
   tipoValor: tipoValor,
   status: status,
@@ -103,6 +105,7 @@ class FakeServicosFull implements ServicosRepository {
   int deleteCount = 0;
   Map<String, dynamic>? lastCreate;
   Map<String, dynamic>? lastUpdate;
+  final Map<String, int> updatedOrders = {};
 
   @override
   Future<List<ServicoPB>> listAtivos() async =>
@@ -140,6 +143,8 @@ class FakeServicosFull implements ServicosRepository {
   Future<ServicoPB> update(String id, Map<String, dynamic> data) async {
     updateCount++;
     lastUpdate = data;
+    final ordem = data['ordem'];
+    if (ordem is num) updatedOrders[id] = ordem.toInt();
     final current = seed.cast<ServicoPB?>().firstWhere(
       (s) => s!.id == id,
       orElse: () => null,
@@ -148,6 +153,7 @@ class FakeServicosFull implements ServicosRepository {
       nome: (data['nome'] as String?) ?? current?.nome ?? 'Serviço',
       categoria: (data['categoria'] as String?) ?? current?.categoria ?? '',
       grupo: (data['grupo'] as String?) ?? current?.grupo ?? '',
+      ordem: ordem is num ? ordem.toInt() : current?.ordem ?? 0,
     );
     seed = [
       for (final s in seed)

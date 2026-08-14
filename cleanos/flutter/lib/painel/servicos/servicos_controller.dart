@@ -93,7 +93,7 @@ class ServicosController extends StateNotifier<ServicosState> {
         page: page,
         perPage: kServicosPerPage,
         filter: _filter,
-        sort: 'nome',
+        sort: 'categoria,grupo,ordem,nome',
       );
 
   Future<void> refresh() async {

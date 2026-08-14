@@ -162,6 +162,82 @@ class _ServicosTaxonomiaScreenState
     }
   }
 
+  Future<void> _reorderTaxonomia(
+    List<TaxonomiaNo> items,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (_busy || oldIndex == newIndex) return;
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) return;
+
+    final reordered = [...items];
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+    setState(() => _busy = true);
+    try {
+      await _repo.reorderCatalog(
+        kind: 'taxonomia',
+        ids: [for (final item in reordered) item.id],
+      );
+      await _reload();
+      if (mounted) {
+        showClxToast(context, 'Sequência atualizada.', type: ToastType.success);
+      }
+    } catch (_) {
+      await _reload();
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar a sequência.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reorderServicos(
+    List<ServicoPB> items,
+    int oldIndex,
+    int newIndex, {
+    required String categoriaSlug,
+    required String grupoSlug,
+  }) async {
+    if (_busy || oldIndex == newIndex) return;
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) return;
+
+    final reordered = [...items];
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+    final key = (categoria: categoriaSlug, grupo: grupoSlug);
+    setState(() => _busy = true);
+    try {
+      await _repo.reorderCatalog(
+        kind: 'servicos',
+        ids: [for (final item in reordered) item.id],
+      );
+      ref.invalidate(servicosDoGrupoProvider(key));
+      await ref.read(servicosDoGrupoProvider(key).future);
+      if (mounted) {
+        showClxToast(context, 'Sequência atualizada.', type: ToastType.success);
+      }
+    } catch (_) {
+      ref.invalidate(servicosDoGrupoProvider(key));
+      if (mounted) {
+        showClxToast(
+          context,
+          'Não foi possível atualizar a sequência.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(taxonomiaArvoreProvider);
@@ -454,26 +530,50 @@ class _ServicosTaxonomiaScreenState
               ),
             )
           else if (compact)
-            ...[
-              for (final n in items)
-                _tile(n, selected: n.id == selectedId, onSelect: onSelect),
-            ]
+            _reorderableTaxonomiaList(
+              items: items,
+              selectedId: selectedId,
+              onSelect: onSelect,
+              compact: true,
+            )
           else
             Expanded(
-              child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (_, i) {
-                  final n = items[i];
-                  return _tile(
-                    n,
-                    selected: n.id == selectedId,
-                    onSelect: onSelect,
-                  );
-                },
+              child: _reorderableTaxonomiaList(
+                items: items,
+                selectedId: selectedId,
+                onSelect: onSelect,
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _reorderableTaxonomiaList({
+    required List<TaxonomiaNo> items,
+    required String? selectedId,
+    required ValueChanged<String> onSelect,
+    bool compact = false,
+  }) {
+    return ReorderableListView.builder(
+      shrinkWrap: compact,
+      physics: compact ? const NeverScrollableScrollPhysics() : null,
+      buildDefaultDragHandles: false,
+      itemCount: items.length,
+      onReorder: (oldIndex, newIndex) =>
+          _reorderTaxonomia(items, oldIndex, newIndex),
+      itemBuilder: (_, i) {
+        final n = items[i];
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey('taxonomia-reorder-${n.id}'),
+          index: i,
+          child: _tile(
+            n,
+            selected: n.id == selectedId,
+            onSelect: onSelect,
+          ),
+        );
+      },
     );
   }
 
@@ -499,14 +599,23 @@ class _ServicosTaxonomiaScreenState
         style: TextStyle(color: clx.ink3, fontSize: 12),
       ),
       onTap: () => onSelect(n.id),
-      trailing: PopupMenuButton<String>(
-        onSelected: (v) {
-          if (v == 'edit') _edit(n);
-          if (v == 'del') _delete(n);
-        },
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'edit', child: Text('Editar')),
-          PopupMenuItem(value: 'del', child: Text('Excluir')),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Segure e arraste para reordenar',
+            child: Icon(Icons.drag_indicator_rounded, color: clx.ink3),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'edit') _edit(n);
+              if (v == 'del') _delete(n);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Editar')),
+              PopupMenuItem(value: 'del', child: Text('Excluir')),
+            ],
+          ),
         ],
       ),
     );
@@ -574,21 +683,31 @@ class _ServicosTaxonomiaScreenState
               ),
             );
           }
-          final tiles = [
-            for (final s in items)
-              _servicoTile(
-                s,
-                categoriaSlug: categoriaSlug,
-                grupoSlug: grupoSlug,
-              ),
-          ];
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: tiles,
-            );
-          }
-          return ListView(children: tiles);
+          return ReorderableListView.builder(
+            shrinkWrap: compact,
+            physics: compact ? const NeverScrollableScrollPhysics() : null,
+            buildDefaultDragHandles: false,
+            itemCount: items.length,
+            onReorder: (oldIndex, newIndex) => _reorderServicos(
+              items,
+              oldIndex,
+              newIndex,
+              categoriaSlug: categoriaSlug,
+              grupoSlug: grupoSlug,
+            ),
+            itemBuilder: (_, i) {
+              final s = items[i];
+              return ReorderableDelayedDragStartListener(
+                key: ValueKey('taxonomia-servico-reorder-${s.id}'),
+                index: i,
+                child: _servicoTile(
+                  s,
+                  categoriaSlug: categoriaSlug,
+                  grupoSlug: grupoSlug,
+                ),
+              );
+            },
+          );
         },
       );
     }
@@ -647,11 +766,21 @@ class _ServicosTaxonomiaScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            s.nome.isEmpty ? '—' : s.nome,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  s.nome.isEmpty ? '—' : s.nome,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Tooltip(
+                message: 'Segure e arraste para reordenar',
+                child: Icon(Icons.drag_indicator_rounded, color: clx.ink3),
+              ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(

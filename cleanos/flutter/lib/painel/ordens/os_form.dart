@@ -43,6 +43,7 @@ import '../agenda/agenda_controller.dart' show weekdayIndexOf;
 import '../data/painel_filters.dart';
 import '../data/painel_providers.dart';
 import '../servicos/servicos_labels.dart';
+import '../servicos/taxonomia/taxonomia_models.dart';
 import 'ordens_controller.dart';
 import 'os_rebaixar_confirm.dart';
 import 'os_status_rules.dart';
@@ -791,20 +792,27 @@ class _OSFormState extends ConsumerState<OSForm> {
       for (final s in lk.servicos)
         if (s.categoria.trim().isNotEmpty) s.categoria,
     };
-    final categorias = catSet.toList()..sort();
+    final categorias = ordenarCategoriasDisponiveis(catSet, lk.taxonomia);
     final grupoSet = <String>{
       for (final s in lk.servicos)
         if ((_catFiltro == null || s.categoria == _catFiltro) &&
             s.grupo.trim().isNotEmpty)
           s.grupo,
     };
-    final grupos = grupoSet.toList()..sort();
-    final servicosFiltrados = [
-      for (final s in lk.servicos)
-        if ((_catFiltro == null || s.categoria == _catFiltro) &&
-            (_grupoFiltro == null || s.grupo == _grupoFiltro))
-          s,
-    ];
+    final grupos = ordenarGruposDisponiveis(
+      grupoSet,
+      lk.taxonomia,
+      _catFiltro,
+    );
+    final servicosFiltrados = ordenarServicosDoCatalogo(
+      [
+        for (final s in lk.servicos)
+          if ((_catFiltro == null || s.categoria == _catFiltro) &&
+              (_grupoFiltro == null || s.grupo == _grupoFiltro))
+            s,
+      ],
+      lk.taxonomia,
+    );
     // Valor seguro para o dropdown (evita value fora dos items quando o filtro
     // exclui o serviço atual — mantém o serviço só quando visível na lista).
     final servicoValue = servicosFiltrados.any((s) => s.id == _servicoId)

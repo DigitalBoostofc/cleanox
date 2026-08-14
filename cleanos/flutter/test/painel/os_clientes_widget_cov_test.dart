@@ -28,7 +28,9 @@ import 'package:cleanos/core/models/servico.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/clientes/cliente_form.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
+import 'package:cleanos/painel/ordens/ordens_controller.dart';
 import 'package:cleanos/painel/ordens/os_form.dart';
+import 'package:cleanos/painel/servicos/taxonomia/taxonomia_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -184,6 +186,100 @@ void main() {
   /* ══════════════════ 1. OS — cascata Categoria→Grupo→Serviço ══════════════════ */
 
   group('OSForm — cascata Categoria → Grupo → Serviço', () {
+    testWidgets('dropdowns respeitam a sequência configurada na taxonomia', (
+      tester,
+    ) async {
+      final servicos = const [
+        ServicoPB(
+          id: 'alfa',
+          nome: 'Alfa',
+          categoria: 'residencial',
+          grupo: 'sofa',
+          ordem: 20,
+        ),
+        ServicoPB(
+          id: 'zeta',
+          nome: 'Zeta',
+          categoria: 'residencial',
+          grupo: 'sofa',
+          ordem: 10,
+        ),
+        ServicoPB(
+          id: 'colchao',
+          nome: 'Colchão',
+          categoria: 'residencial',
+          grupo: 'colchao',
+          ordem: 10,
+        ),
+      ];
+      final taxonomia = TaxonomiaArvore(const [
+        TaxonomiaNo(
+          id: 'cat',
+          tipo: TaxonomiaTipo.categoria,
+          slug: 'residencial',
+          nome: 'Residencial',
+          parent: '',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'sofa',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'sofa',
+          nome: 'Sofá',
+          parent: 'cat',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'colchao',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'colchao',
+          nome: 'Colchão',
+          parent: 'cat',
+          ordem: 20,
+          ativo: true,
+        ),
+      ]);
+      await _pumpOSForm(
+        tester,
+        [
+          ..._osOverrides(
+            ordens: FakeOrdens(seed: [fakeOS('a')]),
+            servicos: servicos,
+          ),
+          ordensLookupsProvider.overrideWith(
+            (ref) async => OrdensLookups(
+              servicos: servicos,
+              profissionais: const [],
+              taxonomia: taxonomia,
+            ),
+          ),
+        ],
+      );
+
+      await _escolherNoDropdown(
+        tester,
+        const ValueKey('os-cat-'),
+        'Residencial',
+      );
+      await tester.tap(find.byKey(const ValueKey('os-grupo-')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Sofá').last).dy,
+        lessThan(tester.getTopLeft(find.text('Colchão').last).dy),
+      );
+      await tester.tap(find.text('Sofá').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('os-servico-')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Zeta').last).dy,
+        lessThan(tester.getTopLeft(find.text('Alfa').last).dy),
+      );
+    });
+
     testWidgets('escolher Categoria estreita os Grupos elegíveis', (
       tester,
     ) async {

@@ -4,6 +4,8 @@
 /// permanece só para parsear registros legados; a UI não cria nem edita.
 library;
 
+import '../../../core/models/servico.dart';
+
 enum TaxonomiaTipo {
   categoria,
   grupo,
@@ -177,4 +179,95 @@ class TaxonomiaArvore {
         return slug;
     }
   }
+}
+
+/// Ordena slugs disponíveis pela sequência configurada das categorias.
+/// Valores ainda não cadastrados na árvore ficam ao final em ordem alfabética.
+List<String> ordenarCategoriasDisponiveis(
+  Set<String> disponiveis,
+  TaxonomiaArvore? taxonomia,
+) {
+  final restantes = {...disponiveis};
+  final ordenadas = <String>[];
+  for (final no in taxonomia?.categorias ?? const <TaxonomiaNo>[]) {
+    if (restantes.remove(no.slug)) ordenadas.add(no.slug);
+  }
+  final fallback = restantes.toList()..sort();
+  return [...ordenadas, ...fallback];
+}
+
+/// Ordena grupos disponíveis pela sequência do pai configurado.
+List<String> ordenarGruposDisponiveis(
+  Set<String> disponiveis,
+  TaxonomiaArvore? taxonomia,
+  String? categoriaSlug,
+) {
+  final restantes = {...disponiveis};
+  final ordenados = <String>[];
+  final categorias = categoriaSlug == null
+      ? (taxonomia?.categorias ?? const <TaxonomiaNo>[])
+      : [
+          if (taxonomia?.categoriaBySlug(categoriaSlug) case final no?) no,
+        ];
+  for (final categoria in categorias) {
+    for (final grupo in taxonomia?.gruposDe(categoria.id) ??
+        const <TaxonomiaNo>[]) {
+      if (restantes.remove(grupo.slug)) ordenados.add(grupo.slug);
+    }
+  }
+  final fallback = restantes.toList()..sort();
+  return [...ordenados, ...fallback];
+}
+
+/// Ordena um catálogo achatado pela sequência configurada na árvore e, dentro
+/// de cada grupo, pelo campo persistente [ServicoPB.ordem].
+///
+/// Slugs ainda não cadastrados na taxonomia e serviços antigos sem posição
+/// continuam determinísticos por slug/nome/id.
+List<ServicoPB> ordenarServicosDoCatalogo(
+  Iterable<ServicoPB> servicos,
+  TaxonomiaArvore? taxonomia,
+) {
+  final categorias = taxonomia?.categorias ?? const <TaxonomiaNo>[];
+  final categoriaRank = <String, int>{
+    for (var i = 0; i < categorias.length; i++) categorias[i].slug: i,
+  };
+  final grupoRank = <String, int>{};
+  for (final categoria in categorias) {
+    final grupos = taxonomia?.gruposDe(categoria.id) ?? const <TaxonomiaNo>[];
+    for (var i = 0; i < grupos.length; i++) {
+      grupoRank['${categoria.slug}\u0000${grupos[i].slug}'] = i;
+    }
+  }
+
+  final list = servicos.toList();
+  list.sort((a, b) {
+    const semRank = 1 << 30;
+    final catA = categoriaRank[a.categoria] ?? semRank;
+    final catB = categoriaRank[b.categoria] ?? semRank;
+    var result = catA.compareTo(catB);
+    if (result != 0) return result;
+    if (catA == semRank) {
+      result = a.categoria.compareTo(b.categoria);
+      if (result != 0) return result;
+    }
+
+    final grupoA = grupoRank['${a.categoria}\u0000${a.grupo}'] ?? semRank;
+    final grupoB = grupoRank['${b.categoria}\u0000${b.grupo}'] ?? semRank;
+    result = grupoA.compareTo(grupoB);
+    if (result != 0) return result;
+    if (grupoA == semRank) {
+      result = a.grupo.compareTo(b.grupo);
+      if (result != 0) return result;
+    }
+
+    final ordemA = a.ordem > 0 ? a.ordem : semRank;
+    final ordemB = b.ordem > 0 ? b.ordem : semRank;
+    result = ordemA.compareTo(ordemB);
+    if (result != 0) return result;
+    result = a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+    if (result != 0) return result;
+    return a.id.compareTo(b.id);
+  });
+  return list;
 }

@@ -59,6 +59,18 @@ class TaxonomiaRepository {
     return TaxonomiaNo.fromRecord(r.toJson());
   }
 
+  /// Renumera todos os irmãos ativos do escopo em uma transação server-side.
+  Future<void> reorderCatalog({
+    required String kind,
+    required List<String> ids,
+  }) async {
+    await _pb.send<Map<String, dynamic>>(
+      '/api/cleanos/catalogo/reordenar',
+      method: 'POST',
+      body: {'kind': kind, 'ids': ids},
+    );
+  }
+
   Future<void> delete(String id) async {
     // Apaga filhos primeiro (grupos e, se existirem, nós legados).
     final arvore = await load();
