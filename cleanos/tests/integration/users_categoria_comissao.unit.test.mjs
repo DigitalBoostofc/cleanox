@@ -455,3 +455,126 @@ describe('hook users_categoria_comissao.pb.js', () => {
     assert.ok(app.cats.some((c) => c.id === 'cat_joao'))
   })
 })
+
+describe('backfillUsersCategoriaComissao (mig 76)', () => {
+  it('Equipe ausente lança erro e não marca sucesso silencioso', () => {
+    const marketing = rec('cat_mkt', {
+      tipo: 'despesa',
+      nome: 'Marketing',
+      parent_id: '',
+    })
+    const app = mockApp({
+      categorias: [marketing],
+      users: [
+        userRec({
+          role: 'profissional',
+          roles: ['profissional'],
+          name: 'João Pedro',
+          categoria_comissao: '',
+        }),
+      ],
+    })
+    assert.throws(
+      () => lib.backfillUsersCategoriaComissao(app),
+      (err) => /Equipe/.test(String(err.message || err)),
+    )
+    assert.equal(app.saved.length, 0)
+  })
+
+  it('fallback canônico só vale se for raiz de despesa', () => {
+    const canonReceita = rec('catdequipe00001', {
+      tipo: 'receita',
+      nome: 'Equipe',
+      parent_id: '',
+    })
+    assert.throws(
+      () => lib.backfillUsersCategoriaComissao(mockApp({ categorias: [canonReceita] })),
+      /Equipe/,
+    )
+
+    const canonFilha = rec('catdequipe00001', {
+      tipo: 'despesa',
+      nome: 'Equipe',
+      parent_id: 'cat_outra',
+    })
+    assert.throws(
+      () => lib.backfillUsersCategoriaComissao(mockApp({ categorias: [canonFilha] })),
+      /Equipe/,
+    )
+  })
+
+  it('categoria de despesa válida (raiz ou sub custom) é preservada', () => {
+    const marketing = rec('cat_marketing', {
+      tipo: 'despesa',
+      nome: 'Marketing',
+      parent_id: 'cat_despesas',
+    })
+    const user = userRec(
+      {
+        role: 'profissional',
+        roles: ['profissional'],
+        name: 'João Pedro',
+        categoria_comissao: 'cat_marketing',
+      },
+      'u_ok',
+    )
+    const app = mockApp({ categorias: [EQUIPE, marketing], users: [user] })
+    const out = lib.backfillUsersCategoriaComissao(app)
+    assert.equal(out.alterados, 0)
+    assert.equal(user.get('categoria_comissao'), 'cat_marketing')
+    assert.equal(app.saved.length, 0)
+  })
+
+  it('ID inexistente ou categoria receita é reconciliado para Equipe → nome', () => {
+    const receita = rec('cat_rec', {
+      tipo: 'receita',
+      nome: 'Serviços',
+      parent_id: '',
+    })
+    const semVinculo = userRec(
+      {
+        role: 'profissional',
+        roles: ['profissional'],
+        name: 'Maria Silva',
+        categoria_comissao: 'cat_sumiu',
+      },
+      'u_miss',
+    )
+    const comReceita = userRec(
+      {
+        role: 'profissional',
+        roles: ['profissional'],
+        name: 'Ana Dual',
+        categoria_comissao: 'cat_rec',
+      },
+      'u_rec',
+    )
+    const app = mockApp({
+      categorias: [EQUIPE, receita],
+      users: [semVinculo, comReceita],
+    })
+    const out = lib.backfillUsersCategoriaComissao(app)
+    assert.equal(out.alterados, 2)
+    assert.ok(semVinculo.get('categoria_comissao'))
+    assert.notEqual(semVinculo.get('categoria_comissao'), 'cat_sumiu')
+    assert.notEqual(comReceita.get('categoria_comissao'), 'cat_rec')
+  })
+
+  it('profissional sem nome e sem vínculo válido aborta o backfill', () => {
+    const user = userRec(
+      {
+        role: 'profissional',
+        roles: ['profissional'],
+        name: '',
+        nome: '',
+        categoria_comissao: 'cat_sumiu',
+      },
+      'u_sem_nome',
+    )
+    const app = mockApp({ categorias: [EQUIPE], users: [user] })
+    assert.throws(
+      () => lib.backfillUsersCategoriaComissao(app),
+      /sem nome/,
+    )
+  })
+})

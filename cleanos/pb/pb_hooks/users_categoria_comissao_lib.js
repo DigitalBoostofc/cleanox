@@ -49,17 +49,23 @@ function nomeDoUsuario(record) {
   return String(record.get("name") || "").trim();
 }
 
+function ehRaizDespesa(rec) {
+  if (!rec) return false;
+  if (String(rec.get("tipo") || "") !== "despesa") return false;
+  return !String(rec.get("parent_id") || "").trim();
+}
+
 function resolverRaizEquipe(app) {
   try {
     var equipe = app.findFirstRecordByFilter(
       "fin_categorias",
       "tipo = 'despesa' && nome = 'Equipe' && (parent_id = '' || parent_id = null)",
     );
-    if (equipe) return equipe;
+    if (equipe && ehRaizDespesa(equipe)) return equipe;
   } catch (_) {}
   try {
     var canon = app.findRecordById("fin_categorias", EQUIPE_CANONICAL_ID);
-    if (canon && String(canon.get("tipo") || "") === "despesa") return canon;
+    if (ehRaizDespesa(canon)) return canon;
   } catch (_) {}
   fail(
     'Categoria raiz de despesa "Equipe" não encontrada. Crie Equipe (ou restaure catdequipe00001) antes de cadastrar profissional.',
@@ -188,6 +194,36 @@ function _aindaReferenciada(app, collection, filter, params) {
   }
 }
 
+function backfillUsersCategoriaComissao(app) {
+  var equipe = resolverRaizEquipe(app);
+  var users = [];
+  try {
+    users = app.findRecordsByFilter("users", "", "", 500, 0) || [];
+  } catch (_) {
+    users = [];
+  }
+  var alterados = 0;
+  for (var i = 0; i < users.length; i++) {
+    var user = users[i];
+    if (!temPapelProfissional(user)) continue;
+    var atual = String(user.get("categoria_comissao") || "").trim();
+    if (atual && categoriaDespesaValida(app, atual)) continue;
+    var nome = nomeDoUsuario(user);
+    if (!nome) {
+      throw new Error(
+        "[mig 76] profissional " +
+          String(user.id || "") +
+          " sem nome e sem categoria de despesa válida; abortando backfill.",
+      );
+    }
+    var out = garantirSubcategoriaEquipe(app, nome);
+    user.set("categoria_comissao", out.subId);
+    app.save(user);
+    alterados++;
+  }
+  return { equipeId: equipe.id, alterados: alterados };
+}
+
 function compensarSubcategoriaOrfa(app, result) {
   // Só a sub CRIADA nesta tentativa. created:false = reutilizada: não apagar.
   if (!result || result.created !== true) return;
@@ -215,10 +251,13 @@ module.exports = {
   EQUIPE_CANONICAL_ID: EQUIPE_CANONICAL_ID,
   temPapelProfissional: temPapelProfissional,
   nomeDoUsuario: nomeDoUsuario,
+  ehRaizDespesa: ehRaizDespesa,
   resolverRaizEquipe: resolverRaizEquipe,
   garantirSubcategoriaEquipe: garantirSubcategoriaEquipe,
+  categoriaDespesaValida: categoriaDespesaValida,
   resolverCategoriaConfigurada: resolverCategoriaConfigurada,
   aplicarCategoriaNoCreate: aplicarCategoriaNoCreate,
   aplicarCategoriaNoUpdate: aplicarCategoriaNoUpdate,
+  backfillUsersCategoriaComissao: backfillUsersCategoriaComissao,
   compensarSubcategoriaOrfa: compensarSubcategoriaOrfa,
 };
