@@ -36,8 +36,8 @@ class ServicosState {
   final bool loadingMore;
   final String? error;
   final String search;
-  final Categoria? categoria;
-  final Grupo? grupo;
+  final String? categoria;
+  final String? grupo;
   final int page;
   final int totalPages;
   final int totalItems;
@@ -64,8 +64,8 @@ class ServicosState {
     loadingMore: loadingMore ?? this.loadingMore,
     error: error == _s ? this.error : error as String?,
     search: search ?? this.search,
-    categoria: categoria == _s ? this.categoria : categoria as Categoria?,
-    grupo: grupo == _s ? this.grupo : grupo as Grupo?,
+    categoria: categoria == _s ? this.categoria : categoria as String?,
+    grupo: grupo == _s ? this.grupo : grupo as String?,
     page: page ?? this.page,
     totalPages: totalPages ?? this.totalPages,
     totalItems: totalItems ?? this.totalItems,
@@ -83,8 +83,8 @@ class ServicosController extends StateNotifier<ServicosState> {
 
   String? get _filter => servicosFilter(
     search: state.search,
-    categoria: state.categoria?.wire,
-    grupo: state.grupo?.wire,
+    categoria: state.categoria,
+    grupo: state.grupo,
   );
 
   Future<PageResult<ServicoPB>> _fetch(int page) => _ref
@@ -139,13 +139,14 @@ class ServicosController extends StateNotifier<ServicosState> {
     await refresh();
   }
 
-  Future<void> setCategoria(Categoria? c) async {
+  Future<void> setCategoria(String? c) async {
     if (c == state.categoria) return;
-    state = state.copyWith(categoria: c);
+    // Trocar a categoria invalida o grupo anterior (pode ser de outra árvore).
+    state = state.copyWith(categoria: c, grupo: null);
     await refresh();
   }
 
-  Future<void> setGrupo(Grupo? g) async {
+  Future<void> setGrupo(String? g) async {
     if (g == state.grupo) return;
     state = state.copyWith(grupo: g);
     await refresh();

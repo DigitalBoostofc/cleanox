@@ -17,6 +17,7 @@ import 'servicos_controller.dart';
 import 'servicos_labels.dart';
 import 'servicos_midia_index.dart';
 import 'taxonomia/servicos_taxonomia_screen.dart';
+import 'taxonomia/taxonomia_models.dart';
 import 'taxonomia/taxonomia_providers.dart';
 
 const double _kTableBreakpoint = 820;
@@ -319,6 +320,18 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
     final clx = context.clx;
     final state = ref.watch(servicosControllerProvider);
     final notifier = ref.read(servicosControllerProvider.notifier);
+    final arvore = ref.watch(taxonomiaArvoreProvider).asData?.value;
+    final categorias = (arvore?.categorias.isNotEmpty ?? false)
+        ? [for (final c in arvore!.categorias) (slug: c.slug, nome: c.nome)]
+        : [
+            for (final c in Categoria.values)
+              (slug: c.wire, nome: categoriaLabel(c)),
+          ];
+    final grupos = gruposDoFiltroServicos(
+      categoriaSlug: state.categoria,
+      arvore: arvore,
+    );
+    final grupoSel = grupos.contains(state.grupo) ? state.grupo : null;
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ClxSpace.x6,
@@ -348,7 +361,8 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
           ),
           SizedBox(
             width: 190,
-            child: DropdownButtonFormField<Categoria?>(
+            child: DropdownButtonFormField<String?>(
+              key: const ValueKey('servicos-filtro-categoria'),
               initialValue: state.categoria,
               isExpanded: true,
               decoration: const InputDecoration(isDense: true),
@@ -358,16 +372,17 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
                   value: null,
                   child: Text('Todas as categorias'),
                 ),
-                for (final c in Categoria.values)
-                  DropdownMenuItem(value: c, child: Text(categoriaLabel(c))),
+                for (final c in categorias)
+                  DropdownMenuItem(value: c.slug, child: Text(c.nome)),
               ],
               onChanged: notifier.setCategoria,
             ),
           ),
           SizedBox(
             width: 170,
-            child: DropdownButtonFormField<Grupo?>(
-              initialValue: state.grupo,
+            child: DropdownButtonFormField<String?>(
+              key: ValueKey('servicos-filtro-grupo-${state.categoria ?? 'all'}'),
+              initialValue: grupoSel,
               isExpanded: true,
               decoration: const InputDecoration(isDense: true),
               hint: const Text('Todos os grupos'),
@@ -376,8 +391,12 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
                   value: null,
                   child: Text('Todos os grupos'),
                 ),
-                for (final g in Grupo.values)
-                  DropdownMenuItem(value: g, child: Text(grupoLabel(g))),
+                for (final g in grupos)
+                  DropdownMenuItem(
+                    value: g,
+                    child: Text(arvore?.labelGrupo(state.categoria ?? '', g) ??
+                        grupoLabelSlug(g)),
+                  ),
               ],
               onChanged: notifier.setGrupo,
             ),
