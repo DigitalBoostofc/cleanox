@@ -27,8 +27,11 @@ import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/servico.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/clientes/cliente_form.dart';
+import 'package:cleanos/painel/clientes/os_inline_section.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
+import 'package:cleanos/painel/ordens/ordens_controller.dart';
 import 'package:cleanos/painel/ordens/os_form.dart';
+import 'package:cleanos/painel/servicos/taxonomia/taxonomia_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,9 +184,204 @@ Future<void> _pumpClienteForm(
 }
 
 void main() {
+  testWidgets('Gerar OS respeita ordem configurada de categoria e grupo', (
+    tester,
+  ) async {
+    final servicos = const [
+      ServicoPB(
+        id: 'veic-plano',
+        nome: 'Plano',
+        categoria: 'veicular',
+        grupo: 'plano',
+        ordem: 10,
+      ),
+      ServicoPB(
+        id: 'veic-avulso',
+        nome: 'Avulso',
+        categoria: 'veicular',
+        grupo: 'avulsos',
+        ordem: 10,
+      ),
+      ServicoPB(
+        id: 'res-sofa',
+        nome: 'Sofá',
+        categoria: 'residencial',
+        grupo: 'sofa',
+        ordem: 10,
+      ),
+    ];
+    final taxonomia = TaxonomiaArvore(const [
+      TaxonomiaNo(
+        id: 'cat-veic',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'veicular',
+        nome: 'Veicular',
+        parent: '',
+        ordem: 10,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'cat-res',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'residencial',
+        nome: 'Residencial',
+        parent: '',
+        ordem: 20,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'grupo-plano',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'plano',
+        nome: 'Plano',
+        parent: 'cat-veic',
+        ordem: 10,
+        ativo: true,
+      ),
+      TaxonomiaNo(
+        id: 'grupo-avulsos',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'avulsos',
+        nome: 'Avulsos',
+        parent: 'cat-veic',
+        ordem: 20,
+        ativo: true,
+      ),
+    ]);
+
+    await pumpPainel(
+      tester,
+      const SingleChildScrollView(child: OsInlineSection(enabled: true)),
+      overrides: [
+        ..._osOverrides(
+          ordens: FakeOrdens(seed: [fakeOS('a')]),
+          servicos: servicos,
+        ),
+        ordensLookupsProvider.overrideWith(
+          (ref) async => OrdensLookups(
+            servicos: servicos,
+            profissionais: const [],
+            taxonomia: taxonomia,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(_dropdownComPrefixo('os-inline-cat-'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.text('Veicular').last).dy,
+      lessThan(tester.getTopLeft(find.text('Residencial').last).dy),
+    );
+    await tester.tap(find.text('Veicular').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(_dropdownComPrefixo('os-inline-grupo-'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.text('Plano').last).dy,
+      lessThan(tester.getTopLeft(find.text('Avulsos').last).dy),
+    );
+  });
+
   /* ══════════════════ 1. OS — cascata Categoria→Grupo→Serviço ══════════════════ */
 
   group('OSForm — cascata Categoria → Grupo → Serviço', () {
+    testWidgets('dropdowns respeitam a sequência configurada na taxonomia', (
+      tester,
+    ) async {
+      final servicos = const [
+        ServicoPB(
+          id: 'alfa',
+          nome: 'Alfa',
+          categoria: 'residencial',
+          grupo: 'sofa',
+          ordem: 20,
+        ),
+        ServicoPB(
+          id: 'zeta',
+          nome: 'Zeta',
+          categoria: 'residencial',
+          grupo: 'sofa',
+          ordem: 10,
+        ),
+        ServicoPB(
+          id: 'colchao',
+          nome: 'Colchão',
+          categoria: 'residencial',
+          grupo: 'colchao',
+          ordem: 10,
+        ),
+      ];
+      final taxonomia = TaxonomiaArvore(const [
+        TaxonomiaNo(
+          id: 'cat',
+          tipo: TaxonomiaTipo.categoria,
+          slug: 'residencial',
+          nome: 'Residencial',
+          parent: '',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'sofa',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'sofa',
+          nome: 'Sofá',
+          parent: 'cat',
+          ordem: 10,
+          ativo: true,
+        ),
+        TaxonomiaNo(
+          id: 'colchao',
+          tipo: TaxonomiaTipo.grupo,
+          slug: 'colchao',
+          nome: 'Colchão',
+          parent: 'cat',
+          ordem: 20,
+          ativo: true,
+        ),
+      ]);
+      await _pumpOSForm(
+        tester,
+        [
+          ..._osOverrides(
+            ordens: FakeOrdens(seed: [fakeOS('a')]),
+            servicos: servicos,
+          ),
+          ordensLookupsProvider.overrideWith(
+            (ref) async => OrdensLookups(
+              servicos: servicos,
+              profissionais: const [],
+              taxonomia: taxonomia,
+            ),
+          ),
+        ],
+      );
+
+      await _escolherNoDropdown(
+        tester,
+        const ValueKey('os-cat-'),
+        'Residencial',
+      );
+      await tester.tap(find.byKey(const ValueKey('os-grupo-')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Sofá').last).dy,
+        lessThan(tester.getTopLeft(find.text('Colchão').last).dy),
+      );
+      await tester.tap(find.text('Sofá').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('os-servico-')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Zeta').last).dy,
+        lessThan(tester.getTopLeft(find.text('Alfa').last).dy),
+      );
+    });
+
     testWidgets('escolher Categoria estreita os Grupos elegíveis', (
       tester,
     ) async {

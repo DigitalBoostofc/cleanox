@@ -30,7 +30,7 @@ final servicosDoGrupoProvider = FutureProvider.autoDispose
         page: 1,
         perPage: 200,
         filter: servicosFilter(categoria: key.categoria, grupo: key.grupo),
-        sort: 'nome',
+        sort: 'ordem,nome',
       );
       final cat = key.categoria.trim().toLowerCase();
       final grupo = key.grupo.trim().toLowerCase();

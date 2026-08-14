@@ -139,7 +139,7 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     try {
       final repo = ref.read(servicosRepositoryProvider);
       // "Outros serviços cadastrados" (read-only): todo o catálogo menos este.
-      final page = await repo.list(page: 1, perPage: 200, sort: 'nome');
+      final page = await repo.list(page: 1, perPage: 200, sort: 'ordem,nome');
       final outros = [
         for (final s in page.items)
           if (s.id != id) s,

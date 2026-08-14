@@ -14,6 +14,8 @@ import '../../core/models/ordem_servico.dart';
 import '../../core/models/os_execucao.dart';
 import '../../core/models/servico.dart';
 import '../data/painel_providers.dart';
+import '../servicos/taxonomia/taxonomia_models.dart';
+import '../servicos/taxonomia/taxonomia_providers.dart';
 
 /// Expand da visão admin — inclui `cliente` (PII liberada ao Painel).
 const String kAdminExecExpand = 'profissional,servico,cliente,ponto_fisico';
@@ -43,5 +45,14 @@ final osExecucaoAdminProvider = FutureProvider.autoDispose
 /// para OS que ainda não têm serviço/snapshot definido. Espelha o dropdown do
 /// `OSExecucaoPage.tsx`.
 final execServicosProvider = FutureProvider.autoDispose<List<ServicoPB>>(
-  (ref) => ref.watch(servicosRepositoryProvider).listAtivos(),
+  (ref) async {
+    final servicos = await ref.watch(servicosRepositoryProvider).listAtivos();
+    TaxonomiaArvore? taxonomia;
+    try {
+      taxonomia = await ref.watch(taxonomiaRepositoryProvider).load();
+    } catch (_) {
+      // Mantém o seletor disponível com fallback determinístico.
+    }
+    return ordenarServicosDoCatalogo(servicos, taxonomia);
+  },
 );

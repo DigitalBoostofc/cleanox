@@ -536,6 +536,20 @@ O arquivo `/opt/cleanos/cleanos.env` deve ter permissão `chmod 600` e pertencer
 
 Todas as rotas exigem `Authorization: <token>` (mesmo formato das outras rotas PocketBase).
 
+#### `POST /api/cleanos/catalogo/reordenar` — admin/gerente
+
+Persiste atomicamente a sequência operacional de categorias/grupos ou serviços.
+O corpo usa `kind` (`taxonomia` ou `servicos`) e `ids` na ordem desejada. A
+lista deve conter exatamente os nós ativos irmãos, no caso da taxonomia, ou
+todos os serviços irmãos, inclusive inativos. Payload parcial, duplicado ou
+misturando escopos retorna `400` sem alterar registros.
+
+```json
+{ "kind": "servicos", "ids": ["id-do-primeiro", "id-do-segundo"] }
+```
+
+**Response 200:** `{ "updated": 2 }`.
+
 #### `GET /api/cleanos/whatsapp/status` — admin/gerente
 
 Consulta o status atual da instância UAZAPI e atualiza o cache em `app_config`.

@@ -53,6 +53,16 @@ void main() {
   });
 
   group('ServicoPB', () {
+    test('mapeia a ordem geral do catálogo', () {
+      final s = ServicoPB.fromJson({
+        'id': 's-ordem',
+        'nome': 'Sofá',
+        'ordem': 30,
+      });
+
+      expect(s.ordem, 30);
+    });
+
     test('placeholder com selects vazios vira enums null', () {
       final s = ServicoPB.fromJson({
         'id': 's1',

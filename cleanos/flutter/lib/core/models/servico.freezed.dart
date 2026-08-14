@@ -770,13 +770,16 @@ mixin _$ServicoPB {
   /// Slug do grupo (taxonomia editável).
   String get grupo => throw _privateConstructorUsedError;
   String get nome => throw _privateConstructorUsedError;
+
+  /// Ordem geral dentro do grupo no catálogo e nos seletores.
+  int get ordem => throw _privateConstructorUsedError;
   String? get descricao => throw _privateConstructorUsedError;
 
   /// Texto comercial “o que inclui” na Vitrine (popup Detalhes).
   @JsonKey(name: 'vitrine_descricao')
   String get vitrineDescricao => throw _privateConstructorUsedError;
 
-  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  /// Campo legado no PB. Não aparece na UI nem controla o fluxo.
   String get subgrupo => throw _privateConstructorUsedError;
   @JsonKey(name: 'valor_base')
   double get valorBase => throw _privateConstructorUsedError;
@@ -834,6 +837,7 @@ abstract class $ServicoPBCopyWith<$Res> {
     String categoria,
     String grupo,
     String nome,
+    int ordem,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
     String subgrupo,
@@ -882,6 +886,7 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
     Object? categoria = null,
     Object? grupo = null,
     Object? nome = null,
+    Object? ordem = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
     Object? subgrupo = null,
@@ -923,6 +928,10 @@ class _$ServicoPBCopyWithImpl<$Res, $Val extends ServicoPB>
                 ? _value.nome
                 : nome // ignore: cast_nullable_to_non_nullable
                       as String,
+            ordem: null == ordem
+                ? _value.ordem
+                : ordem // ignore: cast_nullable_to_non_nullable
+                      as int,
             descricao: freezed == descricao
                 ? _value.descricao
                 : descricao // ignore: cast_nullable_to_non_nullable
@@ -1016,6 +1025,7 @@ abstract class _$$ServicoPBImplCopyWith<$Res>
     String categoria,
     String grupo,
     String nome,
+    int ordem,
     String? descricao,
     @JsonKey(name: 'vitrine_descricao') String vitrineDescricao,
     String subgrupo,
@@ -1063,6 +1073,7 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
     Object? categoria = null,
     Object? grupo = null,
     Object? nome = null,
+    Object? ordem = null,
     Object? descricao = freezed,
     Object? vitrineDescricao = null,
     Object? subgrupo = null,
@@ -1104,6 +1115,10 @@ class __$$ServicoPBImplCopyWithImpl<$Res>
             ? _value.nome
             : nome // ignore: cast_nullable_to_non_nullable
                   as String,
+        ordem: null == ordem
+            ? _value.ordem
+            : ordem // ignore: cast_nullable_to_non_nullable
+                  as int,
         descricao: freezed == descricao
             ? _value.descricao
             : descricao // ignore: cast_nullable_to_non_nullable
@@ -1190,6 +1205,7 @@ class _$ServicoPBImpl extends _ServicoPB {
     this.categoria = '',
     this.grupo = '',
     this.nome = '',
+    this.ordem = 0,
     this.descricao,
     @JsonKey(name: 'vitrine_descricao') this.vitrineDescricao = '',
     this.subgrupo = '',
@@ -1240,6 +1256,11 @@ class _$ServicoPBImpl extends _ServicoPB {
   @override
   @JsonKey()
   final String nome;
+
+  /// Ordem geral dentro do grupo no catálogo e nos seletores.
+  @override
+  @JsonKey()
+  final int ordem;
   @override
   final String? descricao;
 
@@ -1248,7 +1269,7 @@ class _$ServicoPBImpl extends _ServicoPB {
   @JsonKey(name: 'vitrine_descricao')
   final String vitrineDescricao;
 
-  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  /// Campo legado no PB. Não aparece na UI nem controla o fluxo.
   @override
   @JsonKey()
   final String subgrupo;
@@ -1316,7 +1337,7 @@ class _$ServicoPBImpl extends _ServicoPB {
 
   @override
   String toString() {
-    return 'ServicoPB(id: $id, slug: $slug, categoria: $categoria, grupo: $grupo, nome: $nome, descricao: $descricao, vitrineDescricao: $vitrineDescricao, subgrupo: $subgrupo, valorBase: $valorBase, valorBaseMax: $valorBaseMax, tipoValor: $tipoValor, tempoMedioMin: $tempoMedioMin, tempoMedioLabel: $tempoMedioLabel, status: $status, observacao: $observacao, checklistPadrao: $checklistPadrao, orientacoesPre: $orientacoesPre, orientacoesPos: $orientacoesPos, adicionaisRelacionados: $adicionaisRelacionados, precoBase: $precoBase, ativo: $ativo, created: $created, updated: $updated)';
+    return 'ServicoPB(id: $id, slug: $slug, categoria: $categoria, grupo: $grupo, nome: $nome, ordem: $ordem, descricao: $descricao, vitrineDescricao: $vitrineDescricao, subgrupo: $subgrupo, valorBase: $valorBase, valorBaseMax: $valorBaseMax, tipoValor: $tipoValor, tempoMedioMin: $tempoMedioMin, tempoMedioLabel: $tempoMedioLabel, status: $status, observacao: $observacao, checklistPadrao: $checklistPadrao, orientacoesPre: $orientacoesPre, orientacoesPos: $orientacoesPos, adicionaisRelacionados: $adicionaisRelacionados, precoBase: $precoBase, ativo: $ativo, created: $created, updated: $updated)';
   }
 
   @override
@@ -1330,6 +1351,7 @@ class _$ServicoPBImpl extends _ServicoPB {
                 other.categoria == categoria) &&
             (identical(other.grupo, grupo) || other.grupo == grupo) &&
             (identical(other.nome, nome) || other.nome == nome) &&
+            (identical(other.ordem, ordem) || other.ordem == ordem) &&
             (identical(other.descricao, descricao) ||
                 other.descricao == descricao) &&
             (identical(other.vitrineDescricao, vitrineDescricao) ||
@@ -1377,6 +1399,7 @@ class _$ServicoPBImpl extends _ServicoPB {
     categoria,
     grupo,
     nome,
+    ordem,
     descricao,
     vitrineDescricao,
     subgrupo,
@@ -1418,6 +1441,7 @@ abstract class _ServicoPB extends ServicoPB {
     final String categoria,
     final String grupo,
     final String nome,
+    final int ordem,
     final String? descricao,
     @JsonKey(name: 'vitrine_descricao') final String vitrineDescricao,
     final String subgrupo,
@@ -1463,6 +1487,10 @@ abstract class _ServicoPB extends ServicoPB {
   String get grupo;
   @override
   String get nome;
+
+  /// Ordem geral dentro do grupo no catálogo e nos seletores.
+  @override
+  int get ordem;
   @override
   String? get descricao;
 
@@ -1471,7 +1499,7 @@ abstract class _ServicoPB extends ServicoPB {
   @JsonKey(name: 'vitrine_descricao')
   String get vitrineDescricao;
 
-  /// Subgrupo dentro do grupo (taxonomia Categoria → Grupo → Subgrupo).
+  /// Campo legado no PB. Não aparece na UI nem controla o fluxo.
   @override
   String get subgrupo;
   @override

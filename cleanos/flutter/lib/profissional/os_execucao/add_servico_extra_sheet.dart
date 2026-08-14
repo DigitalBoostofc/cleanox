@@ -11,6 +11,8 @@ import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
 import '../../painel/data/painel_providers.dart';
+import '../../painel/servicos/taxonomia/taxonomia_models.dart';
+import '../../painel/servicos/taxonomia/taxonomia_providers.dart';
 import '../../painel/servicos/servicos_labels.dart';
 
 /// Abre o sheet e devolve o [ServicoPB] escolhido, ou null se cancelar.
@@ -33,6 +35,7 @@ class _AddServicoExtraSheet extends ConsumerStatefulWidget {
 
 class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
   List<ServicoPB>? _servicos;
+  TaxonomiaArvore? _taxonomia;
   String? _loadError;
   String? _categoria;
   String? _grupo;
@@ -47,9 +50,16 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
   Future<void> _load() async {
     try {
       final list = await ref.read(servicosRepositoryProvider).listAtivos();
+      TaxonomiaArvore? taxonomia;
+      try {
+        taxonomia = await ref.read(taxonomiaRepositoryProvider).load();
+      } catch (_) {
+        // Mantém o seletor disponível com fallback determinístico.
+      }
       if (!mounted) return;
       setState(() {
-        _servicos = list;
+        _servicos = ordenarServicosDoCatalogo(list, taxonomia);
+        _taxonomia = taxonomia;
         _loadError = null;
       });
     } catch (_) {
@@ -65,7 +75,7 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
     for (final it in s) {
       if (it.categoria.trim().isNotEmpty) set.add(it.categoria);
     }
-    final list = set.toList()..sort(); return list;
+    return ordenarCategoriasDisponiveis(set, _taxonomia);
   }
 
   List<String> get _grupos {
@@ -75,17 +85,15 @@ class _AddServicoExtraSheetState extends ConsumerState<_AddServicoExtraSheet> {
     for (final it in s) {
       if (it.categoria == _categoria && it.grupo.trim().isNotEmpty) set.add(it.grupo);
     }
-    final list = set.toList()..sort(); return list;
+    return ordenarGruposDisponiveis(set, _taxonomia, _categoria);
   }
 
   List<ServicoPB> get _filtrados {
     final s = _servicos;
     if (s == null || _categoria == null || _grupo == null) return const [];
-    final list = s
+    return s
         .where((it) => it.categoria == _categoria && it.grupo == _grupo)
         .toList();
-    list.sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
-    return list;
   }
 
   @override

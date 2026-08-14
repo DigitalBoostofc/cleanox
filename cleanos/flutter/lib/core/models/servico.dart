@@ -128,6 +128,9 @@ class ServicoPB with _$ServicoPB {
     /// Slug do grupo (taxonomia editável).
     @Default('') String grupo,
     @Default('') String nome,
+
+    /// Ordem geral dentro do grupo no catálogo e nos seletores.
+    @Default(0) int ordem,
     String? descricao,
 
     /// Texto comercial “o que inclui” na Vitrine (popup Detalhes).
