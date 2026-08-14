@@ -197,7 +197,55 @@ void main() {
       expect(repo.lastCreate?['email'], 'pedro@empresa.com');
       expect(repo.lastCreate?['role'], 'profissional');
       expect(repo.lastCreate?['whatsapp'], '11999990000');
+      expect(repo.lastCreate?.containsKey('categoria_comissao'), isFalse);
     });
+
+    testWidgets(
+      'form profissional: sem seletor manual e com nota automática',
+      (tester) async {
+        await pumpPainel(
+          tester,
+          const UsuarioForm(),
+          overrides: [
+            ...painelOverrides(user: painelUser()),
+            usuariosRepositoryProvider.overrideWithValue(FakeUsuariosFull()),
+          ],
+        );
+        await tester.pump();
+
+        expect(find.text('Categoria de comissão e bonificação'), findsNothing);
+        expect(
+          find.textContaining('configurado automaticamente'),
+          findsOneWidget,
+        );
+
+        await tester.enterText(formFieldAt(0), 'Pedro Santos');
+        await tester.pump();
+        expect(
+          find.textContaining('Financeiro: Equipe → Pedro Santos'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'editar admin sem profissional não mostra nota financeira automática',
+      (tester) async {
+        final admin = fakeUser(id: 'a', name: 'Ana Admin', role: Role.admin);
+        await pumpPainel(
+          tester,
+          UsuarioForm(editing: admin),
+          overrides: [
+            ...painelOverrides(user: painelUser()),
+            usuariosRepositoryProvider.overrideWithValue(FakeUsuariosFull()),
+          ],
+        );
+        await tester.pump();
+
+        expect(find.text('Categoria de comissão e bonificação'), findsNothing);
+        expect(find.textContaining('configurado automaticamente'), findsNothing);
+      },
+    );
   });
 
   group('Redefinir senha (admin)', () {
