@@ -1,9 +1,7 @@
-/// pagamento_modal.dart — Modal de "registrar pagamento" (bottom sheet mobile).
+/// pagamento_modal.dart — Registrar pagamento (sheet).
 ///
-/// Valor cobrado **por linha** (principal + extras) + forma de pagamento.
-/// A soma vira `valor_pago` (base da comissão e do caixa). O profissional
-/// pode negociar abaixo da tabela — os valores por linha são gravados de
-/// volta em `valor_servico` / `adicionais[].valor`.
+/// Um campo editável: **Valor pago**. Orçamento total (soma dos serviços da OS)
+/// é só informação. Comissão e caixa usam `valor_pago`.
 library;
 
 import 'package:flutter/material.dart';
@@ -30,10 +28,10 @@ class PagamentoResult {
   final FormaPagamento forma;
   final String outro;
 
-  /// Valor cobrado do serviço principal (negociável).
+  /// Orçamento do principal — o modal não renegocia linhas.
   final double valorServico;
 
-  /// Lista completa de adicionais com valores cobrados atualizados.
+  /// Adicionais originais — o modal não renegocia linhas.
   final List<ServicoAdicionalOS> adicionais;
 }
 
@@ -50,14 +48,12 @@ Future<void> showPagamentoModal(
   );
 }
 
-String _fmtValor(double v) =>
-    v > 0 || v == 0 ? v.toStringAsFixed(2).replaceAll('.', ',') : '';
+String _fmtValor(double v) => v.toStringAsFixed(2).replaceAll('.', ',');
 
 double? _parseValor(String raw) {
   final t = raw.trim();
   if (t.isEmpty) return null;
-  final n = double.tryParse(t.replaceAll('.', '').replaceAll(',', '.'));
-  return n;
+  return double.tryParse(t.replaceAll('.', '').replaceAll(',', '.'));
 }
 
 class _PagamentoForm extends StatefulWidget {
@@ -71,155 +67,39 @@ class _PagamentoForm extends StatefulWidget {
 }
 
 class _PagamentoFormState extends State<_PagamentoForm> {
-  late final TextEditingController _principalCtrl;
-  late final List<TextEditingController> _extraCtrls;
-  late final List<ServicoAdicionalOS> _extrasCobraveis;
+  late final TextEditingController _pagoCtrl;
   late final TextEditingController _outroCtrl;
   FormaPagamento? _forma;
   bool _loading = false;
   String? _error;
 
-  // Total = linhas OU valor final informado (taxas avulsas / maquininha).
-  late final TextEditingController _totalFinalCtrl;
-  bool _totalManual = false;
+  double get _orcamento => widget.os.valorTotal;
 
   @override
   void initState() {
     super.initState();
-    final os = widget.os;
-    _extrasCobraveis = [
-      for (final a in os.adicionais)
-        if (a.aprovacao == AprovacaoStatus.aprovado ||
-            a.aprovacao == AprovacaoStatus.naoRequer)
-          a,
-    ];
-
-    // Se já há valor_pago e bate com a tabela, usa tabela; se há pago
-    // diferente, pré-preenche principal com valor_servico e extras com
-    // tabela (usuário ajusta). Se valor_pago == valorTotal, linhas = tabela.
-    final principal = os.valorServico ?? 0;
-    _principalCtrl = TextEditingController(text: _fmtValor(principal));
-    _extraCtrls = [
-      for (final a in _extrasCobraveis)
-        TextEditingController(text: _fmtValor(a.valor * a.quantidade)),
-    ];
-    // Se já registrou um total diferente e só tem 1 linha (sem extras),
-    // preenche a linha com o valor pago.
-    if (_extrasCobraveis.isEmpty &&
-        (os.valorPago ?? 0) > 0 &&
-        ((os.valorPago! - principal).abs() > 0.009)) {
-      _principalCtrl.text = _fmtValor(os.valorPago!);
-    }
-
-    final totalInicial = (os.valorPago ?? 0) > 0
-        ? os.valorPago!
-        : (() {
-            var s = principal;
-            for (final a in _extrasCobraveis) {
-              s += a.valor * a.quantidade;
-            }
-            return s;
-          })();
-    _totalFinalCtrl = TextEditingController(text: _fmtValor(totalInicial));
-    // Se valor_pago diverge da soma de tabela, marca como manual.
-    final somaTabela = (() {
-      var s = principal;
-      for (final a in _extrasCobraveis) {
-        s += a.valor * a.quantidade;
-      }
-      return s;
-    })();
-    if ((os.valorPago ?? 0) > 0 &&
-        ((os.valorPago! - somaTabela).abs() > 0.009)) {
-      _totalManual = true;
-    }
-
-    _outroCtrl = TextEditingController(
-      text: os.formaPagamentoOutro ?? '',
+    final pago = widget.os.valorPago ?? 0;
+    _pagoCtrl = TextEditingController(
+      text: _fmtValor(pago > 0 ? pago : _orcamento),
     );
-    _forma = os.formaPagamento;
+    _outroCtrl = TextEditingController(text: widget.os.formaPagamentoOutro ?? '');
+    _forma = widget.os.formaPagamento;
   }
 
   @override
   void dispose() {
-    _principalCtrl.dispose();
-    for (final c in _extraCtrls) {
-      c.dispose();
-    }
-    _totalFinalCtrl.dispose();
+    _pagoCtrl.dispose();
     _outroCtrl.dispose();
     super.dispose();
   }
 
-  double _valorUnitarioExtra(ServicoAdicionalOS a, double subtotal) {
-    final q = a.quantidade <= 0 ? 1 : a.quantidade;
-    return ((subtotal / q) * 100).roundToDouble() / 100;
-  }
-
-  double get _totalLinhas {
-    final p = _parseValor(_principalCtrl.text) ?? 0;
-    var sum = p;
-    for (final c in _extraCtrls) {
-      sum += _parseValor(c.text) ?? 0;
-    }
-    // descontos de tabela ainda reduzem? Orçamento os.descontos: o total
-    // cobrado é a soma das linhas (já negociadas). Não subtrai de novo.
-    return (sum * 100).roundToDouble() / 100;
-  }
-
-  double get _totalFinal {
-    if (_totalManual) {
-      return _parseValor(_totalFinalCtrl.text) ?? _totalLinhas;
-    }
-    return _totalLinhas;
-  }
-
-  void _syncTotalFromLinhas() {
-    if (_totalManual) return;
-    _totalFinalCtrl.text = _fmtValor(_totalLinhas);
-  }
-
-  void _usarTabela() {
-    setState(() {
-      _principalCtrl.text = _fmtValor(widget.os.valorServico ?? 0);
-      for (var i = 0; i < _extrasCobraveis.length; i++) {
-        final a = _extrasCobraveis[i];
-        _extraCtrls[i].text = _fmtValor(a.valor * a.quantidade);
-      }
-      _totalManual = false;
-      _totalFinalCtrl.text = _fmtValor(_totalLinhas);
-      _error = null;
-    });
-  }
-
   Future<void> _submit() async {
     if (_loading) return;
-    final principal = _parseValor(_principalCtrl.text);
-    // Campo vazio em OS refazer = R$ 0 (cortesia/garantia).
-    final principalEmpty = _principalCtrl.text.trim().isEmpty;
-    final principalValor = principalEmpty && widget.os.refazer
-        ? 0.0
-        : (principal ?? -1);
-
-    if (principalValor < 0) {
-      setState(() => _error = 'Informe o valor do serviço principal.');
-      return;
-    }
-
-    final extrasValores = <double>[];
-    for (var i = 0; i < _extraCtrls.length; i++) {
-      final v = _parseValor(_extraCtrls[i].text);
-      if (v == null || v < 0) {
-        setState(() => _error = 'Informe o valor de cada serviço extra.');
-        return;
-      }
-      extrasValores.add(v);
-    }
-
-    final total = (_totalFinal * 100).roundToDouble() / 100;
-    // Refazer aceita valor 0; OS normal exige valor > 0.
+    final parsed = _parseValor(_pagoCtrl.text);
+    final empty = _pagoCtrl.text.trim().isEmpty;
+    final total = empty && widget.os.refazer ? 0.0 : (parsed ?? -1);
     if (total < 0 || (total == 0 && !widget.os.refazer)) {
-      setState(() => _error = 'Informe o valor final pago.');
+      setState(() => _error = 'Informe o valor pago.');
       return;
     }
     if (total > 0 && _forma == null) {
@@ -239,20 +119,6 @@ class _PagamentoFormState extends State<_PagamentoForm> {
       return;
     }
 
-    // Atualiza valores unitários dos extras (subtotal / quantidade).
-    final novosAdicionais = <ServicoAdicionalOS>[
-      for (final a in widget.os.adicionais)
-        if (_extrasCobraveis.any((e) => e.id == a.id))
-          a.copyWith(
-            valor: _valorUnitarioExtra(
-              a,
-              extrasValores[_extrasCobraveis.indexWhere((e) => e.id == a.id)],
-            ),
-          )
-        else
-          a,
-    ];
-
     setState(() {
       _loading = true;
       _error = null;
@@ -260,11 +126,11 @@ class _PagamentoFormState extends State<_PagamentoForm> {
     try {
       await widget.onSubmit(
         PagamentoResult(
-          valorPago: total,
+          valorPago: (total * 100).roundToDouble() / 100,
           forma: forma,
           outro: outro,
-          valorServico: principalValor,
-          adicionais: novosAdicionais,
+          valorServico: widget.os.valorServico ?? 0,
+          adicionais: widget.os.adicionais,
         ),
       );
       if (mounted) Navigator.of(context).maybePop();
@@ -282,9 +148,6 @@ class _PagamentoFormState extends State<_PagamentoForm> {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final os = widget.os;
-    final principalNome = (os.tipoServicoNome ?? '').trim().isEmpty
-        ? 'Serviço principal'
-        : os.tipoServicoNome!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,86 +157,55 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           ErrorBanner(message: _error!),
           const SizedBox(height: ClxSpace.x4),
         ],
-        if (os.refazer) ...[
+        if (os.refazer)
           Text(
             'OS de Refazer: R\$ 0,00 é permitido (garantia/cortesia).',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
-          ),
-          const SizedBox(height: ClxSpace.x3),
-        ] else ...[
+          )
+        else
           Text(
-            'Informe o valor de cada serviço e o total final pago. '
-            'Taxas extras da maquininha entram no total final. '
-            'A comissão usa o total final.',
+            'A comissão usa o valor pago. O orçamento é só referência.',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
-          const SizedBox(height: ClxSpace.x3),
-        ],
-
-        // Linhas editáveis
-        _linhaEditavel(
-          context,
-          label: principalNome,
-          tabela: os.valorServico ?? 0,
-          controller: _principalCtrl,
-          onChanged: () {
-            setState(_syncTotalFromLinhas);
-          },
-        ),
-        for (var i = 0; i < _extrasCobraveis.length; i++) ...[
-          const SizedBox(height: ClxSpace.x2),
-          _linhaEditavel(
-            context,
-            label: _extrasCobraveis[i].nome.isEmpty
-                ? 'Serviço extra'
-                : _extrasCobraveis[i].nome,
-            tabela: _extrasCobraveis[i].valor * _extrasCobraveis[i].quantidade,
-            controller: _extraCtrls[i],
-            onChanged: () {
-              setState(_syncTotalFromLinhas);
-            },
-          ),
-        ],
-
-        if (os.descontos > 0) ...[
-          const SizedBox(height: ClxSpace.x2),
-          Text(
-            'Descontos de orçamento: ${formatCurrency(os.descontos)} '
-            '(já negociados nas linhas acima se aplicável).',
-            style: tt.bodySmall?.copyWith(color: clx.ink3),
-          ),
-        ],
-
-        const SizedBox(height: ClxSpace.x3),
+        const SizedBox(height: ClxSpace.x4),
         Text(
-          'Valor final pago (caixa / comissão)',
+          'Orçamento total',
+          style: tt.labelMedium?.copyWith(color: clx.ink2),
+        ),
+        const SizedBox(height: ClxSpace.x1),
+        Text(
+          formatCurrency(_orcamento),
+          key: const ValueKey('pag-orcamento-total'),
+          style: tt.titleMedium?.copyWith(
+            color: clx.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Soma dos serviços da OS. Não é editável.',
+          style: tt.bodySmall?.copyWith(color: clx.ink3),
+        ),
+        const SizedBox(height: ClxSpace.x4),
+        Text(
+          'Valor pago',
           style: tt.labelMedium?.copyWith(color: clx.ink2),
         ),
         const SizedBox(height: ClxSpace.x1),
         TextField(
-          controller: _totalFinalCtrl,
+          key: const ValueKey('pag-valor-pago'),
+          controller: _pagoCtrl,
           enabled: !_loading,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
           ],
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: '0,00',
-            helperText: _totalManual
-                ? 'Total manual (inclui taxas avulsas). Toque em “Usar preços de tabela” para voltar à soma.'
-                : 'Soma das linhas. Edite para incluir taxa extra não listada.',
-          ),
-          onChanged: (_) => setState(() => _totalManual = true),
-        ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: _loading ? null : _usarTabela,
-            child: const Text('Usar preços de tabela'),
+            helperText: 'O que entrou na maquininha / Pix.',
           ),
         ),
-
-        const SizedBox(height: ClxSpace.x2),
+        const SizedBox(height: ClxSpace.x3),
         Text(
           'Forma de pagamento',
           style: tt.labelMedium?.copyWith(color: clx.ink2),
@@ -391,9 +223,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
             })
               DropdownMenuItem(value: f, child: Text(f.label)),
           ],
-          onChanged: _loading
-              ? null
-              : (v) => setState(() => _forma = v),
+          onChanged: _loading ? null : (v) => setState(() => _forma = v),
         ),
         if (_forma == FormaPagamento.outros) ...[
           const SizedBox(height: ClxSpace.x3),
@@ -430,48 +260,6 @@ class _PagamentoFormState extends State<_PagamentoForm> {
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _linhaEditavel(
-    BuildContext context, {
-    required String label,
-    required double tabela,
-    required TextEditingController controller,
-    VoidCallback? onChanged,
-  }) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: tt.labelMedium?.copyWith(color: clx.ink2),
-              ),
-            ),
-            if (tabela > 0)
-              Text(
-                'Tabela: ${formatCurrency(tabela)}',
-                style: tt.bodySmall?.copyWith(color: clx.ink3),
-              ),
-          ],
-        ),
-        const SizedBox(height: ClxSpace.x1),
-        TextField(
-          controller: controller,
-          enabled: !_loading,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-          ],
-          decoration: const InputDecoration(hintText: '0,00'),
-          onChanged: (_) => onChanged?.call(),
         ),
       ],
     );
