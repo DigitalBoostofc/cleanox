@@ -119,4 +119,30 @@ void main() {
       TipoLancamento.despesa,
     );
   });
+
+  testWidgets('Extrato tem o botão de adicionar bonificação', (tester) async {
+    tester.view
+      ..physicalSize = const Size(1400, 900)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...painelOverrides(user: painelUser()),
+          financeiroRepositoryProvider.overrideWithValue(FakeFinanceiro()),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: FinTransacoesScreen()),
+        ),
+      ),
+    );
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(find.byKey(const Key('fin-transacoes-bonificacao')), findsOneWidget);
+    expect(find.byTooltip('Adicionar bonificação'), findsOneWidget);
+  });
 }

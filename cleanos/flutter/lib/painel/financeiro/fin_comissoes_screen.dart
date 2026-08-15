@@ -212,15 +212,13 @@ class FinComissoesScreen extends ConsumerWidget {
                 tooltip: 'Adicionar bonificação',
                 onPressed: () {
                   final list = profs.asData?.value ?? const <User>[];
-                  _showCenteredBlurDialog(
+                  showBonificacaoForm(
                     context: context,
-                    child: _BonificacaoForm(
-                      profissionais: list,
-                      onSaved: () {
-                        ref.invalidate(_comissoesExtratoProvider);
-                        ref.invalidate(_comissoesProfissionaisProvider);
-                      },
-                    ),
+                    profissionais: list,
+                    onSaved: () {
+                      ref.invalidate(_comissoesExtratoProvider);
+                      ref.invalidate(_comissoesProfissionaisProvider);
+                    },
                   );
                 },
                 icon: Icon(Icons.stars_rounded, color: clx.warning),
@@ -402,6 +400,21 @@ class FinComissoesScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Abre o mesmo formulário de bonificação usado em Equipe → Comissões.
+Future<T?> showBonificacaoForm<T>({
+  required BuildContext context,
+  required List<User> profissionais,
+  required VoidCallback onSaved,
+}) {
+  return _showCenteredBlurDialog<T>(
+    context: context,
+    child: _BonificacaoForm(
+      profissionais: profissionais,
+      onSaved: onSaved,
+    ),
+  );
 }
 
 /// Dialog centralizado com fundo escurecido + blur (menus flutuantes).
