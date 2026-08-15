@@ -2521,7 +2521,7 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
 }
 
 /// Linha horizontal rolável (arrastar) com ícones dos grupos da categoria.
-class _HomeGrupoIconStrip extends StatelessWidget {
+class _HomeGrupoIconStrip extends StatefulWidget {
   const _HomeGrupoIconStrip({
     super.key,
     required this.grupos,
@@ -2538,27 +2538,94 @@ class _HomeGrupoIconStrip extends StatelessWidget {
   final ValueChanged<String> onSelect;
 
   @override
+  State<_HomeGrupoIconStrip> createState() => _HomeGrupoIconStripState();
+}
+
+class _HomeGrupoIconStripState extends State<_HomeGrupoIconStrip> {
+  final _scroll = ScrollController();
+  var _maisDir = false;
+  var _maisEsq = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_sync);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeGrupoIconStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.grupos.length != widget.grupos.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    }
+  }
+
+  void _sync() {
+    if (!mounted || !_scroll.hasClients) return;
+    final p = _scroll.position;
+    final dir = p.maxScrollExtent - p.pixels > 6;
+    final esq = p.pixels > 6;
+    if (dir != _maisDir || esq != _maisEsq) {
+      setState(() {
+        _maisDir = dir;
+        _maisEsq = esq;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 108,
-      child: ListView.separated(
-        key: const Key('vitrine-home-grupo-icons-scroll'),
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        itemCount: grupos.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, i) {
-          final g = grupos[i];
-          final on = g == selected.trim().toLowerCase();
-          return _GrupoIconChip(
-            key: Key('vitrine-home-grupo-icon-$g'),
-            label: labelOf(g),
-            glyph: glyphOf(g),
-            selected: on,
-            onTap: () => onSelect(g),
-          );
-        },
+      child: Stack(
+        children: [
+          ListView.separated(
+            key: const Key('vitrine-home-grupo-icons-scroll'),
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            itemCount: widget.grupos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, i) {
+              final g = widget.grupos[i];
+              final on = g == widget.selected.trim().toLowerCase();
+              return _GrupoIconChip(
+                key: Key('vitrine-home-grupo-icon-$g'),
+                label: widget.labelOf(g),
+                glyph: widget.glyphOf(g),
+                selected: on,
+                onTap: () => widget.onSelect(g),
+              );
+            },
+          ),
+          if (_maisEsq)
+            const Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: VitrineFaixaOverflowHint(
+                key: Key('vitrine-home-grupo-seta-esq'),
+                paraEsquerda: true,
+              ),
+            ),
+          if (_maisDir)
+            const Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: VitrineFaixaOverflowHint(
+                key: Key('vitrine-home-grupo-seta-dir'),
+              ),
+            ),
+        ],
       ),
     );
   }

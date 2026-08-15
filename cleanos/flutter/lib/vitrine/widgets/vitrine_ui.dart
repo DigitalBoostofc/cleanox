@@ -2080,3 +2080,79 @@ class VitrineField extends StatelessWidget {
     );
   }
 }
+
+/// Seta suave na faixa horizontal: indica que dá para arrastar.
+class VitrineFaixaOverflowHint extends StatelessWidget {
+  const VitrineFaixaOverflowHint({
+    super.key,
+    this.paraEsquerda = false,
+  });
+
+  final bool paraEsquerda;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        width: 28,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: paraEsquerda
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
+              end: paraEsquerda
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              colors: const [
+                Color(0x00FFFFFF),
+                Color(0xE6FFFFFF),
+              ],
+            ),
+          ),
+          child: Align(
+            alignment: paraEsquerda
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: Opacity(
+              opacity: 0.42,
+              child: CustomPaint(
+                size: const Size(12, 20),
+                painter: _FaixaChevronPainter(esquerda: paraEsquerda),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FaixaChevronPainter extends CustomPainter {
+  _FaixaChevronPainter({required this.esquerda});
+
+  final bool esquerda;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = ClxBrand.navy
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final midY = size.height / 2;
+    final x1 = esquerda ? size.width * 0.7 : size.width * 0.3;
+    final x2 = esquerda ? size.width * 0.3 : size.width * 0.7;
+    final path = Path()
+      ..moveTo(x1, midY - size.height * 0.28)
+      ..lineTo(x2, midY)
+      ..lineTo(x1, midY + size.height * 0.28);
+    canvas.drawPath(path, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FaixaChevronPainter oldDelegate) =>
+      oldDelegate.esquerda != esquerda;
+}
+

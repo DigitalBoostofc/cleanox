@@ -57,4 +57,19 @@ void main() {
     expect(find.byKey(const Key('choice-car')), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
   });
+
+  testWidgets('seta da faixa é CustomPaint, sem Icon Material', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: VitrineFaixaOverflowHint(
+            key: Key('seta-dir'),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('seta-dir')), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
+    expect(find.byType(Icon), findsNothing);
+  });
 }
