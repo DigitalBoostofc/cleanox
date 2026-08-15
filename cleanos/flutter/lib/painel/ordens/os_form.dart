@@ -201,6 +201,13 @@ class _OSFormState extends ConsumerState<OSForm> {
     return s == OSStatus.concluida || s == OSStatus.cancelada;
   }
 
+  /// Caixa real só na conclusão (em andamento) ou para corrigir OS concluída.
+  /// Na criação / agendada / atribuída o profissional registra no app.
+  bool get _mostraValorPago {
+    final s = widget.editing?.status;
+    return s == OSStatus.emAndamento || s == OSStatus.concluida;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -626,20 +633,20 @@ class _OSFormState extends ConsumerState<OSForm> {
           : <Map<String, dynamic>>[],
     };
 
-    // Valor pago (caixa real): comissão e receita usam ESTE campo.
-    // Em OS concluída é a correção do dono/gestor; em aberta, opcional.
-    final pagoRaw = _valorPago.text.trim();
-    if (pagoRaw.isNotEmpty) {
-      final pago = double.tryParse(pagoRaw.replaceAll(',', '.'));
-      if (pago != null && pago >= 0) {
-        payload['valor_pago'] = pago;
-        // Se admin preencheu pago em OS já concluída e não havia forma, mantém a
-        // existente no servidor (não mexe). assertPayment exige forma se pago>0.
+    // Valor pago (caixa real): só quando o campo está visível (conclusão /
+    // correção). Na criação não envia — o caixa entra no finalizar.
+    if (_mostraValorPago) {
+      final pagoRaw = _valorPago.text.trim();
+      if (pagoRaw.isNotEmpty) {
+        final pago = double.tryParse(pagoRaw.replaceAll(',', '.'));
+        if (pago != null && pago >= 0) {
+          payload['valor_pago'] = pago;
+        }
+      } else if (_isEdit &&
+          widget.editing?.status == OSStatus.concluida &&
+          widget.editing?.refazer != true) {
+        // Campo limpo em concluída (não-refazer) não apaga o pago — evita 400.
       }
-    } else if (_isEdit &&
-        widget.editing?.status == OSStatus.concluida &&
-        widget.editing?.refazer != true) {
-      // Campo limpo em concluída (não-refazer) não apaga o pago — evita 400.
     }
     // Concluída/cancelada: NÃO manda data/duração (congeladas no servidor).
     if (!_horarioCongelado) {
@@ -1160,38 +1167,46 @@ class _OSFormState extends ConsumerState<OSForm> {
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(top: ClxSpace.x1, bottom: ClxSpace.x2),
+                      padding: const EdgeInsets.only(
+                        top: ClxSpace.x1,
+                        bottom: ClxSpace.x2,
+                      ),
                       child: Text(
-                        'Orçamento / tabela. A comissão e o caixa usam o '
-                        '"Valor pago" (abaixo), não este campo sozinho.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: clx.ink3,
-                        ),
+                        _mostraValorPago
+                            ? 'Orçamento / tabela. A comissão e o caixa usam o '
+                                  '"Valor pago" (abaixo), não este campo sozinho.'
+                            : 'Orçamento / tabela. O valor pago entra só na '
+                                  'conclusão da OS.',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: clx.ink3),
                       ),
                     ),
 
-                    // Valor pago real (maquininha) — editável pelo admin/gerente inclusive
-                    // em OS concluída; recalcula comissão + receita no servidor.
-                    _textField(
-                      label: 'Valor pago — caixa real (R\$)',
-                      controller: _valorPago,
-                      hint: 'O que entrou na maquininha / Pix',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: ClxSpace.x1),
-                      child: Text(
-                        widget.editing?.status == OSStatus.concluida
-                            ? 'OS concluída: altere aqui para corrigir o total cobrado '
-                                '(taxas extras, erro de digitação). Comissão e movimentação '
-                                'atualizam sozinhas.'
-                            : 'Preencha na conclusão (profissional) ou corrija aqui. '
-                                'Pode ser maior que a soma dos serviços (taxas avulsas).',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: clx.ink3,
+                    if (_mostraValorPago) ...[
+                      _textField(
+                        label: 'Valor pago — caixa real (R\$)',
+                        controller: _valorPago,
+                        hint: 'O que entrou na maquininha / Pix',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
                       ),
-                    ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: ClxSpace.x1),
+                        child: Text(
+                          widget.editing?.status == OSStatus.concluida
+                              ? 'OS concluída: altere aqui para corrigir o total cobrado '
+                                    '(taxas extras, erro de digitação). Comissão e movimentação '
+                                    'atualizam sozinhas.'
+                              : 'Na conclusão: o que entrou na maquininha / Pix. '
+                                    'Pode ser maior que a soma dos serviços (taxas avulsas).',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: ClxSpace.x4),
 
                     // Serviços extras (orçamento; o prof registra o valor cobrado no app).
