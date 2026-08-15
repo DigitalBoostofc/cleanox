@@ -4,6 +4,7 @@ import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/dashboard/dashboard_controller.dart';
+import 'package:cleanos/painel/ordens/ordens_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes_painel.dart';
@@ -74,5 +75,43 @@ void main() {
     expect(split.domicilio, 1);
     expect(split.pontoFisico, 2);
     expect(split.total, 3);
+  });
+
+  test('filtro PB de Hoje usa a janela do dia', () {
+    final now = DateTime.utc(2026, 8, 15, 18);
+    final range = ordensPeriodoRange(OrdensPeriodo.hoje, now: now)!;
+    final f = dashboardPeriodoFilter(const DashboardPeriodo(), now: now);
+    expect(f, isNotNull);
+    expect(f, contains(range.start));
+    expect(f, contains(range.end));
+  });
+
+  test('Tudo não restringe data_hora', () {
+    expect(
+      dashboardPeriodoFilter(
+        const DashboardPeriodo(periodo: OrdensPeriodo.tudo),
+      ),
+      isNull,
+    );
+  });
+
+  test('rótulos mudam com o período', () {
+    expect(dashboardTitulo(const DashboardPeriodo()), 'Hoje');
+    expect(
+      dashboardTitulo(const DashboardPeriodo(periodo: OrdensPeriodo.semana)),
+      'Esta semana',
+    );
+    expect(dashboardFaturamentoLabel(const DashboardPeriodo()), 'Faturamento hoje');
+    expect(
+      dashboardFaturamentoLabel(
+        const DashboardPeriodo(periodo: OrdensPeriodo.mes),
+      ),
+      'Faturamento',
+    );
+    expect(dashboardAnaliseTitulo(const DashboardPeriodo()), 'Análise de hoje');
+    expect(
+      dashboardAnaliseTitulo(const DashboardPeriodo(periodo: OrdensPeriodo.tudo)),
+      'Análise',
+    );
   });
 }
