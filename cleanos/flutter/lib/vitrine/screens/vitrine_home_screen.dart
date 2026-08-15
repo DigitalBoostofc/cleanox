@@ -15,6 +15,7 @@ import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
 import '../vitrine_booking.dart';
+import '../vitrine_porte.dart';
 import '../widgets/vitrine_catalogo_personalizavel.dart';
 import '../widgets/vitrine_ui.dart';
 
@@ -237,13 +238,43 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 
   void _toggleServico(VitrineServico servico) {
+    final vars = variantesPorteDoCard(servico, _catalog);
+    if (vars != null) {
+      final noCarrinho = vars.where((v) => _selected.contains(v.id)).toList();
+      if (noCarrinho.isNotEmpty) {
+        setState(() {
+          for (final v in noCarrinho) {
+            _selected.remove(v.id);
+          }
+          _invalidateSlot();
+        });
+        return;
+      }
+      _abrirPorte(servico, vars);
+      return;
+    }
     setState(() {
       if (_selected.contains(servico.id)) {
         _selected.remove(servico.id);
       } else {
         _selected.add(servico.id);
       }
-      // Alterar serviços/duração invalida slot antigo.
+      _invalidateSlot();
+    });
+  }
+
+  Future<void> _abrirPorte(
+    VitrineServico card,
+    List<VitrineServico> vars,
+  ) async {
+    final escolhido = await showVitrinePorteSheet(
+      context,
+      titulo: card.tituloComercial,
+      variantes: vars,
+    );
+    if (!mounted || escolhido == null) return;
+    setState(() {
+      _selected.add(escolhido.id);
       _invalidateSlot();
     });
   }
@@ -734,29 +765,33 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
 
   List<VitrineServico> _servicosNoGrupo(String macro, String grupo) {
     final g = grupo.trim().toLowerCase();
-    return _sortedServicos(
-      _servicosNoMacro(macro).where((s) {
-        final sg = s.grupo.trim().toLowerCase();
-        final key = sg.isEmpty ? 'outros' : sg;
-        return key == g;
-      }),
+    return catalogoAgrupadoPorPorte(
+      _sortedServicos(
+        _servicosNoMacro(macro).where((s) {
+          final sg = s.grupo.trim().toLowerCase();
+          final key = sg.isEmpty ? 'outros' : sg;
+          return key == g;
+        }),
+      ),
     );
   }
 
   List<VitrineServico> _catalogoFiltradoGuiado() {
     final cat = (_categoriaFilter ?? '').trim().toLowerCase();
     final grupo = (_familiaFilter ?? '').trim().toLowerCase();
-    return _sortedServicos(
-      _catalog.where((s) {
-        if (!_matchBusca(s)) return false;
-        if (cat.isNotEmpty && _macroOf(s) != cat) return false;
-        if (grupo.isNotEmpty) {
-          final g = s.grupo.trim().toLowerCase();
-          final key = g.isEmpty ? 'outros' : g;
-          if (key != grupo) return false;
-        }
-        return true;
-      }),
+    return catalogoAgrupadoPorPorte(
+      _sortedServicos(
+        _catalog.where((s) {
+          if (!_matchBusca(s)) return false;
+          if (cat.isNotEmpty && _macroOf(s) != cat) return false;
+          if (grupo.isNotEmpty) {
+            final g = s.grupo.trim().toLowerCase();
+            final key = g.isEmpty ? 'outros' : g;
+            if (key != grupo) return false;
+          }
+          return true;
+        }),
+      ),
     );
   }
 
@@ -1280,7 +1315,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   ),
                   servicos: items,
                   bootstrap: _bootstrap,
-                  selectedIds: _selected,
+                  selectedIds: idsSelecaoComPorte(
+                    exibidos: items,
+                    catalogo: _catalog,
+                    selecionados: _selected,
+                  ),
                   showHeader: false,
                   showCategoryChips: false,
                   onToggle: _toggleServico,
@@ -1304,9 +1343,13 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         VitrineCatalogoPersonalizavel(
           // Key força novo State quando o macro/busca muda — filtro não “gruda”.
           key: ValueKey('vitrine-catalogo-$catKey-$famKey-$buscaKey'),
-          servicos: _catalog,
+          servicos: catalogoAgrupadoPorPorte(_catalog),
           bootstrap: _bootstrap,
-          selectedIds: _selected,
+          selectedIds: idsSelecaoComPorte(
+            exibidos: catalogoAgrupadoPorPorte(_catalog),
+            catalogo: _catalog,
+            selecionados: _selected,
+          ),
           onToggle: _toggleServico,
           initialCategoria: _categoriaFilter,
           initialGroup: _familiaFilter,
