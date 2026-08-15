@@ -67,6 +67,29 @@ void main() {
 
       expect(corGraficoComissaoProfissional(prof), const Color(0xFFEF4444));
     });
+
+    test('relatório de comissão ignora profissional inativo', () {
+      final items = [
+        ProfComissao.fromJson(const {
+          'id': 'c-ativo',
+          'profissional': 'prof-ativo',
+          'os': 'os1',
+          'valor_os': 200,
+          'valor_comissao': 60,
+          'status': 'pendente',
+        }),
+        ProfComissao.fromJson(const {
+          'id': 'c-inativo',
+          'profissional': 'prof-inativo',
+          'os': 'os2',
+          'valor_os': 200,
+          'valor_comissao': 40,
+          'status': 'pendente',
+        }),
+      ];
+      final visiveis = comissoesDeProfissionaisAtivos(items, [ativo, inativo]);
+      expect(visiveis.map((c) => c.id), ['c-ativo']);
+    });
   });
 
   group('bonificação manual em comissões', () {

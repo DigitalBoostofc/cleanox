@@ -55,12 +55,24 @@ String? profissionalIdDaFatia(FinSlice slice) => slice.id;
 
 Color corGraficoComissaoProfissional(User? user) => corAgendaProfissional(user);
 
+/// Relatório de Comissões: só profissional ativo.
+List<ProfComissao> comissoesDeProfissionaisAtivos(
+  List<ProfComissao> items,
+  List<User> profissionais,
+) {
+  final ids = {for (final u in profissionais) if (u.ativo) u.id};
+  return [for (final c in items) if (ids.contains(c.profissional)) c];
+}
+
+List<User> profissionaisAtivosRelatorio(List<User> profissionais) =>
+    [for (final u in profissionais) if (u.ativo) u];
+
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
   return ref
       .watch(comissaoRepositoryProvider)
-      .listProfissionais(incluirInativos: true);
+      .listProfissionais();
 });
 
 final _comissoesExtratoProvider =
@@ -252,16 +264,24 @@ class FinComissoesScreen extends ConsumerWidget {
               onRetry: () => ref.invalidate(_comissoesExtratoProvider),
             ),
             data: (allItems) {
-              final profList = profs.asData?.value ?? const <User>[];
+              final profList = profissionaisAtivosRelatorio(
+                profs.asData?.value ?? const <User>[],
+              );
               final osAll =
                   osAtribuidas.asData?.value ?? const <OrdemServico>[];
               final p = period.periodo;
-              final items = _comissoesDoPeriodo(allItems, p);
+              final items = comissoesDeProfissionaisAtivos(
+                _comissoesDoPeriodo(allItems, p),
+                profList,
+              );
               final osList = _osDoPeriodo(osAll, p);
               return _Dashboard(
                 items: items,
-                // Ciclo de pagamento: todas as pendentes (não só o mês).
-                comissoesCiclo: allItems,
+                // Ciclo de pagamento: pendentes dos ativos (não só o mês).
+                comissoesCiclo: comissoesDeProfissionaisAtivos(
+                  allItems,
+                  profList,
+                ),
                 profs: profList,
                 osAtribuidas: osList,
                 narrow: narrow,
@@ -794,10 +814,13 @@ class _Dashboard extends StatelessWidget {
   }) {
     final ids = <String>{};
     for (final u in profs) {
-      if (u.hasComissaoAtiva) ids.add(u.id);
+      if (u.ativo && u.hasComissaoAtiva) ids.add(u.id);
     }
     for (final c in items) {
-      if (c.profissional.isNotEmpty) ids.add(c.profissional);
+      if (c.profissional.isNotEmpty &&
+          profs.any((u) => u.ativo && u.id == c.profissional)) {
+        ids.add(c.profissional);
+      }
     }
 
     if (ids.isEmpty) {
