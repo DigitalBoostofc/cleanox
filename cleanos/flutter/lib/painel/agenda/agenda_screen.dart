@@ -32,6 +32,7 @@ import '../ordens/os_form.dart';
 import 'agenda_controller.dart';
 import '../data/painel_providers.dart';
 import 'ajuste_sheet.dart';
+import 'agenda_pf_tag.dart';
 import 'day_column.dart';
 
 /// Abaixo disto, usa as variantes mobile (listas/compacto).
@@ -783,6 +784,10 @@ class _EventChip extends StatelessWidget {
                 ),
               ),
             ),
+            if (os.isLocalPontoFisico) ...[
+              const SizedBox(width: 4),
+              AgendaPfTag(os: os, size: 14),
+            ],
           ],
         ),
       ),
@@ -1203,6 +1208,10 @@ class _AgendaMiniCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: ClxSpace.x2),
+            if (os.isLocalPontoFisico) ...[
+              AgendaPfTag(os: os, size: 18),
+              const SizedBox(width: ClxSpace.x2),
+            ],
             StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
           ],
         ),
