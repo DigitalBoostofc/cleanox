@@ -146,13 +146,14 @@ Future<VitrineServico?> showVitrinePorteSheet(
   return showModalBottomSheet<VitrineServico>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
       return SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -212,6 +213,22 @@ Future<VitrineServico?> showVitrinePorteSheet(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                               color: ClxBrand.navy,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: ClxBrand.cyan,
+                              shape: BoxShape.circle,
+                            ),
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: Icon(
+                                Icons.add,
+                                size: 20,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],

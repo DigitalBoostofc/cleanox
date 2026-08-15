@@ -1,5 +1,6 @@
 import 'package:cleanos/vitrine/vitrine_api.dart';
 import 'package:cleanos/vitrine/vitrine_porte.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 VitrineServico _s({
@@ -62,5 +63,27 @@ void main() {
       selecionados: {'ps'},
     );
     expect(ids, {cards.first.id});
+  });
+
+  testWidgets('sheet mostra + ao lado de cada porte', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (ctx) => TextButton(
+            onPressed: () => showVitrinePorteSheet(
+              ctx,
+              titulo: 'Lavagem Prime',
+              variantes: [primePop, primeSuv, primeCam],
+            ),
+            child: const Text('abrir'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.add), findsNWidgets(3));
+    expect(find.text('Popular'), findsOneWidget);
+    expect(find.text('SUV'), findsOneWidget);
   });
 }
