@@ -47,6 +47,9 @@ bool vitrineMatchesBuscaNome({
   return true;
 }
 
+/// Com texto no buscar, o resultado ignora o grupo selecionado.
+bool vitrineBuscaCruzaGrupo(String query) => query.trim().isNotEmpty;
+
 /// Macro da vitrine a partir do cadastro do serviço.
 String? vitrineMacroCategoriaOf({
   required String categoria,
