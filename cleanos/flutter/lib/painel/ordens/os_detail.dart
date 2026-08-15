@@ -678,11 +678,12 @@ class _OSDetailState extends ConsumerState<OSDetail> {
             ),
           if (_os.descontos > 0)
             _row(clx, 'Descontos', '− ${formatCurrency(_os.descontos)}'),
-          _row(
-            clx,
-            'Valor total da OS',
-            formatCurrency(_os.valorTotal),
-          ),
+          if (osMostraValorTotal(_os))
+            _row(
+              clx,
+              'Valor total da OS',
+              formatCurrency(_os.valorTotal),
+            ),
           _row(
             clx,
             'Valor pago (movimentação)',

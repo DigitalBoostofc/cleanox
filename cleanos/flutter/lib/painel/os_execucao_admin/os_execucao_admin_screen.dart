@@ -679,7 +679,8 @@ class _BodyState extends ConsumerState<_Body> {
             ),
           ),
           Divider(height: ClxSpace.x5, color: clx.line),
-          _linha(clx, 'Valor total da OS', formatCurrency(os.valorTotal), strong: true),
+          if (osMostraValorTotal(os))
+            _linha(clx, 'Valor total da OS', formatCurrency(os.valorTotal), strong: true),
           if (os.valorPago != null)
             _linha(
               clx,
