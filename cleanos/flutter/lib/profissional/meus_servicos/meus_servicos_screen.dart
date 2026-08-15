@@ -17,6 +17,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/design/design.dart';
 import '../../core/errors/os_error.dart';
 import '../../core/formatters/formatters.dart';
+import '../../core/models/agenda_compromisso.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/repositories/whatsapp_repository.dart';
@@ -30,6 +31,7 @@ import '../../shared_widgets_os/cancelar_os_dialog.dart';
 import 'meus_servicos_controller.dart';
 import 'os_card.dart';
 import 'pagamento_modal.dart';
+import 'tarefas_prof.dart';
 
 class MeusServicosScreen extends ConsumerStatefulWidget {
   const MeusServicosScreen({super.key});
@@ -44,8 +46,50 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
   final Map<String, bool> _avisoLoading = {};
   final Map<String, bool> _contatoLoading = {};
   final Map<String, bool> _chegueiLoading = {};
+  List<AgendaCompromisso> _tarefas = const [];
+  final Set<String> _tarefaBusy = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTarefas());
+  }
 
   MeusServicosController get _ctrl => ref.read(meusServicosProvider.notifier);
+
+  Future<void> _loadTarefas() async {
+    final me = ref.read(currentUserProvider)?.id;
+    if (me == null || me.isEmpty) return;
+    try {
+      final todas = await ref
+          .read(agendaCompromissosRepositoryProvider)
+          .list(profissionalId: me);
+      final hoje = DateTime.now().toUtc().subtract(kBrtOffset);
+      if (!mounted) return;
+      setState(() {
+        _tarefas = tarefasParaMeusServicos(todas, hojeBrt: hoje);
+      });
+    } catch (_) {
+      /* sem coleção / sem permissão — a lista de OS segue */
+    }
+  }
+
+  Future<void> _concluirTarefa(AgendaCompromisso t) async {
+    if (_tarefaBusy.contains(t.id) || t.concluida) return;
+    setState(() => _tarefaBusy.add(t.id));
+    try {
+      await ref.read(agendaCompromissosRepositoryProvider).update(t.id, {
+        'status': StatusCompromisso.concluida.wire,
+      });
+      if (!mounted) return;
+      _toast('Tarefa concluída.', ToastType.success);
+      await _loadTarefas();
+    } catch (err) {
+      if (mounted) _toast(describeOSError(err).message, ToastType.error);
+    } finally {
+      if (mounted) setState(() => _tarefaBusy.remove(t.id));
+    }
+  }
 
   void _setLoading(String id, bool v) => setState(() => _actionLoading[id] = v);
   void _setError(String id, String? v) => setState(() => _actionError[id] = v);
@@ -297,6 +341,62 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
     ),
   );
 
+  Widget _cardTarefa(AgendaCompromisso t) {
+    final clx = context.clx;
+    final hora = horarioTarefa(t);
+    final busy = _tarefaBusy.contains(t.id);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ClxSpace.x2),
+      child: Material(
+        color: const Color(0xFFFFF4D6),
+        borderRadius: ClxRadii.rMd,
+        child: Padding(
+          padding: const EdgeInsets.all(ClxSpace.x3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      [
+                        if (hora.isNotEmpty) hora,
+                        t.titulo,
+                      ].join(' · '),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        decoration: t.concluida
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    if (t.descricao.isNotEmpty)
+                      Text(
+                        t.descricao,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+                      ),
+                  ],
+                ),
+              ),
+              if (!t.concluida)
+                TextButton(
+                  key: ValueKey('tarefa-concluir-${t.id}'),
+                  onPressed: busy ? null : () => _concluirTarefa(t),
+                  child: Text(busy ? '…' : 'Concluir'),
+                )
+              else
+                Icon(Icons.check_circle, color: clx.success, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final clx = context.clx;
@@ -350,7 +450,9 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _ctrl.refresh,
+            onRefresh: () async {
+              await Future.wait([_ctrl.refresh(), _loadTarefas()]);
+            },
             color: clx.primary,
             child: _body(context, state, diaLabel),
           ),
@@ -408,6 +510,21 @@ class _MeusServicosScreenState extends ConsumerState<MeusServicosScreen> {
               ],
             ),
           ),
+
+        if (_tarefas.isNotEmpty) ...[
+          _SectionHeader(
+            title: 'Tarefas',
+            subtitle: 'Compromissos internos do dia',
+            titleColor: clx.ink,
+            trailing: ClxChip(
+              label: '${_tarefas.where((t) => !t.concluida).length} aberta(s)',
+              color: const Color(0xFFE0A106),
+            ),
+          ),
+          const SizedBox(height: ClxSpace.x3),
+          for (final t in _tarefas) _cardTarefa(t),
+          const SizedBox(height: ClxSpace.x5),
+        ],
 
         // Em aberto (atrasado).
         if (state.pastOpen.isNotEmpty) ...[

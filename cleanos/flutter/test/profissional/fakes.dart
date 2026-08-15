@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/os_execucao.dart';
+import 'package:cleanos/core/models/agenda_compromisso.dart';
+import 'package:cleanos/core/repositories/agenda_compromissos_repository.dart';
 import 'package:cleanos/core/repositories/evidencias_repository.dart';
 import 'package:cleanos/core/repositories/ordens_repository.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
@@ -258,4 +260,40 @@ class FakeSecureStorage extends FlutterSecureStorage {
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
   }) async => Map<String, String>.from(store);
+}
+
+class FakeAgendaCompromissosRepository implements AgendaCompromissosRepository {
+  FakeAgendaCompromissosRepository({this.items = const []});
+
+  List<AgendaCompromisso> items;
+  final List<String> concluidas = [];
+
+  @override
+  Future<List<AgendaCompromisso>> list({
+    String? dataInicio,
+    String? dataFim,
+    String? profissionalId,
+  }) async => [
+    for (final t in items)
+      if (profissionalId == null || t.profissional == profissionalId) t,
+  ];
+
+  @override
+  Future<AgendaCompromisso> create(Map<String, dynamic> data) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<AgendaCompromisso> update(String id, Map<String, dynamic> data) async {
+    if (data['status'] == StatusCompromisso.concluida.wire) {
+      concluidas.add(id);
+    }
+    final next = items
+        .firstWhere((t) => t.id == id)
+        .copyWith(status: StatusCompromisso.parse('${data['status'] ?? ''}'));
+    items = [for (final t in items) if (t.id == id) next else t];
+    return next;
+  }
+
+  @override
+  Future<void> delete(String id) async {}
 }

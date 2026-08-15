@@ -7,6 +7,7 @@ import 'package:cleanos/core/auth/auth_providers.dart';
 import 'package:cleanos/core/design/theme_fintech.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
+import 'package:cleanos/core/models/agenda_compromisso.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/profissional/data/prof_providers.dart';
 import 'package:cleanos/profissional/meus_servicos/meus_servicos_screen.dart';
@@ -38,6 +39,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required Size size,
   List<OrdemServico> Function(int index)? listByIndex,
+  List<AgendaCompromisso> tarefas = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -50,6 +52,9 @@ Future<void> _pump(
       overrides: [
         currentUserProvider.overrideWithValue(_user),
         ordensRepositoryProvider.overrideWithValue(repo),
+        agendaCompromissosRepositoryProvider.overrideWithValue(
+          FakeAgendaCompromissosRepository(items: tarefas),
+        ),
         ordensRealtimeProvider.overrideWith((ref) => const Stream.empty()),
       ],
       child: MaterialApp(
@@ -145,5 +150,30 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mostra tarefa do profissional e conclui', (tester) async {
+    await _pump(
+      tester,
+      size: const Size(360, 800),
+      listByIndex: (_) => const [],
+      tarefas: [
+        const AgendaCompromisso(
+          id: 't1',
+          titulo: 'Abastecer a moto',
+          profissional: 'p1',
+          dataHora: '2026-08-14 12:00:00Z',
+        ),
+      ],
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Tarefas'), findsOneWidget);
+    expect(find.textContaining('Abastecer a moto'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tarefa-concluir-t1')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('tarefa-concluir-t1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Tarefa concluída.'), findsOneWidget);
   });
 }
