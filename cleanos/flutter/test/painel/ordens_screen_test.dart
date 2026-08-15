@@ -8,6 +8,7 @@ import 'package:cleanos/core/models/servico.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/core/repositories/repo_types.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
+import 'package:cleanos/painel/ordens/ordens_controller.dart';
 import 'package:cleanos/painel/ordens/ordens_screen.dart';
 import 'package:cleanos/painel/ordens/os_detail.dart';
 import 'package:cleanos/painel/ordens/os_form.dart';
@@ -138,6 +139,87 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Tudo'), findsOneWidget);
       expect(find.text('Esta semana'), findsNothing);
+    });
+
+    testWidgets('dropdown de período inclui Personalizado sem mudar o padrão', (
+      tester,
+    ) async {
+      await pumpPainel(
+        tester,
+        const OrdensScreen(),
+        overrides: overridesFor(ordens: FakeOrdens(seed: [_os('a')])),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Esta semana'), findsOneWidget);
+      expect(find.text('Personalizado'), findsNothing);
+
+      await tester.tap(find.text('Esta semana'));
+      await tester.pumpAndSettle();
+      expect(find.text('Hoje'), findsWidgets);
+      expect(find.text('Esta semana'), findsWidgets);
+      expect(find.text('Este mês'), findsWidgets);
+      expect(find.text('Tudo'), findsWidgets);
+      expect(find.text('Personalizado'), findsWidgets);
+    });
+
+    testWidgets(
+      'Personalizado: escolhe uma data e a lista filtra aquele dia BRT',
+      (tester) async {
+        final ordens = _FakeOrdensFilterSpy(seed: [_os('a')]);
+        await pumpPainel(
+          tester,
+          const OrdensScreen(),
+          overrides: overridesFor(ordens: ordens),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        await tester.tap(find.text('Esta semana'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Personalizado').last);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DateRangePickerDialog), findsOneWidget);
+        await tester.tap(find.text('Filtrar'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DateRangePickerDialog), findsNothing);
+        expect(find.text('Esta semana'), findsNothing);
+
+        final hoje = DateTime.now();
+        final expected = ordensPeriodoRange(
+          OrdensPeriodo.personalizado,
+          personalizadoInicio: DateTime(hoje.year, hoje.month, hoje.day),
+        )!;
+        expect(ordens.lastFilter, isNotNull);
+        expect(ordens.lastFilter, contains(expected.start));
+        expect(ordens.lastFilter, contains(expected.end));
+      },
+    );
+
+    testWidgets('Personalizado: cancelar o calendário mantém Esta semana', (
+      tester,
+    ) async {
+      await pumpPainel(
+        tester,
+        const OrdensScreen(),
+        overrides: overridesFor(ordens: FakeOrdens(seed: [_os('a')])),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('Esta semana'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Personalizado').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(DateRangePickerDialog), findsOneWidget);
+      Navigator.of(tester.element(find.byType(DateRangePickerDialog))).pop();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Esta semana'), findsOneWidget);
+      expect(find.text('Personalizado'), findsNothing);
     });
   });
 
@@ -307,6 +389,32 @@ void main() {
       expect(find.text('Higienização'), findsWidgets);
     });
   });
+}
+
+/// FakeOrdens que CAPTURA o `filter` da lista (perPage > 1), para provar a
+/// janela de data enviada ao servidor.
+class _FakeOrdensFilterSpy extends FakeOrdens {
+  _FakeOrdensFilterSpy({super.seed});
+
+  String? lastFilter;
+
+  @override
+  Future<PageResult<OrdemServico>> list({
+    int page = 1,
+    int perPage = 30,
+    String? filter,
+    String sort = '-data_hora',
+    String? expand,
+  }) async {
+    if (perPage > 1) lastFilter = filter;
+    return PageResult<OrdemServico>(
+      items: seed,
+      page: 1,
+      perPage: perPage,
+      totalItems: seed.length,
+      totalPages: 1,
+    );
+  }
 }
 
 /// FakeOrdens que CAPTURA o `sort` enviado ao servidor — prova o padrão de

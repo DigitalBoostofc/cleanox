@@ -38,19 +38,51 @@ enum OrdensPeriodo {
   hoje,
   semana,
   mes,
-  tudo;
+  tudo,
+  personalizado;
 
   String get label => switch (this) {
     OrdensPeriodo.hoje => 'Hoje',
     OrdensPeriodo.semana => 'Esta semana',
     OrdensPeriodo.mes => 'Este mês',
     OrdensPeriodo.tudo => 'Tudo',
+    OrdensPeriodo.personalizado => 'Personalizado',
   };
 }
 
-/// Janela [inicio, fim) do período em strings UTC do PB — `null` para "Tudo".
-/// Dias/semana/mês calculados em BRT (G-8: fuso só nos formatters).
-DateRange? ordensPeriodoRange(OrdensPeriodo periodo, {DateTime? now}) {
+/// Dia civil (ano/mês/dia) tratado como calendário BRT, não como relógio do device.
+DateTime _brtCalendarNoonUtc(DateTime day) =>
+    DateTime.utc(day.year, day.month, day.day, 15);
+
+bool _mesmoDiaCivil(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+String _fmtDiaCivil(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/'
+    '${d.month.toString().padLeft(2, '0')}/'
+    '${d.year}';
+
+/// Rótulo do dropdown / empty-state. Em Personalizado mostra a data (ou o
+/// intervalo) escolhida — senão o dono não sabe qual dia está filtrando.
+String ordensPeriodoRotulo(OrdensFilter filter) {
+  if (filter.periodo != OrdensPeriodo.personalizado) {
+    return filter.periodo.label;
+  }
+  final inicio = filter.personalizadoInicio;
+  if (inicio == null) return filter.periodo.label;
+  final fim = filter.personalizadoFim ?? inicio;
+  if (_mesmoDiaCivil(inicio, fim)) return _fmtDiaCivil(inicio);
+  return '${_fmtDiaCivil(inicio)} – ${_fmtDiaCivil(fim)}';
+}
+
+/// Janela [inicio, fim) do período em strings UTC do PB — `null` para "Tudo"
+/// (e para Personalizado ainda sem data). Dias/semana/mês em BRT (G-8).
+DateRange? ordensPeriodoRange(
+  OrdensPeriodo periodo, {
+  DateTime? now,
+  DateTime? personalizadoInicio,
+  DateTime? personalizadoFim,
+}) {
   switch (periodo) {
     case OrdensPeriodo.hoje:
       final b = getBrtDayBounds(now: now);
@@ -62,6 +94,21 @@ DateRange? ordensPeriodoRange(OrdensPeriodo periodo, {DateTime? now}) {
       return getBrtMonthBounds(brt.year, brt.month);
     case OrdensPeriodo.tudo:
       return null;
+    case OrdensPeriodo.personalizado:
+      if (personalizadoInicio == null) return null;
+      var inicio = personalizadoInicio;
+      var fim = personalizadoFim ?? personalizadoInicio;
+      if (fim.isBefore(inicio)) {
+        final tmp = inicio;
+        inicio = fim;
+        fim = tmp;
+      }
+      final start = getBrtDayBounds(now: _brtCalendarNoonUtc(inicio));
+      if (_mesmoDiaCivil(inicio, fim)) {
+        return DateRange(start.todayStart, start.tomorrowStart);
+      }
+      final end = getBrtDayBounds(now: _brtCalendarNoonUtc(fim));
+      return DateRange(start.todayStart, end.tomorrowStart);
   }
 }
 
@@ -124,6 +171,8 @@ class OrdensFilter {
     this.sort = OrdensSort.dataAsc,
     this.profissionalId,
     this.search = '',
+    this.personalizadoInicio,
+    this.personalizadoFim,
   });
   final OSStatus? status;
   final OrdensPeriodo periodo;
@@ -133,12 +182,18 @@ class OrdensFilter {
   /// Busca livre (cliente / serviço / bairro) — server-side via `~`.
   final String search;
 
+  /// Dia civil BRT do período Personalizado (ano/mês/dia). Ignorado nos presets.
+  final DateTime? personalizadoInicio;
+  final DateTime? personalizadoFim;
+
   OrdensFilter copyWith({
     Object? status = _s,
     OrdensPeriodo? periodo,
     OrdensSort? sort,
     Object? profissionalId = _s,
     String? search,
+    Object? personalizadoInicio = _s,
+    Object? personalizadoFim = _s,
   }) => OrdensFilter(
     status: status == _s ? this.status : status as OSStatus?,
     periodo: periodo ?? this.periodo,
@@ -147,6 +202,12 @@ class OrdensFilter {
         ? this.profissionalId
         : profissionalId as String?,
     search: search ?? this.search,
+    personalizadoInicio: personalizadoInicio == _s
+        ? this.personalizadoInicio
+        : personalizadoInicio as DateTime?,
+    personalizadoFim: personalizadoFim == _s
+        ? this.personalizadoFim
+        : personalizadoFim as DateTime?,
   );
 
   static const Object _s = Object();
@@ -234,10 +295,7 @@ class OrdensController extends StateNotifier<OrdensState> {
   Future<void> _loadSortPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final keys = <String>[
-        'all',
-        for (final s in OSStatus.all) s.wire,
-      ];
+      final keys = <String>['all', for (final s in OSStatus.all) s.wire];
       for (final k in keys) {
         final parsed = OrdensSort.tryParse(
           prefs.getString('$kOrdensSortPrefsPrefix$k'),
@@ -259,7 +317,11 @@ class OrdensController extends StateNotifier<OrdensState> {
   }
 
   String? get _filterExpr {
-    final range = ordensPeriodoRange(state.filter.periodo);
+    final range = ordensPeriodoRange(
+      state.filter.periodo,
+      personalizadoInicio: state.filter.personalizadoInicio,
+      personalizadoFim: state.filter.personalizadoFim,
+    );
     return ordensFilter(
       status: state.filter.status,
       profissionalId: state.filter.profissionalId,
@@ -326,9 +388,40 @@ class OrdensController extends StateNotifier<OrdensState> {
     await refresh();
   }
 
-  Future<void> setPeriodo(OrdensPeriodo periodo) async {
-    if (periodo == state.filter.periodo) return;
-    state = state.copyWith(filter: state.filter.copyWith(periodo: periodo));
+  Future<void> setPeriodo(
+    OrdensPeriodo periodo, {
+    DateTime? personalizadoInicio,
+    DateTime? personalizadoFim,
+  }) async {
+    DateTime? inicio;
+    DateTime? fim;
+    if (periodo == OrdensPeriodo.personalizado) {
+      if (personalizadoInicio == null) return;
+      inicio = DateTime(
+        personalizadoInicio.year,
+        personalizadoInicio.month,
+        personalizadoInicio.day,
+      );
+      final rawFim = personalizadoFim ?? personalizadoInicio;
+      fim = DateTime(rawFim.year, rawFim.month, rawFim.day);
+      if (fim.isBefore(inicio)) {
+        final tmp = inicio;
+        inicio = fim;
+        fim = tmp;
+      }
+    }
+    if (periodo == state.filter.periodo &&
+        inicio == state.filter.personalizadoInicio &&
+        fim == state.filter.personalizadoFim) {
+      return;
+    }
+    state = state.copyWith(
+      filter: state.filter.copyWith(
+        periodo: periodo,
+        personalizadoInicio: inicio,
+        personalizadoFim: fim,
+      ),
+    );
     await refresh();
   }
 
@@ -363,9 +456,7 @@ class OrdensController extends StateNotifier<OrdensState> {
 
   /// Cancela uma OS com motivo (auditoria server-side) e recarrega.
   Future<void> cancelar(String osId, {required String motivo}) async {
-    await _ref
-        .read(ordensRepositoryProvider)
-        .cancelar(osId, motivo: motivo);
+    await _ref.read(ordensRepositoryProvider).cancelar(osId, motivo: motivo);
     await refresh();
   }
 
@@ -413,11 +504,21 @@ final ordensCountsProvider = FutureProvider.autoDispose<OrdensCounts>((
   final periodo = ref.watch(
     ordensControllerProvider.select((s) => s.filter.periodo),
   );
+  final personalizadoInicio = ref.watch(
+    ordensControllerProvider.select((s) => s.filter.personalizadoInicio),
+  );
+  final personalizadoFim = ref.watch(
+    ordensControllerProvider.select((s) => s.filter.personalizadoFim),
+  );
   final search = ref.watch(
     ordensControllerProvider.select((s) => s.filter.search),
   );
   final repo = ref.watch(ordensRepositoryProvider);
-  final range = ordensPeriodoRange(periodo);
+  final range = ordensPeriodoRange(
+    periodo,
+    personalizadoInicio: personalizadoInicio,
+    personalizadoFim: personalizadoFim,
+  );
 
   Future<int> count(OSStatus? status) async {
     final res = await repo.list(
@@ -459,11 +560,10 @@ final ordensLookupsProvider = FutureProvider.autoDispose<OrdensLookups>((
   ref,
 ) async {
   final servicos = await ref.watch(servicosRepositoryProvider).listAtivos();
-  final profs = (await ref
-          .watch(usuariosRepositoryProvider)
-          .list(sort: 'nome,name'))
-      .where((u) => u.hasRole(Role.profissional) && u.ativo)
-      .toList();
+  final profs =
+      (await ref.watch(usuariosRepositoryProvider).list(sort: 'nome,name'))
+          .where((u) => u.hasRole(Role.profissional) && u.ativo)
+          .toList();
   TaxonomiaArvore? taxonomia;
   try {
     taxonomia = await ref.watch(taxonomiaRepositoryProvider).load();

@@ -193,7 +193,7 @@ class _OrdensScreenState extends ConsumerState<OrdensScreen> {
             ? 'Nenhuma OS com status "${state.filter.status!.label}"'
             : 'Nenhuma ordem de serviço',
         message: periodo != OrdensPeriodo.tudo
-            ? 'Nada no período "${periodo.label}" — troque o período acima '
+            ? 'Nada no período "${ordensPeriodoRotulo(state.filter)}" — troque o período acima '
                   'ou crie uma Nova OS.'
             : 'Clique em "Nova OS" para criar a primeira.',
         action: ClxButton(
@@ -312,6 +312,7 @@ class _Toolbar extends ConsumerStatefulWidget {
 class _ToolbarState extends ConsumerState<_Toolbar> {
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
+  int _periodoMenuTick = 0;
 
   @override
   void dispose() {
@@ -325,6 +326,46 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
     _debounce = Timer(const Duration(milliseconds: 350), () {
       ref.read(ordensControllerProvider.notifier).setSearch(value);
     });
+  }
+
+  Future<void> _escolherPersonalizado(
+    BuildContext context,
+    OrdensFilter filter,
+  ) async {
+    final now = DateTime.now();
+    final atualInicio = filter.personalizadoInicio ?? now;
+    final atualFim = filter.personalizadoFim ?? atualInicio;
+    DateTime start = DateTime(
+      atualInicio.year,
+      atualInicio.month,
+      atualInicio.day,
+    );
+    DateTime end = DateTime(atualFim.year, atualFim.month, atualFim.day);
+    final first = DateTime(2020);
+    final last = DateTime(now.year + 2);
+    if (start.isBefore(first)) start = first;
+    if (end.isAfter(last)) end = last;
+    if (end.isBefore(start)) end = start;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      initialDateRange: DateTimeRange(start: start, end: end),
+      helpText: 'Toque um dia ou arraste um período',
+      saveText: 'Filtrar',
+      cancelText: 'Cancelar',
+    );
+    if (picked == null || !context.mounted) {
+      if (mounted) setState(() => _periodoMenuTick++);
+      return;
+    }
+    await ref
+        .read(ordensControllerProvider.notifier)
+        .setPeriodo(
+          OrdensPeriodo.personalizado,
+          personalizadoInicio: picked.start,
+          personalizadoFim: picked.end,
+        );
   }
 
   @override
@@ -434,6 +475,11 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
           SizedBox(
             width: 180,
             child: DropdownButtonFormField<OrdensPeriodo>(
+              key: ValueKey(
+                'ordens-periodo-${filter.periodo.name}-'
+                '$_periodoMenuTick-'
+                '${filter.personalizadoInicio?.millisecondsSinceEpoch ?? 0}',
+              ),
               initialValue: filter.periodo,
               isExpanded: true,
               decoration: InputDecoration(
@@ -453,13 +499,33 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
                     child: Text(p.label, overflow: TextOverflow.ellipsis),
                   ),
               ],
+              selectedItemBuilder: (context) => [
+                for (final p in OrdensPeriodo.values)
+                  Text(
+                    p == filter.periodo ? ordensPeriodoRotulo(filter) : p.label,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
               onChanged: (p) {
-                if (p != null) {
-                  ref.read(ordensControllerProvider.notifier).setPeriodo(p);
+                if (p == null) return;
+                if (p == OrdensPeriodo.personalizado) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!context.mounted) return;
+                    _escolherPersonalizado(context, filter);
+                  });
+                  return;
                 }
+                ref.read(ordensControllerProvider.notifier).setPeriodo(p);
               },
             ),
           ),
+          if (filter.periodo == OrdensPeriodo.personalizado)
+            IconButton(
+              key: const ValueKey('ordens-periodo-data'),
+              tooltip: 'Escolher data',
+              icon: const Icon(Icons.calendar_month_outlined, size: 20),
+              onPressed: () => _escolherPersonalizado(context, filter),
+            ),
           // Ordenação por ABA de status.
           SizedBox(
             width: 240,
@@ -548,7 +614,6 @@ class _StatusTabs extends ConsumerWidget {
   }
 }
 
-
 class _Tab extends StatelessWidget {
   const _Tab({
     required this.label,
@@ -571,8 +636,7 @@ class _Tab extends StatelessWidget {
   Widget build(BuildContext context) {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
-    final showBadge =
-        count != null && (alwaysShowCount || count! > 0);
+    final showBadge = count != null && (alwaysShowCount || count! > 0);
     return Padding(
       padding: const EdgeInsets.only(right: ClxSpace.x2),
       child: Material(
@@ -691,7 +755,9 @@ class _OrdemRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao,
+                    os.clienteNomeExibicao.isEmpty
+                        ? '—'
+                        : os.clienteNomeExibicao,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: tt.titleSmall?.copyWith(
@@ -897,7 +963,11 @@ class _OrdemCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Icon(Icons.schedule_rounded, size: 15, color: clx.ink3),
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 15,
+                            color: clx.ink3,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             formatDateTime(os.dataHora),
@@ -989,7 +1059,12 @@ class _OrdemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              StatusBadge(status: os.status, dense: true, refazer: os.refazer, vitrine: os.isVitrine),
+              StatusBadge(
+                status: os.status,
+                dense: true,
+                refazer: os.refazer,
+                vitrine: os.isVitrine,
+              ),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),
