@@ -152,4 +152,13 @@ void main() {
       'Análise',
     );
   });
+
+  test('domicílio e ponto físico usam cores bem distintas', () {
+    expect(kDashboardCorDomicilio, isNot(kDashboardCorPontoFisico));
+    final d = kDashboardCorDomicilio;
+    final p = kDashboardCorPontoFisico;
+    final dist =
+        (d.r - p.r).abs() + (d.g - p.g).abs() + (d.b - p.b).abs();
+    expect(dist, greaterThan(0.8));
+  });
 }

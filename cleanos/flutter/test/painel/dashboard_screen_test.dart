@@ -116,6 +116,11 @@ void main() {
       expect(find.text('Ponto físico'), findsOneWidget);
       expect(find.byType(FinBarChart), findsOneWidget);
       expect(find.byType(FinDonutChart), findsOneWidget);
+      final donut = tester.widget<FinDonutChart>(find.byType(FinDonutChart));
+      final cores = {for (final s in donut.slices) s.label: s.color};
+      expect(cores['Domicílio'], kDashboardCorDomicilio);
+      expect(cores['Ponto físico'], kDashboardCorPontoFisico);
+      expect(cores['Domicílio'], isNot(cores['Ponto físico']));
       final bars = tester.widget<FinBarChart>(find.byType(FinBarChart));
       expect(bars.slices.map((s) => s.color).toList(), [
         const Color(0xFF16A34A),

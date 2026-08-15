@@ -21,6 +21,11 @@ import '../../core/models/user.dart';
 import '../data/painel_filters.dart' show pbStringLiteral;
 import '../ordens/ordens_controller.dart';
 
+/// Domicílio = teal da marca. Ponto físico = laranja — contraste proposital
+/// (`clx.info` e `clx.primary` são o mesmo teal e o donut ficava ilegível).
+const Color kDashboardCorDomicilio = Color(0xFF0EA5B7);
+const Color kDashboardCorPontoFisico = Color(0xFFEA580C);
+
 /// Período do Dashboard — mesmo contrato da lista de OS.
 class DashboardPeriodo {
   const DashboardPeriodo({
