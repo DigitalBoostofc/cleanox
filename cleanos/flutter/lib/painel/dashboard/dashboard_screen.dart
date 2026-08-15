@@ -236,6 +236,24 @@ class _EasypayDashboard extends ConsumerWidget {
             ),
           ),
 
+          SliverToBoxAdapter(
+            child: ClxFadeSlide(
+              delay: const Duration(milliseconds: 200),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  ClxSpace.x4,
+                  ClxSpace.x4,
+                  ClxSpace.x4,
+                  0,
+                ),
+                child: _AnaliseDoDia(
+                  ranking: data.ranking,
+                  local: data.local,
+                ),
+              ),
+            ),
+          ),
+
           // Próximos
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
@@ -791,8 +809,21 @@ class _DashboardBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: ClxSpace.x3),
                   ClxFadeSlide(
+                    delay: const Duration(milliseconds: 40),
+                    child: _AcessoRapido(onGo: (s) => _go(context, s)),
+                  ),
+                  const SizedBox(height: ClxSpace.x6),
+                  ClxFadeSlide(
                     delay: const Duration(milliseconds: 80),
                     child: _KpiGrid(kpis: data.kpis),
+                  ),
+                  const SizedBox(height: ClxSpace.x6),
+                  ClxFadeSlide(
+                    delay: const Duration(milliseconds: 110),
+                    child: _AnaliseDoDia(
+                      ranking: data.ranking,
+                      local: data.local,
+                    ),
                   ),
                   const SizedBox(height: ClxSpace.x6),
                   ClxFadeSlide(
@@ -837,7 +868,12 @@ class _DashboardBody extends ConsumerWidget {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: ClxSpace.x6),
+              padding: const EdgeInsets.fromLTRB(
+                ClxSpace.x6,
+                0,
+                ClxSpace.x6,
+                ClxSpace.x10,
+              ),
               sliver: SliverList.builder(
                 itemCount: upcoming.length,
                 itemBuilder: (context, i) => Padding(
@@ -852,53 +888,208 @@ class _DashboardBody extends ConsumerWidget {
                 ),
               ),
             ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              ClxSpace.x6,
-              ClxSpace.x6,
-              ClxSpace.x6,
-              ClxSpace.x10,
+        ],
+      ),
+    );
+  }
+}
+
+class _AcessoRapido extends StatelessWidget {
+  const _AcessoRapido({required this.onGo});
+
+  final void Function(PainelSection section) onGo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('dashboard-acesso-rapido'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(title: 'Acesso rápido'),
+        const SizedBox(height: ClxSpace.x3),
+        Wrap(
+          spacing: ClxSpace.x3,
+          runSpacing: ClxSpace.x3,
+          children: [
+            ClxButton(
+              label: 'Nova OS',
+              icon: Icons.add_rounded,
+              onPressed: () => onGo(PainelSection.ordens),
             ),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ClxButton(
+              label: 'Novo Cliente',
+              icon: Icons.add_rounded,
+              variant: ClxButtonVariant.ghost,
+              onPressed: () => onGo(PainelSection.clientes),
+            ),
+            ClxButton(
+              label: 'Ver Agenda',
+              variant: ClxButtonVariant.ghost,
+              onPressed: () => onGo(PainelSection.agenda),
+            ),
+            ClxButton(
+              label: 'Financeiro',
+              variant: ClxButtonVariant.ghost,
+              onPressed: () => onGo(PainelSection.financeiro),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AnaliseDoDia extends StatelessWidget {
+  const _AnaliseDoDia({required this.ranking, required this.local});
+
+  final List<DashboardProfRanking> ranking;
+  final DashboardLocalSplit local;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      key: const Key('dashboard-analise'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(title: 'Análise de hoje'),
+        const SizedBox(height: ClxSpace.x3),
+        LayoutBuilder(
+          builder: (context, c) {
+            final sideBySide = c.maxWidth >= 720;
+            final quem = _AnaliseCard(
+              title: 'Quem atendeu',
+              child: ranking.isEmpty
+                  ? Text(
+                      'Nenhuma OS atribuída hoje.',
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                    )
+                  : Column(
+                      children: [
+                        for (final p in ranking.take(6))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    p.nome,
+                                    style: tt.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: clx.ink,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  p.osCount == 1 ? '1 OS' : '${p.osCount} OS',
+                                  style: tt.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: clx.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+            );
+            final onde = _AnaliseCard(
+              title: 'Onde foi o atendimento',
+              child: Row(
                 children: [
-                  const _SectionHeader(title: 'Acesso rápido'),
-                  const SizedBox(height: ClxSpace.x3),
-                  Wrap(
-                    spacing: ClxSpace.x3,
-                    runSpacing: ClxSpace.x3,
-                    children: [
-                      ClxButton(
-                        label: 'Nova OS',
-                        icon: Icons.add_rounded,
-                        onPressed: () => _go(context, PainelSection.ordens),
-                      ),
-                      ClxButton(
-                        label: 'Novo Cliente',
-                        icon: Icons.add_rounded,
-                        variant: ClxButtonVariant.ghost,
-                        onPressed: () => _go(context, PainelSection.clientes),
-                      ),
-                      ClxButton(
-                        label: 'Ver Agenda',
-                        variant: ClxButtonVariant.ghost,
-                        onPressed: () => _go(context, PainelSection.agenda),
-                      ),
-                      ClxButton(
-                        label: 'Financeiro',
-                        variant: ClxButtonVariant.ghost,
-                        onPressed: () =>
-                            _go(context, PainelSection.financeiro),
-                      ),
-                    ],
+                  Expanded(
+                    child: _LocalStat(
+                      label: 'Domicílio',
+                      value: local.domicilio,
+                    ),
+                  ),
+                  const SizedBox(width: ClxSpace.x3),
+                  Expanded(
+                    child: _LocalStat(
+                      label: 'Ponto físico',
+                      value: local.pontoFisico,
+                    ),
                   ),
                 ],
               ),
+            );
+            if (sideBySide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: quem),
+                  const SizedBox(width: ClxSpace.x3),
+                  Expanded(child: onde),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                quem,
+                const SizedBox(height: ClxSpace.x3),
+                onde,
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _AnaliseCard extends StatelessWidget {
+  const _AnaliseCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return ClxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: tt.labelLarge?.copyWith(
+              color: clx.ink3,
+              fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: ClxSpace.x3),
+          child,
         ],
       ),
+    );
+  }
+}
+
+class _LocalStat extends StatelessWidget {
+  const _LocalStat({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$value',
+          style: tt.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: clx.ink,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: tt.bodySmall?.copyWith(color: clx.ink2)),
+      ],
     );
   }
 }

@@ -34,12 +34,89 @@ class DashboardKpis {
   final double faturamentoDia;
 }
 
-/// Payload completo do Dashboard: KPIs + próximos atendimentos.
+/// Quem atendeu no dia (OS do profissional principal ou do 2º).
+class DashboardProfRanking {
+  const DashboardProfRanking({
+    required this.id,
+    required this.nome,
+    required this.osCount,
+  });
+
+  final String id;
+  final String nome;
+  final int osCount;
+}
+
+/// Domicílio vs ponto físico no dia (ignora canceladas).
+class DashboardLocalSplit {
+  const DashboardLocalSplit({this.domicilio = 0, this.pontoFisico = 0});
+
+  final int domicilio;
+  final int pontoFisico;
+  int get total => domicilio + pontoFisico;
+}
+
+List<DashboardProfRanking> dashboardRankingProfissionais(
+  List<OrdemServico> ordens,
+) {
+  final counts = <String, ({String nome, int n})>{};
+  void add(String? id, String? nome) {
+    final key = (id ?? '').trim();
+    if (key.isEmpty) return;
+    final label = (nome ?? '').trim();
+    final prev = counts[key];
+    counts[key] = (
+      nome: prev?.nome.isNotEmpty == true
+          ? prev!.nome
+          : (label.isEmpty ? 'Profissional' : label),
+      n: (prev?.n ?? 0) + 1,
+    );
+  }
+
+  for (final o in ordens) {
+    if (o.status == OSStatus.cancelada) continue;
+    add(o.profissional, o.expand?.profissional?.displayName);
+    add(o.profissional2, o.expand?.profissional2?.displayName);
+  }
+
+  final list = [
+    for (final e in counts.entries)
+      DashboardProfRanking(id: e.key, nome: e.value.nome, osCount: e.value.n),
+  ]..sort((a, b) {
+    final byCount = b.osCount.compareTo(a.osCount);
+    if (byCount != 0) return byCount;
+    return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+  });
+  return list;
+}
+
+DashboardLocalSplit dashboardLocalSplit(List<OrdemServico> ordens) {
+  var domicilio = 0;
+  var ponto = 0;
+  for (final o in ordens) {
+    if (o.status == OSStatus.cancelada) continue;
+    if (o.localTipo.trim().toLowerCase() == 'ponto_fisico') {
+      ponto += 1;
+    } else {
+      domicilio += 1;
+    }
+  }
+  return DashboardLocalSplit(domicilio: domicilio, pontoFisico: ponto);
+}
+
+/// Payload completo do Dashboard: KPIs + próximos + análise do dia.
 class DashboardData {
-  const DashboardData({required this.kpis, required this.upcoming});
+  const DashboardData({
+    required this.kpis,
+    required this.upcoming,
+    this.ranking = const [],
+    this.local = const DashboardLocalSplit(),
+  });
 
   final DashboardKpis kpis;
   final List<OrdemServico> upcoming;
+  final List<DashboardProfRanking> ranking;
+  final DashboardLocalSplit local;
 
   bool get isEmpty => upcoming.isEmpty;
 }
@@ -72,6 +149,7 @@ final dashboardDataProvider = FutureProvider.autoDispose<DashboardData>((
     repo.list(
       perPage: 200,
       sort: 'data_hora',
+      expand: 'profissional,profissional2',
       filter: 'data_hora >= $todayStart && data_hora < $tomorrowStart',
     ),
     // Próximos atendimentos: em aberto a partir de hoje, com o profissional.
@@ -102,5 +180,7 @@ final dashboardDataProvider = FutureProvider.autoDispose<DashboardData>((
       faturamentoDia: faturamento,
     ),
     upcoming: upcoming,
+    ranking: dashboardRankingProfissionais(todayOS),
+    local: dashboardLocalSplit(todayOS),
   );
 });

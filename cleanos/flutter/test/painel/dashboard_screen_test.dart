@@ -54,8 +54,54 @@ void main() {
         expect(find.textContaining('Carlos S.'), findsOneWidget);
         // Registro pluralizado.
         expect(find.textContaining('1 registro'), findsOneWidget);
+        expect(find.byKey(const Key('dashboard-acesso-rapido')), findsOneWidget);
+        expect(find.byKey(const Key('dashboard-analise')), findsOneWidget);
+        final acessoY = tester
+            .getTopLeft(find.byKey(const Key('dashboard-acesso-rapido')))
+            .dy;
+        final proxY = tester.getTopLeft(find.text('Próximos atendimentos')).dy;
+        expect(acessoY, lessThan(proxY));
       },
     );
+
+    testWidgets('mostra ranking e ponto físico vs domicílio', (tester) async {
+      User p(String id, String nome) =>
+          User(id: id, name: nome, role: Role.profissional);
+      final repo = FakePainelOrdens(
+        byIndex: (i) => i == 0
+            ? [
+                painelOS(id: 'h1', status: OSStatus.concluida).copyWith(
+                  profissional: 'h',
+                  expand: OSExpand(profissional: p('h', 'Hendrio')),
+                ),
+                painelOS(id: 'h2', status: OSStatus.atribuida).copyWith(
+                  profissional: 'h',
+                  expand: OSExpand(profissional: p('h', 'Hendrio')),
+                ),
+                painelOS(id: 'b1', status: OSStatus.concluida).copyWith(
+                  profissional: 'b',
+                  localTipo: 'ponto_fisico',
+                  expand: OSExpand(profissional: p('b', 'Breno')),
+                ),
+              ]
+            : const [],
+      );
+
+      await pumpPainel(
+        tester,
+        const DashboardScreen(),
+        overrides: painelOverrides(user: painelUser(), repo: repo),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Hendrio'), findsOneWidget);
+      expect(find.text('2 OS'), findsOneWidget);
+      expect(find.text('Breno'), findsOneWidget);
+      expect(find.text('1 OS'), findsOneWidget);
+      expect(find.text('Domicílio'), findsOneWidget);
+      expect(find.text('Ponto físico'), findsOneWidget);
+    });
 
     testWidgets('vazio: mostra estado "Nenhum atendimento pendente"', (
       tester,
