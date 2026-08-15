@@ -49,7 +49,7 @@ class OsFinanceiroResumo extends StatelessWidget {
     final principal = os.valorServico ?? 0;
     final extras = adicionaisCobraveis(os);
     final nomePrincipal = (os.tipoServicoNome ?? '').trim().isEmpty
-        ? 'Serviço principal'
+        ? 'Orçamento inicial'
         : os.tipoServicoNome!.trim();
 
     return ClxCard(
@@ -68,7 +68,7 @@ class OsFinanceiroResumo extends StatelessWidget {
             context,
             nomePrincipal,
             formatCurrency(principal),
-            subtitle: 'Serviço principal',
+            subtitle: 'Orçamento inicial',
           ),
           for (final a in extras)
             _linha(
@@ -103,7 +103,7 @@ class OsFinanceiroResumo extends StatelessWidget {
             const SizedBox(height: ClxSpace.x1),
             _linha(
               context,
-              'Valor pago (movimentação)',
+              'Valor pago',
               formatCurrency(os.valorPago!),
               subtitle: os.formaPagamentoExibicao,
               strong: true,
