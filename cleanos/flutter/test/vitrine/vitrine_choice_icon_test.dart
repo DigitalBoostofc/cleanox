@@ -15,6 +15,11 @@ void main() {
     expect(vitrineLabelGrupo('higienizacao_interna'), 'Higienização interna');
     expect(vitrineLabelGrupo('lavagens_essenciais'), 'Lavagens de carro');
     expect(
+      vitrineLabelGrupoDuasLinhas('Lavagens de carro'),
+      'Lavagens\nde carro',
+    );
+    expect(vitrineLabelGrupoDuasLinhas('Promoções'), 'Promoções');
+    expect(
       ordenarGruposVitrine('veicular', [
         'adicional',
         'avulsos',
