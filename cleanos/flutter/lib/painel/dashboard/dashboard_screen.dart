@@ -13,6 +13,9 @@ import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/ordem_servico.dart';
+import '../financeiro/charts/fin_charts.dart';
+import '../ordens/ordens_controller.dart';
+import '../ordens/ordens_periodo_calendario.dart';
 import '../shell/painel_nav.dart';
 import 'dashboard_controller.dart';
 
@@ -196,12 +199,14 @@ class _EasypayDashboard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hoje na operação',
+                      dashboardTitulo(ref.watch(dashboardPeriodoProvider)),
                       style: tt.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: clx.ink,
                       ),
                     ),
+                    const SizedBox(height: ClxSpace.x2),
+                    const _DashboardPeriodoMenu(compact: true),
                     const SizedBox(height: ClxSpace.x3),
                     Row(
                       children: [
@@ -249,6 +254,9 @@ class _EasypayDashboard extends ConsumerWidget {
                 child: _AnaliseDoDia(
                   ranking: data.ranking,
                   local: data.local,
+                  titulo: dashboardAnaliseTitulo(
+                    ref.watch(dashboardPeriodoProvider),
+                  ),
                 ),
               ),
             ),
@@ -781,6 +789,7 @@ class _DashboardBody extends ConsumerWidget {
     final clx = context.clx;
     final tt = Theme.of(context).textTheme;
     final upcoming = data.upcoming;
+    final periodo = ref.watch(dashboardPeriodoProvider);
 
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(dashboardDataProvider.future),
@@ -800,11 +809,8 @@ class _DashboardBody extends ConsumerWidget {
                 children: [
                   ClxFadeSlide(
                     child: _SectionHeader(
-                      title: 'Hoje',
-                      trailing: Text(
-                        _longDatePtBr(),
-                        style: tt.bodyMedium?.copyWith(color: clx.ink3),
-                      ),
+                      title: dashboardTitulo(periodo),
+                      trailing: const _DashboardPeriodoMenu(),
                     ),
                   ),
                   const SizedBox(height: ClxSpace.x3),
@@ -815,7 +821,10 @@ class _DashboardBody extends ConsumerWidget {
                   const SizedBox(height: ClxSpace.x6),
                   ClxFadeSlide(
                     delay: const Duration(milliseconds: 80),
-                    child: _KpiGrid(kpis: data.kpis),
+                    child: _KpiGrid(
+                      kpis: data.kpis,
+                      faturamentoLabel: dashboardFaturamentoLabel(periodo),
+                    ),
                   ),
                   const SizedBox(height: ClxSpace.x6),
                   ClxFadeSlide(
@@ -823,6 +832,7 @@ class _DashboardBody extends ConsumerWidget {
                     child: _AnaliseDoDia(
                       ranking: data.ranking,
                       local: data.local,
+                      titulo: dashboardAnaliseTitulo(periodo),
                     ),
                   ),
                   const SizedBox(height: ClxSpace.x6),
@@ -894,6 +904,102 @@ class _DashboardBody extends ConsumerWidget {
   }
 }
 
+class _DashboardPeriodoMenu extends ConsumerStatefulWidget {
+  const _DashboardPeriodoMenu({this.compact = false});
+
+  final bool compact;
+
+  @override
+  ConsumerState<_DashboardPeriodoMenu> createState() =>
+      _DashboardPeriodoMenuState();
+}
+
+class _DashboardPeriodoMenuState extends ConsumerState<_DashboardPeriodoMenu> {
+  var _tick = 0;
+
+  Future<void> _escolherPersonalizado(DashboardPeriodo atual) async {
+    final now = DateTime.now();
+    final atualInicio = atual.personalizadoInicio ?? now;
+    final atualFim = atual.personalizadoFim ?? atualInicio;
+    var start = DateTime(atualInicio.year, atualInicio.month, atualInicio.day);
+    var end = DateTime(atualFim.year, atualFim.month, atualFim.day);
+    final first = DateTime(2020);
+    final last = DateTime(now.year + 2);
+    if (start.isBefore(first)) start = first;
+    if (end.isAfter(last)) end = last;
+    if (end.isBefore(start)) end = start;
+    final picked = await showOrdensPeriodoCalendario(
+      context,
+      inicio: start,
+      fim: end,
+    );
+    if (picked == null || !mounted) {
+      setState(() => _tick++);
+      return;
+    }
+    ref.read(dashboardPeriodoProvider.notifier).state = DashboardPeriodo(
+      periodo: OrdensPeriodo.personalizado,
+      personalizadoInicio: picked.start,
+      personalizadoFim: picked.end,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    final atual = ref.watch(dashboardPeriodoProvider);
+    return SizedBox(
+      key: const Key('dashboard-periodo'),
+      width: widget.compact ? 200 : 180,
+      child: DropdownButtonFormField<OrdensPeriodo>(
+        key: ValueKey(
+          'dashboard-periodo-${atual.periodo.name}-$_tick-'
+          '${atual.personalizadoInicio?.millisecondsSinceEpoch ?? 0}',
+        ),
+        initialValue: atual.periodo,
+        isExpanded: true,
+        decoration: InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: clx.bg2,
+          prefixIcon: const Icon(Icons.event_outlined, size: 18),
+          border: const OutlineInputBorder(
+            borderRadius: ClxRadii.rMd,
+            borderSide: BorderSide.none,
+          ),
+        ),
+        items: [
+          for (final p in OrdensPeriodo.values)
+            DropdownMenuItem(
+              value: p,
+              child: Text(p.label, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        selectedItemBuilder: (context) => [
+          for (final p in OrdensPeriodo.values)
+            Text(
+              p == atual.periodo ? dashboardTitulo(atual) : p.label,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+        onChanged: (p) {
+          if (p == null) return;
+          if (p == OrdensPeriodo.personalizado) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _escolherPersonalizado(atual);
+            });
+            return;
+          }
+          ref.read(dashboardPeriodoProvider.notifier).state = DashboardPeriodo(
+            periodo: p,
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _AcessoRapido extends StatelessWidget {
   const _AcessoRapido({required this.onGo});
 
@@ -940,10 +1046,15 @@ class _AcessoRapido extends StatelessWidget {
 }
 
 class _AnaliseDoDia extends StatelessWidget {
-  const _AnaliseDoDia({required this.ranking, required this.local});
+  const _AnaliseDoDia({
+    required this.ranking,
+    required this.local,
+    required this.titulo,
+  });
 
   final List<DashboardProfRanking> ranking;
   final DashboardLocalSplit local;
+  final String titulo;
 
   @override
   Widget build(BuildContext context) {
@@ -953,20 +1064,33 @@ class _AnaliseDoDia extends StatelessWidget {
       key: const Key('dashboard-analise'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'Análise de hoje'),
+        _SectionHeader(title: titulo),
         const SizedBox(height: ClxSpace.x3),
         LayoutBuilder(
           builder: (context, c) {
             final sideBySide = c.maxWidth >= 720;
+            final cores = finSeriesColors(context, ranking.length.clamp(1, 6));
             final quem = _AnaliseCard(
               title: 'Quem atendeu',
               child: ranking.isEmpty
                   ? Text(
-                      'Nenhuma OS atribuída hoje.',
+                      'Nenhuma OS atribuída neste período.',
                       style: tt.bodyMedium?.copyWith(color: clx.ink3),
                     )
                   : Column(
                       children: [
+                        FinBarChart(
+                          slices: [
+                            for (var i = 0; i < ranking.take(6).length; i++)
+                              FinSlice(
+                                label: ranking[i].nome,
+                                value: ranking[i].osCount.toDouble(),
+                                color: cores[i],
+                              ),
+                          ],
+                          height: 180,
+                        ),
+                        const SizedBox(height: ClxSpace.x2),
                         for (final p in ranking.take(6))
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
@@ -996,23 +1120,33 @@ class _AnaliseDoDia extends StatelessWidget {
             );
             final onde = _AnaliseCard(
               title: 'Onde foi o atendimento',
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _LocalStat(
-                      label: 'Domicílio',
-                      value: local.domicilio,
+              child: local.total == 0
+                  ? Text(
+                      'Nenhum atendimento neste período.',
+                      style: tt.bodyMedium?.copyWith(color: clx.ink3),
+                    )
+                  : Column(
+                      children: [
+                        FinDonutChart(
+                          slices: [
+                            if (local.domicilio > 0)
+                              FinSlice(
+                                label: 'Domicílio',
+                                value: local.domicilio.toDouble(),
+                                color: clx.info,
+                              ),
+                            if (local.pontoFisico > 0)
+                              FinSlice(
+                                label: 'Ponto físico',
+                                value: local.pontoFisico.toDouble(),
+                                color: clx.primary,
+                              ),
+                          ],
+                          centerLabel: 'Local',
+                          size: 140,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: ClxSpace.x3),
-                  Expanded(
-                    child: _LocalStat(
-                      label: 'Ponto físico',
-                      value: local.pontoFisico,
-                    ),
-                  ),
-                ],
-              ),
             );
             if (sideBySide) {
               return Row(
@@ -1067,33 +1201,6 @@ class _AnaliseCard extends StatelessWidget {
   }
 }
 
-class _LocalStat extends StatelessWidget {
-  const _LocalStat({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$value',
-          style: tt.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: clx.ink,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: tt.bodySmall?.copyWith(color: clx.ink2)),
-      ],
-    );
-  }
-}
-
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.trailing});
 
@@ -1122,9 +1229,10 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _KpiGrid extends StatelessWidget {
-  const _KpiGrid({required this.kpis});
+  const _KpiGrid({required this.kpis, required this.faturamentoLabel});
 
   final DashboardKpis kpis;
+  final String faturamentoLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1151,7 +1259,7 @@ class _KpiGrid extends StatelessWidget {
         color: clx.success,
       ),
       _KpiCard(
-        label: 'Faturamento hoje',
+        label: faturamentoLabel,
         value: formatCurrency(kpis.faturamentoDia),
         color: clx.primary,
         wide: true,
@@ -1290,35 +1398,6 @@ class _UpcomingCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String _longDatePtBr() {
-  final brt = DateTime.now().toUtc().subtract(kBrtOffset);
-  const semana = [
-    'segunda-feira',
-    'terça-feira',
-    'quarta-feira',
-    'quinta-feira',
-    'sexta-feira',
-    'sábado',
-    'domingo',
-  ];
-  const meses = [
-    'janeiro',
-    'fevereiro',
-    'março',
-    'abril',
-    'maio',
-    'junho',
-    'julho',
-    'agosto',
-    'setembro',
-    'outubro',
-    'novembro',
-    'dezembro',
-  ];
-  final dia = brt.day.toString().padLeft(2, '0');
-  return '${semana[brt.weekday - 1]}, $dia de ${meses[brt.month - 1]}';
 }
 
 

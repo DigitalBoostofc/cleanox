@@ -16,6 +16,67 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../data/painel_filters.dart' show pbStringLiteral;
+import '../ordens/ordens_controller.dart';
+
+/// Período do Dashboard — mesmo contrato da lista de OS.
+class DashboardPeriodo {
+  const DashboardPeriodo({
+    this.periodo = OrdensPeriodo.hoje,
+    this.personalizadoInicio,
+    this.personalizadoFim,
+  });
+
+  final OrdensPeriodo periodo;
+  final DateTime? personalizadoInicio;
+  final DateTime? personalizadoFim;
+
+  OrdensFilter get asFilter => OrdensFilter(
+    periodo: periodo,
+    personalizadoInicio: personalizadoInicio,
+    personalizadoFim: personalizadoFim,
+  );
+
+  DateRange? range({DateTime? now}) => ordensPeriodoRange(
+    periodo,
+    now: now,
+    personalizadoInicio: personalizadoInicio,
+    personalizadoFim: personalizadoFim,
+  );
+
+  DashboardPeriodo copyWith({
+    OrdensPeriodo? periodo,
+    DateTime? personalizadoInicio,
+    DateTime? personalizadoFim,
+    bool limparPersonalizado = false,
+  }) => DashboardPeriodo(
+    periodo: periodo ?? this.periodo,
+    personalizadoInicio: limparPersonalizado
+        ? null
+        : (personalizadoInicio ?? this.personalizadoInicio),
+    personalizadoFim: limparPersonalizado
+        ? null
+        : (personalizadoFim ?? this.personalizadoFim),
+  );
+}
+
+String dashboardTitulo(DashboardPeriodo p) => ordensPeriodoRotulo(p.asFilter);
+
+String dashboardFaturamentoLabel(DashboardPeriodo p) =>
+    p.periodo == OrdensPeriodo.hoje ? 'Faturamento hoje' : 'Faturamento';
+
+String dashboardAnaliseTitulo(DashboardPeriodo p) =>
+    p.periodo == OrdensPeriodo.hoje ? 'Análise de hoje' : 'Análise';
+
+String? dashboardPeriodoFilter(DashboardPeriodo p, {DateTime? now}) {
+  final range = p.range(now: now);
+  if (range == null) return null;
+  return 'data_hora >= ${pbStringLiteral(range.start)} '
+      '&& data_hora < ${pbStringLiteral(range.end)}';
+}
+
+final dashboardPeriodoProvider = StateProvider.autoDispose<DashboardPeriodo>(
+  (ref) => const DashboardPeriodo(),
+);
 
 /// KPIs do dia (espelha a interface `KPIs` do React).
 class DashboardKpis {
@@ -130,44 +191,50 @@ final dashboardDataProvider = FutureProvider.autoDispose<DashboardData>((
   ref,
 ) async {
   final repo = ref.watch(ordensRepositoryProvider);
-  final bounds = getBrtDayBounds();
-
-  // B1: filtros montados com `pbStringLiteral` (mesmo escaping do `pb.filter`),
-  // por consistência com o resto do Painel. Os valores são bounds BRT/enums
-  // internos (sem entrada do usuário), mas seguimos a convenção anti-injeção.
-  final todayStart = pbStringLiteral(bounds.todayStart);
-  final tomorrowStart = pbStringLiteral(bounds.tomorrowStart);
+  final periodo = ref.watch(dashboardPeriodoProvider);
+  final dateFilter = dashboardPeriodoFilter(periodo);
   final concluida = pbStringLiteral(OSStatus.concluida.wire);
   final cancelada = pbStringLiteral(OSStatus.cancelada.wire);
 
-  // Duas queries em paralelo (espelha o Promise.all do React).
-  // ⚠️ `perPage: 200` é o teto dos KPIs do dia: se algum dia houver > 200 OS num
-  // único dia BRT, a contagem subcontaria (a página 2 não é lida). O volume real
-  // documentado (< ~50 OS/dia) cobre folgadamente; se estourar, paginar aqui.
+  final kpisFilter = dateFilter;
+  final upcomingFilter = [
+    'status != $concluida',
+    'status != $cancelada',
+    if (dateFilter != null) dateFilter,
+  ].join(' && ');
+
   final results = await Future.wait([
-    // OS de HOJE (qualquer status) — base dos KPIs.
     repo.list(
       perPage: 200,
       sort: 'data_hora',
       expand: 'profissional,profissional2',
-      filter: 'data_hora >= $todayStart && data_hora < $tomorrowStart',
+      filter: kpisFilter,
     ),
-    // Próximos atendimentos: em aberto a partir de hoje, com o profissional.
     repo.list(
       perPage: 20,
       sort: 'data_hora',
       expand: 'profissional,cliente',
-      filter:
-          'status != $concluida && status != $cancelada '
-          '&& data_hora >= $todayStart',
+      filter: upcomingFilter,
     ),
   ]);
 
-  final todayOS = results[0].items;
+  var periodOS = results[0].items;
+  if (results[0].totalPages > 1) {
+    for (var page = 2; page <= results[0].totalPages && page <= 5; page++) {
+      final extra = await repo.list(
+        page: page,
+        perPage: 200,
+        sort: 'data_hora',
+        expand: 'profissional,profissional2',
+        filter: kpisFilter,
+      );
+      periodOS = [...periodOS, ...extra.items];
+    }
+  }
   final upcoming = results[1].items;
 
-  int countBy(OSStatus s) => todayOS.where((o) => o.status == s).length;
-  final faturamento = todayOS
+  int countBy(OSStatus s) => periodOS.where((o) => o.status == s).length;
+  final faturamento = periodOS
       .where((o) => o.status == OSStatus.concluida)
       .fold<double>(0, (sum, o) => sum + (o.valorPago ?? 0));
 
@@ -180,7 +247,7 @@ final dashboardDataProvider = FutureProvider.autoDispose<DashboardData>((
       faturamentoDia: faturamento,
     ),
     upcoming: upcoming,
-    ranking: dashboardRankingProfissionais(todayOS),
-    local: dashboardLocalSplit(todayOS),
+    ranking: dashboardRankingProfissionais(periodOS),
+    local: dashboardLocalSplit(periodOS),
   );
 });

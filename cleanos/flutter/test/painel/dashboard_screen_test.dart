@@ -7,7 +7,10 @@ import 'package:cleanos/core/design/design.dart';
 import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/user.dart';
+import 'package:cleanos/painel/dashboard/dashboard_controller.dart';
 import 'package:cleanos/painel/dashboard/dashboard_screen.dart';
+import 'package:cleanos/painel/financeiro/charts/fin_charts.dart';
+import 'package:cleanos/painel/ordens/ordens_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -95,12 +98,36 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Hendrio'), findsOneWidget);
+      expect(find.text('Hendrio'), findsWidgets);
       expect(find.text('2 OS'), findsOneWidget);
-      expect(find.text('Breno'), findsOneWidget);
+      expect(find.text('Breno'), findsWidgets);
       expect(find.text('1 OS'), findsOneWidget);
       expect(find.text('Domicílio'), findsOneWidget);
       expect(find.text('Ponto físico'), findsOneWidget);
+      expect(find.byType(FinBarChart), findsOneWidget);
+      expect(find.byType(FinDonutChart), findsOneWidget);
+    });
+
+    testWidgets('Esta semana troca título e filtro da query', (tester) async {
+      final repo = FakePainelOrdens.empty();
+      await pumpPainel(
+        tester,
+        const DashboardScreen(),
+        overrides: [
+          ...painelOverrides(user: painelUser(), repo: repo),
+          dashboardPeriodoProvider.overrideWith(
+            (ref) => const DashboardPeriodo(periodo: OrdensPeriodo.semana),
+          ),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Esta semana'), findsWidgets);
+      expect(find.text('Análise'), findsOneWidget);
+      expect(find.text('Faturamento'), findsOneWidget);
+      expect(repo.lastFilters, isNotEmpty);
+      expect(repo.lastFilters.first, contains('data_hora >='));
     });
 
     testWidgets('vazio: mostra estado "Nenhum atendimento pendente"', (

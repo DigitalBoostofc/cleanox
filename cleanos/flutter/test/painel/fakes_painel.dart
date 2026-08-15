@@ -41,6 +41,7 @@ class FakePainelOrdens implements OrdensRepository {
   final Object? error;
 
   int _calls = 0;
+  final lastFilters = <String?>[];
 
   factory FakePainelOrdens.empty() =>
       FakePainelOrdens(byIndex: (_) => const []);
@@ -57,6 +58,7 @@ class FakePainelOrdens implements OrdensRepository {
     String? expand,
   }) async {
     final idx = _calls++;
+    lastFilters.add(filter);
     if (error != null) throw error!;
     final items = byIndex?.call(idx) ?? const <OrdemServico>[];
     return PageResult<OrdemServico>(
