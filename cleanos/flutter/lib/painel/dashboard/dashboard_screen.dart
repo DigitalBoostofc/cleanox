@@ -1141,13 +1141,13 @@ class _AnaliseDoDia extends StatelessWidget {
                               FinSlice(
                                 label: 'Domicílio',
                                 value: local.domicilio.toDouble(),
-                                color: clx.info,
+                                color: kDashboardCorDomicilio,
                               ),
                             if (local.pontoFisico > 0)
                               FinSlice(
                                 label: 'Ponto físico',
                                 value: local.pontoFisico.toDouble(),
-                                color: clx.primary,
+                                color: kDashboardCorPontoFisico,
                               ),
                           ],
                           centerLabel: 'Local',
