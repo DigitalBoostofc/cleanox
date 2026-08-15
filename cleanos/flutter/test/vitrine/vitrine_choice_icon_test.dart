@@ -10,7 +10,7 @@ void main() {
     expect(vitrineGrupoGlyph('colchao'), VitrineChoiceGlyph.bed);
     expect(vitrineGrupoGlyph('lavagens_essenciais'), VitrineChoiceGlyph.car);
     expect(vitrineGrupoGlyph('lavagens_moto'), VitrineChoiceGlyph.moto);
-    expect(vitrineGrupoGlyph('higienizacao_interna'), VitrineChoiceGlyph.clean);
+    expect(vitrineGrupoGlyph('higienizacao_interna'), VitrineChoiceGlyph.duster);
     expect(vitrineLabelGrupo('higienizacao_interna'), 'Higienização interna');
     expect(vitrineLabelGrupo('lavagens_essenciais'), 'Lavagens de carro');
     expect(

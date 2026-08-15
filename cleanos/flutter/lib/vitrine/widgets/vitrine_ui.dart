@@ -1050,6 +1050,7 @@ enum VitrineChoiceGlyph {
   brush,
   garage,
   moto,
+  duster,
 }
 
 /// Mapa CMS de macros → glifo.
@@ -1106,7 +1107,7 @@ VitrineChoiceGlyph vitrineGrupoGlyph(String slug) {
       return VitrineChoiceGlyph.sparkle;
     case 'higienizacao_interna':
     case 'higienizacao':
-      return VitrineChoiceGlyph.clean;
+      return VitrineChoiceGlyph.duster;
     case 'lavagens_essenciais':
     case 'lavagem':
     case 'lavagens':
@@ -1324,6 +1325,8 @@ class _VitrineChoiceGlyphPainter extends CustomPainter {
         _garage(canvas, o, s, p);
       case VitrineChoiceGlyph.moto:
         _moto(canvas, o, s, p, fill);
+      case VitrineChoiceGlyph.duster:
+        _duster(canvas, o, s, p, fill);
     }
   }
 
@@ -1591,6 +1594,24 @@ class _VitrineChoiceGlyphPainter extends CustomPainter {
       p,
     );
     c.drawCircle(o.translate(-s * 0.04, -s * 0.02), s * 0.05, fill);
+  }
+
+  void _duster(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    c.drawLine(
+      Offset(o.dx - s * 0.22, o.dy + s * 0.28),
+      Offset(o.dx + s * 0.04, o.dy - s * 0.04),
+      p,
+    );
+    final head = Offset(o.dx + s * 0.14, o.dy - s * 0.16);
+    c.drawOval(
+      Rect.fromCenter(center: head, width: s * 0.36, height: s * 0.28),
+      fill,
+    );
+    for (final a in [-0.9, -0.45, 0.0, 0.45, 0.9]) {
+      final dx = 0.22 * s * (a * 0.7 + 0.55);
+      final dy = -0.22 * s * (1 - a.abs() * 0.25);
+      c.drawLine(head, head + Offset(dx, dy), p);
+    }
   }
 
   @override
