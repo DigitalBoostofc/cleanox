@@ -18,6 +18,7 @@ import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../shared_widgets_os/cancelar_os_dialog.dart';
+import 'ordens_periodo_calendario.dart';
 import 'ordens_controller.dart';
 import 'os_detail.dart';
 import 'os_form.dart';
@@ -346,14 +347,10 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
     if (start.isBefore(first)) start = first;
     if (end.isAfter(last)) end = last;
     if (end.isBefore(start)) end = start;
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: first,
-      lastDate: last,
-      initialDateRange: DateTimeRange(start: start, end: end),
-      helpText: 'Toque um dia ou arraste um período',
-      saveText: 'Filtrar',
-      cancelText: 'Cancelar',
+    final picked = await showOrdensPeriodoCalendario(
+      context,
+      inicio: start,
+      fim: end,
     );
     if (picked == null || !context.mounted) {
       if (mounted) setState(() => _periodoMenuTick++);

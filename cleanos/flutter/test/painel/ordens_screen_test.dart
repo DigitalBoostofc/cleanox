@@ -181,11 +181,11 @@ void main() {
         await tester.tap(find.text('Personalizado').last);
         await tester.pumpAndSettle();
 
-        expect(find.byType(DateRangePickerDialog), findsOneWidget);
-        await tester.tap(find.text('Filtrar'));
+        expect(find.text('Data selecionada'), findsOneWidget);
+        await tester.tap(find.text('Pronto'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(DateRangePickerDialog), findsNothing);
+        expect(find.byType(Dialog), findsNothing);
         expect(find.text('Esta semana'), findsNothing);
 
         final hoje = DateTime.now();
@@ -214,8 +214,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Personalizado').last);
       await tester.pumpAndSettle();
-      expect(find.byType(DateRangePickerDialog), findsOneWidget);
-      Navigator.of(tester.element(find.byType(DateRangePickerDialog))).pop();
+      expect(find.text('Data selecionada'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('ordens-cal-cancelar')));
       await tester.pumpAndSettle();
 
       expect(find.text('Esta semana'), findsOneWidget);
