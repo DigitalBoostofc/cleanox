@@ -394,8 +394,7 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
                 for (final g in grupos)
                   DropdownMenuItem(
                     value: g,
-                    child: Text(arvore?.labelGrupo(state.categoria ?? '', g) ??
-                        grupoLabelSlug(g)),
+                    child: Text(grupoLabelSlug(g)),
                   ),
               ],
               onChanged: notifier.setGrupo,

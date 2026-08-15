@@ -5,6 +5,7 @@
 /// `core/models/servico.dart`. Reaproveita `formatCurrency` do core (BRT/moeda).
 library;
 
+import '../../vitrine/widgets/vitrine_ui.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/servico.dart';
 import '../../core/models/servico_taxonomia.dart';
@@ -14,15 +15,7 @@ String categoriaLabel(Categoria c) => switch (c) {
   Categoria.residencial => 'Residencial',
 };
 
-String grupoLabel(Grupo g) => switch (g) {
-  Grupo.plano => 'Plano',
-  Grupo.promocao => 'Promoção',
-  Grupo.adicional => 'Adicional',
-  Grupo.avulsos => 'Avulsos',
-  Grupo.sofa => 'Sofá',
-  Grupo.colchao => 'Colchão',
-  Grupo.outros => 'Outros',
-};
+String grupoLabel(Grupo g) => vitrineLabelGrupo(g.wire);
 
 /// Labels por slug (taxonomia dinâmica / valores livres).
 String categoriaLabelSlug(String slug) {
@@ -34,14 +27,7 @@ String categoriaLabelSlug(String slug) {
   return w[0].toUpperCase() + w.substring(1);
 }
 
-String grupoLabelSlug(String slug) {
-  final w = slug.trim();
-  for (final g in Grupo.values) {
-    if (g.wire == w) return grupoLabel(g);
-  }
-  if (w.isEmpty) return '—';
-  return w[0].toUpperCase() + w.substring(1);
-}
+String grupoLabelSlug(String slug) => vitrineLabelGrupo(slug);
 
 
 /// Rótulo legado do subgrupo (fallback = wire). Sem uso no fluxo atual.

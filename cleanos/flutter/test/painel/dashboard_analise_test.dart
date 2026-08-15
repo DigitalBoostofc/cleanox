@@ -5,12 +5,13 @@ import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/dashboard/dashboard_controller.dart';
 import 'package:cleanos/painel/ordens/ordens_controller.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes_painel.dart';
 
-User _prof(String id, String nome) =>
-    User(id: id, name: nome, role: Role.profissional);
+User _prof(String id, String nome, {String corAgenda = ''}) =>
+    User(id: id, name: nome, role: Role.profissional, corAgenda: corAgenda);
 
 OrdemServico _os({
   required String id,
@@ -20,15 +21,20 @@ OrdemServico _os({
   String? prof2Id,
   String? prof2Nome,
   String localTipo = 'cliente',
+  String corAgenda = '',
+  String corAgenda2 = '',
 }) {
   return painelOS(id: id, status: status).copyWith(
     profissional: profId,
     profissional2: prof2Id,
     localTipo: localTipo,
     expand: OSExpand(
-      profissional: profId == null ? null : _prof(profId, profNome ?? profId),
-      profissional2:
-          prof2Id == null ? null : _prof(prof2Id, prof2Nome ?? prof2Id),
+      profissional: profId == null
+          ? null
+          : _prof(profId, profNome ?? profId, corAgenda: corAgenda),
+      profissional2: prof2Id == null
+          ? null
+          : _prof(prof2Id, prof2Nome ?? prof2Id, corAgenda: corAgenda2),
     ),
   );
 }
@@ -63,6 +69,38 @@ void main() {
     expect(ranking.map((e) => e.nome).toList(), ['Hendrio', 'Breno']);
     expect(ranking.first.osCount, 3);
     expect(ranking.last.osCount, 2);
+  });
+
+  test('ranking guarda a cor cadastrada do usuário', () {
+    final ranking = dashboardRankingProfissionais([
+      _os(
+        id: '1',
+        status: OSStatus.concluida,
+        profId: 'h',
+        profNome: 'Hendrio',
+        corAgenda: '#16A34A',
+      ),
+      _os(
+        id: '2',
+        status: OSStatus.atribuida,
+        profId: 'b',
+        profNome: 'Breno',
+        corAgenda: '#0F172A',
+      ),
+    ]);
+    expect(
+      ranking.firstWhere((e) => e.nome == 'Hendrio').corAgenda,
+      '#16A34A',
+    );
+    expect(ranking.firstWhere((e) => e.nome == 'Breno').corAgenda, '#0F172A');
+    expect(
+      dashboardCorProfissional(ranking.firstWhere((e) => e.nome == 'Hendrio')),
+      const Color(0xFF16A34A),
+    );
+    expect(
+      dashboardCorProfissional(ranking.firstWhere((e) => e.nome == 'Breno')),
+      const Color(0xFF0F172A),
+    );
   });
 
   test('local split: ponto físico vs domicílio, ignora cancelada', () {
