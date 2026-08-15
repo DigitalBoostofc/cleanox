@@ -9,12 +9,15 @@
 /// de fuso aqui.
 library;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_prof_cor.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/collections.dart';
 import '../../core/models/ordem_servico.dart';
+import '../../core/models/user.dart';
 import '../data/painel_filters.dart' show pbStringLiteral;
 import '../ordens/ordens_controller.dart';
 
@@ -101,12 +104,18 @@ class DashboardProfRanking {
     required this.id,
     required this.nome,
     required this.osCount,
+    this.corAgenda = '',
   });
 
   final String id;
   final String nome;
   final int osCount;
+  final String corAgenda;
 }
+
+Color dashboardCorProfissional(DashboardProfRanking p) => corAgendaProfissional(
+  User(id: p.id, name: p.nome, role: Role.profissional, corAgenda: p.corAgenda),
+);
 
 /// Domicílio vs ponto físico no dia (ignora canceladas).
 class DashboardLocalSplit {
@@ -120,29 +129,36 @@ class DashboardLocalSplit {
 List<DashboardProfRanking> dashboardRankingProfissionais(
   List<OrdemServico> ordens,
 ) {
-  final counts = <String, ({String nome, int n})>{};
-  void add(String? id, String? nome) {
+  final counts = <String, ({String nome, String cor, int n})>{};
+  void add(String? id, User? user) {
     final key = (id ?? '').trim();
     if (key.isEmpty) return;
-    final label = (nome ?? '').trim();
+    final label = (user?.displayName ?? '').trim();
+    final cor = (user?.corAgenda ?? '').trim();
     final prev = counts[key];
     counts[key] = (
       nome: prev?.nome.isNotEmpty == true
           ? prev!.nome
           : (label.isEmpty ? 'Profissional' : label),
+      cor: prev?.cor.isNotEmpty == true ? prev!.cor : cor,
       n: (prev?.n ?? 0) + 1,
     );
   }
 
   for (final o in ordens) {
     if (o.status == OSStatus.cancelada) continue;
-    add(o.profissional, o.expand?.profissional?.displayName);
-    add(o.profissional2, o.expand?.profissional2?.displayName);
+    add(o.profissional, o.expand?.profissional);
+    add(o.profissional2, o.expand?.profissional2);
   }
 
   final list = [
     for (final e in counts.entries)
-      DashboardProfRanking(id: e.key, nome: e.value.nome, osCount: e.value.n),
+      DashboardProfRanking(
+        id: e.key,
+        nome: e.value.nome,
+        osCount: e.value.n,
+        corAgenda: e.value.cor,
+      ),
   ]..sort((a, b) {
     final byCount = b.osCount.compareTo(a.osCount);
     if (byCount != 0) return byCount;

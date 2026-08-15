@@ -1069,7 +1069,6 @@ class _AnaliseDoDia extends StatelessWidget {
         LayoutBuilder(
           builder: (context, c) {
             final sideBySide = c.maxWidth >= 720;
-            final cores = finSeriesColors(context, ranking.length.clamp(1, 6));
             final quem = _AnaliseCard(
               title: 'Quem atendeu',
               child: ranking.isEmpty
@@ -1081,11 +1080,11 @@ class _AnaliseDoDia extends StatelessWidget {
                       children: [
                         FinBarChart(
                           slices: [
-                            for (var i = 0; i < ranking.take(6).length; i++)
+                            for (final p in ranking.take(6))
                               FinSlice(
-                                label: ranking[i].nome,
-                                value: ranking[i].osCount.toDouble(),
-                                color: cores[i],
+                                label: p.nome,
+                                value: p.osCount.toDouble(),
+                                color: dashboardCorProfissional(p),
                               ),
                           ],
                           height: 180,
@@ -1096,6 +1095,15 @@ class _AnaliseDoDia extends StatelessWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
                               children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: dashboardCorProfissional(p),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
                                 Expanded(
                                   child: Text(
                                     p.nome,

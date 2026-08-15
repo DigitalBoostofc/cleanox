@@ -68,23 +68,33 @@ void main() {
     );
 
     testWidgets('mostra ranking e ponto físico vs domicílio', (tester) async {
-      User p(String id, String nome) =>
-          User(id: id, name: nome, role: Role.profissional);
+      User p(String id, String nome, {String cor = ''}) => User(
+        id: id,
+        name: nome,
+        role: Role.profissional,
+        corAgenda: cor,
+      );
       final repo = FakePainelOrdens(
         byIndex: (i) => i == 0
             ? [
                 painelOS(id: 'h1', status: OSStatus.concluida).copyWith(
                   profissional: 'h',
-                  expand: OSExpand(profissional: p('h', 'Hendrio')),
+                  expand: OSExpand(
+                    profissional: p('h', 'Hendrio', cor: '#16A34A'),
+                  ),
                 ),
                 painelOS(id: 'h2', status: OSStatus.atribuida).copyWith(
                   profissional: 'h',
-                  expand: OSExpand(profissional: p('h', 'Hendrio')),
+                  expand: OSExpand(
+                    profissional: p('h', 'Hendrio', cor: '#16A34A'),
+                  ),
                 ),
                 painelOS(id: 'b1', status: OSStatus.concluida).copyWith(
                   profissional: 'b',
                   localTipo: 'ponto_fisico',
-                  expand: OSExpand(profissional: p('b', 'Breno')),
+                  expand: OSExpand(
+                    profissional: p('b', 'Breno', cor: '#0F172A'),
+                  ),
                 ),
               ]
             : const [],
@@ -106,6 +116,11 @@ void main() {
       expect(find.text('Ponto físico'), findsOneWidget);
       expect(find.byType(FinBarChart), findsOneWidget);
       expect(find.byType(FinDonutChart), findsOneWidget);
+      final bars = tester.widget<FinBarChart>(find.byType(FinBarChart));
+      expect(bars.slices.map((s) => s.color).toList(), [
+        const Color(0xFF16A34A),
+        const Color(0xFF0F172A),
+      ]);
     });
 
     testWidgets('Esta semana troca título e filtro da query', (tester) async {
