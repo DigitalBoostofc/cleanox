@@ -23,6 +23,10 @@ List<ServicoAdicionalOS> adicionaisCobraveis(OrdemServico os) => os.adicionais
     )
     .toList();
 
+/// "Valor total da OS" só vale se for diferente do principal (extras ou desconto).
+bool osMostraValorTotal(OrdemServico os) =>
+    adicionaisCobraveis(os).isNotEmpty || os.descontos > 0;
+
 /// Card/bloco com breakdown de valores da OS.
 class OsFinanceiroResumo extends StatelessWidget {
   const OsFinanceiroResumo({
@@ -83,16 +87,18 @@ class OsFinanceiroResumo extends StatelessWidget {
               '− ${formatCurrency(os.descontos)}',
               inkMuted: true,
             ),
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: dense ? 4 : 6),
-            child: Divider(height: 1, color: clx.line),
-          ),
-          _linha(
-            context,
-            'Valor total da OS',
-            formatCurrency(os.valorTotal),
-            strong: true,
-          ),
+          if (osMostraValorTotal(os)) ...[
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: dense ? 4 : 6),
+              child: Divider(height: 1, color: clx.line),
+            ),
+            _linha(
+              context,
+              'Valor total da OS',
+              formatCurrency(os.valorTotal),
+              strong: true,
+            ),
+          ],
           if (showPago && (os.valorPago ?? 0) > 0) ...[
             const SizedBox(height: ClxSpace.x1),
             _linha(
