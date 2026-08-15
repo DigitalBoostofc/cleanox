@@ -57,4 +57,10 @@ void main() {
     expect(vitrineFoldBusca('Sofá'), 'sofa');
     expect(vitrineFoldBusca('Colchão'), 'colchao');
   });
+
+  test('com texto a busca cruza o grupo selecionado', () {
+    expect(vitrineBuscaCruzaGrupo(''), isFalse);
+    expect(vitrineBuscaCruzaGrupo('  '), isFalse);
+    expect(vitrineBuscaCruzaGrupo('prime'), isTrue);
+  });
 }

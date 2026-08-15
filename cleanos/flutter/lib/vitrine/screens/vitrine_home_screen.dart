@@ -763,7 +763,8 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         _catalog.where((s) {
           if (!_matchBusca(s)) return false;
           if (cat.isNotEmpty && _macroOf(s) != cat) return false;
-          if (grupo.isNotEmpty) {
+          if (grupo.isNotEmpty &&
+              !vitrineBuscaCruzaGrupo(_buscaFilter ?? '')) {
             final g = s.grupo.trim().toLowerCase();
             final key = g.isEmpty ? 'outros' : g;
             if (key != grupo) return false;
