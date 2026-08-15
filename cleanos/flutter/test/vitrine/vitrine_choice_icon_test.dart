@@ -11,6 +11,7 @@ void main() {
     expect(vitrineGrupoGlyph('lavagens_essenciais'), VitrineChoiceGlyph.car);
     expect(vitrineGrupoGlyph('lavagens_moto'), VitrineChoiceGlyph.moto);
     expect(vitrineGrupoGlyph('higienizacao_interna'), VitrineChoiceGlyph.duster);
+    expect(vitrineGrupoGlyph('promocao'), VitrineChoiceGlyph.dollar);
     expect(vitrineLabelGrupo('higienizacao_interna'), 'Higienização interna');
     expect(vitrineLabelGrupo('lavagens_essenciais'), 'Lavagens de carro');
     expect(
