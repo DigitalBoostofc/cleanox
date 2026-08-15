@@ -37,6 +37,7 @@ import '../../core/models/disponibilidade.dart';
 import '../../core/models/agenda_compromisso.dart';
 import '../../core/models/ordem_servico.dart';
 import '../../core/models/user.dart';
+import 'agenda_pf_tag.dart';
 
 /// Altura de UMA hora na grade. Token ÚNICO de escala (px/min = /60).
 const double kAgendaAlturaHoraPx = 56;
@@ -723,6 +724,7 @@ class _BlocoOSState extends State<_BlocoOS> {
         agendaMostraAvatar(os) && prof2 != null && prof2.displayName != '—';
     final concluida = agendaMostraCheckConcluida(os);
     final reservaCanto = mostraAvatar || mostraAvatar2 || concluida;
+    final mostraPf = os.isLocalPontoFisico;
     final detalhes = _detalhesAgendaOs(os);
     final cliente =
         os.clienteNomeExibicao.isEmpty ? '—' : os.clienteNomeExibicao;
@@ -759,7 +761,10 @@ class _BlocoOSState extends State<_BlocoOS> {
           Positioned.fill(
             child: Padding(
               // reserva o canto do avatar/check para o texto não passar por baixo
-              padding: EdgeInsets.only(right: reservaCanto ? 24 : 0),
+              padding: EdgeInsets.only(
+                right: (reservaCanto || mostraPf) ? 24 : 0,
+                top: mostraPf ? 2 : 0,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // ~11px por linha de labelSmall (compacto); piso 1 (só faixa).
@@ -800,6 +805,12 @@ class _BlocoOSState extends State<_BlocoOS> {
               ),
             ),
           ),
+          if (mostraPf)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: AgendaPfTag(os: os, size: 16),
+            ),
           if (mostraAvatar || mostraAvatar2)
             // Canto INFERIOR direito (pedido do dono, 16/07).
             Positioned(

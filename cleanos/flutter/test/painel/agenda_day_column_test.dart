@@ -27,6 +27,8 @@ OrdemServico _os({
   String? tipoServicoNome,
   double? valorServico,
   String bairro = '',
+  String localTipo = 'cliente',
+  String pontoFisico = '',
 }) => OrdemServico(
   id: id,
   nomeCurto: nomeCurto,
@@ -35,6 +37,8 @@ OrdemServico _os({
   tipoServicoNome: tipoServicoNome,
   valorServico: valorServico,
   bairro: bairro,
+  localTipo: localTipo,
+  pontoFisico: pontoFisico,
   dataHora: localInputToPBDate(
     '${_dia.year.toString().padLeft(4, '0')}-'
     '${_dia.month.toString().padLeft(2, '0')}-'
@@ -210,6 +214,25 @@ void main() {
     expect(find.text('08:00–08:15 Ana'), findsOneWidget);
     expect(find.text('Higienização de sofá'), findsNothing);
     expect(find.textContaining('Centro'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('OS em ponto físico mostra tag PF no canto', (tester) async {
+    await _pump(tester, [
+      _os(
+        id: 'loja',
+        hhmm: '08:00',
+        duracaoMin: 60,
+        nomeCurto: 'Ana',
+        localTipo: 'ponto_fisico',
+        pontoFisico: 'ptofisico00001',
+      ),
+      _os(id: 'casa', hhmm: '10:00', duracaoMin: 60, nomeCurto: 'Bia'),
+    ]);
+
+    expect(find.byKey(const ValueKey('agenda-pf-loja')), findsOneWidget);
+    expect(find.byKey(const ValueKey('agenda-pf-casa')), findsNothing);
+    expect(find.text('PF'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
