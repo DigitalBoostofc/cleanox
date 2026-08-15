@@ -42,11 +42,14 @@ void main() {
     await tester.tap(find.text('abrir'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Orçamento total'), findsOneWidget);
-    expect(find.text(formatCurrency(150)), findsOneWidget);
+    expect(find.text('Orçamento total = ${formatCurrency(150)}'), findsOneWidget);
+    expect(
+      find.text('Soma total dos serviços adicionados nessa OS.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('comissão usa o valor pago'), findsNothing);
     expect(find.text('Valor pago'), findsOneWidget);
     expect(find.text('Usar preços de tabela'), findsNothing);
-    expect(find.textContaining('Tabela:'), findsNothing);
     expect(find.byKey(const ValueKey('pag-valor-pago')), findsOneWidget);
     expect(find.textContaining('Higienização de bancos'), findsNothing);
   });
