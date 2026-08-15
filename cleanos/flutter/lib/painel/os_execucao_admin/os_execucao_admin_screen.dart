@@ -642,7 +642,7 @@ class _BodyState extends ConsumerState<_Body> {
           _linha(
             clx,
             (os.tipoServicoNome ?? '').trim().isEmpty
-                ? 'Serviço principal'
+                ? 'Orçamento inicial'
                 : os.tipoServicoNome!,
             formatCurrency(os.valorServico ?? 0),
           ),
@@ -684,7 +684,7 @@ class _BodyState extends ConsumerState<_Body> {
           if (os.valorPago != null)
             _linha(
               clx,
-              'Valor pago (movimentação)',
+              'Valor pago',
               formatCurrency(os.valorPago!),
               strong: true,
             ),

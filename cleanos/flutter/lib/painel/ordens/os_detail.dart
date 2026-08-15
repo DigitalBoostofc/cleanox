@@ -663,7 +663,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         _section(clx, 'Financeiro', [
           _row(
             clx,
-            'Serviço principal',
+            'Orçamento inicial',
             _os.valorServico == null
                 ? '—'
                 : formatCurrency(_os.valorServico!),
@@ -686,7 +686,7 @@ class _OSDetailState extends ConsumerState<OSDetail> {
             ),
           _row(
             clx,
-            'Valor pago (movimentação)',
+            'Valor pago',
             _os.valorPago == null ? '—' : formatCurrency(_os.valorPago!),
           ),
           _row(
