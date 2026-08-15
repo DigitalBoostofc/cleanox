@@ -686,28 +686,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
 
   // ─── Home (fluxo guiado) ─────────────────────────────────────────────────
 
-  String _labelGrupo(String slug) {
-    switch (slug.trim().toLowerCase()) {
-      case 'plano':
-        return 'Planos';
-      case 'promocao':
-        return 'Promoções';
-      case 'adicional':
-        return 'Adicionais';
-      case 'avulsos':
-        return 'Avulsos';
-      case 'sofa':
-        return 'Sofá';
-      case 'colchao':
-        return 'Colchão';
-      case 'outros':
-        return 'Outros';
-      default:
-        final s = slug.trim();
-        if (s.isEmpty) return 'Outros';
-        return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
-    }
-  }
+  String _labelGrupo(String slug) => vitrineLabelGrupo(slug);
 
   String _macroTitle(String macro) {
     if (macro == 'veicular') {
@@ -760,7 +739,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       if (seen.add(key)) out.add(key);
     }
     out.sort();
-    return out;
+    return ordenarGruposVitrine(macro, out);
   }
 
   List<VitrineServico> _servicosNoGrupo(String macro, String grupo) {

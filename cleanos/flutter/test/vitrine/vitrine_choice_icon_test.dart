@@ -8,7 +8,29 @@ void main() {
     expect(vitrineMacroGlyph('cleaning'), VitrineChoiceGlyph.clean);
     expect(vitrineGrupoGlyph('sofa'), VitrineChoiceGlyph.sofa);
     expect(vitrineGrupoGlyph('colchao'), VitrineChoiceGlyph.bed);
-    expect(vitrineGrupoGlyph('outros'), VitrineChoiceGlyph.more);
+    expect(vitrineGrupoGlyph('lavagens_essenciais'), VitrineChoiceGlyph.car);
+    expect(vitrineGrupoGlyph('lavagens_moto'), VitrineChoiceGlyph.moto);
+    expect(vitrineGrupoGlyph('higienizacao_interna'), VitrineChoiceGlyph.clean);
+    expect(vitrineLabelGrupo('higienizacao_interna'), 'Higienização interna');
+    expect(vitrineLabelGrupo('lavagens_essenciais'), 'Lavagens de carro');
+    expect(
+      ordenarGruposVitrine('veicular', [
+        'adicional',
+        'avulsos',
+        'higienizacao_interna',
+        'lavagens_moto',
+        'promocao',
+        'lavagens_essenciais',
+      ]),
+      [
+        'lavagens_essenciais',
+        'lavagens_moto',
+        'higienizacao_interna',
+        'promocao',
+        'avulsos',
+        'adicional',
+      ],
+    );
   });
 
   testWidgets('VitrineChoiceIcon pinta na paleta cyan', (tester) async {

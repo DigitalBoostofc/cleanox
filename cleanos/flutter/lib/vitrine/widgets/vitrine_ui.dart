@@ -1049,6 +1049,7 @@ enum VitrineChoiceGlyph {
   category,
   brush,
   garage,
+  moto,
 }
 
 /// Mapa CMS de macros → glifo.
@@ -1103,6 +1104,17 @@ VitrineChoiceGlyph vitrineGrupoGlyph(String slug) {
     case 'avulsos':
     case 'avulso':
       return VitrineChoiceGlyph.sparkle;
+    case 'higienizacao_interna':
+    case 'higienizacao':
+      return VitrineChoiceGlyph.clean;
+    case 'lavagens_essenciais':
+    case 'lavagem':
+    case 'lavagens':
+      return VitrineChoiceGlyph.car;
+    case 'lavagens_moto':
+    case 'moto':
+    case 'motos':
+      return VitrineChoiceGlyph.moto;
     case 'outros':
     case 'outro':
       return VitrineChoiceGlyph.more;
@@ -1125,6 +1137,84 @@ VitrineChoiceGlyph vitrineGrupoGlyph(String slug) {
     default:
       return VitrineChoiceGlyph.grid;
   }
+}
+
+/// Nome do grupo na vitrine (acento e copy do lead).
+String vitrineLabelGrupo(String slug) {
+  switch (slug.trim().toLowerCase()) {
+    case 'lavagens_essenciais':
+      return 'Lavagens de carro';
+    case 'lavagens_moto':
+      return 'Lavagens de moto';
+    case 'higienizacao_interna':
+    case 'higienizacao':
+      return 'Higienização interna';
+    case 'promocao':
+    case 'promoção':
+      return 'Promoções';
+    case 'adicional':
+    case 'adicionais':
+      return 'Adicionais';
+    case 'avulsos':
+    case 'avulso':
+      return 'Avulsos';
+    case 'sofa':
+      return 'Sofá';
+    case 'colchao':
+      return 'Colchão e box';
+    case 'poltrona_puff':
+      return 'Poltrona e puff';
+    case 'cadeiras':
+      return 'Cadeiras';
+    case 'tapetes':
+      return 'Tapetes';
+    case 'plano':
+      return 'Planos';
+    case 'outros':
+      return 'Outros';
+    default:
+      final s = slug.trim();
+      if (s.isEmpty) return 'Outros';
+      return s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ');
+  }
+}
+
+const _ordemVeicular = [
+  'lavagens_essenciais',
+  'lavagens_moto',
+  'higienizacao_interna',
+  'promocao',
+  'avulsos',
+  'adicional',
+];
+
+const _ordemResidencial = [
+  'sofa',
+  'colchao',
+  'poltrona_puff',
+  'cadeiras',
+  'tapetes',
+  'outros',
+];
+
+/// Ordem dos cards de grupo: lavagens no topo, extras no fim.
+List<String> ordenarGruposVitrine(String macro, Iterable<String> slugs) {
+  final rankOf = macro == 'veicular'
+      ? _ordemVeicular
+      : macro == 'residencial'
+      ? _ordemResidencial
+      : const <String>[];
+  int rank(String s) {
+    final i = rankOf.indexOf(s);
+    return i < 0 ? 100 : i;
+  }
+
+  final out = slugs.toList();
+  out.sort((a, b) {
+    final c = rank(a).compareTo(rank(b));
+    return c != 0 ? c : a.compareTo(b);
+  });
+  return out;
 }
 
 /// Compat: ainda expõe IconData para telas legadas — preferir [VitrineChoiceIcon].
@@ -1232,6 +1322,8 @@ class _VitrineChoiceGlyphPainter extends CustomPainter {
         _brush(canvas, o, s, p, fill);
       case VitrineChoiceGlyph.garage:
         _garage(canvas, o, s, p);
+      case VitrineChoiceGlyph.moto:
+        _moto(canvas, o, s, p, fill);
     }
   }
 
@@ -1477,6 +1569,28 @@ class _VitrineChoiceGlyphPainter extends CustomPainter {
         p,
       );
     }
+  }
+
+  void _moto(Canvas c, Offset o, double s, Paint p, Paint fill) {
+    c.drawCircle(Offset(o.dx - s * 0.22, o.dy + s * 0.16), s * 0.12, p);
+    c.drawCircle(Offset(o.dx + s * 0.24, o.dy + s * 0.16), s * 0.12, p);
+    final body = Path()
+      ..moveTo(o.dx - s * 0.18, o.dy + s * 0.04)
+      ..lineTo(o.dx + s * 0.02, o.dy - s * 0.04)
+      ..lineTo(o.dx + s * 0.18, o.dy - s * 0.02)
+      ..lineTo(o.dx + s * 0.22, o.dy + s * 0.06);
+    c.drawPath(body, p);
+    c.drawLine(
+      Offset(o.dx + s * 0.08, o.dy - s * 0.04),
+      Offset(o.dx + s * 0.18, o.dy - s * 0.22),
+      p,
+    );
+    c.drawLine(
+      Offset(o.dx + s * 0.06, o.dy - s * 0.2),
+      Offset(o.dx + s * 0.26, o.dy - s * 0.16),
+      p,
+    );
+    c.drawCircle(o.translate(-s * 0.04, -s * 0.02), s * 0.05, fill);
   }
 
   @override
