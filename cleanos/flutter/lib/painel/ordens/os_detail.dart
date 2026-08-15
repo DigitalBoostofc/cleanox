@@ -694,7 +694,6 @@ class _OSDetailState extends ConsumerState<OSDetail> {
             'Forma de pagamento',
             _os.formaPagamento?.label ?? '—',
           ),
-          _row(clx, 'Repasse', _repasseTexto()),
         ]),
         if (_os.status == OSStatus.concluida) _avaliacaoSection(clx),
       ],
@@ -855,17 +854,6 @@ class _OSDetailState extends ConsumerState<OSDetail> {
         ],
       ],
     ]);
-  }
-
-  /// "Pendente · R$ x" / "Repassado · R$ x" / "—". Espelha o React (status + valor).
-  String _repasseTexto() {
-    final status = _os.repasseStatus?.label;
-    final valor = _os.repasseValor;
-    if (status == null) return '—';
-    if (valor != null && valor > 0) {
-      return '$status · ${formatCurrency(valor)}';
-    }
-    return status;
   }
 
   /// Avaliação da OS concluída (estrelas + motivo + data). Espelha o bloco
