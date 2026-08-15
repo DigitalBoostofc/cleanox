@@ -1181,6 +1181,13 @@ String vitrineLabelGrupo(String slug) {
   }
 }
 
+/// Quebra o título do chip da faixa: primeira palavra / resto.
+String vitrineLabelGrupoDuasLinhas(String label) {
+  final parts = label.trim().split(RegExp(r'\s+'));
+  if (parts.length < 2) return label.trim();
+  return '${parts.first}\n${parts.sublist(1).join(' ')}';
+}
+
 const _ordemVeicular = [
   'lavagens_essenciais',
   'lavagens_moto',

@@ -2540,7 +2540,7 @@ class _HomeGrupoIconStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 86,
+      height: 108,
       child: ListView.separated(
         key: const Key('vitrine-home-grupo-icons-scroll'),
         scrollDirection: Axis.horizontal,
@@ -2592,10 +2592,11 @@ class _GrupoIconChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: SizedBox(
-          width: 76,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        width: 84,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 width: 48,
@@ -2625,13 +2626,14 @@ class _GrupoIconChip extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                label,
-                maxLines: 1,
+                vitrineLabelGrupoDuasLinhas(label),
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: kFontFamily,
                   fontSize: 11,
+                  height: 1.15,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color: selected ? ClxBrand.cyan : ClxBrand.navy,
                 ),
