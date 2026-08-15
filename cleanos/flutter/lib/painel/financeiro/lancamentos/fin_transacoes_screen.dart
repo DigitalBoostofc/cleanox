@@ -14,8 +14,10 @@ import '../../../core/design/app_surface_provider.dart';
 import '../../../core/design/design.dart';
 import '../../../core/formatters/formatters.dart';
 import '../../../core/models/financeiro.dart';
+import '../../../core/models/user.dart';
 import '../fin_chips.dart';
 import '../fin_common.dart';
+import '../fin_comissoes_screen.dart';
 import '../fin_derivations.dart';
 import '../fin_export.dart';
 import '../fin_labels.dart';
@@ -99,6 +101,19 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
     ref.invalidate(finContasProvider);
     ref.invalidate(finPeriodLancamentosProvider);
     ref.invalidate(finPendentesProvider);
+  }
+
+  void _openBonificacao() {
+    final list = ref.read(finProfissionaisProvider).valueOrNull ?? const <User>[];
+    showBonificacaoForm(
+      context: context,
+      profissionais: list,
+      onSaved: () {
+        unawaited(_refreshAfterMutation());
+        ref.invalidate(finProfissionaisProvider);
+        ref.invalidate(finComissoesProvider);
+      },
+    );
   }
 
   Future<void> _openForm({FinLancamento? editing}) async {
@@ -454,6 +469,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
             searchCtrl: _searchCtrl,
             onSearch: _onSearch,
             onNovo: () => _openForm(),
+            onBonificacao: _openBonificacao,
             onExport: () => finExportLancamentosCsv(
               context,
               lancs: periodLancs.isNotEmpty ? periodLancs : state.items,
@@ -541,6 +557,7 @@ class _HeaderKpis extends StatelessWidget {
     required this.searchCtrl,
     required this.onSearch,
     required this.onNovo,
+    required this.onBonificacao,
     required this.onExport,
     required this.filters,
     required this.onTipo,
@@ -560,6 +577,7 @@ class _HeaderKpis extends StatelessWidget {
   final TextEditingController searchCtrl;
   final ValueChanged<String> onSearch;
   final VoidCallback onNovo;
+  final VoidCallback onBonificacao;
   final VoidCallback onExport;
   final FinLancFilters filters;
   final ValueChanged<TipoLancamento?> onTipo;
@@ -720,6 +738,13 @@ class _HeaderKpis extends StatelessWidget {
                   onPressed: onExport,
                   visualDensity: VisualDensity.compact,
                   icon: Icon(Icons.download_outlined, color: clx.ink2, size: 20),
+                ),
+                IconButton(
+                  key: const Key('fin-transacoes-bonificacao'),
+                  tooltip: 'Adicionar bonificação',
+                  onPressed: onBonificacao,
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.stars_rounded, color: clx.warning, size: 20),
                 ),
                 if (!finIsMobile(context)) ...[
                   const SizedBox(width: 4),
