@@ -72,9 +72,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
   /// Serviço original carregado (edição) — base para "Duplicar serviço".
   ServicoPB? _original;
 
-  /// Demais serviços do catálogo (read-only) — card "Outros serviços cadastrados".
-  List<ServicoPB> _outros = const [];
-
   /// Marca alterações não salvas (guarda de saída, espelha `dirty` do React).
   bool _dirty = false;
 
@@ -138,12 +135,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
     _hydrating = true;
     try {
       final repo = ref.read(servicosRepositoryProvider);
-      // "Outros serviços cadastrados" (read-only): todo o catálogo menos este.
-      final page = await repo.list(page: 1, perPage: 200, sort: 'ordem,nome');
-      final outros = [
-        for (final s in page.items)
-          if (s.id != id) s,
-      ];
       if (id != null) {
         final s = await repo.getOne(id);
         if (!mounted) return;
@@ -169,7 +160,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _outros = outros;
         _loading = false;
       });
     } catch (_) {
@@ -563,12 +553,6 @@ class _ServicoEditorScreenState extends ConsumerState<ServicoEditorScreen> {
                     'Assim este serviço será exibido na Ordem de Serviço para '
                     'o cliente e para a equipe.',
                 child: _PreviewOS(servico: _draft()),
-              ),
-              const SizedBox(height: ClxSpace.x4),
-              _card(
-                clx,
-                title: 'Outros serviços cadastrados',
-                child: _OutrosServicosTable(servicos: _outros),
               ),
               const SizedBox(height: ClxSpace.x8),
             ],
@@ -1294,89 +1278,6 @@ class _PreviewOS extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// "Outros serviços cadastrados" (read-only, com toque para editar).
-/// Espelha `OutrosServicosTable.tsx` — linhas navegam ao editor do serviço.
-class _OutrosServicosTable extends StatelessWidget {
-  const _OutrosServicosTable({required this.servicos});
-  final List<ServicoPB> servicos;
-
-  @override
-  Widget build(BuildContext context) {
-    final clx = context.clx;
-    if (servicos.isEmpty) {
-      return Text(
-        'Nenhum outro serviço cadastrado ainda.',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: clx.ink3),
-      );
-    }
-    return Column(
-      children: [
-        for (var i = 0; i < servicos.length; i++) ...[
-          if (i > 0) Divider(height: 1, color: clx.line),
-          _row(context, servicos[i]),
-        ],
-      ],
-    );
-  }
-
-  Widget _row(BuildContext context, ServicoPB s) {
-    final clx = context.clx;
-    final tt = Theme.of(context).textTheme;
-    final ativo = (s.status ?? ServicoStatus.inativo) == ServicoStatus.ativo;
-    final statusColor = ativo ? clx.success : clx.ink3;
-    return InkWell(
-      onTap: () => context.push('/painel/servicos/${s.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: ClxSpace.x3),
-        child: Row(
-          children: [
-            Icon(_categoriaIcon(s.categoriaEnum), size: 16, color: clx.ink3),
-            const SizedBox(width: ClxSpace.x2),
-            Expanded(
-              flex: 3,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.nome.isEmpty ? '—' : s.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.titleSmall?.copyWith(color: clx.ink),
-                  ),
-                  Text(
-                    '${categoriaLabelSlug(s.categoria.isEmpty ? 'veicular' : s.categoria)} · '
-                    '${grupoLabelSlug(s.grupo.isEmpty ? 'outros' : s.grupo)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodySmall?.copyWith(color: clx.ink3),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: ClxSpace.x2),
-            Expanded(
-              flex: 2,
-              child: Text(
-                formatValorServico(s),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: tt.bodyMedium?.copyWith(color: clx.ink2),
-              ),
-            ),
-            const SizedBox(width: ClxSpace.x2),
-            ClxChip(
-              label: ativo ? 'Ativo' : 'Inativo',
-              color: statusColor,
-              dense: true,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

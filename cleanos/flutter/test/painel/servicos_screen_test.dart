@@ -291,6 +291,27 @@ void main() {
       expect(find.text('Subgrupo'), findsNothing);
     });
 
+    testWidgets('editor não lista outros serviços cadastrados', (tester) async {
+      final repo = FakeServicosFull(
+        seed: [
+          fakeServico(id: 'x', nome: 'Sofá 2 lugares'),
+          fakeServico(id: 'y', nome: 'Colchão casal'),
+        ],
+      );
+      await pumpPainel(
+        tester,
+        const ServicoEditorScreen(servicoId: 'x'),
+        size: const Size(1400, 1600),
+        overrides: _editorOverrides(repo),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Editar serviço'), findsOneWidget);
+      expect(find.text('Outros serviços cadastrados'), findsNothing);
+      expect(find.text('Colchão casal'), findsNothing);
+    });
+
     testWidgets('descartar alterações fecha o editor sem travar', (tester) async {
       final repo = FakeServicosFull(
         seed: [fakeServico(id: 'x', nome: 'Sofá 2 lugares')],
