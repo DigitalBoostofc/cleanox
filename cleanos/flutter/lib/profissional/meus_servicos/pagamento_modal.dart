@@ -157,33 +157,24 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           ErrorBanner(message: _error!),
           const SizedBox(height: ClxSpace.x4),
         ],
-        if (os.refazer)
+        if (os.refazer) ...[
           Text(
             'OS de Refazer: R\$ 0,00 é permitido (garantia/cortesia).',
             style: tt.bodySmall?.copyWith(color: clx.ink3),
-          )
-        else
-          Text(
-            'A comissão usa o valor pago. O orçamento é só referência.',
-            style: tt.bodySmall?.copyWith(color: clx.ink3),
           ),
-        const SizedBox(height: ClxSpace.x4),
+          const SizedBox(height: ClxSpace.x4),
+        ],
         Text(
-          'Orçamento total',
-          style: tt.labelMedium?.copyWith(color: clx.ink2),
-        ),
-        const SizedBox(height: ClxSpace.x1),
-        Text(
-          formatCurrency(_orcamento),
+          'Orçamento total = ${formatCurrency(_orcamento)}',
           key: const ValueKey('pag-orcamento-total'),
-          style: tt.titleMedium?.copyWith(
+          style: tt.titleSmall?.copyWith(
             color: clx.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: 2),
         Text(
-          'Soma dos serviços da OS. Não é editável.',
+          'Soma total dos serviços adicionados nessa OS.',
           style: tt.bodySmall?.copyWith(color: clx.ink3),
         ),
         const SizedBox(height: ClxSpace.x4),
@@ -200,10 +191,7 @@ class _PagamentoFormState extends State<_PagamentoForm> {
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
           ],
-          decoration: const InputDecoration(
-            hintText: '0,00',
-            helperText: 'O que entrou na maquininha / Pix.',
-          ),
+          decoration: const InputDecoration(hintText: '0,00'),
         ),
         const SizedBox(height: ClxSpace.x3),
         Text(
