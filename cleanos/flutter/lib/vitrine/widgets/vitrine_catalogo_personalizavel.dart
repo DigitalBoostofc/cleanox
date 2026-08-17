@@ -7,6 +7,7 @@ import '../../core/design/tokens.dart';
 import '../../core/formatters/formatters.dart';
 import '../vitrine_api.dart';
 import 'vitrine_servico_detalhes_sheet.dart';
+import 'vitrine_ui.dart';
 
 /// Intervalo do carrossel automático nas fotos do serviço (Vitrine).
 const Duration kVitrineFotoCarouselInterval = Duration(seconds: 4);
@@ -457,7 +458,7 @@ class _CatalogHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final macro = categoria == 'veicular'
-        ? 'Estética automotiva'
+        ? 'O que vamos fazer no seu carro hoje?'
         : categoria == 'residencial'
         ? 'Higienização residencial'
         : 'Todos os serviços';
@@ -816,7 +817,7 @@ class _GridTileCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: ClxBrand.navy,
+                        color: ClxBrand.cyan,
                         fontSize: priceSize,
                         height: 1.15,
                         fontWeight: FontWeight.w800,
@@ -1193,18 +1194,12 @@ class _CardShell extends StatelessWidget {
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(VitrineUi.rLg),
       border: Border.all(
-        color: selected ? ClxBrand.cyan : const Color(0xFFDCE5EC),
+        color: selected ? ClxBrand.cyan : VitrineUi.line,
         width: selected ? 2 : 1,
       ),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x100B1D34),
-          blurRadius: 24,
-          offset: Offset(0, 10),
-        ),
-      ],
+      boxShadow: VitrineUi.shadowCard,
     ),
     child: child,
   );

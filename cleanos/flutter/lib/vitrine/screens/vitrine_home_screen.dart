@@ -880,10 +880,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: kFontFamily,
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: ClxBrand.navy,
-                      height: 1.2,
+                      height: 1.15,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -893,6 +894,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                     style: TextStyle(
                       fontFamily: kFontFamily,
                       fontSize: 14,
+                      height: 1.35,
                       color: ClxBrand.muted,
                     ),
                   ),
@@ -937,22 +939,18 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return Material(
       key: key,
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      elevation: 0,
+      borderRadius: BorderRadius.circular(VitrineUi.rLg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(VitrineUi.rLg),
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x140B1D34),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(VitrineUi.rLg),
+            border: Border.all(color: VitrineUi.line),
+            boxShadow: VitrineUi.shadowCard,
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
@@ -964,12 +962,12 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   height: 56,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: ClxBrand.cyan.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
+                    color: ClxBrand.cyan.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
                   child: VitrineChoiceIcon(
                     glyph: glyph,
-                    size: 30,
+                    size: 28,
                     color: ClxBrand.cyan,
                   ),
                 ),
@@ -1252,6 +1250,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
             children: [
               _HomeCatalogHeader(
+                categoria: cat,
                 initialQuery: _buscaFilter ?? '',
                 onSearch: (q) {
                   setState(() {
@@ -2658,7 +2657,7 @@ class _GrupoIconChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(VitrineUi.rPill),
         child: SizedBox(
         width: 84,
         child: Column(
@@ -2667,12 +2666,12 @@ class _GrupoIconChip extends StatelessWidget {
           children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                width: 48,
-                height: 48,
+                width: 52,
+                height: 52,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: bg,
-                  borderRadius: BorderRadius.circular(14),
+                  shape: BoxShape.circle,
                   border: Border.all(color: border, width: 1.5),
                   boxShadow: selected
                       ? [
@@ -2719,11 +2718,13 @@ class _HomeCatalogHeader extends StatefulWidget {
   const _HomeCatalogHeader({
     required this.onSearch,
     required this.onClearFilters,
+    this.categoria = '',
     this.initialQuery = '',
   });
 
   final ValueChanged<String> onSearch;
   final VoidCallback onClearFilters;
+  final String categoria;
   final String initialQuery;
 
   @override
@@ -2768,8 +2769,13 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
       child: Ink(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: ClxBrand.navy,
-          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0B1D34), Color(0xFF12324F), Color(0xFF0B5F6A)],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: VitrineUi.shadowCard,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2782,12 +2788,12 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
                 widget.onClearFilters();
               },
               borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.only(bottom: 4),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    const Text(
                       'SERVIÇOS CLEANOX',
                       style: TextStyle(
                         color: ClxBrand.cyan,
@@ -2796,10 +2802,12 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
                         letterSpacing: 1.5,
                       ),
                     ),
-                    SizedBox(height: 7),
+                    const SizedBox(height: 7),
                     Text(
-                      'Todos os serviços',
-                      style: TextStyle(
+                      widget.categoria == 'veicular'
+                          ? 'O que vamos fazer no seu carro hoje?'
+                          : 'Todos os serviços',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         height: 1.08,
@@ -2823,7 +2831,7 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
               },
               style: const TextStyle(color: ClxBrand.navy),
               decoration: InputDecoration(
-                hintText: 'Buscar serviço',
+                hintText: 'Buscar serviço...',
                 helperText: 'Busca palavras do nome do serviço',
                 helperStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
@@ -2843,7 +2851,7 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
                         icon: const Icon(Icons.close, color: ClxBrand.muted),
                       ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(999),
                   borderSide: BorderSide.none,
                 ),
               ),
