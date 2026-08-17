@@ -296,8 +296,9 @@ class VitrineConfig {
     this.macroAutoTitulo = 'Estética automotiva',
     this.macroAutoSubtitulo = 'Bancos, teto, carpete e pacotes Cleanox',
     this.macroAutoIcone = 'car',
-    this.homeDestaquesTitulo = 'Promoções da Semana',
+    this.homeDestaquesTitulo = 'Ofertas em destaque',
     this.homeDestaquesCta = 'Ver todos',
+    this.homeDestaquesAtivo = true,
   });
 
   final String id;
@@ -324,6 +325,7 @@ class VitrineConfig {
   final String macroAutoIcone;
   final String homeDestaquesTitulo;
   final String homeDestaquesCta;
+  final bool homeDestaquesAtivo;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
@@ -354,8 +356,9 @@ class VitrineConfig {
         '${j['macro_auto_subtitulo'] ?? 'Bancos, teto, carpete e pacotes Cleanox'}',
     macroAutoIcone: '${j['macro_auto_icone'] ?? 'car'}',
     homeDestaquesTitulo:
-        '${j['home_destaques_titulo'] ?? 'Promoções da Semana'}',
+        '${j['home_destaques_titulo'] ?? 'Ofertas em destaque'}',
     homeDestaquesCta: '${j['home_destaques_cta'] ?? 'Ver todos'}',
+    homeDestaquesAtivo: _boolCfg(j['home_destaques_ativo'], true),
   );
 
   Map<String, dynamic> toJson() => {
@@ -382,6 +385,7 @@ class VitrineConfig {
     'macro_auto_icone': macroAutoIcone,
     'home_destaques_titulo': homeDestaquesTitulo,
     'home_destaques_cta': homeDestaquesCta,
+    'home_destaques_ativo': homeDestaquesAtivo,
   };
 
   VitrineConfig copyWith({
@@ -408,6 +412,7 @@ class VitrineConfig {
     String? macroAutoIcone,
     String? homeDestaquesTitulo,
     String? homeDestaquesCta,
+    bool? homeDestaquesAtivo,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -433,6 +438,7 @@ class VitrineConfig {
     macroAutoIcone: macroAutoIcone ?? this.macroAutoIcone,
     homeDestaquesTitulo: homeDestaquesTitulo ?? this.homeDestaquesTitulo,
     homeDestaquesCta: homeDestaquesCta ?? this.homeDestaquesCta,
+    homeDestaquesAtivo: homeDestaquesAtivo ?? this.homeDestaquesAtivo,
   );
 }
 

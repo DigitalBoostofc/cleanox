@@ -259,8 +259,9 @@ function defaultConfig() {
     macro_auto_titulo: "Estética automotiva",
     macro_auto_subtitulo: "Bancos, teto, carpete e pacotes Cleanox",
     macro_auto_icone: "car",
-    home_destaques_titulo: "Promoções da Semana",
-    home_destaques_cta: "Ver todos",
+    home_destaques_titulo: "Ofertas em destaque",
+    home_destaques_cta: "Ver todas",
+    home_destaques_ativo: true,
   };
 }
 
@@ -345,6 +346,10 @@ function getConfig(app) {
         home_destaques_cta: String(
           r.get("home_destaques_cta") || base.home_destaques_cta,
         ),
+        home_destaques_ativo: boolCfg(
+          r.get("home_destaques_ativo"),
+          base.home_destaques_ativo,
+        ),
       };
     }
   } catch (_) {}
@@ -401,6 +406,9 @@ function saveConfig(app, body) {
   }
   if (body.macro_auto_primeiro != null) {
     rec.set("macro_auto_primeiro", boolCfg(body.macro_auto_primeiro, true));
+  }
+  if (body.home_destaques_ativo != null) {
+    rec.set("home_destaques_ativo", boolCfg(body.home_destaques_ativo, true));
   }
   app.save(rec);
   return getConfig(app);

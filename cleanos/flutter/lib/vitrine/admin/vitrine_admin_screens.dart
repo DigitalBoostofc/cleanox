@@ -10,9 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets/cleanox_logo.dart';
 import '../../core/formatters/formatters.dart';
+import '../widgets/vitrine_oferta_estilo.dart';
 import '../vitrine_api.dart';
 import 'vitrine_admin_auth.dart';
 import 'vitrine_midia_repository.dart';
+import 'vitrine_oferta_foco_editor.dart';
 import 'vitrine_servico_editor.dart';
 
 export 'vitrine_servico_editor.dart';
@@ -454,6 +456,10 @@ class _VitrineAdminPersonalizarScreenState
   final _macroAutoSub = TextEditingController();
   final _homeDestaquesTitulo = TextEditingController();
   final _homeDestaquesCta = TextEditingController();
+  bool _homeDestaquesAtivo = true;
+  List<VitrineAdminServico> _estrelas = [];
+  final _tagCtrls = <String, TextEditingController>{};
+  final _capas = <String, VitrineMidiaItem>{};
 
   /// Hero saiu da home pública — mantidos só para não apagar no save.
   String _heroTitulo = '';
@@ -505,6 +511,7 @@ class _VitrineAdminPersonalizarScreenState
           c.macroAutoIcone.trim().isEmpty ? 'car' : c.macroAutoIcone;
       _homeDestaquesTitulo.text = c.homeDestaquesTitulo;
       _homeDestaquesCta.text = c.homeDestaquesCta;
+      _homeDestaquesAtivo = c.homeDestaquesAtivo;
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -552,13 +559,34 @@ class _VitrineAdminPersonalizarScreenState
               macroAutoSubtitulo: _macroAutoSub.text.trim(),
               macroAutoIcone: _macroAutoIcone,
               homeDestaquesTitulo: _homeDestaquesTitulo.text.trim().isEmpty
-                  ? 'Promoções da Semana'
+                  ? 'Ofertas em destaque'
                   : _homeDestaquesTitulo.text.trim(),
               homeDestaquesCta: _homeDestaquesCta.text.trim().isEmpty
                   ? 'Ver todos'
                   : _homeDestaquesCta.text.trim(),
+              homeDestaquesAtivo: _homeDestaquesAtivo,
             ),
           );
+      for (final s in _estrelas) {
+        final tag = _tagCtrls[s.id]?.text.trim() ?? '';
+        final capa = _capas[s.id];
+        if (capa != null) {
+          final estilo = VitrineOfertaEstilo.parse(
+            '${capa.focoX}',
+            '${capa.focoY}',
+            capa.legenda,
+          ).copyWith(badge: tag);
+          final saved = await VitrineMidiaRepository(
+            ref.read(vitrineAdminPbProvider),
+          ).update(
+            capa.id,
+            focoX: estilo.x,
+            focoY: estilo.y,
+            legenda: estilo.writeInto(capa.legenda),
+          );
+          _capas[s.id] = saved;
+        }
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -591,24 +619,168 @@ class _VitrineAdminPersonalizarScreenState
     _macroAutoSub.dispose();
     _homeDestaquesTitulo.dispose();
     _homeDestaquesCta.dispose();
+    for (final c in _tagCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
+
+
+  _ConteudoSecao? _secao;
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_secao != null) {
+      return _editorDaSecao(_secao!);
+    }
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      children: [
+        const Text(
+          'Conteúdo do site',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: ClxBrand.navy,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Toque numa seção para editar. Cada uma aparece num lugar do agendar.',
+          style: TextStyle(fontSize: 13, color: ClxBrand.muted),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_error!, style: TextStyle(color: Colors.red.shade700)),
+          ),
+        const SizedBox(height: 16),
+        _tileSecao(
+          secao: _ConteudoSecao.home,
+          icon: Icons.grid_view_rounded,
+          titulo: 'Início do site',
+          resumo: 'Os dois cards: estética automotiva e higienização residencial.',
+        ),
+        _tileSecao(
+          secao: _ConteudoSecao.ofertas,
+          icon: Icons.local_offer_outlined,
+          titulo: 'Ofertas em destaque',
+          resumo: 'Título da faixa e botão Ver todas. Os cards vêm da estrela em Serviços.',
+        ),
+        _tileSecao(
+          secao: _ConteudoSecao.horarios,
+          icon: Icons.schedule_rounded,
+          titulo: 'Horários do agendamento',
+          resumo: 'Janela de preferência que o cliente escolhe no site.',
+        ),
+        _tileSecao(
+          secao: _ConteudoSecao.contato,
+          icon: Icons.chat_outlined,
+          titulo: 'Contato e rodapé',
+          resumo: 'WhatsApp, cidades atendidas e mensagem de baixo.',
+        ),
+        _tileSecao(
+          secao: _ConteudoSecao.como,
+          icon: Icons.help_outline_rounded,
+          titulo: 'Como funciona',
+          resumo: 'Texto explicativo do site.',
+        ),
+      ],
+    );
+  }
+
+  Widget _tileSecao({
+    required _ConteudoSecao secao,
+    required IconData icon,
+    required String titulo,
+    required String resumo,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          key: Key('vitrine-conteudo-secao-${secao.name}'),
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            setState(() => _secao = secao);
+            if (secao == _ConteudoSecao.ofertas) {
+              _carregarEstrelas();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0B1D34),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: ClxBrand.navy,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        resumo,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: ClxBrand.muted,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: ClxBrand.muted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _editorDaSecao(_ConteudoSecao secao) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       children: [
         Row(
           children: [
-            const Expanded(
+            IconButton(
+              key: const Key('vitrine-conteudo-voltar'),
+              onPressed: () => setState(() => _secao = null),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            Expanded(
               child: Text(
-                'Personalizar site',
-                style: TextStyle(
-                  fontSize: 20,
+                switch (secao) {
+                  _ConteudoSecao.home => 'Início do site',
+                  _ConteudoSecao.ofertas => 'Ofertas em destaque',
+                  _ConteudoSecao.horarios => 'Horários do agendamento',
+                  _ConteudoSecao.contato => 'Contato e rodapé',
+                  _ConteudoSecao.como => 'Como funciona',
+                },
+                style: const TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: ClxBrand.navy,
                 ),
@@ -629,253 +801,358 @@ class _VitrineAdminPersonalizarScreenState
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _wa,
-                  decoration: const InputDecoration(
-                    labelText: 'WhatsApp exibido',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _cidades,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Cidades atendidas (texto livre)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _rodape,
-                  decoration: const InputDecoration(
-                    labelText: 'Mensagem rodapé',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _como,
-                  maxLines: 5,
-                  decoration: const InputDecoration(labelText: 'Como funciona'),
-                ),
-                const SizedBox(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'O que você procura? (macros da home)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: ClxBrand.navy,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Títulos, textos e ícones dos dois cards grandes da home. '
-                  'Fotos de cada serviço: Serviços → Editar → Fotos na Vitrine.',
-                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
-                ),
-                SwitchListTile(
-                  key: const Key('vitrine-macro-auto-primeiro'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Estética automotiva primeiro'),
-                  subtitle: Text(
-                    _macroAutoPrimeiro
-                        ? 'Ordem: automotiva → residencial'
-                        : 'Ordem: residencial → automotiva',
-                  ),
-                  value: _macroAutoPrimeiro,
-                  onChanged: (v) => setState(() => _macroAutoPrimeiro = v),
-                ),
-                TextField(
-                  controller: _macroAutoTitulo,
-                  decoration: const InputDecoration(
-                    labelText: 'Título — Estética automotiva',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _macroAutoSub,
-                  decoration: const InputDecoration(
-                    labelText: 'Subtítulo — Estética automotiva',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('macro-auto-ico-$_macroAutoIcone'),
-                  initialValue: _macroAutoIcone,
-                  decoration: const InputDecoration(
-                    labelText: 'Ícone — Estética automotiva',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'car', child: Text('Carro')),
-                    DropdownMenuItem(value: 'garage', child: Text('Garagem')),
-                    DropdownMenuItem(value: 'spray', child: Text('Spray / escova')),
-                    DropdownMenuItem(value: 'home', child: Text('Casa')),
-                    DropdownMenuItem(value: 'cleaning', child: Text('Limpeza')),
-                    DropdownMenuItem(value: 'sofa', child: Text('Sofá')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _macroAutoIcone = v);
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _macroResidTitulo,
-                  decoration: const InputDecoration(
-                    labelText: 'Título — Higienização residencial',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _macroResidSub,
-                  decoration: const InputDecoration(
-                    labelText: 'Subtítulo — Higienização residencial',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('macro-resid-ico-$_macroResidIcone'),
-                  initialValue: _macroResidIcone,
-                  decoration: const InputDecoration(
-                    labelText: 'Ícone — Higienização residencial',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'cleaning',
-                      child: Text('Limpeza (recomendado)'),
-                    ),
-                    DropdownMenuItem(value: 'sofa', child: Text('Sofá')),
-                    DropdownMenuItem(value: 'home', child: Text('Casa')),
-                    DropdownMenuItem(value: 'car', child: Text('Carro')),
-                    DropdownMenuItem(value: 'garage', child: Text('Garagem')),
-                    DropdownMenuItem(value: 'spray', child: Text('Spray / escova')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _macroResidIcone = v);
-                  },
-                ),
-                const SizedBox(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Promoções / destaques (home)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: ClxBrand.navy,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Título e link da seção abaixo dos macros na home. '
-                  'Na home os chips de família ficam ocultos.',
-                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('vitrine-home-destaques-titulo'),
-                  controller: _homeDestaquesTitulo,
-                  decoration: const InputDecoration(
-                    labelText: 'Título da seção (ex.: Promoções da Semana)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('vitrine-home-destaques-cta'),
-                  controller: _homeDestaquesCta,
-                  decoration: const InputDecoration(
-                    labelText: 'Texto do botão (ex.: Ver todos)',
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Horários de preferência (site)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: ClxBrand.navy,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'O lead escolhe data/hora de preferência na janela abaixo. '
-                  'Não reserva capacidade: a OS cai em Em agendamento e a '
-                  'equipe confirma depois. Passo = intervalo entre opções.',
-                  style: TextStyle(fontSize: 12, color: ClxBrand.muted),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _capacidade,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Capacidade (legado — não usada na Vitrine)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _horaIni,
-                        decoration: const InputDecoration(
-                          labelText: 'Horário início (fallback)',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _horaFim,
-                        decoration: const InputDecoration(
-                          labelText: 'Horário fim (fallback)',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _passo,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Passo (min)',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _antecedencia,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Antecedência (min)',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _horizonte,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Horizonte de dias',
-                  ),
-                ),
-              ],
-            ),
+            child: switch (secao) {
+              _ConteudoSecao.home => _formHome(),
+              _ConteudoSecao.ofertas => _formOfertas(),
+              _ConteudoSecao.horarios => _formHorarios(),
+              _ConteudoSecao.contato => _formContato(),
+              _ConteudoSecao.como => _formComo(),
+            },
           ),
         ),
       ],
     );
   }
+
+  Widget _formHome() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Os dois cards da primeira tela. Fotos de cada serviço ficam em Serviços → Editar.',
+          style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+        ),
+        SwitchListTile(
+          key: const Key('vitrine-macro-auto-primeiro'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Estética automotiva primeiro'),
+          subtitle: Text(
+            _macroAutoPrimeiro
+                ? 'Ordem: automotiva → residencial'
+                : 'Ordem: residencial → automotiva',
+          ),
+          value: _macroAutoPrimeiro,
+          onChanged: (v) => setState(() => _macroAutoPrimeiro = v),
+        ),
+        TextField(
+          controller: _macroAutoTitulo,
+          decoration: const InputDecoration(
+            labelText: 'Título — Estética automotiva',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _macroAutoSub,
+          decoration: const InputDecoration(
+            labelText: 'Subtítulo — Estética automotiva',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _dropdownIcone(
+          key: 'macro-auto-ico-$_macroAutoIcone',
+          value: _macroAutoIcone,
+          label: 'Ícone — Estética automotiva',
+          onChanged: (v) => setState(() => _macroAutoIcone = v),
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _macroResidTitulo,
+          decoration: const InputDecoration(
+            labelText: 'Título — Higienização residencial',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _macroResidSub,
+          decoration: const InputDecoration(
+            labelText: 'Subtítulo — Higienização residencial',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _dropdownIcone(
+          key: 'macro-resid-ico-$_macroResidIcone',
+          value: _macroResidIcone,
+          label: 'Ícone — Higienização residencial',
+          onChanged: (v) => setState(() => _macroResidIcone = v),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _carregarEstrelas() async {
+    try {
+      final all = await ref.read(vitrineAdminApiProvider).adminListServicos();
+      if (!mounted) return;
+      final starred = all.where((s) => s.vitrineDestaque).toList()
+        ..sort((a, b) => a.vitrineOrdem.compareTo(b.vitrineOrdem));
+      final repo = VitrineMidiaRepository(ref.read(vitrineAdminPbProvider));
+      final capas = <String, VitrineMidiaItem>{};
+      for (final s in starred) {
+        try {
+          final midias = await repo.listByServico(s.id);
+          VitrineMidiaItem? capa;
+          for (final m in midias) {
+            if ((m.displayUrl ?? '').isEmpty) continue;
+            if (m.papel == 'capa') {
+              capa = m;
+              break;
+            }
+            capa ??= m;
+          }
+          if (capa != null) capas[s.id] = capa;
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      for (final old in _tagCtrls.values) {
+        old.dispose();
+      }
+      _tagCtrls
+        ..clear()
+        ..addEntries(
+          starred.map((s) {
+            final capa = capas[s.id];
+            final fromCard = capa == null
+                ? ''
+                : VitrineOfertaEstilo.parse(
+                    '${capa.focoX}',
+                    '${capa.focoY}',
+                    capa.legenda,
+                  ).badge;
+            return MapEntry(
+              s.id,
+              TextEditingController(
+                text: fromCard.trim().isEmpty ? s.vitrineBadge : fromCard,
+              ),
+            );
+          }),
+        );
+      setState(() {
+        _estrelas = starred;
+        _capas
+          ..clear()
+          ..addAll(capas);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = '$e');
+    }
+  }
+
+  Widget _formOfertas() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          key: const Key('vitrine-ofertas-ativo'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Mostrar faixa no site'),
+          subtitle: Text(
+            _homeDestaquesAtivo
+                ? 'Ligado: aparece na estética automotiva'
+                : 'Desligado: some do site',
+          ),
+          value: _homeDestaquesAtivo,
+          onChanged: (v) => setState(() => _homeDestaquesAtivo = v),
+        ),
+        const Text(
+          'Entra na faixa quem tiver estrela em Vitrine → Serviços. '
+          'A tag abaixo é o selo do card (ex.: MAIS VENDIDO).',
+          style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const Key('vitrine-home-destaques-titulo'),
+          controller: _homeDestaquesTitulo,
+          decoration: const InputDecoration(labelText: 'Título da faixa'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const Key('vitrine-home-destaques-cta'),
+          controller: _homeDestaquesCta,
+          decoration: const InputDecoration(
+            labelText: 'Texto do botão (ex.: Ver todas)',
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Tags dos cards',
+          style: TextStyle(fontWeight: FontWeight.w800, color: ClxBrand.navy),
+        ),
+        const SizedBox(height: 8),
+        if (_estrelas.isEmpty)
+          const Text(
+            'Nenhum serviço com estrela. Vá em Vitrine → Serviços e marque a estrela.',
+            style: TextStyle(fontSize: 13, color: ClxBrand.muted),
+          )
+        else
+          for (final s in _estrelas) ...[
+            Text(
+              s.vitrineTitulo.trim().isEmpty ? s.nome : s.vitrineTitulo,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              key: Key('vitrine-oferta-tag-${s.id}'),
+              controller: _tagCtrls[s.id],
+              decoration: const InputDecoration(
+                labelText: 'Tag do card',
+                hintText: 'MAIS VENDIDO',
+              ),
+            ),
+            if (_capas[s.id] != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: Key('vitrine-oferta-foco-${s.id}'),
+                onPressed: () async {
+                  final midia = _capas[s.id];
+                  if (midia == null) return;
+                  final saved = await showVitrineOfertaFocoEditor(
+                    context,
+                    repo: VitrineMidiaRepository(
+                      ref.read(vitrineAdminPbProvider),
+                    ),
+                    midia: midia,
+                    titulo: s.vitrineTitulo.trim().isEmpty
+                        ? s.nome
+                        : s.vitrineTitulo,
+                    preco: formatCurrency(s.valorBase),
+                    badge: s.vitrineBadge,
+                  );
+                  if (saved != null && mounted) {
+                    setState(() => _capas[s.id] = saved);
+                  }
+                },
+                icon: const Icon(Icons.crop_free_rounded, size: 18),
+                label: const Text('Editar card'),
+              ),
+            ],
+            const SizedBox(height: 14),
+          ],
+      ],
+    );
+  }
+
+  Widget _formHorarios() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'O cliente escolhe data e hora de preferência. Não reserva vaga: '
+          'a OS cai em Em agendamento e a equipe confirma depois.',
+          style: TextStyle(fontSize: 12, color: ClxBrand.muted),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _horaIni,
+                decoration: const InputDecoration(labelText: 'Horário início'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _horaFim,
+                decoration: const InputDecoration(labelText: 'Horário fim'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _passo,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Passo (min)'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _antecedencia,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Antecedência (min)',
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _horizonte,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Horizonte de dias'),
+        ),
+      ],
+    );
+  }
+
+  Widget _formContato() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _wa,
+          decoration: const InputDecoration(labelText: 'WhatsApp exibido'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _cidades,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'Cidades atendidas',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _rodape,
+          decoration: const InputDecoration(labelText: 'Mensagem do rodapé'),
+        ),
+      ],
+    );
+  }
+
+  Widget _formComo() {
+    return TextField(
+      controller: _como,
+      maxLines: 8,
+      decoration: const InputDecoration(
+        labelText: 'Como funciona',
+        alignLabelWithHint: true,
+      ),
+    );
+  }
+
+  Widget _dropdownIcone({
+    required String key,
+    required String value,
+    required String label,
+    required ValueChanged<String> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      key: ValueKey(key),
+      initialValue: value,
+      decoration: InputDecoration(labelText: label),
+      items: const [
+        DropdownMenuItem(value: 'car', child: Text('Carro')),
+        DropdownMenuItem(value: 'garage', child: Text('Garagem')),
+        DropdownMenuItem(value: 'spray', child: Text('Spray / escova')),
+        DropdownMenuItem(value: 'home', child: Text('Casa')),
+        DropdownMenuItem(value: 'cleaning', child: Text('Limpeza')),
+        DropdownMenuItem(value: 'sofa', child: Text('Sofá')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
 }
+
+enum _ConteudoSecao { home, ofertas, horarios, contato, como }
 
 // ── Serviços ────────────────────────────────────────────────────────────────
 
@@ -1453,6 +1730,12 @@ class _VitrineAdminBumpsScreenState
                   label: const Text('Novo bump'),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Faixa da home do veículo: marque a estrela e o badge em Serviços. '
+              'Abaixo: order bumps da tela Revisar (não é a faixa).',
+              style: TextStyle(color: ClxBrand.muted, fontSize: 13),
             ),
             const SizedBox(height: 8),
             const Text(
