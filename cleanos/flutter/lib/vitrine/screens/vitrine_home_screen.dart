@@ -513,13 +513,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       ) ==
       null;
 
-  int get _navIndex {
-    if (_step == 0) return 0;
-    if (_step == 6) return 2;
-    if (_step >= 1 && _step <= 4) return 1;
-    return 0;
-  }
-
   String get _stepLabel => VitrineStepX.fromIndex(_step).headerLabel;
 
   int get _horizonte {
@@ -641,24 +634,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   buttonLabel: 'Confirmar agendamento',
                   loading: _submitting,
                   onPressed: _submitting ? null : _submit,
-                )
-              else if (_step == 6 ||
-                  _step == 1 ||
-                  (_step == 0 && (_homeBrowse >= 2 || _picked.isNotEmpty)))
-                VitrineBottomNav(
-                  index: _navIndex,
-                  cartCount: _picked.length,
-                  onTap: (i) {
-                    if (i == 0) {
-                      setState(() {
-                        _step = 0;
-                        _homeBrowse = 0;
-                        _error = null;
-                      });
-                    }
-                    if (i == 1) _openCarrinho();
-                    if (i == 2) _go(6);
-                  },
                 ),
             ],
           );
@@ -1185,12 +1160,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.only(bottom: 88),
+            padding: const EdgeInsets.only(bottom: 24),
             children: [
               VitrineNavyBrowseHeader(
                 veicular: cat == 'veicular',
                 controller: _busca,
                 hero: _bootstrap.config.heroCatalogo,
+                cartCount: _picked.length,
+                onCart: _openCarrinho,
                 onBack: _browseBack,
                 onSearch: (q) {
                   setState(() {

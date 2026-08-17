@@ -188,6 +188,8 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
     required this.onSearch,
     required this.onClear,
     this.hero = const VitrineHeroCatalogo(),
+    this.cartCount = 0,
+    this.onCart,
   });
 
   final bool veicular;
@@ -196,6 +198,8 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
   final ValueChanged<String> onSearch;
   final VoidCallback onClear;
   final VitrineHeroCatalogo hero;
+  final int cartCount;
+  final VoidCallback? onCart;
 
   @override
   Widget build(BuildContext context) {
@@ -248,6 +252,27 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
             right: 0,
             child: Center(child: VitrineBrandLogo(onDark: true)),
           ),
+          if (onCart != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                key: const Key('vitrine-nav-agendar'),
+                onPressed: onCart,
+                tooltip: 'Carrinho',
+                color: Colors.white,
+                icon: Badge(
+                  isLabelVisible: cartCount > 0,
+                  label: Text(cartCount > 99 ? '99+' : '$cartCount'),
+                  backgroundColor: const Color(0xFFDC2626),
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CustomPaint(painter: _VitrineFabCartPainter()),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: phone ? 62 : 82,
             left: pad,
