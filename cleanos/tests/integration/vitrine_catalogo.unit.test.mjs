@@ -84,7 +84,7 @@ describe('vitrine catálogo personalizável', () => {
     assert.equal(out.vitrine_layout, 'fotografico')
     assert.equal(out.vitrine_preco_modo, 'a_partir_de')
     assert.equal(out.vitrine_ordem, 0)
-    assert.equal(rec.get('vitrine_descricao').length, 500)
+    assert.equal(rec.get('vitrine_descricao').length, 800)
     assert.equal(out.vitrine_titulo, 'Sofá premium')
   })
 
