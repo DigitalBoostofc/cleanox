@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
 
 import '../core/env/env.dart';
+import 'widgets/vitrine_hero_catalogo.dart';
 
 enum VitrineServicoLayout {
   destaque('destaque'),
@@ -299,6 +300,7 @@ class VitrineConfig {
     this.homeDestaquesTitulo = 'Ofertas em destaque',
     this.homeDestaquesCta = 'Ver todos',
     this.homeDestaquesAtivo = true,
+    this.heroCatalogo = const VitrineHeroCatalogo(),
   });
 
   final String id;
@@ -326,6 +328,7 @@ class VitrineConfig {
   final String homeDestaquesTitulo;
   final String homeDestaquesCta;
   final bool homeDestaquesAtivo;
+  final VitrineHeroCatalogo heroCatalogo;
 
   factory VitrineConfig.fromJson(Map<String, dynamic> j) => VitrineConfig(
     id: '${j['id'] ?? ''}',
@@ -359,6 +362,7 @@ class VitrineConfig {
         '${j['home_destaques_titulo'] ?? 'Ofertas em destaque'}',
     homeDestaquesCta: '${j['home_destaques_cta'] ?? 'Ver todos'}',
     homeDestaquesAtivo: _boolCfg(j['home_destaques_ativo'], true),
+    heroCatalogo: VitrineHeroCatalogo.parse(j['hero_catalogo_json']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -386,6 +390,7 @@ class VitrineConfig {
     'home_destaques_titulo': homeDestaquesTitulo,
     'home_destaques_cta': homeDestaquesCta,
     'home_destaques_ativo': homeDestaquesAtivo,
+    'hero_catalogo_json': heroCatalogo.encode(),
   };
 
   VitrineConfig copyWith({
@@ -413,6 +418,7 @@ class VitrineConfig {
     String? homeDestaquesTitulo,
     String? homeDestaquesCta,
     bool? homeDestaquesAtivo,
+    VitrineHeroCatalogo? heroCatalogo,
   }) => VitrineConfig(
     id: id,
     heroTitulo: heroTitulo ?? this.heroTitulo,
@@ -439,6 +445,7 @@ class VitrineConfig {
     homeDestaquesTitulo: homeDestaquesTitulo ?? this.homeDestaquesTitulo,
     homeDestaquesCta: homeDestaquesCta ?? this.homeDestaquesCta,
     homeDestaquesAtivo: homeDestaquesAtivo ?? this.homeDestaquesAtivo,
+    heroCatalogo: heroCatalogo ?? this.heroCatalogo,
   );
 }
 

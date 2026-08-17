@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets/cleanox_logo.dart';
 import '../../core/formatters/formatters.dart';
+import '../widgets/vitrine_hero_catalogo.dart';
 import '../widgets/vitrine_oferta_estilo.dart';
 import '../vitrine_api.dart';
 import 'vitrine_admin_auth.dart';
@@ -457,6 +458,9 @@ class _VitrineAdminPersonalizarScreenState
   final _homeDestaquesTitulo = TextEditingController();
   final _homeDestaquesCta = TextEditingController();
   bool _homeDestaquesAtivo = true;
+  VitrineHeroCatalogo _heroCatalogo = const VitrineHeroCatalogo();
+  final _heroCatalogoTitulo = TextEditingController();
+  final _heroCatalogoDestaque = TextEditingController();
   List<VitrineAdminServico> _estrelas = [];
   final _tagCtrls = <String, TextEditingController>{};
   final _capas = <String, VitrineMidiaItem>{};
@@ -512,6 +516,9 @@ class _VitrineAdminPersonalizarScreenState
       _homeDestaquesTitulo.text = c.homeDestaquesTitulo;
       _homeDestaquesCta.text = c.homeDestaquesCta;
       _homeDestaquesAtivo = c.homeDestaquesAtivo;
+      _heroCatalogo = c.heroCatalogo;
+      _heroCatalogoTitulo.text = c.heroCatalogo.titulo;
+      _heroCatalogoDestaque.text = c.heroCatalogo.destaque;
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -565,6 +572,12 @@ class _VitrineAdminPersonalizarScreenState
                   ? 'Ver todos'
                   : _homeDestaquesCta.text.trim(),
               homeDestaquesAtivo: _homeDestaquesAtivo,
+              heroCatalogo: _heroCatalogo.copyWith(
+                titulo: _heroCatalogoTitulo.text.trim().isEmpty
+                    ? VitrineHeroCatalogo.defaultTitulo
+                    : _heroCatalogoTitulo.text.trim(),
+                destaque: _heroCatalogoDestaque.text.trim(),
+              ),
             ),
           );
       for (final s in _estrelas) {
@@ -619,6 +632,8 @@ class _VitrineAdminPersonalizarScreenState
     _macroAutoSub.dispose();
     _homeDestaquesTitulo.dispose();
     _homeDestaquesCta.dispose();
+    _heroCatalogoTitulo.dispose();
+    _heroCatalogoDestaque.dispose();
     for (final c in _tagCtrls.values) {
       c.dispose();
     }
@@ -663,6 +678,12 @@ class _VitrineAdminPersonalizarScreenState
           icon: Icons.grid_view_rounded,
           titulo: 'Início do site',
           resumo: 'Os dois cards: estética automotiva e higienização residencial.',
+        ),
+        _tileSecao(
+          secao: _ConteudoSecao.hero,
+          icon: Icons.directions_car_outlined,
+          titulo: 'Cabeçalho do carro',
+          resumo: 'Texto do navy e onde ele fica. Arraste no preview.',
         ),
         _tileSecao(
           secao: _ConteudoSecao.ofertas,
@@ -774,6 +795,7 @@ class _VitrineAdminPersonalizarScreenState
               child: Text(
                 switch (secao) {
                   _ConteudoSecao.home => 'Início do site',
+                  _ConteudoSecao.hero => 'Cabeçalho do carro',
                   _ConteudoSecao.ofertas => 'Ofertas em destaque',
                   _ConteudoSecao.horarios => 'Horários do agendamento',
                   _ConteudoSecao.contato => 'Contato e rodapé',
@@ -803,6 +825,7 @@ class _VitrineAdminPersonalizarScreenState
             padding: const EdgeInsets.all(16),
             child: switch (secao) {
               _ConteudoSecao.home => _formHome(),
+              _ConteudoSecao.hero => _formHero(),
               _ConteudoSecao.ofertas => _formOfertas(),
               _ConteudoSecao.horarios => _formHorarios(),
               _ConteudoSecao.contato => _formContato(),
@@ -936,6 +959,61 @@ class _VitrineAdminPersonalizarScreenState
       if (!mounted) return;
       setState(() => _error = '$e');
     }
+  }
+
+  Widget _formHero() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Esse é o bloco navy da estética automotiva. Arraste o texto para o lugar.',
+          style: TextStyle(fontSize: 13, color: ClxBrand.muted),
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: ColoredBox(
+            color: ClxBrand.navy,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: VitrineHeroCatalogoStage(
+                hero: _heroCatalogo.copyWith(
+                  titulo: _heroCatalogoTitulo.text.trim().isEmpty
+                      ? VitrineHeroCatalogo.defaultTitulo
+                      : _heroCatalogoTitulo.text.trim(),
+                  destaque: _heroCatalogoDestaque.text.trim(),
+                ),
+                height: 150,
+                fontSize: 20,
+                editable: true,
+                onMoved: (o) => setState(() {
+                  _heroCatalogo = _heroCatalogo.copyWith(x: o.dx, y: o.dy);
+                }),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _heroCatalogoTitulo,
+          maxLines: 3,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: 'Texto',
+            hintText: 'O que vamos fazer no seu carro hoje?',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _heroCatalogoDestaque,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: 'Palavra em ciano',
+            hintText: 'carro',
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _formOfertas() {
@@ -1152,7 +1230,7 @@ class _VitrineAdminPersonalizarScreenState
   }
 }
 
-enum _ConteudoSecao { home, ofertas, horarios, contato, como }
+enum _ConteudoSecao { home, hero, ofertas, horarios, contato, como }
 
 // ── Serviços ────────────────────────────────────────────────────────────────
 
