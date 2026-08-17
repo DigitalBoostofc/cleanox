@@ -871,9 +871,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
 
         return Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
               horizontal: _kChoiceHPad,
-              vertical: 16,
+              vertical: VitrineUi.isPhone(context) ? 8 : 16,
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -883,20 +883,20 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'O que você procura?',
-                    key: Key('vitrine-home-oqvp'),
+                    key: const Key('vitrine-home-oqvp'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: kFontFamily,
-                      fontSize: 26,
+                      fontSize: VitrineUi.isPhone(context) ? 22 : 26,
                       fontWeight: FontWeight.w800,
                       color: ClxBrand.navy,
                       height: 1.15,
                       letterSpacing: -0.4,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   const Text(
                     'Escolha o tipo de serviço para começar.',
                     textAlign: TextAlign.center,
@@ -907,7 +907,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       color: ClxBrand.muted,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  SizedBox(height: VitrineUi.isPhone(context) ? 16 : 28),
                   if (available.isEmpty)
                     const Text(
                       'Nenhum serviço disponível no momento.',
@@ -1256,7 +1256,12 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            padding: EdgeInsets.fromLTRB(
+              VitrineUi.pageInset(context),
+              0,
+              VitrineUi.pageInset(context),
+              88,
+            ),
             children: [
               _HomeCatalogHeader(
                 categoria: cat,
@@ -1271,7 +1276,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 },
               ),
               if (cat.isNotEmpty && _gruposDoMacro(cat).isNotEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: VitrineUi.isPhone(context) ? 8 : 12),
                 _HomeGrupoIconStrip(
                   key: const Key('vitrine-home-grupo-icon-strip'),
                   grupos: _gruposDoMacro(cat),
@@ -1288,7 +1293,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               ],
               if (cat == 'veicular' &&
                   _bootstrap.config.homeDestaquesAtivo) ...[
-                const SizedBox(height: 16),
+                SizedBox(height: VitrineUi.isPhone(context) ? 10 : 16),
                 VitrineOfertasDestaque(
                   servicos: ofertasDestaqueDaCategoria(
                     catalogo: _catalog,
@@ -1309,7 +1314,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   selectedIds: _selected,
                 ),
               ],
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               if (items.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -2615,7 +2620,7 @@ class _HomeGrupoIconStripState extends State<_HomeGrupoIconStrip> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 108,
+      height: VitrineUi.grupoStripH(context),
       child: Stack(
         children: [
           ListView.separated(
@@ -2691,15 +2696,15 @@ class _GrupoIconChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(VitrineUi.rPill),
         child: SizedBox(
-        width: 84,
+        width: VitrineUi.grupoChipW(context),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                width: 52,
-                height: 52,
+                width: VitrineUi.grupoCircle(context),
+                height: VitrineUi.grupoCircle(context),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: bg,
@@ -2721,7 +2726,11 @@ class _GrupoIconChip extends StatelessWidget {
                           ),
                         ],
                 ),
-                child: VitrineChoiceIcon(glyph: glyph, size: 24, color: fg),
+                child: VitrineChoiceIcon(
+                  glyph: glyph,
+                  size: VitrineUi.isPhone(context) ? 18 : 24,
+                  color: fg,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -2796,17 +2805,18 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final phone = VitrineUi.isPhone(context);
     return Material(
       color: Colors.transparent,
       child: Ink(
-        padding: const EdgeInsets.all(22),
+        padding: EdgeInsets.all(VitrineUi.navyPad(context)),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [Color(0xFF0B1D34), Color(0xFF12324F), Color(0xFF0B5F6A)],
           ),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(phone ? 18 : 28),
           boxShadow: VitrineUi.shadowCard,
         ),
         child: Column(
@@ -2821,28 +2831,29 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
               },
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: EdgeInsets.only(bottom: phone ? 0 : 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'SERVIÇOS CLEANOX',
-                      style: TextStyle(
-                        color: ClxBrand.cyan,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
+                    if (!phone)
+                      const Text(
+                        'SERVIÇOS CLEANOX',
+                        style: TextStyle(
+                          color: ClxBrand.cyan,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 7),
+                    if (!phone) const SizedBox(height: 7),
                     Text(
                       widget.categoria == 'veicular'
                           ? 'O que vamos fazer no seu carro hoje?'
                           : 'Todos os serviços',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 22,
-                        height: 1.08,
+                        fontSize: VitrineUi.navyTitle(context),
+                        height: 1.1,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -2850,7 +2861,7 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: phone ? 10 : 16),
             TextField(
               key: const Key('vitrine-home-busca'),
               controller: _busca,
@@ -2858,19 +2869,22 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
               onSubmitted: _emit,
               onChanged: (v) {
                 setState(() {});
-                // Filtra na própria home ao digitar.
                 _emit(v);
               },
-              style: const TextStyle(color: ClxBrand.navy),
+              style: const TextStyle(color: ClxBrand.navy, fontSize: 14),
               decoration: InputDecoration(
+                isDense: phone,
                 hintText: 'Buscar serviço...',
-                helperText: 'Busca palavras do nome do serviço',
+                helperText: phone ? null : 'Busca palavras do nome do serviço',
                 helperStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
                   fontSize: 11,
                 ),
                 filled: true,
                 fillColor: Colors.white,
+                contentPadding: phone
+                    ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                    : null,
                 prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
                 suffixIcon: _busca.text.trim().isEmpty
                     ? null
@@ -2894,5 +2908,3 @@ class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
     );
   }
 }
-
-

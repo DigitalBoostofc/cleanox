@@ -47,6 +47,48 @@ abstract final class VitrineUi {
   static const double logoW = 140;
   static const String logoAsset = 'assets/brand/logo_cleanox_color.png';
 
+  static double widthOf(BuildContext context) => MediaQuery.sizeOf(context).width;
+
+  static bool isPhone(BuildContext context) => widthOf(context) < 600;
+
+  static bool isTablet(BuildContext context) {
+    final w = widthOf(context);
+    return w >= 600 && w < 1024;
+  }
+
+  static double pageInset(BuildContext context) {
+    final w = widthOf(context);
+    if (w < 380) return 10;
+    if (w < 600) return 12;
+    if (w < 900) return 16;
+    return 20;
+  }
+
+  static double navyPad(BuildContext context) => isPhone(context) ? 12 : 22;
+
+  static double navyTitle(BuildContext context) {
+    final w = widthOf(context);
+    if (w < 380) return 16;
+    if (w < 600) return 18;
+    return 22;
+  }
+
+  static double grupoStripH(BuildContext context) => isPhone(context) ? 82 : 108;
+
+  static double grupoCircle(BuildContext context) => isPhone(context) ? 40 : 52;
+
+  static double grupoChipW(BuildContext context) => isPhone(context) ? 68 : 84;
+
+  static double ofertaCardH(BuildContext context) {
+    final w = widthOf(context);
+    if (w < 380) return 168;
+    if (w < 600) return 188;
+    if (w < 900) return 220;
+    return 248;
+  }
+
+  static double catalogPad(BuildContext context) => isPhone(context) ? 12 : 18;
+
   static BoxDecoration cardDeco({
     Color? border,
     double radius = rMd,

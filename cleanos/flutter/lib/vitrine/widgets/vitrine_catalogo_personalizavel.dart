@@ -1222,7 +1222,7 @@ class _ServiceContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.all(prominent ? 24 : 18),
+    padding: EdgeInsets.all(VitrineUi.catalogPad(context)),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: prominent
