@@ -202,7 +202,7 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
     final phone = VitrineUi.isPhone(context);
     final height = veicular ? (phone ? 268.0 : 330.0) : (phone ? 224.0 : 264.0);
     final pad = phone ? 16.0 : 28.0;
-    final titleSize = phone ? 21.0 : 30.0;
+    final titleSize = phone ? 23.0 : 32.0;
     final titleWidth = veicular ? (phone ? 216.0 : 470.0) : 620.0;
 
     return Container(
