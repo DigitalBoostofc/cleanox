@@ -237,7 +237,7 @@ class VitrineOfertaCardVisual extends StatelessWidget {
                     ),
                   ),
                 _navyLayer(),
-                _textLayer(),
+                _textLayer(context),
               ],
             );
           },
@@ -356,13 +356,14 @@ class VitrineOfertaCardVisual extends StatelessWidget {
     }
   }
 
-  Widget _textLayer() {
+  Widget _textLayer(BuildContext context) {
     final title = estilo.titulo.trim().isEmpty ? titulo : estilo.titulo.trim();
+    final phone = VitrineUi.isPhone(context);
     final pad = switch (estilo.layout) {
-      VitrineOfertaLayout.right => const EdgeInsets.fromLTRB(16, 14, 118, 14),
-      VitrineOfertaLayout.left => const EdgeInsets.fromLTRB(118, 14, 16, 14),
-      VitrineOfertaLayout.bottom => const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      VitrineOfertaLayout.overlay => const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      VitrineOfertaLayout.right => EdgeInsets.fromLTRB(phone ? 12 : 16, phone ? 10 : 14, phone ? 96 : 118, phone ? 10 : 14),
+      VitrineOfertaLayout.left => EdgeInsets.fromLTRB(phone ? 96 : 118, phone ? 10 : 14, phone ? 12 : 16, phone ? 10 : 14),
+      VitrineOfertaLayout.bottom => EdgeInsets.fromLTRB(phone ? 12 : 16, phone ? 10 : 14, phone ? 12 : 16, phone ? 10 : 14),
+      VitrineOfertaLayout.overlay => EdgeInsets.fromLTRB(phone ? 12 : 16, phone ? 10 : 14, phone ? 12 : 16, phone ? 10 : 14),
     };
     return Padding(
       padding: pad,
@@ -382,11 +383,11 @@ class VitrineOfertaCardVisual extends StatelessWidget {
               textAlign: estilo.layout == VitrineOfertaLayout.left
                   ? TextAlign.right
                   : TextAlign.left,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: kFontFamily,
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
-                fontSize: 18,
+                fontSize: phone ? 15 : 18,
                 height: 1.15,
               ),
             ),
@@ -406,11 +407,11 @@ class VitrineOfertaCardVisual extends StatelessWidget {
             ],
             Text(
               preco,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: kFontFamily,
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
-                fontSize: 22,
+                fontSize: phone ? 18 : 22,
                 height: 1.05,
               ),
             ),
@@ -420,7 +421,7 @@ class VitrineOfertaCardVisual extends StatelessWidget {
             ],
           ],
           if (estilo.showDetalhe) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: phone ? 4 : 8),
             TextButton(
               onPressed: onDetalhes,
               style: TextButton.styleFrom(
@@ -440,9 +441,9 @@ class VitrineOfertaCardVisual extends StatelessWidget {
             ),
           ],
           if (estilo.showAdd) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: phone ? 4 : 8),
             SizedBox(
-              height: 34,
+              height: phone ? 28 : 34,
               child: FilledButton(
                 onPressed: onAdd,
                 style: FilledButton.styleFrom(

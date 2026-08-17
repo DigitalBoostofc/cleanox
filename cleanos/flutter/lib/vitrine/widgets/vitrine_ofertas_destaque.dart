@@ -96,9 +96,9 @@ class _VitrineOfertasDestaqueState extends State<VitrineOfertasDestaque> {
                 widget.titulo.trim().isEmpty
                     ? 'Ofertas em destaque'
                     : widget.titulo,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: kFontFamily,
-                  fontSize: 18,
+                  fontSize: VitrineUi.isPhone(context) ? 15 : 18,
                   fontWeight: FontWeight.w800,
                   color: ClxBrand.navy,
                 ),
@@ -120,9 +120,9 @@ class _VitrineOfertasDestaqueState extends State<VitrineOfertasDestaque> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: VitrineUi.isPhone(context) ? 8 : 12),
         SizedBox(
-          height: 248,
+          height: VitrineUi.ofertaCardH(context),
           child: PageView.builder(
             controller: _pages,
             padEnds: false,
