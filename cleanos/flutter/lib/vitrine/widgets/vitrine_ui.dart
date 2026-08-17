@@ -23,16 +23,8 @@ abstract final class VitrineUi {
 
   /// Sombra de card estilo app de estética (foto + preço).
   static const List<BoxShadow> shadowCard = [
-    BoxShadow(
-      color: Color(0x140B1D34),
-      blurRadius: 22,
-      offset: Offset(0, 10),
-    ),
-    BoxShadow(
-      color: Color(0x080B1D34),
-      blurRadius: 6,
-      offset: Offset(0, 2),
-    ),
+    BoxShadow(color: Color(0x140B1D34), blurRadius: 22, offset: Offset(0, 10)),
+    BoxShadow(color: Color(0x080B1D34), blurRadius: 6, offset: Offset(0, 2)),
   ];
 
   /// Largura máxima do conteúdo público (home + todas as etapas do funil).
@@ -41,13 +33,16 @@ abstract final class VitrineUi {
   /// Proporções canônicas do cabeçalho (home, funil, brand bar).
   static const double headerPadH = 16;
   static const double headerPadV = 10;
+
   /// Altura da faixa de conteúdo do header (alinha logo + ações).
   static const double headerRowH = 44;
   static const double logoH = 36;
   static const double logoW = 140;
   static const String logoAsset = 'assets/brand/logo_cleanox_color.png';
+  static const String logoOnDarkAsset = 'assets/brand/logo_cleanox_white.png';
 
-  static double widthOf(BuildContext context) => MediaQuery.sizeOf(context).width;
+  static double widthOf(BuildContext context) =>
+      MediaQuery.sizeOf(context).width;
 
   static bool isPhone(BuildContext context) => widthOf(context) < 600;
 
@@ -73,7 +68,8 @@ abstract final class VitrineUi {
     return 22;
   }
 
-  static double grupoStripH(BuildContext context) => isPhone(context) ? 82 : 108;
+  static double grupoStripH(BuildContext context) =>
+      isPhone(context) ? 82 : 108;
 
   static double grupoCircle(BuildContext context) => isPhone(context) ? 40 : 52;
 
@@ -93,60 +89,54 @@ abstract final class VitrineUi {
     Color? border,
     double radius = rMd,
     bool selected = false,
-  }) =>
-      BoxDecoration(
-        color: selected ? ClxBrand.cyan.withValues(alpha: 0.04) : card,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: selected
-              ? ClxBrand.cyan
-              : (border ?? line),
-          width: selected ? 1.5 : 1,
-        ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: ClxBrand.cyan.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : shadowCard,
-      );
+  }) => BoxDecoration(
+    color: selected ? ClxBrand.cyan.withValues(alpha: 0.04) : card,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(
+      color: selected ? ClxBrand.cyan : (border ?? line),
+      width: selected ? 1.5 : 1,
+    ),
+    boxShadow: selected
+        ? [
+            BoxShadow(
+              color: ClxBrand.cyan.withValues(alpha: 0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ]
+        : shadowCard,
+  );
 }
 
 /// Logo oficial Cleanox — mesmo tamanho em todas as barras da Vitrine.
 class VitrineBrandLogo extends StatelessWidget {
-  const VitrineBrandLogo({
-    super.key,
-    this.onDark = false,
-  });
+  const VitrineBrandLogo({super.key, this.onDark = false});
 
   /// Se true, fallback de texto fica branco (header legado navy).
   final bool onDark;
 
   Widget _fallback() => Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          'CLEANOX',
-          style: TextStyle(
-            fontFamily: kFontFamily,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: onDark ? Colors.white : ClxBrand.navy,
-            letterSpacing: 0.6,
-          ),
-        ),
-      );
+    alignment: Alignment.centerLeft,
+    child: Text(
+      'CLEANOX',
+      style: TextStyle(
+        fontFamily: kFontFamily,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        color: onDark ? Colors.white : ClxBrand.navy,
+        letterSpacing: 0.6,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
+    final asset = onDark ? VitrineUi.logoOnDarkAsset : VitrineUi.logoAsset;
     // Na web, Image.asset às vezes falha silenciosamente com SW/cache;
     // tenta network no mesmo origin e cai no asset/texto.
     final Widget img;
     if (kIsWeb) {
-      final url =
-          '${Uri.base.origin}/assets/assets/brand/logo_cleanox_color.png';
+      final url = '${Uri.base.origin}/assets/$asset';
       img = Image.network(
         url,
         height: VitrineUi.logoH,
@@ -156,7 +146,7 @@ class VitrineBrandLogo extends StatelessWidget {
         filterQuality: FilterQuality.high,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => Image.asset(
-          VitrineUi.logoAsset,
+          asset,
           height: VitrineUi.logoH,
           width: VitrineUi.logoW,
           fit: BoxFit.contain,
@@ -167,7 +157,7 @@ class VitrineBrandLogo extends StatelessWidget {
       );
     } else {
       img = Image.asset(
-        VitrineUi.logoAsset,
+        asset,
         height: VitrineUi.logoH,
         width: VitrineUi.logoW,
         fit: BoxFit.contain,
@@ -186,12 +176,176 @@ class VitrineBrandLogo extends StatelessWidget {
   }
 }
 
+/// Cabeçalho de navegação do catálogo: uma única superfície navy, com busca
+/// integrada. A versão veicular recebe a foto frontal; a residencial é limpa.
+class VitrineNavyBrowseHeader extends StatelessWidget {
+  const VitrineNavyBrowseHeader({
+    super.key,
+    required this.veicular,
+    required this.controller,
+    required this.onBack,
+    required this.onSearch,
+    required this.onClear,
+  });
+
+  final bool veicular;
+  final TextEditingController controller;
+  final VoidCallback onBack;
+  final ValueChanged<String> onSearch;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = VitrineUi.isPhone(context);
+    final height = veicular ? (phone ? 292.0 : 356.0) : (phone ? 224.0 : 264.0);
+    final pad = phone ? 16.0 : 28.0;
+    final titleSize = phone ? 25.0 : 36.0;
+    final titleWidth = veicular ? (phone ? 216.0 : 470.0) : 620.0;
+
+    return Container(
+      key: const Key('vitrine-home-catalog-header'),
+      height: height + MediaQuery.paddingOf(context).top,
+      width: double.infinity,
+      padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+      decoration: const BoxDecoration(
+        color: ClxBrand.navy,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+      ),
+      child: Stack(
+        children: [
+          if (veicular)
+            Positioned(
+              top: phone ? 48 : 36,
+              right: 0,
+              bottom: phone ? 50 : 38,
+              width: phone ? 235 : 520,
+              child: IgnorePointer(
+                child: Image.asset(
+                  'assets/vitrine/hero_carro_diagonal.png',
+                  fit: BoxFit.contain,
+                  alignment: Alignment.centerRight,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          Positioned(
+            top: 4,
+            left: 4,
+            child: IconButton(
+              key: const Key('vitrine-home-back'),
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
+              color: Colors.white,
+              tooltip: 'Voltar',
+            ),
+          ),
+          const Positioned(
+            top: 8,
+            left: 0,
+            right: 0,
+            child: Center(child: VitrineBrandLogo(onDark: true)),
+          ),
+          Positioned(
+            top: phone ? 62 : 82,
+            left: pad,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: titleWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (veicular) ...[
+                    Text(
+                      'Olá! 👋',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: kFontFamily,
+                        fontSize: phone ? 18 : 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: phone ? 3 : 7),
+                  ],
+                  Text.rich(
+                    TextSpan(
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: kFontFamily,
+                        fontSize: titleSize,
+                        height: 1.08,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      children: veicular
+                          ? const [
+                              TextSpan(text: 'O que vamos fazer\nno seu '),
+                              TextSpan(
+                                text: 'carro',
+                                style: TextStyle(color: ClxBrand.cyan),
+                              ),
+                              TextSpan(text: ' hoje?'),
+                            ]
+                          : const [
+                              TextSpan(text: 'Como podemos\najudar hoje?'),
+                            ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: pad,
+            right: pad,
+            bottom: phone ? 16 : 22,
+            child: TextField(
+              key: const Key('vitrine-home-busca'),
+              controller: controller,
+              textInputAction: TextInputAction.search,
+              onSubmitted: onSearch,
+              onChanged: onSearch,
+              style: const TextStyle(
+                color: ClxBrand.navy,
+                fontFamily: kFontFamily,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Buscar serviço...',
+                hintStyle: const TextStyle(color: Color(0xFF7890A5)),
+                filled: true,
+                fillColor: Colors.white,
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: ClxBrand.cyan,
+                ),
+                suffixIcon: controller.text.trim().isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: onClear,
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: ClxBrand.muted,
+                        ),
+                      ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Casco comum do cabeçalho claro (mesma altura/padding em todas as telas).
 class VitrineHeaderShell extends StatelessWidget {
-  const VitrineHeaderShell({
-    super.key,
-    required this.child,
-  });
+  const VitrineHeaderShell({super.key, required this.child});
 
   final Widget child;
 
@@ -208,10 +362,7 @@ class VitrineHeaderShell extends StatelessWidget {
             VitrineUi.headerPadH,
             VitrineUi.headerPadV,
           ),
-          child: SizedBox(
-            height: VitrineUi.headerRowH,
-            child: child,
-          ),
+          child: SizedBox(height: VitrineUi.headerRowH, child: child),
         ),
       ),
     );
@@ -338,8 +489,10 @@ class VitrineLightStepHeader extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(VitrineUi.rPill),
@@ -367,11 +520,7 @@ class VitrineLightStepHeader extends StatelessWidget {
 
 /// Header navy arredondado + pill de passo (legado / opcional).
 class VitrineNavyHeader extends StatelessWidget {
-  const VitrineNavyHeader({
-    super.key,
-    required this.stepLabel,
-    this.onBack,
-  });
+  const VitrineNavyHeader({super.key, required this.stepLabel, this.onBack});
 
   final String stepLabel;
   final VoidCallback? onBack;
@@ -452,8 +601,10 @@ class VitrineBottomNav extends StatelessWidget {
   final int cartCount;
 
   static const double _fabSize = 58;
+
   /// Quanto o FAB sobe por cima da barra (flutuação forte).
   static const double _fabLift = 36;
+
   /// Altura da faixa branca (sem safe-area).
   static const double _barH = 54;
   static const double _centerSlot = 84;
@@ -526,11 +677,7 @@ class VitrineBottomNav extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.max,
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: on ? ClxBrand.cyan : ClxBrand.muted,
-            ),
+            Icon(icon, size: 22, color: on ? ClxBrand.cyan : ClxBrand.muted),
             const SizedBox(height: 2),
             Text(
               label,
@@ -586,16 +733,15 @@ class VitrineBottomNav extends StatelessWidget {
                                     Color(0xFF0B8A98),
                                     Color(0xFF0EA5B7),
                                   ]
-                                : const [
-                                    Color(0xFF0EA5B7),
-                                    Color(0xFF0B8A98),
-                                  ],
+                                : const [Color(0xFF0EA5B7), Color(0xFF0B8A98)],
                           ),
                           border: Border.all(color: Colors.white, width: 3.5),
                           boxShadow: [
                             // Sombra profunda = "descolado" da barra.
                             BoxShadow(
-                              color: const Color(0xFF0B1D34).withValues(alpha: 0.22),
+                              color: const Color(
+                                0xFF0B1D34,
+                              ).withValues(alpha: 0.22),
                               blurRadius: 22,
                               spreadRadius: 0,
                               offset: const Offset(0, 12),
@@ -637,7 +783,10 @@ class VitrineBottomNav extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: const Color(0xFFDC2626),
                               borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
                             ),
                             constraints: const BoxConstraints(minWidth: 20),
                             child: Text(
@@ -769,7 +918,9 @@ class VitrineStickyBar extends StatelessWidget {
       ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: VitrineUi.contentMaxWidth),
+          constraints: const BoxConstraints(
+            maxWidth: VitrineUi.contentMaxWidth,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -858,8 +1009,9 @@ class VitrineStickyBar extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: ClxBrand.cyan,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        ClxBrand.cyan.withValues(alpha: 0.35),
+                    disabledBackgroundColor: ClxBrand.cyan.withValues(
+                      alpha: 0.35,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(VitrineUi.rPill),
                     ),
@@ -919,128 +1071,130 @@ class VitrineHeroCard extends StatelessWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 860;
         return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(minHeight: wide ? 220 : 168),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(VitrineUi.rLg),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x330B1D34),
-            blurRadius: 20,
-            offset: Offset(0, 10),
+          width: double.infinity,
+          constraints: BoxConstraints(minHeight: wide ? 220 : 168),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(VitrineUi.rLg),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x330B1D34),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: hasImg
-                ? Image.network(
-                    imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _HeroGradient(),
-                  )
-                : const _HeroGradient(),
-          ),
-          if (hasImg)
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      ClxBrand.navy.withValues(alpha: 0.82),
-                      ClxBrand.cyan.withValues(alpha: 0.45),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: hasImg
+                    ? Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const _HeroGradient(),
+                      )
+                    : const _HeroGradient(),
+              ),
+              if (hasImg)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          ClxBrand.navy.withValues(alpha: 0.82),
+                          ClxBrand.cyan.withValues(alpha: 0.45),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
                   ),
+                )
+              else
+                const Positioned.fill(child: _HeroGradient()),
+              if (!hasImg && wide)
+                Positioned(
+                  key: const Key('vitrine-hero-art'),
+                  right: 72,
+                  top: 20,
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.cleaning_services_rounded,
+                      size: 78,
+                      color: Colors.white.withValues(alpha: 0.88),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: EdgeInsets.all(wide ? 32 : 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: wide ? 560 : 280),
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontFamily: kFontFamily,
+                          color: Colors.white,
+                          fontSize: wide ? 30 : 18,
+                          fontWeight: FontWeight.w800,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: wide ? 520 : 280),
+                      child: Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: kFontFamily,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: wide ? 15 : 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (showCta)
+                      FilledButton(
+                        key: const Key('vitrine-hero-cta'),
+                        onPressed: onCta,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: ClxBrand.navy,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              VitrineUi.rPill,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          textStyle: const TextStyle(
+                            fontFamily: kFontFamily,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        child: Text(cta),
+                      ),
+                  ],
                 ),
               ),
-            )
-          else
-            const Positioned.fill(child: _HeroGradient()),
-          if (!hasImg && wide)
-            Positioned(
-              key: const Key('vitrine-hero-art'),
-              right: 72,
-              top: 20,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.18),
-                  ),
-                ),
-                child: Icon(
-                  Icons.cleaning_services_rounded,
-                  size: 78,
-                  color: Colors.white.withValues(alpha: 0.88),
-                ),
-              ),
-            ),
-          Padding(
-            padding: EdgeInsets.all(wide ? 32 : 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: wide ? 560 : 280),
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: kFontFamily,
-                      color: Colors.white,
-                      fontSize: wide ? 30 : 18,
-                      fontWeight: FontWeight.w800,
-                      height: 1.25,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: wide ? 520 : 280),
-                  child: Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontFamily: kFontFamily,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: wide ? 15 : 12,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (showCta)
-                  FilledButton(
-                    key: const Key('vitrine-hero-cta'),
-                    onPressed: onCta,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: ClxBrand.navy,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(VitrineUi.rPill),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      textStyle: const TextStyle(
-                        fontFamily: kFontFamily,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    child: Text(cta),
-                  ),
-              ],
-            ),
+            ],
           ),
-          ],
-        ),
         );
       },
     );
@@ -1325,7 +1479,6 @@ class VitrineChoiceIcon extends StatelessWidget {
   }
 }
 
-
 /// Dois cards grandes: Residencial × Automotiva (“O que você procura?”).
 /// Ordem, textos e ícones vêm do CMS (`VitrineConfig.macro*`).
 class VitrineMacroChoice extends StatelessWidget {
@@ -1380,13 +1533,7 @@ class VitrineMacroChoice extends StatelessWidget {
         final first = autoPrimeiro ? automotiva : residencial;
         final second = autoPrimeiro ? residencial : automotiva;
         if (stacked) {
-          return Column(
-            children: [
-              first,
-              const SizedBox(height: 12),
-              second,
-            ],
-          );
+          return Column(children: [first, const SizedBox(height: 12), second]);
         }
         return Row(
           children: [
@@ -1524,55 +1671,57 @@ class VitrineCategoryGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final it = items[index];
             return Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(VitrineUi.rMd),
-            child: InkWell(
-              onTap: () => onTap(it.filter),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(VitrineUi.rMd),
-              child: Container(
-                decoration: VitrineUi.cardDeco(),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: ClxBrand.cyan.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => onTap(it.filter),
+                borderRadius: BorderRadius.circular(VitrineUi.rMd),
+                child: Container(
+                  decoration: VitrineUi.cardDeco(),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 4,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: ClxBrand.cyan.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: it.imageUrl != null && it.imageUrl!.isNotEmpty
+                            ? Image.network(
+                                it.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  it.icon,
+                                  size: 20,
+                                  color: ClxBrand.cyan,
+                                ),
+                              )
+                            : Icon(it.icon, size: 20, color: ClxBrand.cyan),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: it.imageUrl != null && it.imageUrl!.isNotEmpty
-                          ? Image.network(
-                              it.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                it.icon,
-                                size: 20,
-                                color: ClxBrand.cyan,
-                              ),
-                            )
-                          : Icon(it.icon, size: 20, color: ClxBrand.cyan),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      it.label,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: kFontFamily,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: VitrineUi.ink2,
+                      const SizedBox(height: 6),
+                      Text(
+                        it.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: kFontFamily,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: VitrineUi.ink2,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             );
           },
         );
@@ -1729,8 +1878,10 @@ class VitrineField extends StatelessWidget {
               hintText: hint,
               filled: true,
               fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 13,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(VitrineUi.rMd),
                 borderSide: const BorderSide(color: VitrineUi.line, width: 1.5),
@@ -1753,10 +1904,7 @@ class VitrineField extends StatelessWidget {
 
 /// Seta suave na faixa horizontal: indica que dá para arrastar.
 class VitrineFaixaOverflowHint extends StatelessWidget {
-  const VitrineFaixaOverflowHint({
-    super.key,
-    this.paraEsquerda = false,
-  });
+  const VitrineFaixaOverflowHint({super.key, this.paraEsquerda = false});
 
   final bool paraEsquerda;
 
@@ -1771,13 +1919,8 @@ class VitrineFaixaOverflowHint extends StatelessWidget {
               begin: paraEsquerda
                   ? Alignment.centerRight
                   : Alignment.centerLeft,
-              end: paraEsquerda
-                  ? Alignment.centerLeft
-                  : Alignment.centerRight,
-              colors: const [
-                Color(0x00FFFFFF),
-                Color(0xE6FFFFFF),
-              ],
+              end: paraEsquerda ? Alignment.centerLeft : Alignment.centerRight,
+              colors: const [Color(0x00FFFFFF), Color(0xE6FFFFFF)],
             ),
           ),
           child: Align(
@@ -1825,4 +1968,3 @@ class _FaixaChevronPainter extends CustomPainter {
   bool shouldRepaint(covariant _FaixaChevronPainter oldDelegate) =>
       oldDelegate.esquerda != esquerda;
 }
-

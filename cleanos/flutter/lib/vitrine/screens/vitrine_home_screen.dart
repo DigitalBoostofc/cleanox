@@ -58,6 +58,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   final _cidade = TextEditingController();
   final _obs = TextEditingController();
   final _honeypot = TextEditingController();
+  final _busca = TextEditingController();
 
   DateTime? _dia;
   List<VitrineSlot> _slots = const [];
@@ -125,6 +126,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     _cidade.dispose();
     _obs.dispose();
     _honeypot.dispose();
+    _busca.dispose();
     super.dispose();
   }
 
@@ -217,16 +219,16 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   }
 
   String? _macroOf(VitrineServico s) => vitrineMacroCategoriaOf(
-        categoria: s.categoria,
-        grupo: s.grupo,
-        nome: s.nome,
-      );
+    categoria: s.categoria,
+    grupo: s.grupo,
+    nome: s.nome,
+  );
 
   bool _matchBusca(VitrineServico s) => vitrineMatchesBuscaNome(
-        nome: s.nome,
-        tituloComercial: s.tituloComercial,
-        query: _buscaFilter ?? '',
-      );
+    nome: s.nome,
+    tituloComercial: s.tituloComercial,
+    query: _buscaFilter ?? '',
+  );
 
   List<VitrineServico> _sortedServicos(Iterable<VitrineServico> list) {
     final out = list.toList();
@@ -580,7 +582,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
 
           return Column(
             children: [
-              if (_step == 0 || _step == 6)
+              if ((_step == 0 && _homeBrowse < 2) || _step == 6)
                 VitrineLightTopBar(whatsapp: _config.whatsappExibido)
               else if (_step >= 1 && _step <= 4)
                 VitrineLightStepHeader(
@@ -642,8 +644,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 )
               else if (_step == 6 ||
                   _step == 1 ||
-                  (_step == 0 &&
-                      (_homeBrowse >= 2 || _picked.isNotEmpty)))
+                  (_step == 0 && (_homeBrowse >= 2 || _picked.isNotEmpty)))
                 VitrineBottomNav(
                   index: _navIndex,
                   cartCount: _picked.length,
@@ -734,9 +735,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
   VitrineChoiceGlyph _glyphGrupo(String slug) => vitrineGrupoGlyph(slug);
 
   List<VitrineServico> _servicosNoMacro(String macro) {
-    return _sortedServicos(
-      _catalog.where((s) => _macroOf(s) == macro),
-    );
+    return _sortedServicos(_catalog.where((s) => _macroOf(s) == macro));
   }
 
   List<String> _gruposDoMacro(String macro) {
@@ -772,8 +771,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
         _catalog.where((s) {
           if (!_matchBusca(s)) return false;
           if (cat.isNotEmpty && _macroOf(s) != cat) return false;
-          if (grupo.isNotEmpty &&
-              !vitrineBuscaCruzaGrupo(_buscaFilter ?? '')) {
+          if (grupo.isNotEmpty && !vitrineBuscaCruzaGrupo(_buscaFilter ?? '')) {
             final g = s.grupo.trim().toLowerCase();
             final key = g.isEmpty ? 'outros' : g;
             if (key != grupo) return false;
@@ -792,27 +790,6 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       _homeBrowse = 1;
       _error = null;
     });
-  }
-
-  /// Troca para a outra macro (ex.: residencial ↔ veicular) e abre os grupos.
-  void _switchCategoria(String macro) {
-    _pickCategoria(macro);
-  }
-
-  /// Outra categoria disponível (para atalho no topo do catálogo).
-  String? _outraMacroDisponivel(String atual) {
-    final cur = atual.trim().toLowerCase();
-    final candidatas = <String>[];
-    if (_config.macroAutoPrimeiro) {
-      candidatas.addAll(['veicular', 'residencial']);
-    } else {
-      candidatas.addAll(['residencial', 'veicular']);
-    }
-    for (final m in candidatas) {
-      if (m == cur) continue;
-      if (_servicosNoMacro(m).isNotEmpty) return m;
-    }
-    return null;
   }
 
   void _pickGrupo(String grupo) {
@@ -1090,54 +1067,9 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           if (trailing != null) ...[
             const SizedBox(width: 8),
             Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: trailing,
-              ),
+              child: Align(alignment: Alignment.centerRight, child: trailing),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _switchCategoriaTrailing(String catAtual) {
-    final outra = _outraMacroDisponivel(catAtual);
-    if (outra == null) return const SizedBox.shrink();
-    // Mesmo tamanho/peso; só o V de "Ver" em maiúscula.
-    const style = TextStyle(
-      fontFamily: kFontFamily,
-      fontWeight: FontWeight.w700,
-      fontSize: 13,
-      height: 1.1,
-    );
-    return TextButton(
-      key: Key('vitrine-home-switch-cat-$outra'),
-      onPressed: () => _switchCategoria(outra),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        visualDensity: VisualDensity.compact,
-        foregroundColor: ClxBrand.cyan,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text.rich(
-              TextSpan(
-                style: style,
-                children: [
-                  const TextSpan(text: 'Ver '),
-                  TextSpan(text: _macroTitle(outra)),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, size: 18),
         ],
       ),
     );
@@ -1251,73 +1183,82 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
       key: const Key('vitrine-home-browse-catalogo'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _browseBackButton(
-          trailing: cat.isNotEmpty ? _switchCategoriaTrailing(cat) : null,
-        ),
         Expanded(
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              VitrineUi.pageInset(context),
-              0,
-              VitrineUi.pageInset(context),
-              88,
-            ),
+            padding: const EdgeInsets.only(bottom: 88),
             children: [
-              _HomeCatalogHeader(
-                categoria: cat,
-                initialQuery: _buscaFilter ?? '',
+              VitrineNavyBrowseHeader(
+                veicular: cat == 'veicular',
+                controller: _busca,
+                onBack: _browseBack,
                 onSearch: (q) {
                   setState(() {
                     _buscaFilter = q.trim().isEmpty ? null : q.trim();
                   });
                 },
-                onClearFilters: () {
+                onClear: () {
+                  _busca.clear();
                   setState(() => _buscaFilter = null);
                 },
               ),
               if (cat.isNotEmpty && _gruposDoMacro(cat).isNotEmpty) ...[
                 SizedBox(height: VitrineUi.isPhone(context) ? 8 : 12),
-                _HomeGrupoIconStrip(
-                  key: const Key('vitrine-home-grupo-icon-strip'),
-                  grupos: _gruposDoMacro(cat),
-                  selected: grupo,
-                  labelOf: _labelGrupo,
-                  glyphOf: _glyphGrupo,
-                  onSelect: (g) {
-                    setState(() {
-                      _familiaFilter = g;
-                      _error = null;
-                    });
-                  },
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: VitrineUi.pageInset(context),
+                  ),
+                  child: _HomeGrupoIconStrip(
+                    key: const Key('vitrine-home-grupo-icon-strip'),
+                    grupos: _gruposDoMacro(cat),
+                    selected: grupo,
+                    labelOf: _labelGrupo,
+                    glyphOf: _glyphGrupo,
+                    onSelect: (g) {
+                      setState(() {
+                        _familiaFilter = g;
+                        _error = null;
+                      });
+                    },
+                  ),
                 ),
               ],
               if (cat == 'veicular' &&
                   _bootstrap.config.homeDestaquesAtivo) ...[
                 SizedBox(height: VitrineUi.isPhone(context) ? 10 : 16),
-                VitrineOfertasDestaque(
-                  servicos: ofertasDestaqueDaCategoria(
-                    catalogo: _catalog,
-                    categoria: cat,
-                    fallback: items,
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: VitrineUi.pageInset(context),
                   ),
-                  bootstrap: _bootstrap,
-                  titulo: _tituloOfertasDestaque(_bootstrap.config.homeDestaquesTitulo),
-                  cta: _bootstrap.config.homeDestaquesCta,
-                  onVerTodas: () {
-                    setState(() {
-                      _familiaFilter = 'promocao';
-                      _buscaFilter = null;
-                      _error = null;
-                    });
-                  },
-                  onTapServico: _toggleServico,
-                  selectedIds: _selected,
+                  child: VitrineOfertasDestaque(
+                    servicos: ofertasDestaqueDaCategoria(
+                      catalogo: _catalog,
+                      categoria: cat,
+                      fallback: items,
+                    ),
+                    bootstrap: _bootstrap,
+                    titulo: _tituloOfertasDestaque(
+                      _bootstrap.config.homeDestaquesTitulo,
+                    ),
+                    cta: _bootstrap.config.homeDestaquesCta,
+                    onVerTodas: () {
+                      setState(() {
+                        _familiaFilter = 'promocao';
+                        _buscaFilter = null;
+                        _error = null;
+                      });
+                    },
+                    onTapServico: _toggleServico,
+                    selectedIds: _selected,
+                  ),
                 ),
               ],
               const SizedBox(height: 10),
               if (items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: VitrineUi.pageInset(context),
+                    vertical: 24,
+                  ),
                   child: Text(
                     'Nenhum serviço encontrado.',
                     textAlign: TextAlign.center,
@@ -1325,20 +1266,25 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   ),
                 )
               else
-                VitrineCatalogoPersonalizavel(
-                  key: ValueKey(
-                    'vitrine-home-catgrid-$cat-$grupo-${_buscaFilter ?? ''}',
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: VitrineUi.pageInset(context),
                   ),
-                  servicos: items,
-                  bootstrap: _bootstrap,
-                  selectedIds: idsSelecaoComPorte(
-                    exibidos: items,
-                    catalogo: _catalog,
-                    selecionados: _selected,
+                  child: VitrineCatalogoPersonalizavel(
+                    key: ValueKey(
+                      'vitrine-home-catgrid-$cat-$grupo-${_buscaFilter ?? ''}',
+                    ),
+                    servicos: items,
+                    bootstrap: _bootstrap,
+                    selectedIds: idsSelecaoComPorte(
+                      exibidos: items,
+                      catalogo: _catalog,
+                      selecionados: _selected,
+                    ),
+                    showHeader: false,
+                    showCategoryChips: false,
+                    onToggle: _toggleServico,
                   ),
-                  showHeader: false,
-                  showCategoryChips: false,
-                  onToggle: _toggleServico,
                 ),
             ],
           ),
@@ -1505,7 +1451,10 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
           decoration: VitrineUi.cardDeco(),
           child: Column(
             children: [
-              _mini('Serviços selecionados', _picked.map((s) => s.nome).join(' + ')),
+              _mini(
+                'Serviços selecionados',
+                _picked.map((s) => s.nome).join(' + '),
+              ),
               if (_dia != null && _slot != null)
                 _mini(
                   'Quando',
@@ -1589,9 +1538,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 if (_cepLoading) const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _cepLoading
-                        ? 'Buscando endereço…'
-                        : (_cepWarning ?? ''),
+                    _cepLoading ? 'Buscando endereço…' : (_cepWarning ?? ''),
                     style: TextStyle(
                       fontFamily: kFontFamily,
                       fontSize: 12,
@@ -1834,7 +1781,11 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                 ),
               ),
               for (final s in _picked)
-                _sumRow(s.nome, 'Serviço selecionado', formatCurrency(s.valorBase)),
+                _sumRow(
+                  s.nome,
+                  'Serviço selecionado',
+                  formatCurrency(s.valorBase),
+                ),
               for (final b in _pickedBumps)
                 _sumRow(
                   '+ ${b.titulo}',
@@ -1848,24 +1799,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                   'OK',
                   mutedValue: true,
                 ),
-              _sumRow(
-                'Nome',
-                _nome.text.trim(),
-                'OK',
-                mutedValue: true,
-              ),
+              _sumRow('Nome', _nome.text.trim(), 'OK', mutedValue: true),
               _sumRow(
                 'WhatsApp',
                 mascaraWhatsapp(_whatsapp.text),
                 'OK',
                 mutedValue: true,
               ),
-              _sumRow(
-                'Endereço',
-                endereco,
-                'OK',
-                mutedValue: true,
-              ),
+              _sumRow('Endereço', endereco, 'OK', mutedValue: true),
             ],
           ),
         ),
@@ -2200,11 +2141,10 @@ class _SuccessBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final local =
-        [
-          if (result.bairro.isNotEmpty) result.bairro,
-          if (result.cidade.isNotEmpty) result.cidade,
-        ].join(' · ');
+    final local = [
+      if (result.bairro.isNotEmpty) result.bairro,
+      if (result.cidade.isNotEmpty) result.cidade,
+    ].join(' · ');
 
     return SafeArea(
       child: Padding(
@@ -2357,8 +2297,7 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
     _items = List<VitrineServico>.from(widget.items);
   }
 
-  double get _total =>
-      _items.fold<double>(0, (s, x) => s + x.valorBase);
+  double get _total => _items.fold<double>(0, (s, x) => s + x.valorBase);
 
   void _remove(VitrineServico s) {
     setState(() {
@@ -2376,9 +2315,7 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
     final maxH = MediaQuery.sizeOf(context).height * 0.78;
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Align(
         alignment: Alignment.bottomCenter,
         child: ConstrainedBox(
@@ -2492,9 +2429,7 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
                   padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    border: Border(
-                      top: BorderSide(color: Color(0xFFE2E8F0)),
-                    ),
+                    border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2526,8 +2461,7 @@ class _CarrinhoSheetState extends State<_CarrinhoSheet> {
                       const SizedBox(height: 12),
                       FilledButton(
                         key: const Key('vitrine-carrinho-continuar'),
-                        onPressed:
-                            _items.isEmpty ? null : widget.onContinuar,
+                        onPressed: _items.isEmpty ? null : widget.onContinuar,
                         style: FilledButton.styleFrom(
                           backgroundColor: ClxBrand.cyan,
                           foregroundColor: Colors.white,
@@ -2688,7 +2622,9 @@ class _GrupoIconChip extends StatelessWidget {
     // idle = fundo cyan 12% + glifo cyan (nunca branco em fundo claro).
     final bg = selected ? ClxBrand.cyan : ClxBrand.cyan.withValues(alpha: 0.12);
     final fg = selected ? Colors.white : ClxBrand.cyan;
-    final border = selected ? ClxBrand.cyan : ClxBrand.cyan.withValues(alpha: 0.28);
+    final border = selected
+        ? ClxBrand.cyan
+        : ClxBrand.cyan.withValues(alpha: 0.28);
 
     return Material(
       color: Colors.transparent,
@@ -2696,11 +2632,11 @@ class _GrupoIconChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(VitrineUi.rPill),
         child: SizedBox(
-        width: VitrineUi.grupoChipW(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+          width: VitrineUi.grupoChipW(context),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 width: VitrineUi.grupoCircle(context),
@@ -2748,161 +2684,6 @@ class _GrupoIconChip extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Card navy da home: busca + chips de categoria atualizam a própria home.
-class _HomeCatalogHeader extends StatefulWidget {
-  const _HomeCatalogHeader({
-    required this.onSearch,
-    required this.onClearFilters,
-    this.categoria = '',
-    this.initialQuery = '',
-  });
-
-  final ValueChanged<String> onSearch;
-  final VoidCallback onClearFilters;
-  final String categoria;
-  final String initialQuery;
-
-  @override
-  State<_HomeCatalogHeader> createState() => _HomeCatalogHeaderState();
-}
-
-class _HomeCatalogHeaderState extends State<_HomeCatalogHeader> {
-  late final TextEditingController _busca;
-
-  @override
-  void initState() {
-    super.initState();
-    _busca = TextEditingController(text: widget.initialQuery);
-  }
-
-  @override
-  void didUpdateWidget(covariant _HomeCatalogHeader oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialQuery != widget.initialQuery &&
-        _busca.text != widget.initialQuery) {
-      _busca.value = TextEditingValue(
-        text: widget.initialQuery,
-        selection: TextSelection.collapsed(offset: widget.initialQuery.length),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _busca.dispose();
-    super.dispose();
-  }
-
-  void _emit([String? raw]) {
-    widget.onSearch((raw ?? _busca.text).trim());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final phone = VitrineUi.isPhone(context);
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        padding: EdgeInsets.all(VitrineUi.navyPad(context)),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0B1D34), Color(0xFF12324F), Color(0xFF0B5F6A)],
-          ),
-          borderRadius: BorderRadius.circular(phone ? 18 : 28),
-          boxShadow: VitrineUi.shadowCard,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            InkWell(
-              key: const Key('vitrine-home-catalog-header'),
-              onTap: () {
-                _busca.clear();
-                setState(() {});
-                widget.onClearFilters();
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: EdgeInsets.only(bottom: phone ? 0 : 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!phone)
-                      const Text(
-                        'SERVIÇOS CLEANOX',
-                        style: TextStyle(
-                          color: ClxBrand.cyan,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    if (!phone) const SizedBox(height: 7),
-                    Text(
-                      widget.categoria == 'veicular'
-                          ? 'O que vamos fazer no seu carro hoje?'
-                          : 'Todos os serviços',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: VitrineUi.navyTitle(context),
-                        height: 1.1,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: phone ? 10 : 16),
-            TextField(
-              key: const Key('vitrine-home-busca'),
-              controller: _busca,
-              textInputAction: TextInputAction.search,
-              onSubmitted: _emit,
-              onChanged: (v) {
-                setState(() {});
-                _emit(v);
-              },
-              style: const TextStyle(color: ClxBrand.navy, fontSize: 14),
-              decoration: InputDecoration(
-                isDense: phone,
-                hintText: 'Buscar serviço...',
-                helperText: phone ? null : 'Busca palavras do nome do serviço',
-                helperStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontSize: 11,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: phone
-                    ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
-                    : null,
-                prefixIcon: const Icon(Icons.search, color: ClxBrand.cyan),
-                suffixIcon: _busca.text.trim().isEmpty
-                    ? null
-                    : IconButton(
-                        onPressed: () {
-                          _busca.clear();
-                          setState(() {});
-                          _emit('');
-                        },
-                        icon: const Icon(Icons.close, color: ClxBrand.muted),
-                      ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
