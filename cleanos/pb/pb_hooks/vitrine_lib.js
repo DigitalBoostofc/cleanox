@@ -262,6 +262,7 @@ function defaultConfig() {
     home_destaques_titulo: "Ofertas em destaque",
     home_destaques_cta: "Ver todas",
     home_destaques_ativo: true,
+    hero_catalogo_json: "",
   };
 }
 
@@ -350,6 +351,7 @@ function getConfig(app) {
           r.get("home_destaques_ativo"),
           base.home_destaques_ativo,
         ),
+        hero_catalogo_json: String(r.get("hero_catalogo_json") || ""),
       };
     }
   } catch (_) {}
@@ -384,6 +386,7 @@ function saveConfig(app, body) {
     "macro_auto_icone",
     "home_destaques_titulo",
     "home_destaques_cta",
+    "hero_catalogo_json",
   ];
   for (var i = 0; i < keys.length; i++) {
     const k = keys[i];

@@ -1190,6 +1190,7 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
               VitrineNavyBrowseHeader(
                 veicular: cat == 'veicular',
                 controller: _busca,
+                hero: _bootstrap.config.heroCatalogo,
                 onBack: _browseBack,
                 onSearch: (q) {
                   setState(() {

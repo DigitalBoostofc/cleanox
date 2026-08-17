@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/tokens.dart';
+import 'vitrine_hero_catalogo.dart';
 import 'vitrine_lucide_icons.dart';
 // logo: assets/brand/logo_cleanox_color.png
 
@@ -186,6 +187,7 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
     required this.onBack,
     required this.onSearch,
     required this.onClear,
+    this.hero = const VitrineHeroCatalogo(),
   });
 
   final bool veicular;
@@ -193,6 +195,7 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
   final VoidCallback onBack;
   final ValueChanged<String> onSearch;
   final VoidCallback onClear;
+  final VitrineHeroCatalogo hero;
 
   @override
   Widget build(BuildContext context) {
@@ -242,48 +245,12 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
                 ),
                 SizedBox(height: phone ? 8 : 12),
                 if (veicular)
-                  SizedBox(
-                    height: phone ? 132 : 168,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          flex: 11,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text.rich(
-                              TextSpan(
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: kFontFamily,
-                                  fontSize: titleSize,
-                                  height: 1.12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                                children: const [
-                                  TextSpan(text: 'O que vamos\nfazer no seu\n'),
-                                  TextSpan(
-                                    text: 'carro',
-                                    style: TextStyle(color: ClxBrand.cyan),
-                                  ),
-                                  TextSpan(text: ' hoje?'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 10,
-                          child: IgnorePointer(
-                            child: Image.asset(
-                              'assets/vitrine/hero_carro_diagonal.png',
-                              fit: BoxFit.contain,
-                              alignment: Alignment.centerRight,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          ),
-                        ),
-                      ],
+                  Padding(
+                    padding: EdgeInsets.only(right: pad),
+                    child: VitrineHeroCatalogoStage(
+                      hero: hero,
+                      height: phone ? 132 : 168,
+                      fontSize: titleSize,
                     ),
                   )
                 else
