@@ -252,7 +252,10 @@ void main() {
 
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
       expect(find.text('O que você procura?'), findsOneWidget);
-      expect(find.byKey(const Key('vitrine-home-browse-categorias')), findsOneWidget);
+      expect(
+        find.byKey(const Key('vitrine-home-browse-categorias')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
       expect(find.byKey(const Key('vitrine-home-cat-row')), findsOneWidget);
 
@@ -265,7 +268,10 @@ void main() {
         await tester.tap(catVeic);
       }
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('vitrine-home-browse-grupos')), findsOneWidget);
+      expect(
+        find.byKey(const Key('vitrine-home-browse-grupos')),
+        findsOneWidget,
+      );
       expect(find.text('Selecione os itens que deseja limpar'), findsOneWidget);
       expect(find.byKey(const Key('vitrine-home-grupo-row')), findsOneWidget);
       expect(find.byKey(const Key('vitrine-nav-agendar')), findsNothing);
@@ -286,19 +292,30 @@ void main() {
       }
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('vitrine-home-browse-subgrupos')), findsNothing);
-      expect(find.text('Escolha o subgrupo'), findsNothing);
-      expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
-      // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
-      expect(find.byKey(const Key('vitrine-home-grupo-icon-strip')), findsOneWidget);
-      // Atalho da outra categoria na mesma linha do Voltar.
       expect(
-        find.byKey(const Key('vitrine-home-switch-cat-veicular')),
+        find.byKey(const Key('vitrine-home-browse-subgrupos')),
+        findsNothing,
+      );
+      expect(find.text('Escolha o subgrupo'), findsNothing);
+      expect(
+        find.byKey(const Key('vitrine-home-browse-catalogo')),
         findsOneWidget,
       );
-      expect(find.textContaining('Ver '), findsWidgets);
-      expect(find.textContaining('Estética'), findsWidgets);
-      expect(find.byKey(const Key('vitrine-home-catalog-header')), findsOneWidget);
+      // Faixa de grupos (ícones) abaixo da busca, quando a categoria tem grupos.
+      expect(
+        find.byKey(const Key('vitrine-home-grupo-icon-strip')),
+        findsOneWidget,
+      );
+      // O retorno agora é só o ícone, dentro do mesmo header navy.
+      expect(find.byKey(const Key('vitrine-home-back')), findsOneWidget);
+      expect(
+        find.byKey(const Key('vitrine-home-switch-cat-veicular')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('vitrine-home-catalog-header')),
+        findsOneWidget,
+      );
       expect(find.textContaining(RegExp(r'[Oo]r[cç]amento')), findsNothing);
     });
 
@@ -362,9 +379,15 @@ void main() {
       await tester.tap(find.byKey(const Key('vitrine-home-grupo-sofa')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('vitrine-home-browse-subgrupos')), findsNothing);
+      expect(
+        find.byKey(const Key('vitrine-home-browse-subgrupos')),
+        findsNothing,
+      );
       expect(find.text('Escolha o subgrupo'), findsNothing);
-      expect(find.byKey(const Key('vitrine-home-browse-catalogo')), findsOneWidget);
+      expect(
+        find.byKey(const Key('vitrine-home-browse-catalogo')),
+        findsOneWidget,
+      );
       expect(find.text('Sofa 3 lugares'), findsWidgets);
     });
 

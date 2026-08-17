@@ -97,6 +97,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/vitrine/
   # Poppins = tipografia de marca (board Cleanox). Sora permanece como fallback.
   fonts:
     - family: Poppins
