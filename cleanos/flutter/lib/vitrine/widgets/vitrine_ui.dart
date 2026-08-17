@@ -1,25 +1,39 @@
 /// Componentes de UI da vitrine — alinhados aos mockups mobile Cleanox.
 library;
 
-import 'dart:math' show cos, sin;
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/design/tokens.dart';
+import 'vitrine_lucide_icons.dart';
 // logo: assets/brand/logo_cleanox_color.png
 
-/// Canvas e superfícies do mockup.
+/// Canvas e superfícies do marketplace Cleanox (só visual).
 abstract final class VitrineUi {
-  static const bg = ClxBrand.canvas;
+  static const bg = Color(0xFFF3F6FA);
   static const card = Colors.white;
-  static const line = Color(0xFFE2E8F0);
+  static const line = Color(0xFFE6EEF3);
   static const ink2 = Color(0xFF3D4F63);
-  static const rMd = 14.0;
-  static const rLg = 20.0;
+  static const rMd = 16.0;
+  static const rLg = 24.0;
   static const rPill = 999.0;
+
+  /// Sombra de card estilo app de estética (foto + preço).
+  static const List<BoxShadow> shadowCard = [
+    BoxShadow(
+      color: Color(0x140B1D34),
+      blurRadius: 22,
+      offset: Offset(0, 10),
+    ),
+    BoxShadow(
+      color: Color(0x080B1D34),
+      blurRadius: 6,
+      offset: Offset(0, 2),
+    ),
+  ];
 
   /// Largura máxima do conteúdo público (home + todas as etapas do funil).
   static const double contentMaxWidth = 1180;
@@ -50,18 +64,12 @@ abstract final class VitrineUi {
         boxShadow: selected
             ? [
                 BoxShadow(
-                  color: ClxBrand.cyan.withValues(alpha: 0.12),
-                  blurRadius: 0,
-                  spreadRadius: 1,
+                  color: ClxBrand.cyan.withValues(alpha: 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ]
-            : const [
-                BoxShadow(
-                  color: Color(0x0A0B1D34),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+            : shadowCard,
       );
 }
 
@@ -1264,397 +1272,17 @@ class VitrineChoiceIcon extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _VitrineChoiceGlyphPainter(glyph: glyph, color: color),
+      child: SvgPicture.string(
+        vitrineLucideSvg(glyph.name),
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
       ),
     );
   }
 }
 
-class _VitrineChoiceGlyphPainter extends CustomPainter {
-  _VitrineChoiceGlyphPainter({required this.glyph, required this.color});
-
-  final VitrineChoiceGlyph glyph;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.shortestSide * 0.09
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final s = size.shortestSide;
-    final o = Offset(size.width / 2, size.height / 2);
-
-    switch (glyph) {
-      case VitrineChoiceGlyph.car:
-        _car(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.clean:
-        _clean(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.sofa:
-        _sofa(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.bed:
-        _bed(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.chair:
-        _chair(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.seat:
-        _seat(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.layers:
-        _layers(canvas, o, s, p);
-      case VitrineChoiceGlyph.star:
-        _star(canvas, o, s, fill);
-      case VitrineChoiceGlyph.offer:
-        _offer(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.add:
-        _add(canvas, o, s, p);
-      case VitrineChoiceGlyph.sparkle:
-        _sparkle(canvas, o, s, p);
-      case VitrineChoiceGlyph.more:
-        _more(canvas, o, s, fill);
-      case VitrineChoiceGlyph.roof:
-        _roof(canvas, o, s, p);
-      case VitrineChoiceGlyph.texture:
-        _texture(canvas, o, s, p);
-      case VitrineChoiceGlyph.grid:
-        _grid(canvas, o, s, p);
-      case VitrineChoiceGlyph.home:
-        _home(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.category:
-        _category(canvas, o, s, p);
-      case VitrineChoiceGlyph.brush:
-        _brush(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.garage:
-        _garage(canvas, o, s, p);
-      case VitrineChoiceGlyph.moto:
-        _moto(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.duster:
-        _duster(canvas, o, s, p, fill);
-      case VitrineChoiceGlyph.dollar:
-        _dollar(canvas, o, s, p);
-    }
-  }
-
-  void _car(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    final body = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: o.translate(0, s * 0.02), width: s * 0.72, height: s * 0.34),
-      Radius.circular(s * 0.08),
-    );
-    c.drawRRect(body, p);
-    final cabin = Path()
-      ..moveTo(o.dx - s * 0.18, o.dy - s * 0.05)
-      ..lineTo(o.dx - s * 0.08, o.dy - s * 0.28)
-      ..lineTo(o.dx + s * 0.12, o.dy - s * 0.28)
-      ..lineTo(o.dx + s * 0.22, o.dy - s * 0.05)
-      ..close();
-    c.drawPath(cabin, p);
-    c.drawCircle(Offset(o.dx - s * 0.22, o.dy + s * 0.22), s * 0.09, fill);
-    c.drawCircle(Offset(o.dx + s * 0.22, o.dy + s * 0.22), s * 0.09, fill);
-  }
-
-  void _clean(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    // sparkles / limpeza
-    c.drawCircle(o, s * 0.08, fill);
-    for (final a in [0.0, 1.0, 2.0, 3.0]) {
-      final rad = a * 3.14159 / 2;
-      final d = Offset(cos(rad), sin(rad));
-      c.drawLine(o + d * s * 0.16, o + d * s * 0.34, p);
-    }
-    c.drawLine(
-      Offset(o.dx - s * 0.28, o.dy + s * 0.28),
-      Offset(o.dx + s * 0.28, o.dy + s * 0.28),
-      p,
-    );
-  }
-
-  void _sofa(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    final seat = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: o.translate(0, s * 0.06), width: s * 0.7, height: s * 0.28),
-      Radius.circular(s * 0.08),
-    );
-    c.drawRRect(seat, p);
-    final back = RRect.fromRectAndRadius(
-      Rect.fromLTWH(o.dx - s * 0.35, o.dy - s * 0.28, s * 0.7, s * 0.22),
-      Radius.circular(s * 0.08),
-    );
-    c.drawRRect(back, p);
-    c.drawLine(
-      Offset(o.dx - s * 0.28, o.dy + s * 0.2),
-      Offset(o.dx - s * 0.28, o.dy + s * 0.32),
-      p,
-    );
-    c.drawLine(
-      Offset(o.dx + s * 0.28, o.dy + s * 0.2),
-      Offset(o.dx + s * 0.28, o.dy + s * 0.32),
-      p,
-    );
-  }
-
-  void _bed(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    // headboard
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx - s * 0.34, o.dy - s * 0.3, s * 0.14, s * 0.46),
-        Radius.circular(s * 0.04),
-      ),
-      p,
-    );
-    // mattress
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx - s * 0.2, o.dy - s * 0.06, s * 0.54, s * 0.22),
-        Radius.circular(s * 0.06),
-      ),
-      p,
-    );
-    // legs
-    c.drawLine(Offset(o.dx - s * 0.12, o.dy + s * 0.16), Offset(o.dx - s * 0.12, o.dy + s * 0.3), p);
-    c.drawLine(Offset(o.dx + s * 0.28, o.dy + s * 0.16), Offset(o.dx + s * 0.28, o.dy + s * 0.3), p);
-  }
-
-  void _chair(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: o.translate(0, s * 0.04), width: s * 0.42, height: s * 0.2),
-        Radius.circular(s * 0.05),
-      ),
-      p,
-    );
-    c.drawLine(Offset(o.dx - s * 0.18, o.dy - s * 0.28), Offset(o.dx - s * 0.18, o.dy + s * 0.05), p);
-    c.drawLine(Offset(o.dx - s * 0.18, o.dy - s * 0.28), Offset(o.dx + s * 0.16, o.dy - s * 0.28), p);
-    c.drawLine(Offset(o.dx - s * 0.14, o.dy + s * 0.14), Offset(o.dx - s * 0.14, o.dy + s * 0.3), p);
-    c.drawLine(Offset(o.dx + s * 0.14, o.dy + s * 0.14), Offset(o.dx + s * 0.14, o.dy + s * 0.3), p);
-  }
-
-  void _seat(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: o, width: s * 0.55, height: s * 0.28),
-        Radius.circular(s * 0.08),
-      ),
-      p,
-    );
-    c.drawLine(Offset(o.dx - s * 0.22, o.dy - s * 0.02), Offset(o.dx - s * 0.22, o.dy - s * 0.28), p);
-  }
-
-  void _layers(Canvas c, Offset o, double s, Paint p) {
-    for (var i = 0; i < 3; i++) {
-      final dy = (i - 1) * s * 0.14;
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: o.translate(0, dy), width: s * 0.62 - i * s * 0.06, height: s * 0.12),
-          Radius.circular(s * 0.04),
-        ),
-        p,
-      );
-    }
-  }
-
-  void _star(Canvas c, Offset o, double s, Paint fill) {
-    final path = Path();
-    for (var i = 0; i < 5; i++) {
-      final a = -3.14159 / 2 + i * 2 * 3.14159 / 5;
-      final a2 = a + 3.14159 / 5;
-      final outer = Offset(o.dx + cos(a) * s * 0.34, o.dy + sin(a) * s * 0.34);
-      final inner = Offset(o.dx + cos(a2) * s * 0.14, o.dy + sin(a2) * s * 0.14);
-      if (i == 0) {
-        path.moveTo(outer.dx, outer.dy);
-      } else {
-        path.lineTo(outer.dx, outer.dy);
-      }
-      path.lineTo(inner.dx, inner.dy);
-    }
-    path.close();
-    c.drawPath(path, fill);
-  }
-
-  void _offer(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    final path = Path()
-      ..moveTo(o.dx - s * 0.08, o.dy - s * 0.32)
-      ..lineTo(o.dx + s * 0.28, o.dy - s * 0.08)
-      ..lineTo(o.dx + s * 0.08, o.dy + s * 0.32)
-      ..lineTo(o.dx - s * 0.28, o.dy + s * 0.08)
-      ..close();
-    c.drawPath(path, p);
-    c.drawCircle(Offset(o.dx - s * 0.06, o.dy - s * 0.08), s * 0.05, fill);
-  }
-
-  void _add(Canvas c, Offset o, double s, Paint p) {
-    c.drawCircle(o, s * 0.32, p);
-    c.drawLine(Offset(o.dx - s * 0.16, o.dy), Offset(o.dx + s * 0.16, o.dy), p);
-    c.drawLine(Offset(o.dx, o.dy - s * 0.16), Offset(o.dx, o.dy + s * 0.16), p);
-  }
-
-  void _sparkle(Canvas c, Offset o, double s, Paint p) {
-    c.drawLine(Offset(o.dx, o.dy - s * 0.32), Offset(o.dx, o.dy + s * 0.32), p);
-    c.drawLine(Offset(o.dx - s * 0.32, o.dy), Offset(o.dx + s * 0.32, o.dy), p);
-    c.drawLine(Offset(o.dx - s * 0.2, o.dy - s * 0.2), Offset(o.dx + s * 0.2, o.dy + s * 0.2), p);
-    c.drawLine(Offset(o.dx + s * 0.2, o.dy - s * 0.2), Offset(o.dx - s * 0.2, o.dy + s * 0.2), p);
-  }
-
-  void _more(Canvas c, Offset o, double s, Paint fill) {
-    c.drawCircle(Offset(o.dx - s * 0.22, o.dy), s * 0.07, fill);
-    c.drawCircle(o, s * 0.07, fill);
-    c.drawCircle(Offset(o.dx + s * 0.22, o.dy), s * 0.07, fill);
-  }
-
-  void _roof(Canvas c, Offset o, double s, Paint p) {
-    final path = Path()
-      ..moveTo(o.dx - s * 0.34, o.dy + s * 0.05)
-      ..lineTo(o.dx, o.dy - s * 0.28)
-      ..lineTo(o.dx + s * 0.34, o.dy + s * 0.05)
-      ..close();
-    c.drawPath(path, p);
-    c.drawLine(Offset(o.dx - s * 0.22, o.dy + s * 0.05), Offset(o.dx - s * 0.22, o.dy + s * 0.28), p);
-    c.drawLine(Offset(o.dx + s * 0.22, o.dy + s * 0.05), Offset(o.dx + s * 0.22, o.dy + s * 0.28), p);
-  }
-
-  void _texture(Canvas c, Offset o, double s, Paint p) {
-    for (var i = -2; i <= 2; i++) {
-      c.drawLine(
-        Offset(o.dx - s * 0.28, o.dy + i * s * 0.1),
-        Offset(o.dx + s * 0.28, o.dy + i * s * 0.1),
-        p,
-      );
-    }
-  }
-
-  void _grid(Canvas c, Offset o, double s, Paint p) {
-    final gap = s * 0.08;
-    final cell = s * 0.22;
-    for (var y = 0; y < 2; y++) {
-      for (var x = 0; x < 2; x++) {
-        final cx = o.dx - cell - gap / 2 + x * (cell + gap) + cell / 2;
-        final cy = o.dy - cell - gap / 2 + y * (cell + gap) + cell / 2;
-        c.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset(cx, cy), width: cell, height: cell),
-            Radius.circular(s * 0.04),
-          ),
-          p,
-        );
-      }
-    }
-  }
-
-  void _home(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    final path = Path()
-      ..moveTo(o.dx - s * 0.3, o.dy)
-      ..lineTo(o.dx, o.dy - s * 0.3)
-      ..lineTo(o.dx + s * 0.3, o.dy)
-      ..lineTo(o.dx + s * 0.3, o.dy + s * 0.28)
-      ..lineTo(o.dx - s * 0.3, o.dy + s * 0.28)
-      ..close();
-    c.drawPath(path, p);
-    c.drawRect(Rect.fromCenter(center: o.translate(0, s * 0.14), width: s * 0.14, height: s * 0.2), p);
-  }
-
-  void _category(Canvas c, Offset o, double s, Paint p) {
-    c.drawCircle(Offset(o.dx - s * 0.14, o.dy - s * 0.14), s * 0.12, p);
-    c.drawCircle(Offset(o.dx + s * 0.14, o.dy - s * 0.14), s * 0.12, p);
-    c.drawCircle(Offset(o.dx - s * 0.14, o.dy + s * 0.14), s * 0.12, p);
-    c.drawCircle(Offset(o.dx + s * 0.14, o.dy + s * 0.14), s * 0.12, p);
-  }
-
-  void _brush(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    c.drawLine(Offset(o.dx - s * 0.1, o.dy + s * 0.28), Offset(o.dx + s * 0.22, o.dy - s * 0.2), p);
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: o.translate(s * 0.18, -s * 0.22), width: s * 0.22, height: s * 0.16),
-        Radius.circular(s * 0.04),
-      ),
-      fill,
-    );
-  }
-
-  void _garage(Canvas c, Offset o, double s, Paint p) {
-    c.drawRect(Rect.fromCenter(center: o.translate(0, s * 0.04), width: s * 0.62, height: s * 0.48), p);
-    c.drawLine(Offset(o.dx - s * 0.31, o.dy - s * 0.2), Offset(o.dx + s * 0.31, o.dy - s * 0.2), p);
-    for (var i = -1; i <= 1; i++) {
-      c.drawLine(
-        Offset(o.dx - s * 0.2, o.dy + i * s * 0.1),
-        Offset(o.dx + s * 0.2, o.dy + i * s * 0.1),
-        p,
-      );
-    }
-  }
-
-  void _moto(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    c.drawCircle(Offset(o.dx - s * 0.22, o.dy + s * 0.16), s * 0.12, p);
-    c.drawCircle(Offset(o.dx + s * 0.24, o.dy + s * 0.16), s * 0.12, p);
-    final body = Path()
-      ..moveTo(o.dx - s * 0.18, o.dy + s * 0.04)
-      ..lineTo(o.dx + s * 0.02, o.dy - s * 0.04)
-      ..lineTo(o.dx + s * 0.18, o.dy - s * 0.02)
-      ..lineTo(o.dx + s * 0.22, o.dy + s * 0.06);
-    c.drawPath(body, p);
-    c.drawLine(
-      Offset(o.dx + s * 0.08, o.dy - s * 0.04),
-      Offset(o.dx + s * 0.18, o.dy - s * 0.22),
-      p,
-    );
-    c.drawLine(
-      Offset(o.dx + s * 0.06, o.dy - s * 0.2),
-      Offset(o.dx + s * 0.26, o.dy - s * 0.16),
-      p,
-    );
-    c.drawCircle(o.translate(-s * 0.04, -s * 0.02), s * 0.05, fill);
-  }
-
-  void _duster(Canvas c, Offset o, double s, Paint p, Paint fill) {
-    c.drawLine(
-      Offset(o.dx - s * 0.22, o.dy + s * 0.28),
-      Offset(o.dx + s * 0.04, o.dy - s * 0.04),
-      p,
-    );
-    final head = Offset(o.dx + s * 0.14, o.dy - s * 0.16);
-    c.drawOval(
-      Rect.fromCenter(center: head, width: s * 0.36, height: s * 0.28),
-      fill,
-    );
-    for (final a in [-0.9, -0.45, 0.0, 0.45, 0.9]) {
-      final dx = 0.22 * s * (a * 0.7 + 0.55);
-      final dy = -0.22 * s * (1 - a.abs() * 0.25);
-      c.drawLine(head, head + Offset(dx, dy), p);
-    }
-  }
-
-  void _dollar(Canvas c, Offset o, double s, Paint p) {
-    final path = Path()
-      ..moveTo(o.dx + s * 0.16, o.dy - s * 0.16)
-      ..cubicTo(
-        o.dx - s * 0.22,
-        o.dy - s * 0.22,
-        o.dx - s * 0.22,
-        o.dy + s * 0.02,
-        o.dx,
-        o.dy,
-      )
-      ..cubicTo(
-        o.dx + s * 0.22,
-        o.dy - s * 0.02,
-        o.dx + s * 0.22,
-        o.dy + s * 0.22,
-        o.dx - s * 0.16,
-        o.dy + s * 0.16,
-      );
-    c.drawPath(path, p);
-    c.drawLine(
-      Offset(o.dx, o.dy - s * 0.3),
-      Offset(o.dx, o.dy + s * 0.3),
-      p,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _VitrineChoiceGlyphPainter oldDelegate) =>
-      oldDelegate.glyph != glyph || oldDelegate.color != color;
-}
 
 /// Dois cards grandes: Residencial × Automotiva (“O que você procura?”).
 /// Ordem, textos e ícones vêm do CMS (`VitrineConfig.macro*`).
@@ -1768,7 +1396,7 @@ class _MacroCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: ClxBrand.cyan.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(18),
+                  shape: BoxShape.circle,
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: imageUrl != null && imageUrl!.isNotEmpty

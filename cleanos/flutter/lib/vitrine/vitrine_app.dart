@@ -33,7 +33,7 @@ class VitrineApp extends ConsumerWidget {
         surface: Colors.white,
         brightness: Brightness.light,
       ),
-      scaffoldBackgroundColor: ClxBrand.canvas,
+      scaffoldBackgroundColor: VitrineUi.bg,
       appBarTheme: const AppBarTheme(
         backgroundColor: ClxBrand.navy,
         foregroundColor: Colors.white,
@@ -65,23 +65,25 @@ class VitrineApp extends ConsumerWidget {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           minimumSize: const Size(48, 48),
-          shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rMd),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(999)),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: ClxRadii.rMd,
+          borderRadius: BorderRadius.circular(999),
           borderSide: const BorderSide(color: Color(0x1A0B1D34)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: ClxRadii.rMd,
+          borderRadius: BorderRadius.circular(999),
           borderSide: const BorderSide(color: Color(0x1A0B1D34)),
         ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: ClxRadii.rMd,
-          borderSide: BorderSide(color: ClxBrand.cyan, width: 1.6),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: ClxBrand.cyan, width: 1.6),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 14),

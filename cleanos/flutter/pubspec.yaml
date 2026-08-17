@@ -73,6 +73,7 @@ dependencies:
   latlong2: ^0.9.1
 
   cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.17
 
   # --- Fase 2 (time B) — GPS/tracking (doc 09). TUDO atrás de Env.trackingEnabled. ---
   # O app compila e roda com a flag OFF; estes plugins só são exercitados quando
