@@ -17,6 +17,7 @@ import '../vitrine_api.dart';
 import '../vitrine_booking.dart';
 import '../vitrine_porte.dart';
 import '../widgets/vitrine_catalogo_personalizavel.dart';
+import '../widgets/vitrine_ofertas_destaque.dart';
 import '../widgets/vitrine_ui.dart';
 
 class VitrineHomeScreen extends StatefulWidget {
@@ -700,6 +701,14 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
     return macro;
   }
 
+  String _tituloOfertasDestaque(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty || t == 'Promoções da Semana') {
+      return 'Ofertas em destaque';
+    }
+    return t;
+  }
+
   String _macroSubtitle(String macro) {
     if (macro == 'veicular') {
       final t = _config.macroAutoSubtitulo.trim();
@@ -1275,6 +1284,29 @@ class _VitrineHomeScreenState extends State<VitrineHomeScreen> {
                       _error = null;
                     });
                   },
+                ),
+              ],
+              if (cat == 'veicular' &&
+                  _bootstrap.config.homeDestaquesAtivo) ...[
+                const SizedBox(height: 16),
+                VitrineOfertasDestaque(
+                  servicos: ofertasDestaqueDaCategoria(
+                    catalogo: _catalog,
+                    categoria: cat,
+                    fallback: items,
+                  ),
+                  bootstrap: _bootstrap,
+                  titulo: _tituloOfertasDestaque(_bootstrap.config.homeDestaquesTitulo),
+                  cta: _bootstrap.config.homeDestaquesCta,
+                  onVerTodas: () {
+                    setState(() {
+                      _familiaFilter = 'promocao';
+                      _buscaFilter = null;
+                      _error = null;
+                    });
+                  },
+                  onTapServico: _toggleServico,
+                  selectedIds: _selected,
                 ),
               ],
               const SizedBox(height: 14),
