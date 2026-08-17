@@ -197,147 +197,161 @@ class VitrineNavyBrowseHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phone = VitrineUi.isPhone(context);
-    final height = veicular ? (phone ? 292.0 : 356.0) : (phone ? 224.0 : 264.0);
     final pad = phone ? 16.0 : 28.0;
-    final titleSize = phone ? 25.0 : 36.0;
-    final titleWidth = veicular ? (phone ? 216.0 : 470.0) : 620.0;
+    final titleSize = phone ? 22.0 : 32.0;
 
-    return Container(
-      key: const Key('vitrine-home-catalog-header'),
-      height: height + MediaQuery.paddingOf(context).top,
-      width: double.infinity,
-      padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
-      decoration: const BoxDecoration(
-        color: ClxBrand.navy,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-      ),
-      child: Stack(
-        children: [
-          if (veicular)
-            Positioned(
-              top: phone ? 48 : 36,
-              right: 0,
-              bottom: phone ? 50 : 38,
-              width: phone ? 235 : 520,
-              child: IgnorePointer(
-                child: Image.asset(
-                  'assets/vitrine/hero_carro_diagonal.png',
-                  fit: BoxFit.contain,
-                  alignment: Alignment.centerRight,
-                  filterQuality: FilterQuality.high,
-                ),
-              ),
-            ),
-          Positioned(
-            top: 4,
-            left: 4,
-            child: IconButton(
-              key: const Key('vitrine-home-back'),
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
-              color: Colors.white,
-              tooltip: 'Voltar',
-            ),
-          ),
-          const Positioned(
-            top: 8,
-            left: 0,
-            right: 0,
-            child: Center(child: VitrineBrandLogo(onDark: true)),
-          ),
-          Positioned(
-            top: phone ? 62 : 82,
-            left: pad,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: titleWidth),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (veicular) ...[
-                    Text(
-                      'Olá! 👋',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: kFontFamily,
-                        fontSize: phone ? 18 : 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: phone ? 3 : 7),
-                  ],
-                  Text.rich(
-                    TextSpan(
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: kFontFamily,
-                        fontSize: titleSize,
-                        height: 1.08,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      children: veicular
-                          ? const [
-                              TextSpan(text: 'O que vamos fazer\nno seu '),
-                              TextSpan(
-                                text: 'carro',
-                                style: TextStyle(color: ClxBrand.cyan),
-                              ),
-                              TextSpan(text: ' hoje?'),
-                            ]
-                          : const [
-                              TextSpan(text: 'Como podemos\najudar hoje?'),
-                            ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: pad,
-            right: pad,
-            bottom: phone ? 16 : 22,
-            child: TextField(
-              key: const Key('vitrine-home-busca'),
-              controller: controller,
-              textInputAction: TextInputAction.search,
-              onSubmitted: onSearch,
-              onChanged: onSearch,
-              style: const TextStyle(
-                color: ClxBrand.navy,
-                fontFamily: kFontFamily,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Buscar serviço...',
-                hintStyle: const TextStyle(color: Color(0xFF7890A5)),
-                filled: true,
-                fillColor: Colors.white,
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: ClxBrand.cyan,
-                ),
-                suffixIcon: controller.text.trim().isEmpty
-                    ? null
-                    : IconButton(
-                        onPressed: onClear,
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: ClxBrand.muted,
+    return Material(
+      color: ClxBrand.navy,
+      child: Container(
+        key: const Key('vitrine-home-catalog-header'),
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: ClxBrand.navy,
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(pad, 0, 0, phone ? 16 : 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: VitrineUi.headerRowH,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const VitrineBrandLogo(onDark: true),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          key: const Key('vitrine-home-back'),
+                          onPressed: onBack,
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 19,
+                            color: Colors.white,
+                          ),
+                          tooltip: 'Voltar',
                         ),
                       ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 15,
+                    ],
+                  ),
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(VitrineUi.rPill),
-                  borderSide: BorderSide.none,
+                SizedBox(height: phone ? 8 : 12),
+                if (veicular)
+                  SizedBox(
+                    height: phone ? 132 : 168,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          flex: 11,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: kFontFamily,
+                                  fontSize: titleSize,
+                                  height: 1.12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                children: const [
+                                  TextSpan(text: 'O que vamos\nfazer no seu\n'),
+                                  TextSpan(
+                                    text: 'carro',
+                                    style: TextStyle(color: ClxBrand.cyan),
+                                  ),
+                                  TextSpan(text: ' hoje?'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 10,
+                          child: IgnorePointer(
+                            child: Image.asset(
+                              'assets/vitrine/hero_carro_diagonal.png',
+                              fit: BoxFit.contain,
+                              alignment: Alignment.centerRight,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: EdgeInsets.only(right: pad),
+                    child: Text.rich(
+                      TextSpan(
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: kFontFamily,
+                          fontSize: titleSize,
+                          height: 1.12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        children: const [
+                          TextSpan(text: 'Como podemos\najudar hoje?'),
+                        ],
+                      ),
+                    ),
+                  ),
+                SizedBox(height: phone ? 10 : 14),
+                Padding(
+                  padding: EdgeInsets.only(right: pad),
+                  child: TextField(
+                    key: const Key('vitrine-home-busca'),
+                    controller: controller,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: onSearch,
+                    onChanged: onSearch,
+                    style: const TextStyle(
+                      color: ClxBrand.navy,
+                      fontFamily: kFontFamily,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar serviço...',
+                      hintStyle: const TextStyle(color: Color(0xFF7890A5)),
+                      filled: true,
+                      fillColor: Colors.white,
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: ClxBrand.cyan,
+                      ),
+                      suffixIcon: controller.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: onClear,
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: ClxBrand.muted,
+                              ),
+                            ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 15,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(VitrineUi.rPill),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
