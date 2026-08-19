@@ -370,6 +370,51 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        isLancamentoComissao(
+          fakeLanc(
+            id: 'sal',
+            descricao: 'Salário · Breno Mendes · 15/08/2026',
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('Equipe esconde sub de profissional inativo e mantém extra', () {
+      final equipe = fakeCategoria(id: 'eq', nome: 'Equipe');
+      final breno = fakeCategoria(id: 'cat-breno', nome: 'Breno Mendes', parentId: 'eq');
+      final inat = fakeCategoria(id: 'cat-old', nome: 'Wagner Filho', parentId: 'eq');
+      final extra = fakeCategoria(id: 'cat-pf', nome: 'Cleanox - Ponto Físico', parentId: 'eq');
+      final profs = [
+        User(
+          id: 'u1',
+          nome: 'Breno Mendes',
+          categoriaComissaoId: 'cat-breno',
+        ),
+        User(
+          id: 'u2',
+          nome: 'Wagner Filho',
+          categoriaComissaoId: 'cat-old',
+          ativo: false,
+        ),
+      ];
+      final visiveis = filhosEquipeVisiveis(
+        root: equipe,
+        filhos: [breno, inat, extra],
+        profs: profs,
+      );
+      expect(visiveis.map((c) => c.id), ['cat-breno', 'cat-pf']);
+      expect(
+        profissionalDoLancamento(
+          l: fakeLanc(
+            id: 's',
+            descricao: 'Salário · Breno Mendes · 15/08/2026',
+          ),
+          profs: profs,
+        )?.id,
+        'u1',
+      );
     });
 
     test('mão: via OS só-leitura; comissão e manual clicáveis', () {

@@ -11,8 +11,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/design.dart';
 import '../../../core/models/financeiro.dart';
+import '../../../core/models/user.dart';
 import '../fin_chips.dart';
 import '../fin_common.dart';
+import '../fin_derivations.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import 'categoria_form.dart';
@@ -103,6 +105,8 @@ class FinCategoriasScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(finCategoriasProvider);
     final tipo = ref.watch(_tipoFilterProvider);
+    final profs =
+        ref.watch(finProfissionaisProvider).valueOrNull ?? const <User>[];
     return Column(
       children: [
         _Toolbar(
@@ -142,12 +146,17 @@ class FinCategoriasScreen extends ConsumerWidget {
                 itemCount: roots.length,
                 itemBuilder: (context, i) {
                   final root = roots[i];
-                  final filhos = childrenOf(root.id);
+                  final filhos = filhosEquipeVisiveis(
+                    root: root,
+                    filhos: childrenOf(root.id),
+                    profs: profs,
+                  );
                   return Padding(
                     padding: const EdgeInsets.only(bottom: ClxSpace.x3),
                     child: _CategoriaTile(
                       categoria: root,
                       filhos: filhos,
+                      profs: profs,
                       onEdit: () => _form(context, ref, editing: root),
                       onAddSub: () => _form(context, ref, parent: root),
                       onDelete: () =>
@@ -254,6 +263,7 @@ class _CategoriaTile extends StatelessWidget {
   const _CategoriaTile({
     required this.categoria,
     required this.filhos,
+    required this.profs,
     required this.onEdit,
     required this.onAddSub,
     required this.onDelete,
@@ -263,6 +273,7 @@ class _CategoriaTile extends StatelessWidget {
 
   final FinCategoria categoria;
   final List<FinCategoria> filhos;
+  final List<User> profs;
   final VoidCallback onEdit;
   final VoidCallback onAddSub;
   final VoidCallback onDelete;
@@ -324,8 +335,6 @@ class _CategoriaTile extends StatelessWidget {
           children: [
             for (final f in filhos)
               _SubRow(
-                // Sub herda cor/símbolo da mãe; se legado dessincronizado,
-                // usa a raiz para exibir o mesmo visual (só tamanho muda).
                 categoria: f.copyWith(
                   icone: (f.icone != null && f.icone!.isNotEmpty)
                       ? f.icone
@@ -335,6 +344,7 @@ class _CategoriaTile extends StatelessWidget {
                       : categoria.cor,
                 ),
                 corMae: accent,
+                profissional: profissionalDaSubcategoria(f, profs),
                 onEdit: () => onEditFilho(f),
                 onDelete: () => onDeleteFilho(f),
               ),
@@ -381,12 +391,14 @@ class _SubRow extends StatelessWidget {
   const _SubRow({
     required this.categoria,
     required this.corMae,
+    this.profissional,
     required this.onEdit,
     required this.onDelete,
   });
 
   final FinCategoria categoria;
   final Color corMae;
+  final User? profissional;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -412,20 +424,23 @@ class _SubRow extends StatelessWidget {
               color: clx.ink3,
             ),
             const SizedBox(width: ClxSpace.x2),
-            Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: ClxRadii.rSm,
+            if (profissional != null)
+              UserAvatar(user: profissional, radius: size / 2)
+            else
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: ClxRadii.rSm,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  finCategoriaIcon(categoria.icone),
+                  size: 14,
+                  color: finOnCategoriaColor(accent),
+                ),
               ),
-              alignment: Alignment.center,
-              child: Icon(
-                finCategoriaIcon(categoria.icone),
-                size: 14,
-                color: finOnCategoriaColor(accent),
-              ),
-            ),
             const SizedBox(width: ClxSpace.x2),
             Expanded(
               child: Text(
