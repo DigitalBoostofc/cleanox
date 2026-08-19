@@ -8,6 +8,31 @@ import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/comissao_repository.dart';
 
+Map<String, dynamic> comissaoUserUpdateBody({
+  required ComissaoTipo tipo,
+  required double valor,
+  RemuneracaoTipo remuneracaoTipo = RemuneracaoTipo.nenhuma,
+  double remuneracaoValor = 0,
+  PagamentoFrequencia? pagamentoFrequencia,
+  int pagamentoDia = 0,
+  int pagamentoDia2 = 0,
+}) {
+  final keepCycle = tipo != ComissaoTipo.nenhuma ||
+      remuneracaoTipo == RemuneracaoTipo.salarioFixo;
+  return {
+    'comissao_tipo': tipo.wire,
+    'comissao_valor': tipo == ComissaoTipo.nenhuma ? 0 : valor,
+    'remuneracao_tipo': remuneracaoTipo.wire,
+    'remuneracao_valor': remuneracaoTipo == RemuneracaoTipo.salarioFixo
+        ? remuneracaoValor
+        : 0,
+    // R2: select vazio = "" no PB. Salário fixo também precisa do ciclo.
+    'pagamento_frequencia': keepCycle ? (pagamentoFrequencia?.wire ?? '') : '',
+    'pagamento_dia': keepCycle ? pagamentoDia : 0,
+    'pagamento_dia_2': keepCycle ? pagamentoDia2 : 0,
+  };
+}
+
 class PbComissaoRepository implements ComissaoRepository {
   PbComissaoRepository(this._pb);
 
@@ -38,23 +63,20 @@ class PbComissaoRepository implements ComissaoRepository {
     int pagamentoDia = 0,
     int pagamentoDia2 = 0,
   }) async {
-    final body = <String, dynamic>{
-      'comissao_tipo': tipo.wire,
-      'comissao_valor': tipo == ComissaoTipo.nenhuma ? 0 : valor,
-      'remuneracao_tipo': remuneracaoTipo.wire,
-      'remuneracao_valor': remuneracaoTipo == RemuneracaoTipo.salarioFixo
-          ? remuneracaoValor
-          : 0,
-      // R2: select vazio = "" no PB.
-      'pagamento_frequencia': tipo == ComissaoTipo.nenhuma
-          ? ''
-          : (pagamentoFrequencia?.wire ?? ''),
-      'pagamento_dia': tipo == ComissaoTipo.nenhuma ? 0 : pagamentoDia,
-      'pagamento_dia_2': tipo == ComissaoTipo.nenhuma ? 0 : pagamentoDia2,
-    };
     final rec = await _pb
         .collection(Collections.users)
-        .update(profissionalId, body: body);
+        .update(
+          profissionalId,
+          body: comissaoUserUpdateBody(
+            tipo: tipo,
+            valor: valor,
+            remuneracaoTipo: remuneracaoTipo,
+            remuneracaoValor: remuneracaoValor,
+            pagamentoFrequencia: pagamentoFrequencia,
+            pagamentoDia: pagamentoDia,
+            pagamentoDia2: pagamentoDia2,
+          ),
+        );
     return User.fromRecord(rec);
   }
 

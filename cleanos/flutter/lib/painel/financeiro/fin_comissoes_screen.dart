@@ -67,6 +67,25 @@ List<ProfComissao> comissoesDeProfissionaisAtivos(
 List<User> profissionaisAtivosRelatorio(List<User> profissionais) =>
     [for (final u in profissionais) if (u.ativo) u];
 
+/// Extrato por profissional: comissão, salário ou lançamento no período.
+Set<String> idsProfissionaisNoExtrato({
+  required List<User> profs,
+  required List<ProfComissao> items,
+}) {
+  final ids = <String>{};
+  for (final u in profs) {
+    if (!u.ativo) continue;
+    if (u.hasComissaoAtiva || u.hasRemuneracaoAtiva) ids.add(u.id);
+  }
+  for (final c in items) {
+    if (c.profissional.isNotEmpty &&
+        profs.any((u) => u.ativo && u.id == c.profissional)) {
+      ids.add(c.profissional);
+    }
+  }
+  return ids;
+}
+
 final _comissoesProfissionaisProvider = FutureProvider.autoDispose<List<User>>((
   ref,
 ) {
@@ -802,7 +821,7 @@ class _Dashboard extends StatelessWidget {
     );
   }
 
-  /// Profissionais com comissão ativa OU com lançamentos no extrato.
+  /// Profissionais com comissão, salário ou lançamentos no extrato.
   List<Widget> _buildProfExtratoList({
     required BuildContext context,
     required CleanoxColors clx,
@@ -812,22 +831,13 @@ class _Dashboard extends StatelessWidget {
     required Map<String, ({double aberto, double pago, String nome})> byProf,
     required void Function(_FiltroSheet filtro, {String? profId}) onOpenSheet,
   }) {
-    final ids = <String>{};
-    for (final u in profs) {
-      if (u.ativo && u.hasComissaoAtiva) ids.add(u.id);
-    }
-    for (final c in items) {
-      if (c.profissional.isNotEmpty &&
-          profs.any((u) => u.ativo && u.id == c.profissional)) {
-        ids.add(c.profissional);
-      }
-    }
+    final ids = idsProfissionaisNoExtrato(profs: profs, items: items);
 
     if (ids.isEmpty) {
       return [
         ClxCard(
           child: Text(
-            'Nenhum profissional com comissão ativa. '
+            'Nenhum profissional com comissão ou salário. '
             'Configure pela engrenagem ⚙️.',
             style: Theme.of(
               context,
@@ -887,10 +897,13 @@ class _Dashboard extends StatelessWidget {
               .toList();
           final nPagas = pagasDoProf.length;
 
-          // Previsto: OS abertas com data ≤ próximo pagamento do prof.
+          // Previsto: salário do ciclo ou OS abertas até o próximo pagamento.
           final nextPay = u != null ? proximaDataPagamento(u) : null;
           final win = u != null ? cicloCorrente(u) : null;
-          final prev = u != null
+          final salario = u?.hasRemuneracaoAtiva ?? false;
+          final prev = salario
+              ? (valor: u!.remuneracaoValor, qtdOs: 0)
+              : u != null
               ? comissaoPrevistaAtribuidas(
                   prof: u,
                   osAbertas: osAtribuidas,
@@ -912,6 +925,7 @@ class _Dashboard extends StatelessWidget {
             tipoPagas: tipoLancamentoLabel(pagasDoProf),
             previsto: prev.valor,
             nPrevistas: prev.qtdOs,
+            previstoEhSalario: salario,
             proximoPagamentoLabel: fmtPayDay(nextPay),
             periodoCicloLabel: win?.labelBr ?? '',
             total: aberto + pago + prev.valor,
@@ -937,6 +951,7 @@ class _Dashboard extends StatelessWidget {
           tipoPagas: r.tipoPagas,
           previsto: r.previsto,
           nPrevistas: r.nPrevistas,
+          previstoEhSalario: r.previstoEhSalario,
           proximoPagamentoLabel: r.proximoPagamentoLabel,
           periodoCicloLabel: r.periodoCicloLabel,
           onTap: () => onOpenSheet(_FiltroSheet.todas, profId: r.id),
@@ -1196,6 +1211,7 @@ class _ProfExtratoCard extends StatelessWidget {
     required this.tipoPagas,
     required this.previsto,
     required this.nPrevistas,
+    this.previstoEhSalario = false,
     required this.proximoPagamentoLabel,
     this.periodoCicloLabel = '',
     required this.onTap,
@@ -1213,6 +1229,7 @@ class _ProfExtratoCard extends StatelessWidget {
   final String tipoPagas;
   final double previsto;
   final int nPrevistas;
+  final bool previstoEhSalario;
   final String proximoPagamentoLabel;
   final String periodoCicloLabel;
   final VoidCallback onTap;
@@ -1222,7 +1239,11 @@ class _ProfExtratoCard extends StatelessWidget {
     final clx = context.clx;
     final identidadeOpacity = ativo ? 1.0 : 0.64;
     final inicial = nome.trim().isNotEmpty ? nome.trim()[0].toUpperCase() : '?';
-    final hintPrevisto = periodoCicloLabel.isNotEmpty
+    final hintPrevisto = previstoEhSalario
+        ? (proximoPagamentoLabel.isEmpty
+              ? 'Salário do próximo pagamento'
+              : 'Salário · até $proximoPagamentoLabel')
+        : periodoCicloLabel.isNotEmpty
         ? (nPrevistas > 0
               ? '$nPrevistas OS · ciclo $periodoCicloLabel'
               : 'Ciclo $periodoCicloLabel')
