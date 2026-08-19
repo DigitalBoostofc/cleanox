@@ -1636,7 +1636,10 @@ class _TarefaMiniCard extends ConsumerWidget {
                 ),
                 if (tarefa.profissionais.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  _FotosTarefaMini(ids: tarefa.profissionais),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _FotosTarefaMini(ids: tarefa.profissionais),
+                  ),
                 ],
               ],
             ),

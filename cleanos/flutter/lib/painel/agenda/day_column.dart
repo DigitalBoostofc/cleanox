@@ -489,29 +489,40 @@ class _DayColumnState extends State<DayColumn> {
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              alignment: Alignment.topLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: [
-                  Text(
-                    '${faixaHoraria(p.startMin, p.duracaoMin)} · ${tarefa.titulo}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: const Color(0xFF3D2E00),
-                      fontWeight: FontWeight.w700,
-                      decoration: tarefa.concluida
-                          ? TextDecoration.lineThrough
-                          : null,
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: tarefa.profissionais.isNotEmpty ? 22 : 0,
+                        bottom: tarefa.profissionais.isNotEmpty ? 18 : 0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: Text(
+                          '${faixaHoraria(p.startMin, p.duracaoMin)} · ${tarefa.titulo}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: const Color(0xFF3D2E00),
+                            fontWeight: FontWeight.w700,
+                            decoration: tarefa.concluida
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  if (tarefa.profissionais.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    _FotosTarefa(
-                      ids: tarefa.profissionais,
-                      users: widget.profissionais,
+                  if (tarefa.profissionais.isNotEmpty)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: _FotosTarefa(
+                        ids: tarefa.profissionais,
+                        users: widget.profissionais,
+                      ),
                     ),
-                  ],
                 ],
               ),
             ),
