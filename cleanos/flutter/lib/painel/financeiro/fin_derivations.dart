@@ -756,7 +756,8 @@ List<FinLancamento> finComissoesPendentesComoLancamentos({
   final byProf = <String, List<ProfComissao>>{};
   for (final c in comissoes) {
     // Bonificação é avulsa: não entra no repasse agregado de OS.
-    if (c.tipoAplicado == ProfComissaoTipo.bonificacao) continue;
+    if (c.tipoAplicado == ProfComissaoTipo.bonificacao ||
+        c.tipoAplicado == ProfComissaoTipo.salario) continue;
     if (c.status != ComissaoStatus.pendente) continue;
     if (!(c.valorComissao > 0)) continue;
     final pid = c.profissional.trim();

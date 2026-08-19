@@ -5,6 +5,7 @@ import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/core/models/user.dart';
 import 'package:cleanos/painel/data/pb_comissao_repository.dart';
 import 'package:cleanos/painel/financeiro/fin_comissoes_screen.dart';
+import 'package:cleanos/painel/financeiro/salario_ocorrencias.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 User _u({
@@ -14,6 +15,9 @@ User _u({
   double valor = 0,
   RemuneracaoTipo rem = RemuneracaoTipo.nenhuma,
   double remValor = 0,
+  PagamentoFrequencia? freq,
+  int dia = 0,
+  int dia2 = 0,
 }) =>
     User(
       id: id,
@@ -23,6 +27,9 @@ User _u({
       comissaoValor: valor,
       remuneracaoTipo: rem,
       remuneracaoValor: remValor,
+      pagamentoFrequencia: freq,
+      pagamentoDia: dia,
+      pagamentoDia2: dia2,
     );
 
 void main() {
@@ -87,5 +94,34 @@ void main() {
       items: const [],
     );
     expect(ids, isEmpty);
+  });
+
+  test('quinzena 15 pago e último dia do mês em aberto', () {
+    final breno = _u(
+      id: 'breno',
+      rem: RemuneracaoTipo.salarioFixo,
+      remValor: 1500,
+      freq: PagamentoFrequencia.quinzenal,
+      dia: 15,
+      dia2: 0,
+    );
+    final planos = planejarOcorrenciasSalario(
+      breno,
+      now: DateTime.utc(2026, 8, 19),
+    );
+    expect(planos.map((p) => p.ymd), containsAll(['2026-08-15', '2026-08-31']));
+    expect(
+      planos.firstWhere((p) => p.ymd == '2026-08-15').status,
+      ComissaoStatus.paga,
+    );
+    expect(
+      planos.firstWhere((p) => p.ymd == '2026-08-31').status,
+      ComissaoStatus.pendente,
+    );
+    expect(planos.map((p) => p.ymd), contains('2026-09-30'));
+    expect(
+      planos.firstWhere((p) => p.ymd == '2026-09-30').status,
+      ComissaoStatus.pendente,
+    );
   });
 }

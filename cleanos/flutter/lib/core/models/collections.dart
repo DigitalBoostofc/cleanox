@@ -147,13 +147,16 @@ enum ProfComissaoTipo {
   @JsonValue('diaria')
   diaria,
   @JsonValue('bonificacao')
-  bonificacao;
+  bonificacao,
+  @JsonValue('salario')
+  salario;
 
   String get wire => switch (this) {
     ProfComissaoTipo.percentual => 'percentual',
     ProfComissaoTipo.fixo => 'fixo',
     ProfComissaoTipo.diaria => 'diaria',
     ProfComissaoTipo.bonificacao => 'bonificacao',
+    ProfComissaoTipo.salario => 'salario',
   };
 
   String get label => switch (this) {
@@ -161,6 +164,7 @@ enum ProfComissaoTipo {
     ProfComissaoTipo.fixo => 'fixo',
     ProfComissaoTipo.diaria => 'diária',
     ProfComissaoTipo.bonificacao => 'bonificação',
+    ProfComissaoTipo.salario => 'salário',
   };
 }
 

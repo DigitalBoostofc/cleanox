@@ -23,7 +23,7 @@ String finPeriodoFilter(Periodo p) =>
 /// Movimentações, KPIs do período nem Contas a pagar.
 String finExcludeComissaoPorOsFilter() =>
     "(origem != 'via_comissao' || comissao_id = '' || comissao_id = null "
-    "|| descricao ~ 'Bonificação')";
+    "|| descricao ~ 'Bonificação' || descricao ~ 'Salário')";
 
 /// Filtro da lista de Lançamentos: período + busca (descrição) + tipo + status +
 /// conta + categoria. Fragmentos nulos são ignorados; `null` = sem filtro.

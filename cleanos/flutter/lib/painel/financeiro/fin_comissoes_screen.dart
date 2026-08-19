@@ -557,6 +557,10 @@ class _Dashboard extends StatelessWidget {
 
   String tipoLancamentoLabel(List<ProfComissao> lancamentos) {
     if (lancamentos.isNotEmpty &&
+        lancamentos.every((c) => c.tipoAplicado == ProfComissaoTipo.salario)) {
+      return lancamentos.length == 1 ? 'salário' : 'salários';
+    }
+    if (lancamentos.isNotEmpty &&
         lancamentos.every(
           (c) => c.tipoAplicado == ProfComissaoTipo.bonificacao,
         )) {
@@ -1539,9 +1543,10 @@ class _ComissaoRow extends StatelessWidget {
         ? formatDateOnlyBr(item.data!)
         : '—';
     final isBonus = item.tipoAplicado == ProfComissaoTipo.bonificacao;
+    final isSalario = item.tipoAplicado == ProfComissaoTipo.salario;
     final titulo = item.descricao.isNotEmpty
         ? item.descricao
-        : (isBonus ? 'Bonificação' : 'Comissão OS');
+        : (isBonus ? 'Bonificação' : isSalario ? 'Salário' : 'Comissão OS');
 
     return ClxCard(
       child: Row(
