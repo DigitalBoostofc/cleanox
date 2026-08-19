@@ -11,6 +11,7 @@ library;
 
 import 'package:cleanos/core/agenda/agenda_layout.dart';
 import 'package:cleanos/core/formatters/formatters.dart';
+import 'package:cleanos/core/models/agenda_compromisso.dart';
 import 'package:cleanos/core/models/disponibilidade.dart';
 import 'package:cleanos/core/models/ordem_servico.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -459,6 +460,32 @@ void main() {
       ]);
       expect(colisoes, isNotEmpty);
       expect(l.eventos.every((e) => e.columnCount == 2), isTrue);
+    });
+
+    test('tarefa fica na 1ª coluna, não no corredor do profissional', () {
+      final tarefa = AgendaCompromisso(
+        id: 't1',
+        titulo: 'Reunião',
+        profissionais: const ['jose'],
+        dataHora: localInputToPBDate('2026-07-20T14:00'),
+        duracaoMin: 120,
+      );
+      final l = layoutDayEvents(
+        [
+          intervaloDoCompromisso(tarefa),
+          _iv('os-j', _min('14:00'), _min('16:00'), groupKey: 'jose'),
+        ],
+        groupOrder: [kAgendaGrupoTarefa, 'jose'],
+      );
+      final byId = {for (final e in l.eventos) e.id: e};
+      expect(byId['t:t1']!.column, 0);
+      expect(byId['os-j']!.column, 1);
+    });
+
+    test('duração entre horários: 09–13 = 4h; 09–09 inválido', () {
+      expect(duracaoEntreHorarios('09:00', '13:00'), 240);
+      expect(duracaoEntreHorarios('09:00', '09:00'), 0);
+      expect(duracaoEntreHorarios('10:00', '09:00'), 0);
     });
   });
 }

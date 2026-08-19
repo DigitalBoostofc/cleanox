@@ -9,7 +9,7 @@ AgendaCompromisso _t(
 }) => AgendaCompromisso(
   id: id,
   titulo: id,
-  profissional: 'p1',
+  profissionais: const ['p1'],
   dataHora: dataHora,
   status: status,
 );

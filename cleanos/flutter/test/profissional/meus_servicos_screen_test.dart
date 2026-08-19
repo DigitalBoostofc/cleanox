@@ -161,7 +161,7 @@ void main() {
         const AgendaCompromisso(
           id: 't1',
           titulo: 'Abastecer a moto',
-          profissional: 'p1',
+          profissionais: ['p1'],
           dataHora: '2026-08-14 12:00:00Z',
         ),
       ],

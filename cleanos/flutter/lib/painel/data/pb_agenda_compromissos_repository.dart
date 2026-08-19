@@ -25,7 +25,7 @@ class PbAgendaCompromissosRepository implements AgendaCompromissosRepository {
       if (dataFim != null && dataFim.isNotEmpty)
         'data_hora < ${pbStringLiteral(dataFim)}',
       if (profissionalId != null && profissionalId.isNotEmpty)
-        'profissional = ${pbStringLiteral(profissionalId)}',
+        'profissional.id ?= ${pbStringLiteral(profissionalId)}',
     ];
     final filter = parts.isEmpty ? null : parts.join(' && ');
     final res = await _col.getList(
