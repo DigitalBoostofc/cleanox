@@ -641,20 +641,50 @@ User? profissionalDaSubcategoria(FinCategoria cat, List<User> profs) {
   return null;
 }
 
-/// Equipe: esconde sub de profissional inativo/apagado. Outras subs ficam.
+/// Equipe: só sub de usuário **ativo**. Cleanox/PF/inativo somem.
 List<FinCategoria> filhosEquipeVisiveis({
   required FinCategoria root,
   required List<FinCategoria> filhos,
   required List<User> profs,
 }) {
   if (root.nome.trim().toLowerCase() != 'equipe') return filhos;
-  return [for (final f in filhos) if (_equipeSubVisivel(f, profs)) f];
+  final ativos = [for (final u in profs) if (u.ativo) u];
+  return [
+    for (final f in filhos)
+      if (profissionalDaSubcategoria(f, ativos) != null) f,
+  ];
 }
 
-bool _equipeSubVisivel(FinCategoria f, List<User> profs) {
-  final ligado = profissionalDaSubcategoria(f, profs);
-  if (ligado != null) return ligado.ativo;
-  return true;
+FinCategoria? subcategoriaDoUsuario(User u, List<FinCategoria> filhos) {
+  final cid = (u.categoriaComissaoId ?? '').trim();
+  if (cid.isNotEmpty) {
+    for (final f in filhos) {
+      if (f.id == cid) return f;
+    }
+  }
+  final n = u.displayName.trim().toLowerCase();
+  if (n.isEmpty || n == '—') return null;
+  for (final f in filhos) {
+    if (f.nome.trim().toLowerCase() == n) return f;
+  }
+  return null;
+}
+
+/// Quem falta criar / o que sobra para apagar na Equipe.
+({List<User> criar, List<FinCategoria> apagar}) planejarSyncEquipe({
+  required List<FinCategoria> filhos,
+  required List<User> usuarios,
+}) {
+  final ativos = [for (final u in usuarios) if (u.ativo) u];
+  final criar = [
+    for (final u in ativos)
+      if (subcategoriaDoUsuario(u, filhos) == null) u,
+  ];
+  final apagar = [
+    for (final f in filhos)
+      if (profissionalDaSubcategoria(f, ativos) == null) f,
+  ];
+  return (criar: criar, apagar: apagar);
 }
 
 /// Profissional da linha (subcategoria, categoria ou nome na descrição).

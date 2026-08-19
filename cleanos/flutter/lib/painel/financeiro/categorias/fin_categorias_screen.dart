@@ -12,12 +12,60 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/design.dart';
 import '../../../core/models/financeiro.dart';
 import '../../../core/models/user.dart';
+import '../../data/painel_providers.dart';
 import '../fin_chips.dart';
 import '../fin_common.dart';
 import '../fin_derivations.dart';
 import '../fin_labels.dart';
 import '../fin_providers.dart';
 import 'categoria_form.dart';
+
+/// Todos os usuários (Equipe = ativos, qualquer papel).
+final _usuariosCatProvider = FutureProvider.autoDispose<List<User>>((ref) {
+  return ref.watch(usuariosRepositoryProvider).list();
+});
+
+/// Cria sub faltando e tenta apagar o que não é usuário ativo.
+final _equipeSyncProvider = FutureProvider.autoDispose<int>((ref) async {
+  final cats = await ref.watch(finCategoriasProvider.future);
+  final users = await ref.watch(_usuariosCatProvider.future);
+  FinCategoria? equipe;
+  for (final c in cats) {
+    if (c.parentId == null && c.nome.trim().toLowerCase() == 'equipe') {
+      equipe = c;
+      break;
+    }
+  }
+  if (equipe == null) return 0;
+  final eq = equipe;
+  final filhos = [for (final c in cats) if (c.parentId == eq.id) c];
+  final plano = planejarSyncEquipe(filhos: filhos, usuarios: users);
+  final repo = ref.read(financeiroRepositoryProvider);
+  var n = 0;
+  for (final u in plano.criar) {
+    final nome = u.displayName.trim();
+    if (nome.isEmpty || nome == '—') continue;
+    await repo.createCategoria({
+      'nome': nome,
+      'tipo': TipoLancamento.despesa.wire,
+      'icone': eq.icone ?? '',
+      'cor': eq.cor ?? '',
+      'arquivada': false,
+      'parent_id': eq.id,
+    });
+    n++;
+  }
+  for (final f in plano.apagar) {
+    try {
+      await repo.deleteCategoria(f.id);
+      n++;
+    } catch (_) {}
+  }
+  if (n > 0) {
+    ref.invalidate(finCategoriasProvider);
+  }
+  return n;
+});
 
 /// Filtro de natureza exibido (segmented).
 final _tipoFilterProvider = StateProvider.autoDispose<TipoLancamento>(
@@ -105,8 +153,9 @@ class FinCategoriasScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(finCategoriasProvider);
     final tipo = ref.watch(_tipoFilterProvider);
+    ref.watch(_equipeSyncProvider);
     final profs =
-        ref.watch(finProfissionaisProvider).valueOrNull ?? const <User>[];
+        ref.watch(_usuariosCatProvider).valueOrNull ?? const <User>[];
     return Column(
       children: [
         _Toolbar(
