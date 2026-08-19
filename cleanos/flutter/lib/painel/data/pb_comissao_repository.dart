@@ -7,6 +7,7 @@ import '../../core/models/collections.dart';
 import '../../core/models/prof_comissao.dart';
 import '../../core/models/user.dart';
 import '../../core/repositories/comissao_repository.dart';
+import '../financeiro/salario_ocorrencias.dart';
 
 Map<String, dynamic> comissaoUserUpdateBody({
   required ComissaoTipo tipo,
@@ -77,7 +78,46 @@ class PbComissaoRepository implements ComissaoRepository {
             pagamentoDia2: pagamentoDia2,
           ),
         );
-    return User.fromRecord(rec);
+    final user = User.fromRecord(rec);
+    if (user.hasRemuneracaoAtiva && user.remuneracaoValor > 0) {
+      await garantirOcorrenciasSalario(user);
+    }
+    return user;
+  }
+
+  Future<void> garantirOcorrenciasSalario(
+    User user, {
+    DateTime? now,
+  }) async {
+    final hoje = now ?? DateTime.now().toUtc().subtract(const Duration(hours: 3));
+    final planos = planejarOcorrenciasSalario(user, now: hoje);
+    if (planos.isEmpty) return;
+    final existentes = await listComissoes(profissionalId: user.id);
+    final jaTem = <String>{
+      for (final c in existentes)
+        if (c.tipoAplicado == ProfComissaoTipo.salario)
+          (c.data ?? '').trim().substring(
+            0,
+            (c.data ?? '').trim().length >= 10 ? 10 : 0,
+          ),
+    };
+    for (final p in planos) {
+      if (jaTem.contains(p.ymd)) continue;
+      final body = <String, dynamic>{
+        'profissional': user.id,
+        'valor_os': 0,
+        'valor_comissao': user.remuneracaoValor,
+        'tipo_aplicado': ProfComissaoTipo.salario.wire,
+        'base_valor': user.remuneracaoValor,
+        'status': p.status.wire,
+        'data': '${p.ymd} 00:00:00.000Z',
+        'descricao': salarioDescricaoDia(p.ymd),
+      };
+      if (p.status == ComissaoStatus.paga) {
+        body['pago_em'] = p.ymd;
+      }
+      await _pb.collection(Collections.profComissoes).create(body: body);
+    }
   }
 
   @override

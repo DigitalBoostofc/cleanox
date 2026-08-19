@@ -603,6 +603,7 @@ void main() {
       expect(f, contains("origem != 'via_comissao'"));
       expect(f, contains("comissao_id = ''"));
       expect(f, contains("descricao ~ 'Bonificação'"));
+      expect(f, contains("descricao ~ 'Salário'"));
     });
 
     test('finContasPendentesFilter filtra tipo + não pago + sem comissão 1:1',

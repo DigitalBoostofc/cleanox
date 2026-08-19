@@ -17,7 +17,7 @@ onRecordDeleteRequest((e) => {
 
   const tipo = String(e.record.get("tipo_aplicado") || "");
   const status = String(e.record.get("status") || "");
-  if (tipo !== "bonificacao") {
+  if (tipo !== "bonificacao" && tipo !== "salario") {
     throw new ForbiddenError("Comissão automática de OS não pode ser excluída.");
   }
   if (status !== "pendente") {

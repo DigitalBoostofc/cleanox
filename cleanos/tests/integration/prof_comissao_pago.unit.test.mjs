@@ -278,6 +278,44 @@ describe('individual 👍', () => {
     assert.equal(o[0].get('descricao'), 'Bonificação · João Pedro · apoio em dupla')
     assert.equal(o[0].get('valor'), 40)
   })
+
+  it('salário pendente gera despesa 1:1 Salário na data', () => {
+    const c = comPend({
+      tipo_aplicado: 'salario',
+      descricao: '31/08/2026',
+      data: '2026-08-31 00:00:00.000Z',
+      valor_comissao: 1500,
+      os: '',
+    }, 'sal1')
+    const { app, lancamentos } = mockApp({ comissoes: [c] })
+    pago.sincronizarLancamento(app, c, '')
+    assert.equal(lancamentos.length, 1)
+    assert.equal(lancamentos[0].get('status'), 'pendente')
+    assert.equal(lancamentos[0].get('data'), '2026-08-31')
+    assert.equal(
+      lancamentos[0].get('descricao'),
+      'Salário · João Pedro · 31/08/2026',
+    )
+    assert.equal(lancamentos[0].get('valor'), 1500)
+  })
+
+  it('salário pago não entra no lote de OS', () => {
+    const os = comPaga({ descricao: 'S · A - X', pago_em: '2026-08-15' }, 'a')
+    const sal = comPaga({
+      tipo_aplicado: 'salario',
+      descricao: '15/08/2026',
+      data: '2026-08-15 00:00:00.000Z',
+      valor_comissao: 1500,
+      os: '',
+      pago_em: '2026-08-15',
+    }, 'sal15')
+    const { app, lancamentos } = mockApp({ comissoes: [os, sal] })
+    pago.sincronizarLancamento(app, sal, 'pendente')
+    pago.sincronizarCiclosDoProf(app, 'prof1')
+    const L = lotes(lancamentos)
+    assert.equal(L.length, 1)
+    assert.equal(L[0].get('valor'), 60)
+  })
 })
 
 describe('lote (sem 1:1 prévia)', () => {

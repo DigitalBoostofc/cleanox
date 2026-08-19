@@ -55,6 +55,7 @@ const _$ProfComissaoTipoEnumMap = {
   ProfComissaoTipo.fixo: 'fixo',
   ProfComissaoTipo.diaria: 'diaria',
   ProfComissaoTipo.bonificacao: 'bonificacao',
+  ProfComissaoTipo.salario: 'salario',
 };
 
 const _$ComissaoStatusEnumMap = {

@@ -57,7 +57,8 @@ List<FecharCicloLinha> buildFecharCicloLinhas({
   final allPend = <String, List<ProfComissao>>{};
   for (final c in comissoes) {
     // Bonificação é avulsa e não pode ser paga pelo fechamento do ciclo de OS.
-    if (c.tipoAplicado == ProfComissaoTipo.bonificacao) continue;
+    if (c.tipoAplicado == ProfComissaoTipo.bonificacao ||
+        c.tipoAplicado == ProfComissaoTipo.salario) continue;
     if (c.status != ComissaoStatus.pendente) continue;
     if (c.valorComissao <= 0) continue;
     if (onlyProfId != null && c.profissional != onlyProfId) continue;

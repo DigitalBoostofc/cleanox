@@ -622,7 +622,8 @@ function criarLancamentoDaComissao(app, comissao, statusLanc) {
   }
 
   const isBonus = _isBonificacao(comissao);
-  const prefixo = isBonus ? "Bonificação" : "Comissão";
+  const isSalario = _isSalario(comissao);
+  const prefixo = isBonus ? "Bonificação" : isSalario ? "Salário" : "Comissão";
   const desc = String(comissao.get("descricao") || "").replace(
     isBonus ? /^bonificação\s*[·-]\s*/i : /^$/,
     "",
@@ -741,7 +742,7 @@ function sincronizarLancamento(app, comissao, origStatus) {
 
     // Bonificação avulsa gera sua própria despesa na data adicionada; nunca
     // entra no ciclo agregado de OS.
-    if (_isBonificacao(comissao)) {
+    if (_isAvulsa(comissao)) {
       garantirLancamentoStatus(app, comissao, novo === "paga" ? "pago" : "pendente");
       return;
     }
@@ -913,6 +914,14 @@ function _nomeClienteDaComissao(comissao) {
 
 function _isBonificacao(comissao) {
   return String(comissao.get("tipo_aplicado") || "").toLowerCase() === "bonificacao";
+}
+
+function _isSalario(comissao) {
+  return String(comissao.get("tipo_aplicado") || "").toLowerCase() === "salario";
+}
+
+function _isAvulsa(comissao) {
+  return _isBonificacao(comissao) || _isSalario(comissao);
 }
 
 function _motivoBonificacao(comissao) {
@@ -1188,8 +1197,8 @@ function sincronizarCiclosDoProf(app, profId) {
   var pagas = [];
   for (var i = 0; i < (list || []).length; i++) {
     var c = list[i];
-    if (_isBonificacao(c)) {
-      // Bonificação paga com lançamento 1:1 continua válida, mas nunca forma lote.
+    if (_isAvulsa(c)) {
+      // Avulsa 1:1 nunca forma lote de OS.
       if (String(c.get("status") || "") === "paga") {
         pagas.push({ c: c, win: cicloDoProfEm(app, p, String(c.get("data") || '').slice(0, 10)) });
       }
@@ -1254,7 +1263,7 @@ function sincronizarCiclosDoProf(app, profId) {
       idsIndividuais[pcid] = true;
       continue;
     }
-    if (_isBonificacao(pc)) continue;
+    if (_isAvulsa(pc)) continue;
     var pe =
       String(pc.get("pago_em") || "")
         .trim()
@@ -1605,7 +1614,7 @@ function onComissaoCriada(app, comissao) {
   const st = String(comissao.get("status") || "");
   const profId = String(comissao.get("profissional") || "").trim();
   if (!profId) return;
-  if (_isBonificacao(comissao)) {
+  if (_isAvulsa(comissao)) {
     garantirLancamentoStatus(app, comissao, st === "paga" ? "pago" : "pendente");
     return;
   }
@@ -1759,7 +1768,7 @@ function sincronizarComissaoDoLancamento(app, lancamento, origStatusLanc) {
       for (var i = 0; i < (list || []).length; i++) {
         var c = list[i];
         // Bonificação não pode ser paga/reaberta pelo ciclo de OS.
-        if (_isBonificacao(c)) continue;
+        if (_isAvulsa(c)) continue;
         var cd = String(c.get("data") || "")
           .trim()
           .slice(0, 10);
