@@ -189,6 +189,27 @@ Intervalo intervaloDaOs(OrdemServico os, [Disponibilidade? dispProf]) {
 /// Prefixo para não colidir o id do compromisso com o de uma OS na grade.
 const String kAgendaIdTarefa = 't:';
 
+/// Lane compartilhada da tarefa: sempre a 1ª coluna, não o corredor do prof.
+const String kAgendaGrupoTarefa = '__tarefa__';
+
+/// Minutos entre HH:MM (0 = inválido ou fim ≤ início).
+int duracaoEntreHorarios(String inicioHhmm, String fimHhmm) {
+  int? parse(String s) {
+    final p = s.trim().split(':');
+    if (p.length < 2) return null;
+    final h = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    if (h == null || m == null) return null;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return h * 60 + m;
+  }
+
+  final a = parse(inicioHhmm);
+  final b = parse(fimHhmm);
+  if (a == null || b == null || b <= a) return 0;
+  return b - a;
+}
+
 Intervalo intervaloDoCompromisso(AgendaCompromisso c) {
   final utc = parsePbUtc(c.dataHora);
   final start = utc == null
@@ -203,7 +224,7 @@ Intervalo intervaloDoCompromisso(AgendaCompromisso c) {
     startMin: start,
     endMin: start + dur,
     label: c.titulo,
-    groupKey: c.profissional,
+    groupKey: kAgendaGrupoTarefa,
   );
 }
 

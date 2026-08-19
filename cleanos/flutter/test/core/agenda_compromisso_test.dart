@@ -36,4 +36,32 @@ void main() {
     expect(list[1].day, 28);
     expect(list[1].hour, 12);
   });
+
+  test('fromRecord aceita 1 id ou lista de profissionais', () {
+    final um = AgendaCompromisso(
+      id: 'a',
+      titulo: 'T',
+      profissionais: const ['p1'],
+      dataHora: '2026-08-19 12:00:00.000Z',
+    );
+    expect(um.profissional, 'p1');
+    expect(um.incluiProfissional('p1'), isTrue);
+    expect(um.incluiProfissional('p2'), isFalse);
+    expect(
+      um.copyWith(profissionais: const ['p1', 'p2']).incluiProfissional('p2'),
+      isTrue,
+    );
+  });
+
+  test('toBody grava lista de profissionais', () {
+    final t = AgendaCompromisso(
+      id: 'a',
+      titulo: 'Reunião',
+      profissionais: const ['p1', 'p2'],
+      dataHora: '2026-08-19 12:00:00.000Z',
+      duracaoMin: 90,
+    );
+    expect(t.toBody()['profissional'], ['p1', 'p2']);
+    expect(t.toBody()['duracao_min'], 90);
+  });
 }

@@ -47,7 +47,7 @@ class AgendaCompromisso {
     required this.id,
     required this.titulo,
     this.descricao = '',
-    required this.profissional,
+    this.profissionais = const [],
     required this.dataHora,
     this.duracaoMin = 60,
     this.recorrencia = RecorrenciaCompromisso.nenhuma,
@@ -58,12 +58,24 @@ class AgendaCompromisso {
   final String id;
   final String titulo;
   final String descricao;
-  final String profissional;
+
+  /// IDs dos profissionais na tarefa (1 ou mais).
+  final List<String> profissionais;
   final String dataHora;
   final int duracaoMin;
   final RecorrenciaCompromisso recorrencia;
   final String serieId;
   final StatusCompromisso status;
+
+  /// Primeiro da lista — compatível com o campo antigo de 1 profissional.
+  String get profissional =>
+      profissionais.isEmpty ? '' : profissionais.first;
+
+  bool incluiProfissional(String id) {
+    final t = id.trim();
+    if (t.isEmpty) return false;
+    return profissionais.contains(t);
+  }
 
   bool get concluida => status == StatusCompromisso.concluida;
 
@@ -73,7 +85,7 @@ class AgendaCompromisso {
       id: r.id,
       titulo: '${j['titulo'] ?? ''}'.trim(),
       descricao: '${j['descricao'] ?? ''}'.trim(),
-      profissional: '${j['profissional'] ?? ''}'.trim(),
+      profissionais: _ids(j['profissional']),
       dataHora: '${j['data_hora'] ?? ''}'.trim(),
       duracaoMin: _asInt(j['duracao_min'], 60),
       recorrencia: RecorrenciaCompromisso.parse('${j['recorrencia'] ?? ''}'),
@@ -85,7 +97,7 @@ class AgendaCompromisso {
   Map<String, dynamic> toBody() => {
     'titulo': titulo.trim(),
     'descricao': descricao.trim(),
-    'profissional': profissional.trim(),
+    'profissional': profissionais,
     'data_hora': dataHora.trim(),
     'duracao_min': duracaoMin < 15 ? 15 : duracaoMin,
     'recorrencia': recorrencia.wire,
@@ -96,7 +108,7 @@ class AgendaCompromisso {
   AgendaCompromisso copyWith({
     String? titulo,
     String? descricao,
-    String? profissional,
+    List<String>? profissionais,
     String? dataHora,
     int? duracaoMin,
     RecorrenciaCompromisso? recorrencia,
@@ -106,13 +118,25 @@ class AgendaCompromisso {
     id: id,
     titulo: titulo ?? this.titulo,
     descricao: descricao ?? this.descricao,
-    profissional: profissional ?? this.profissional,
+    profissionais: profissionais ?? this.profissionais,
     dataHora: dataHora ?? this.dataHora,
     duracaoMin: duracaoMin ?? this.duracaoMin,
     recorrencia: recorrencia ?? this.recorrencia,
     serieId: serieId ?? this.serieId,
     status: status ?? this.status,
   );
+
+  static List<String> _ids(dynamic v) {
+    if (v is List) {
+      return [
+        for (final x in v)
+          if ('$x'.trim().isNotEmpty) '$x'.trim(),
+      ];
+    }
+    final s = '$v'.trim();
+    if (s.isEmpty || s == 'null') return const [];
+    return [s];
+  }
 
   static int _asInt(dynamic v, int fallback) {
     if (v is int) return v;

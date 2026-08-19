@@ -324,7 +324,7 @@ class AgendaState {
   List<AgendaCompromisso> get filteredCompromissos {
     Iterable<AgendaCompromisso> list = compromissos;
     if (filterProfId != null) {
-      list = list.where((c) => c.profissional == filterProfId);
+      list = list.where((c) => c.incluiProfissional(filterProfId!));
     }
     return list.toList();
   }

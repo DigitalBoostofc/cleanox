@@ -589,7 +589,7 @@ List<Intervalo> _ocupadosDoDia(
         if (agendaEventBrt(o) case final brt? when sameDay(brt, dia))
           intervaloDaOs(o, disp),
     for (final t in state.compromissos)
-      if (t.profissional == prof && t.status != StatusCompromisso.concluida)
+      if (t.incluiProfissional(prof) && t.status != StatusCompromisso.concluida)
         if (parsePbUtc(t.dataHora) case final utc?
             when sameDay(utc.subtract(kBrtOffset), dia))
           intervaloDoCompromisso(t),
@@ -668,6 +668,7 @@ class _WeekView extends StatelessWidget {
                       profOrder: [
                         for (final p in state.profissionais) p.id,
                       ],
+                      profissionais: state.profissionais,
                       // Semana desktop: arrasta e MUDA DE DIA (D8).
                       editable: true,
                       permiteCrossDay: true,
@@ -1023,6 +1024,7 @@ class _DayView extends StatelessWidget {
                     profOrder: [
                       for (final p in state.profissionais) p.id,
                     ],
+                    profissionais: state.profissionais,
                     // Visão dia: arrasta no tempo, mas não há coluna vizinha —
                     // sem cross-day (o arraste horizontal é ignorado).
                     editable: true,
@@ -1615,17 +1617,28 @@ class _TarefaMiniCard extends ConsumerWidget {
               borderRadius: ClxRadii.rMd,
               border: Border.all(color: const Color(0xFFE0A106)),
             ),
-            child: Text(
-              [
-                if (hora.isNotEmpty) hora,
-                tarefa.titulo,
-                if (tarefa.concluida) '(concluída)',
-              ].join(' · '),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: clx.ink,
-                fontWeight: FontWeight.w700,
-                decoration: tarefa.concluida ? TextDecoration.lineThrough : null,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [
+                    if (hora.isNotEmpty) hora,
+                    tarefa.titulo,
+                    if (tarefa.concluida) '(concluída)',
+                  ].join(' · '),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: clx.ink,
+                    fontWeight: FontWeight.w700,
+                    decoration: tarefa.concluida
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                ),
+                if (tarefa.profissionais.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _FotosTarefaMini(ids: tarefa.profissionais),
+                ],
+              ],
             ),
           ),
         ),
@@ -1699,4 +1712,22 @@ Future<void> _abrirTarefa(
       );
     },
   );
+}
+
+class _FotosTarefaMini extends ConsumerWidget {
+  const _FotosTarefaMini({required this.ids});
+  final List<String> ids;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final users = ref.watch(agendaControllerProvider).profissionais;
+    final byId = {for (final u in users) u.id: u};
+    return Wrap(
+      spacing: 4,
+      children: [
+        for (final id in ids)
+          if (byId[id] != null) UserAvatar(user: byId[id]!, radius: 10),
+      ],
+    );
+  }
 }

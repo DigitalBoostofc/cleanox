@@ -174,6 +174,7 @@ class DayColumn extends StatefulWidget {
     required this.dayEnd,
     this.dispByProf = const {},
     this.profOrder = const [],
+    this.profissionais = const [],
     this.editable = false,
     this.maxColunas = kMaxColunasDesktop,
     this.showLeftBorder = true,
@@ -205,6 +206,9 @@ class DayColumn extends StatefulWidget {
   /// Ordem canônica dos profissionais (ids): 1º → esquerda, 2º → direita…
   /// Mesma lista da legenda/filtro da agenda (`nome` asc).
   final List<String> profOrder;
+
+  /// Usuários da agenda — foto no card da tarefa.
+  final List<User> profissionais;
 
   /// Liga a camada de gestos (arrastar/redimensionar) — desktop web.
   final bool editable;
@@ -339,7 +343,10 @@ class _DayColumnState extends State<DayColumn> {
       dayStart: widget.dayStart,
       dayEnd: widget.dayEnd,
       maxColunas: widget.maxColunas,
-      groupOrder: widget.profOrder.isEmpty ? null : widget.profOrder,
+      groupOrder: [
+        kAgendaGrupoTarefa,
+        ...widget.profOrder.where((id) => id != kAgendaGrupoTarefa),
+      ],
     );
     final alturaTotal = (widget.dayEnd - widget.dayStart) * kAgendaPxPorMin;
     final horaInicial = (widget.dayStart + 59) ~/ 60;
@@ -483,17 +490,29 @@ class _DayColumnState extends State<DayColumn> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               alignment: Alignment.topLeft,
-              child: Text(
-                '${faixaHoraria(p.startMin, p.duracaoMin)} · ${tarefa.titulo}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFF3D2E00),
-                  fontWeight: FontWeight.w700,
-                  decoration: tarefa.concluida
-                      ? TextDecoration.lineThrough
-                      : null,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${faixaHoraria(p.startMin, p.duracaoMin)} · ${tarefa.titulo}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF3D2E00),
+                      fontWeight: FontWeight.w700,
+                      decoration: tarefa.concluida
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                  if (tarefa.profissionais.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    _FotosTarefa(
+                      ids: tarefa.profissionais,
+                      users: widget.profissionais,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -987,6 +1006,39 @@ class _ChipExcedente extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FotosTarefa extends StatelessWidget {
+  const _FotosTarefa({required this.ids, required this.users});
+
+  final List<String> ids;
+  final List<User> users;
+
+  @override
+  Widget build(BuildContext context) {
+    final byId = {for (final u in users) u.id: u};
+    return Wrap(
+      spacing: -4,
+      children: [
+        for (final id in ids)
+          if (byId[id] != null)
+            UserAvatar(user: byId[id]!, radius: 8)
+          else
+            CircleAvatar(
+              radius: 8,
+              backgroundColor: const Color(0xFFE0A106),
+              child: Text(
+                '?',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 8,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+      ],
     );
   }
 }

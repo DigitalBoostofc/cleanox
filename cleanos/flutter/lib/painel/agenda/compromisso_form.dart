@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agenda/agenda_layout.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/agenda_compromisso.dart';
 import '../data/painel_providers.dart';
-import '../ordens/os_form.dart' show kDuracaoOpcoes;
 import 'agenda_controller.dart';
 
 Future<bool> showCompromissoForm(
@@ -27,6 +27,16 @@ Future<bool> showCompromissoForm(
     ),
   );
   return saved == true;
+}
+
+String _hhmmMais(String hhmm, int min) {
+  final p = hhmm.split(':');
+  final h = int.tryParse(p.first) ?? 9;
+  final m = int.tryParse(p.length > 1 ? p[1] : '0') ?? 0;
+  var t = h * 60 + m + min;
+  if (t < 15) t = 15;
+  if (t >= 24 * 60) t = 24 * 60 - 15;
+  return '${(t ~/ 60).toString().padLeft(2, '0')}:${(t % 60).toString().padLeft(2, '0')}';
 }
 
 class _CompromissoDialog extends ConsumerStatefulWidget {
@@ -48,9 +58,9 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
   final _titulo = TextEditingController();
   final _descricao = TextEditingController();
   final _hora = TextEditingController(text: '09:00');
+  final _horaFim = TextEditingController(text: '10:00');
   DateTime? _dia;
-  String? _profId;
-  int _duracao = 60;
+  final _profIds = <String>{};
   RecorrenciaCompromisso _recorrencia = RecorrenciaCompromisso.nenhuma;
   bool _saving = false;
   String? _erro;
@@ -62,8 +72,7 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
     if (e != null) {
       _titulo.text = e.titulo;
       _descricao.text = e.descricao;
-      _profId = e.profissional;
-      _duracao = e.duracaoMin;
+      _profIds.addAll(e.profissionais);
       _recorrencia = RecorrenciaCompromisso.nenhuma;
       final utc = parsePbUtc(e.dataHora);
       if (utc != null) {
@@ -71,11 +80,13 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
         _dia = DateTime(brt.year, brt.month, brt.day);
         _hora.text =
             '${brt.hour.toString().padLeft(2, '0')}:${brt.minute.toString().padLeft(2, '0')}';
+        _horaFim.text = _hhmmMais(_hora.text, e.duracaoMin);
       }
     } else {
       final d = widget.dia ?? DateTime.now();
       _dia = DateTime(d.year, d.month, d.day);
-      _profId = widget.profissionalId;
+      final seed = (widget.profissionalId ?? '').trim();
+      if (seed.isNotEmpty) _profIds.add(seed);
     }
   }
 
@@ -84,6 +95,7 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
     _titulo.dispose();
     _descricao.dispose();
     _hora.dispose();
+    _horaFim.dispose();
     super.dispose();
   }
 
@@ -108,8 +120,13 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
       setState(() => _erro = 'Informe o título.');
       return;
     }
-    if ((_profId ?? '').isEmpty) {
-      setState(() => _erro = 'Selecione o profissional.');
+    if (_profIds.isEmpty) {
+      setState(() => _erro = 'Selecione ao menos um profissional.');
+      return;
+    }
+    final dur = duracaoEntreHorarios(_hora.text, _horaFim.text);
+    if (dur < 15) {
+      setState(() => _erro = 'O fim precisa ser depois do início.');
       return;
     }
     final inicio = _inicioUtc();
@@ -121,6 +138,7 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
       _saving = true;
       _erro = null;
     });
+    final profs = _profIds.toList();
     try {
       final repo = ref.read(agendaCompromissosRepositoryProvider);
       final editing = widget.editing;
@@ -130,11 +148,11 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
               .copyWith(
                 titulo: titulo,
                 descricao: _descricao.text.trim(),
-                profissional: _profId!,
+                profissionais: profs,
                 dataHora: localInputToPBDate(
                   inicio.subtract(kBrtOffset).toIso8601String().substring(0, 16),
                 ),
-                duracaoMin: _duracao,
+                duracaoMin: dur,
               )
               .toBody(),
         });
@@ -154,9 +172,9 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
           await repo.create({
             'titulo': titulo,
             'descricao': _descricao.text.trim(),
-            'profissional': _profId,
+            'profissional': profs,
             'data_hora': localInputToPBDate(local),
-            'duracao_min': _duracao,
+            'duracao_min': dur,
             'recorrencia': _recorrencia.wire,
             'serie_id': serie,
             'status': StatusCompromisso.pendente.wire,
@@ -197,17 +215,31 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
                 decoration: const InputDecoration(labelText: 'Título'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _profId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Profissional'),
-                items: [
+              Text(
+                'Profissionais',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
                   for (final p in profs)
-                    DropdownMenuItem(value: p.id, child: Text(p.displayName)),
+                    FilterChip(
+                      avatar: UserAvatar(user: p, radius: 10),
+                      label: Text(p.displayName),
+                      selected: _profIds.contains(p.id),
+                      onSelected: _saving
+                          ? null
+                          : (on) => setState(() {
+                              if (on) {
+                                _profIds.add(p.id);
+                              } else {
+                                _profIds.remove(p.id);
+                              }
+                            }),
+                    ),
                 ],
-                onChanged: _saving
-                    ? null
-                    : (v) => setState(() => _profId = v),
               ),
               const SizedBox(height: 12),
               ListTile(
@@ -230,28 +262,34 @@ class _CompromissoDialogState extends ConsumerState<_CompromissoDialog> {
                         if (picked != null) setState(() => _dia = picked);
                       },
               ),
-              TextField(
-                controller: _hora,
-                enabled: !_saving,
-                decoration: const InputDecoration(labelText: 'Horário (HH:MM)'),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
-                ],
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: _duracao,
-                decoration: const InputDecoration(labelText: 'Duração'),
-                items: [
-                  for (final m in kDuracaoOpcoes)
-                    DropdownMenuItem(
-                      value: m,
-                      child: Text(m < 60 ? '$m min' : '${m ~/ 60}h${m % 60 == 0 ? '' : m % 60}'),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _hora,
+                      enabled: !_saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Início (HH:MM)',
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                      ],
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _horaFim,
+                      enabled: !_saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Fim (HH:MM)',
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                      ],
+                    ),
+                  ),
                 ],
-                onChanged: _saving
-                    ? null
-                    : (v) => setState(() => _duracao = v ?? 60),
               ),
               if (widget.editing == null) ...[
                 const SizedBox(height: 12),
