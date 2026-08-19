@@ -622,8 +622,63 @@ bool isLancamentoComissao(FinLancamento l) {
   final d = l.descricao.trim().toLowerCase();
   if (d.startsWith('comissão ·') || d.startsWith('comissao ·')) return true;
   if (d.startsWith('comissão -') || d.startsWith('comissao -')) return true;
+  if (d.startsWith('salário ·') || d.startsWith('salario ·')) return true;
+  if (d.startsWith('salário -') || d.startsWith('salario -')) return true;
   if (d.startsWith('repasse comiss')) return true;
   return false;
+}
+
+/// Filho de Equipe ligado a profissional (categoria_comissao ou nome).
+User? profissionalDaSubcategoria(FinCategoria cat, List<User> profs) {
+  for (final u in profs) {
+    if ((u.categoriaComissaoId ?? '').trim() == cat.id) return u;
+  }
+  final n = cat.nome.trim().toLowerCase();
+  if (n.isEmpty) return null;
+  for (final u in profs) {
+    if (u.displayName.trim().toLowerCase() == n) return u;
+  }
+  return null;
+}
+
+/// Equipe: esconde sub de profissional inativo/apagado. Outras subs ficam.
+List<FinCategoria> filhosEquipeVisiveis({
+  required FinCategoria root,
+  required List<FinCategoria> filhos,
+  required List<User> profs,
+}) {
+  if (root.nome.trim().toLowerCase() != 'equipe') return filhos;
+  return [for (final f in filhos) if (_equipeSubVisivel(f, profs)) f];
+}
+
+bool _equipeSubVisivel(FinCategoria f, List<User> profs) {
+  final ligado = profissionalDaSubcategoria(f, profs);
+  if (ligado != null) return ligado.ativo;
+  return true;
+}
+
+/// Profissional da linha (subcategoria, categoria ou nome na descrição).
+User? profissionalDoLancamento({
+  required FinLancamento l,
+  FinCategoria? cat,
+  required List<User> profs,
+}) {
+  final ids = <String>{
+    (l.subcategoriaId ?? '').trim(),
+    l.categoriaId.trim(),
+    if (cat != null) cat.id,
+  }..removeWhere((s) => s.isEmpty);
+  for (final u in profs) {
+    final cid = (u.categoriaComissaoId ?? '').trim();
+    if (cid.isNotEmpty && ids.contains(cid)) return u;
+  }
+  final d = l.descricao;
+  for (final u in profs) {
+    final n = u.displayName.trim();
+    if (n.length >= 3 && d.contains(n)) return u;
+  }
+  if (cat != null) return profissionalDaSubcategoria(cat, profs);
+  return null;
 }
 
 /// Receita/despesa gerada por OS (`via_os` ou vínculo `os_id`).

@@ -515,6 +515,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
                                     : context.clxR.s(100),
                                 catById: catById,
                                 contaById: contaById,
+                                profs: profs,
                                 weekdayLabel: _weekdayLabel,
                                 onOpen: _openDetail,
                                 onTogglePago: _togglePago,
@@ -528,6 +529,7 @@ class _FinTransacoesScreenState extends ConsumerState<FinTransacoesScreen> {
                                 state: state,
                                 catById: catById,
                                 contaById: contaById,
+                                profs: profs,
                                 prevPorDia: prevPorDia,
                                 onOpen: _openDetail,
                                 onTogglePago: _togglePago,
@@ -870,6 +872,7 @@ class _MobileList extends StatelessWidget {
     required this.bottomPad,
     required this.catById,
     required this.contaById,
+    required this.profs,
     required this.weekdayLabel,
     required this.onOpen,
     required this.onTogglePago,
@@ -882,6 +885,7 @@ class _MobileList extends StatelessWidget {
   final double bottomPad;
   final Map<String, FinCategoria> catById;
   final Map<String, FinConta> contaById;
+  final List<User> profs;
   final String Function(String) weekdayLabel;
   final ValueChanged<FinLancamento> onOpen;
   final ValueChanged<FinLancamento> onTogglePago;
@@ -934,6 +938,12 @@ class _MobileList extends StatelessWidget {
                       l: g.itens[j],
                       cat: catById[g.itens[j].categoriaId],
                       conta: contaById[g.itens[j].contaId],
+                      profissional: profissionalDoLancamento(
+                        l: g.itens[j],
+                        cat: catById[g.itens[j].subcategoriaId ?? ''] ??
+                            catById[g.itens[j].categoriaId],
+                        profs: profs,
+                      ),
                       onOpen: () => onOpen(g.itens[j]),
                       onTogglePago: () => onTogglePago(g.itens[j]),
                       onToggleFav: () => onToggleFav(g.itens[j]),
@@ -1005,6 +1015,7 @@ class _TxTile extends StatelessWidget {
     required this.l,
     required this.cat,
     required this.conta,
+    this.profissional,
     required this.onOpen,
     required this.onTogglePago,
     required this.onToggleFav,
@@ -1013,6 +1024,7 @@ class _TxTile extends StatelessWidget {
   final FinLancamento l;
   final FinCategoria? cat;
   final FinConta? conta;
+  final User? profissional;
   final VoidCallback onOpen;
   final VoidCallback onTogglePago;
   final VoidCallback onToggleFav;
@@ -1054,7 +1066,11 @@ class _TxTile extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  FinCategoriaAvatar(categoria: cat, size: avatar),
+                  FinCategoriaAvatar(
+                    categoria: cat,
+                    profissional: profissional,
+                    size: avatar,
+                  ),
                   if (!pago)
                     Positioned(
                       right: -1,
@@ -1244,6 +1260,7 @@ class _DesktopTable extends StatelessWidget {
     required this.state,
     required this.catById,
     required this.contaById,
+    required this.profs,
     required this.prevPorDia,
     required this.onOpen,
     required this.onTogglePago,
@@ -1254,6 +1271,7 @@ class _DesktopTable extends StatelessWidget {
   final FinLancState state;
   final Map<String, FinCategoria> catById;
   final Map<String, FinConta> contaById;
+  final List<User> profs;
   final Map<String, double> prevPorDia;
   final ValueChanged<FinLancamento> onOpen;
   final ValueChanged<FinLancamento> onTogglePago;
@@ -1301,6 +1319,12 @@ class _DesktopTable extends StatelessWidget {
                     l: l,
                     cat: catById[l.categoriaId],
                     conta: contaById[l.contaId],
+                    profissional: profissionalDoLancamento(
+                      l: l,
+                      cat: catById[l.subcategoriaId ?? ''] ??
+                          catById[l.categoriaId],
+                      profs: profs,
+                    ),
                     onOpen: () => onOpen(l),
                     onTogglePago: () => onTogglePago(l),
                     onToggleFav: () => onToggleFav(l),
@@ -1387,6 +1411,7 @@ class _TableRow extends StatelessWidget {
     required this.l,
     required this.cat,
     required this.conta,
+    this.profissional,
     required this.onOpen,
     required this.onTogglePago,
     required this.onToggleFav,
@@ -1395,6 +1420,7 @@ class _TableRow extends StatelessWidget {
   final FinLancamento l;
   final FinCategoria? cat;
   final FinConta? conta;
+  final User? profissional;
   final VoidCallback onOpen;
   final VoidCallback onTogglePago;
   final VoidCallback onToggleFav;
@@ -1448,7 +1474,11 @@ class _TableRow extends StatelessWidget {
                 child: Tooltip(
                   message: cat?.nome ?? 'Sem categoria',
                   child: Center(
-                    child: FinCategoriaAvatar(categoria: cat, size: 28),
+                    child: FinCategoriaAvatar(
+                      categoria: cat,
+                      profissional: profissional,
+                      size: 28,
+                    ),
                   ),
                 ),
               ),

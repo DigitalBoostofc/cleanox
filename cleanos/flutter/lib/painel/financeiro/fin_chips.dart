@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/design/design.dart';
 import '../../core/models/financeiro.dart';
+import '../../core/models/user.dart';
 import 'fin_labels.dart';
 
 /// Converte um hex ('#RRGGBB' ou 'RRGGBB', com/sem alpha) em [Color]. `null` se
@@ -148,13 +149,23 @@ class ContaBadge extends StatelessWidget {
 /// Círculo **sólido** na cor da categoria + ícone em contraste (branco/ink).
 /// O desenho do ícone fica legível em qualquer tom da paleta.
 class FinCategoriaAvatar extends StatelessWidget {
-  const FinCategoriaAvatar({super.key, this.categoria, this.size = 34});
+  const FinCategoriaAvatar({
+    super.key,
+    this.categoria,
+    this.profissional,
+    this.size = 34,
+  });
 
   final FinCategoria? categoria;
+  final User? profissional;
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    final u = profissional;
+    if (u != null) {
+      return UserAvatar(user: u, radius: size / 2);
+    }
     final clx = context.clx;
     final cor = finParseHex(categoria?.cor) ?? clx.primary;
     final onCor = finOnCategoriaColor(cor);
