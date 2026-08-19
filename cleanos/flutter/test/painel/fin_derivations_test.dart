@@ -404,7 +404,14 @@ void main() {
         filhos: [breno, inat, extra],
         profs: profs,
       );
-      expect(visiveis.map((c) => c.id), ['cat-breno', 'cat-pf']);
+      expect(visiveis.map((c) => c.id), ['cat-breno']);
+      final igor = User(id: 'u3', nome: 'Igor Girão');
+      final plano = planejarSyncEquipe(
+        filhos: [breno, inat, extra],
+        usuarios: [...profs, igor],
+      );
+      expect(plano.criar.map((u) => u.id), ['u3']);
+      expect(plano.apagar.map((c) => c.id), ['cat-old', 'cat-pf']);
       expect(
         profissionalDoLancamento(
           l: fakeLanc(
