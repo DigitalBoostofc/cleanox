@@ -1174,6 +1174,10 @@ class _AgendaMiniCard extends StatelessWidget {
                   message: profUser2.displayName,
                   child: UserAvatar(user: profUser2, radius: 14),
                 ),
+              if (concluida) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.check_circle, size: 18, color: cor),
+              ],
               const SizedBox(width: ClxSpace.x2),
             ] else if (concluida) ...[
               Icon(Icons.check_circle, size: 20, color: cor),

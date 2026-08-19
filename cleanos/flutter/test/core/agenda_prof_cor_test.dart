@@ -83,14 +83,14 @@ void main() {
       expect(agendaVisivel(os(status: OSStatus.atribuida, prof: prof)), isTrue);
     });
 
-    test('avatar só em atribuída / em andamento', () {
+    test('avatar em atribuída / em andamento / concluída', () {
       expect(agendaMostraAvatar(os(status: OSStatus.agendada, prof: prof)), isFalse);
       expect(agendaMostraAvatar(os(status: OSStatus.atribuida, prof: prof)), isTrue);
       expect(
         agendaMostraAvatar(os(status: OSStatus.emAndamento, prof: prof)),
         isTrue,
       );
-      expect(agendaMostraAvatar(os(status: OSStatus.concluida, prof: prof)), isFalse);
+      expect(agendaMostraAvatar(os(status: OSStatus.concluida, prof: prof)), isTrue);
     });
 
     test('check só em concluída', () {
