@@ -744,7 +744,7 @@ class _BlocoOSState extends State<_BlocoOS> {
     // já tentamos serviço/valor/bairro (pedido do dono: sempre ver o essencial).
     final curto = p.duracaoMin < 30;
 
-    // Cor = profissional. Avatar só em atribuída/em andamento; check = concluída.
+    // Cor = profissional. Avatar em atribuída/andamento/concluída; check = concluída.
     final cor = corAgendaOs(os);
     final prof = os.expand?.profissional;
     final prof2 = os.expand?.profissional2;
@@ -792,7 +792,9 @@ class _BlocoOSState extends State<_BlocoOS> {
             child: Padding(
               // reserva o canto do avatar/check para o texto não passar por baixo
               padding: EdgeInsets.only(
-                right: (reservaCanto || mostraPf) ? 24 : 0,
+                right: (reservaCanto || mostraPf)
+                    ? (concluida && (mostraAvatar || mostraAvatar2) ? 40 : 24)
+                    : 0,
                 top: mostraPf ? 2 : 0,
               ),
               child: LayoutBuilder(
@@ -841,8 +843,8 @@ class _BlocoOSState extends State<_BlocoOS> {
               right: 0,
               child: AgendaPfTag(os: os, size: 16),
             ),
-          if (mostraAvatar || mostraAvatar2)
-            // Canto INFERIOR direito (pedido do dono, 16/07).
+          if (mostraAvatar || mostraAvatar2 || concluida)
+            // Canto INFERIOR direito: foto de quem fez + V se concluída.
             Positioned(
               bottom: 0,
               right: 0,
@@ -853,16 +855,12 @@ class _BlocoOSState extends State<_BlocoOS> {
                     _AgendaProfAvatar(user: prof, cor: cor),
                   if (mostraAvatar2)
                     _AgendaProfAvatar(user: prof2, cor: cor),
+                  if (concluida)
+                    Tooltip(
+                      message: 'Concluída',
+                      child: Icon(Icons.check_circle, size: 18, color: cor),
+                    ),
                 ],
-              ),
-            )
-          else if (concluida)
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Tooltip(
-                message: 'Concluída',
-                child: Icon(Icons.check_circle, size: 18, color: cor),
               ),
             ),
         ],

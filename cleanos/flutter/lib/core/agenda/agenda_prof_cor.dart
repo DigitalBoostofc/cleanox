@@ -103,9 +103,11 @@ Color corAgendaBg(Color cor) => cor.withValues(alpha: 0.14);
 /// Cancelada some da agenda.
 bool agendaVisivel(OrdemServico os) => os.status != OSStatus.cancelada;
 
-/// Foto só em atribuída / em andamento (não em agendada nem concluída).
+/// Foto em atribuída / em andamento / concluída (quem fez a OS).
 bool agendaMostraAvatar(OrdemServico os) {
-  return os.status == OSStatus.atribuida || os.status == OSStatus.emAndamento;
+  return os.status == OSStatus.atribuida ||
+      os.status == OSStatus.emAndamento ||
+      os.status == OSStatus.concluida;
 }
 
 /// Marcação de “concluído” no bloco/bolinha.
