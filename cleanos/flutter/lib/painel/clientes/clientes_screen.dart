@@ -17,6 +17,7 @@ import '../../core/design/app_surface_provider.dart';
 import '../../core/design/design.dart';
 import '../../core/formatters/formatters.dart';
 import '../../core/models/cliente.dart';
+import '../../core/models/collections.dart';
 import 'cliente_form.dart';
 import 'clientes_controller.dart';
 import 'config_atuacao_editor.dart';
@@ -97,11 +98,36 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
     await showPontosFisicosEditor(context);
   }
 
+  Future<void> _excluir(Cliente c) async {
+    final nome = c.nomeCompleto.trim().isEmpty ? 'este cliente' : c.nomeCompleto;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ConfirmDeleteClienteDialog(nome: nome),
+    );
+    if (confirm != true) return;
+    try {
+      await ref.read(clientesControllerProvider.notifier).delete(c);
+      if (mounted) {
+        showClxToast(context, 'Cliente excluído.', type: ToastType.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        showClxToast(
+          context,
+          _deleteClienteErrorMessage(e),
+          type: ToastType.error,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(clientesControllerProvider);
     // Config de atuação é admin/gerente (Painel), igual ao React (canManageConfig).
     final canConfig = ref.watch(currentRoleProvider)?.isPainel ?? false;
+    // Hard delete: só admin (espelha deleteRule do PB).
+    final canDelete = ref.watch(currentRoleProvider) == Role.admin;
     return Column(
       children: [
         _Toolbar(
@@ -112,12 +138,12 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           onPontos: canConfig ? _openPontosFisicos : null,
           total: state.totalItems,
         ),
-        Expanded(child: _body(state)),
+        Expanded(child: _body(state, canDelete: canDelete)),
       ],
     );
   }
 
-  Widget _body(ClientesState state) {
+  Widget _body(ClientesState state, {required bool canDelete}) {
     if (state.loading) {
       return const Center(child: Spinner(size: 26));
     }
@@ -163,7 +189,9 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           onRefresh: () =>
               ref.read(clientesControllerProvider.notifier).refresh(),
           color: context.clx.primary,
-          child: table ? _tableView(state) : _cardsView(state),
+          child: table
+              ? _tableView(state, canDelete: canDelete)
+              : _cardsView(state, canDelete: canDelete),
         );
       },
     );
@@ -181,7 +209,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
   }
 
   /// Tabela densa virtualizada (header fixo + linhas em ListView.builder).
-  Widget _tableView(ClientesState state) {
+  Widget _tableView(ClientesState state, {required bool canDelete}) {
     final clx = context.clx;
     return Column(
       children: [
@@ -192,13 +220,14 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
             vertical: ClxSpace.x3,
           ),
           child: Row(
-            children: const [
-              _HeaderCell('Nome', flex: 3),
-              _HeaderCell('Telefone', flex: 2),
-              _HeaderCell('Bairro', flex: 2),
-              _HeaderCell('Cidade', flex: 2),
-              _HeaderCell('Origem', flex: 2),
-              _HeaderCell('Status', flex: 2),
+            children: [
+              const _HeaderCell('Nome', flex: 3),
+              const _HeaderCell('Telefone', flex: 2),
+              const _HeaderCell('Bairro', flex: 2),
+              const _HeaderCell('Cidade', flex: 2),
+              const _HeaderCell('Origem', flex: 2),
+              const _HeaderCell('Status', flex: 2),
+              if (canDelete) const _HeaderCell('', flex: 1),
             ],
           ),
         ),
@@ -217,6 +246,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
                 onToggle: () => ref
                     .read(clientesControllerProvider.notifier)
                     .toggleAtivo(cli),
+                onDelete: canDelete ? () => _excluir(cli) : null,
               );
             },
           ),
@@ -226,7 +256,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
   }
 
   /// Lista de cards (mobile), virtualizada.
-  Widget _cardsView(ClientesState state) {
+  Widget _cardsView(ClientesState state, {required bool canDelete}) {
     final easypay =
         ref.watch(isFintechCleanProvider) || ref.watch(isNarrowWebProvider);
     return ListView.builder(
@@ -241,6 +271,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           onTap: () => _openForm(editing: cli),
           onToggle: () =>
               ref.read(clientesControllerProvider.notifier).toggleAtivo(cli),
+          onDelete: canDelete ? () => _excluir(cli) : null,
         );
         return Padding(
           padding: const EdgeInsets.only(bottom: ClxSpace.x3),
@@ -372,11 +403,13 @@ class _TableRow extends StatelessWidget {
     required this.cliente,
     required this.onTap,
     required this.onToggle,
+    this.onDelete,
   });
 
   final Cliente cliente;
   final VoidCallback onTap;
   final VoidCallback onToggle;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -461,6 +494,23 @@ class _TableRow extends StatelessWidget {
                 child: _AtivoChip(ativo: cliente.ativo, onTap: onToggle),
               ),
             ),
+            if (onDelete != null)
+              Expanded(
+                flex: 1,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    key: ValueKey('cliente-excluir-${cliente.id}'),
+                    tooltip: 'Excluir',
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: clx.error,
+                      size: 20,
+                    ),
+                    onPressed: onDelete,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -473,11 +523,13 @@ class _ClienteCard extends StatelessWidget {
     required this.cliente,
     required this.onTap,
     required this.onToggle,
+    this.onDelete,
   });
 
   final Cliente cliente;
   final VoidCallback onTap;
   final VoidCallback onToggle;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -547,6 +599,16 @@ class _ClienteCard extends StatelessWidget {
                 ),
               ),
               _AtivoChip(ativo: cliente.ativo, onTap: onToggle),
+              if (onDelete != null)
+                IconButton(
+                  key: ValueKey('cliente-excluir-${cliente.id}'),
+                  tooltip: 'Excluir',
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    color: clx.error,
+                  ),
+                  onPressed: onDelete,
+                ),
             ],
           ),
           const SizedBox(height: ClxSpace.x3),
@@ -610,6 +672,51 @@ class _AtivoChip extends StatelessWidget {
         borderRadius: ClxRadii.rPill,
         child: ClxChip(label: ativo ? 'Ativo' : 'Inativo', color: color),
       ),
+    );
+  }
+}
+
+String _deleteClienteErrorMessage(Object? err) {
+  final s = err?.toString() ?? '';
+  if (s.contains('403') || s.toLowerCase().contains('forbidden')) {
+    return 'Só o admin pode excluir cliente.';
+  }
+  if (s.contains('400') || s.toLowerCase().contains('failed to delete')) {
+    return 'Não foi possível excluir. O cliente pode ter ordens ligadas.';
+  }
+  return 'Não foi possível excluir o cliente.';
+}
+
+class _ConfirmDeleteClienteDialog extends StatelessWidget {
+  const _ConfirmDeleteClienteDialog({required this.nome});
+  final String nome;
+
+  @override
+  Widget build(BuildContext context) {
+    final clx = context.clx;
+    return AlertDialog(
+      backgroundColor: clx.bg,
+      shape: const RoundedRectangleBorder(borderRadius: ClxRadii.rXl),
+      title: const Text('Excluir cliente'),
+      content: Text(
+        'Tem certeza que deseja excluir "$nome"? '
+        'Isso apaga o cadastro de verdade (não é só inativar). '
+        'Esta ação não pode ser desfeita.',
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: clx.ink2, height: 1.5),
+      ),
+      actions: [
+        ClxButton(
+          label: 'Cancelar',
+          variant: ClxButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        ClxButton(
+          label: 'Excluir',
+          variant: ClxButtonVariant.danger,
+          icon: Icons.delete_outline_rounded,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
     );
   }
 }

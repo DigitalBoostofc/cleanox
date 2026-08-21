@@ -135,6 +135,16 @@ class ClientesController extends StateNotifier<ClientesState> {
     }
   }
 
+  /// Exclui o cliente de verdade (hard delete). Só admin no servidor.
+  Future<void> delete(Cliente c) async {
+    await _ref.read(clientesRepositoryProvider).delete(c.id);
+    state = state.copyWith(
+      items: [for (final it in state.items) if (it.id != c.id) it],
+      totalItems: state.totalItems > 0 ? state.totalItems - 1 : 0,
+      error: null,
+    );
+  }
+
   void _patchLocal(String id, Cliente updated) {
     state = state.copyWith(
       items: [

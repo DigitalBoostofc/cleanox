@@ -2,6 +2,7 @@
 library;
 
 import 'package:cleanos/core/design/design.dart';
+import 'package:cleanos/core/models/collections.dart';
 import 'package:cleanos/painel/clientes/cliente_form.dart';
 import 'package:cleanos/painel/clientes/clientes_screen.dart';
 import 'package:cleanos/painel/data/painel_providers.dart';
@@ -136,6 +137,58 @@ void main() {
       expect(repo.lastCreate?['nome'], 'Carlos');
       expect(repo.lastCreate?['sobrenome'], 'Silva');
       expect(repo.lastCreate?['endereco_bairro'], 'Centro');
+    });
+
+    testWidgets('admin: excluir pede confirmação e remove do repo', (
+      tester,
+    ) async {
+      final repo = FakeClientes(
+        seed: [
+          fakeCliente(id: 'a', nome: 'Ana', sobrenome: 'Souza'),
+          fakeCliente(id: 'b', nome: 'Bruno', sobrenome: 'Lima'),
+        ],
+      );
+      await pumpPainel(
+        tester,
+        const ClientesScreen(),
+        overrides: [
+          ...painelOverrides(user: painelUser()), // admin
+          clientesRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('cliente-excluir-a')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('cliente-excluir-a')));
+      await tester.pumpAndSettle();
+      expect(find.text('Excluir cliente'), findsOneWidget);
+      await tester.tap(find.text('Excluir'));
+      await tester.pumpAndSettle();
+
+      expect(repo.deleteCount, 1);
+      expect(repo.deletedIds, ['a']);
+      expect(find.text('Ana Souza'), findsNothing);
+      expect(find.text('Bruno Lima'), findsOneWidget);
+    });
+
+    testWidgets('gerente: não mostra botão excluir', (tester) async {
+      final repo = FakeClientes(
+        seed: [fakeCliente(id: 'a', nome: 'Ana', sobrenome: 'Souza')],
+      );
+      await pumpPainel(
+        tester,
+        const ClientesScreen(),
+        overrides: [
+          ...painelOverrides(user: painelUser(role: Role.gerente)),
+          clientesRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('cliente-excluir-a')), findsNothing);
     });
   });
 }

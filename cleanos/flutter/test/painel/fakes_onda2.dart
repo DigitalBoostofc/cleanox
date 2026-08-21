@@ -49,6 +49,8 @@ class FakeClientes implements ClientesRepository {
 
   int createCount = 0;
   int updateCount = 0;
+  int deleteCount = 0;
+  final deletedIds = <String>[];
   Map<String, dynamic>? lastCreate;
   Map<String, dynamic>? lastUpdate;
 
@@ -87,7 +89,11 @@ class FakeClientes implements ClientesRepository {
   Future<Cliente> getOne(String id) async => fakeCliente(id: id);
 
   @override
-  Future<void> delete(String id) async {}
+  Future<void> delete(String id) async {
+    deleteCount++;
+    deletedIds.add(id);
+    seed = [for (final c in seed) if (c.id != id) c];
+  }
 
   @override
   Future<Cliente?> findByTelefone(String telefone, {String? excludeId}) async {
