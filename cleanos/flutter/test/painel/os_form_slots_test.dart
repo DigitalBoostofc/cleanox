@@ -139,6 +139,14 @@ OrdemServico _osOcupada({
 );
 
 void main() {
+  group('kDuracaoOpcoes', () {
+    test('oferece jornadas longas além de 4h', () {
+      expect(kDuracaoOpcoes, contains(240));
+      expect(kDuracaoOpcoes, containsAll([300, 360, 480, 720]));
+      expect(kDuracaoOpcoes.last, greaterThanOrEqualTo(720));
+    });
+  });
+
   group('computeOSDaySlots (puro — grade/agenda)', () {
     // 2026-07-06 é uma segunda-feira; com todos os dias ativos o dia da semana
     // é irrelevante (todos atendem).
