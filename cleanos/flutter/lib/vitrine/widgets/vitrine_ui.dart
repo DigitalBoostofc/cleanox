@@ -1387,6 +1387,9 @@ String vitrineLabelGrupo(String slug) {
       return 'Tapetes';
     case 'plano':
       return 'Planos';
+    case 'ofertas':
+    case 'oferta':
+      return 'Ofertas';
     case 'outros':
       return 'Outros';
     default:

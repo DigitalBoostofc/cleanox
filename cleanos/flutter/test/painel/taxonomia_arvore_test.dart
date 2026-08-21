@@ -122,6 +122,46 @@ void main() {
     );
   });
 
+  test('filtro une taxonomia com grupos extras do catálogo', () {
+    final arvore = TaxonomiaArvore([
+      const TaxonomiaNo(
+        id: 'c-vei',
+        tipo: TaxonomiaTipo.categoria,
+        slug: 'veicular',
+        nome: 'Veicular',
+        parent: '',
+        ordem: 10,
+        ativo: true,
+      ),
+      const TaxonomiaNo(
+        id: 'g-hi',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'higienizacao_interna',
+        nome: 'Higienização',
+        parent: 'c-vei',
+        ordem: 10,
+        ativo: true,
+      ),
+      const TaxonomiaNo(
+        id: 'g-of',
+        tipo: TaxonomiaTipo.grupo,
+        slug: 'ofertas',
+        nome: 'Ofertas',
+        parent: 'c-vei',
+        ordem: 20,
+        ativo: true,
+      ),
+    ]);
+    expect(
+      gruposDoFiltroServicos(
+        categoriaSlug: 'veicular',
+        arvore: arvore,
+        extrasCatalogo: const ['promocao', 'ofertas', 'avulsos'],
+      ),
+      ['higienizacao_interna', 'ofertas', 'avulsos', 'promocao'],
+    );
+  });
+
   test('filtro de grupo cai no fallback estático sem árvore', () {
     expect(
       gruposDoFiltroServicos(categoriaSlug: 'veicular'),

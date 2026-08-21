@@ -187,25 +187,59 @@ class TaxonomiaArvore {
 /// Sem categoria: vazio (a UI fica só em "Todos os grupos").
 /// Com árvore: grupos ativos daquela categoria.
 /// Sem árvore: fallback estático [gruposDaCategoria].
+///
+/// [extrasCatalogo] acrescenta slugs que existem em serviços reais mas ainda
+/// não estão na taxonomia (ex.: promocao no catálogo veicular). Mantém a
+/// ordem da árvore/estático e cola os extras ao final, A–Z.
 List<String> gruposDoFiltroServicos({
   required String? categoriaSlug,
   TaxonomiaArvore? arvore,
+  Iterable<String> extrasCatalogo = const [],
 }) {
   final slug = (categoriaSlug ?? '').trim();
   if (slug.isEmpty) return const [];
   final cat = arvore?.categoriaBySlug(slug);
+  final List<String> base;
   if (cat != null) {
-    return [for (final g in arvore!.gruposDe(cat.id)) g.slug];
-  }
-  Categoria? catEnum;
-  for (final c in Categoria.values) {
-    if (c.wire == slug) {
-      catEnum = c;
-      break;
+    base = [for (final g in arvore!.gruposDe(cat.id)) g.slug];
+  } else {
+    Categoria? catEnum;
+    for (final c in Categoria.values) {
+      if (c.wire == slug) {
+        catEnum = c;
+        break;
+      }
+    }
+    if (catEnum == null) {
+      base = const [];
+    } else {
+      base = [for (final g in gruposDaCategoria(catEnum)) g.wire];
     }
   }
-  if (catEnum == null) return const [];
-  return [for (final g in gruposDaCategoria(catEnum)) g.wire];
+  return mergeGruposDoFiltro(base, extrasCatalogo);
+}
+
+/// Une a lista preferida (taxonomia/estático) com extras do catálogo real.
+List<String> mergeGruposDoFiltro(
+  Iterable<String> preferred,
+  Iterable<String> extrasCatalogo,
+) {
+  final seen = <String>{};
+  final out = <String>[];
+  for (final raw in preferred) {
+    final g = raw.trim();
+    if (g.isEmpty || !seen.add(g)) continue;
+    out.add(g);
+  }
+  final rest = <String>[];
+  for (final raw in extrasCatalogo) {
+    final g = raw.trim();
+    if (g.isEmpty || seen.contains(g)) continue;
+    seen.add(g);
+    rest.add(g);
+  }
+  rest.sort();
+  return [...out, ...rest];
 }
 
 /// Ordena slugs disponíveis pela sequência configurada das categorias.
