@@ -130,6 +130,31 @@ void main() {
       expect(find.textContaining('Carlos S.'), findsNothing);
     });
 
+    testWidgets('toolbar tem Nova OS à esquerda (como em Ordens)', (
+      tester,
+    ) async {
+      await pumpPainel(
+        tester,
+        const AgendaScreen(),
+        overrides: [
+          ...painelOverrides(user: painelUser(), repo: FakeOrdens()),
+          usuariosRepositoryProvider.overrideWithValue(
+            FakeUsuariosFull(seed: [fakeUser(id: 'p1', name: 'Bia Prof')]),
+          ),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('agenda-nova-os')), findsOneWidget);
+      expect(find.text('Nova OS'), findsOneWidget);
+      // À esquerda da data: o botão vem antes do chevron "Anterior".
+      final nova = tester.getTopLeft(find.byKey(const ValueKey('agenda-nova-os')));
+      final prev = tester.getTopLeft(find.byTooltip('Anterior'));
+      expect(nova.dx, lessThan(prev.dx));
+    });
+
     testWidgets(
       'legenda por profissional + avatar em OS atribuída (pedido do dono)',
       (tester) async {

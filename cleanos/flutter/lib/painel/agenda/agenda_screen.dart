@@ -233,6 +233,21 @@ class _Toolbar extends ConsumerWidget {
         runSpacing: ClxSpace.x2,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          // Pedido do dono: + Nova OS à esquerda da barra (paridade Ordens).
+          ClxButton(
+            key: const ValueKey('agenda-nova-os'),
+            label: 'Nova OS',
+            icon: Icons.add_rounded,
+            onPressed: () async {
+              final salva = await showOSForm(context);
+              if (salva != null) {
+                await notifier.load();
+                if (context.mounted) {
+                  showClxToast(context, 'OS criada.', type: ToastType.success);
+                }
+              }
+            },
+          ),
           // Navegação de período.
           Container(
             decoration: BoxDecoration(
