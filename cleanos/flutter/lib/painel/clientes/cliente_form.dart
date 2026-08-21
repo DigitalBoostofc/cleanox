@@ -318,6 +318,9 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
           final valor =
               double.tryParse(os.valorServico.replaceAll(',', '.')) ?? 0;
           try {
+            final isDupla = os.execucaoModo == ExecucaoModo.dupla &&
+                os.profissional2Id.isNotEmpty &&
+                os.profissional2Id != os.profissionalId;
             await ref.read(ordensRepositoryProvider).create({
               'cliente': novo.id,
               'servico': os.servicoId.isEmpty ? null : os.servicoId,
@@ -328,6 +331,10 @@ class _ClienteFormState extends ConsumerState<ClienteForm> {
               'duracao_min': os.duracaoMin,
               'valor_servico': valor,
               'profissional': hasProf ? os.profissionalId : null,
+              'profissional2': isDupla ? os.profissional2Id : null,
+              'execucao_modo': isDupla
+                  ? ExecucaoModo.dupla.wire
+                  : ExecucaoModo.solo.wire,
               'status': hasProf
                   ? OSStatus.atribuida.wire
                   : OSStatus.agendada.wire,

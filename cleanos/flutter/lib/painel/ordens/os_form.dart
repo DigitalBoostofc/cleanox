@@ -71,7 +71,24 @@ Future<OrdemServico?> showOSForm(BuildContext context, {OrdemServico? editing}) 
 
 /// Opções do seletor de Duração (min). A duração do profissional entra na lista
 /// se não estiver aqui (a prefilagem tem que ser SEMPRE visível — D9).
-const List<int> kDuracaoOpcoes = [15, 30, 45, 60, 90, 120, 150, 180, 240];
+/// Vai até 12h: serviço grande (vários estofados) passa de 4h.
+const List<int> kDuracaoOpcoes = [
+  15,
+  30,
+  45,
+  60,
+  90,
+  120,
+  150,
+  180,
+  240,
+  300,
+  360,
+  420,
+  480,
+  600,
+  720,
+];
 
 /// Abaixo desta largura de viewport os campos Data + Hora deixam de dividir a
 /// linha e passam a empilhar (cada um ocupa a largura toda). Espelha o

@@ -1,10 +1,10 @@
 /// os_inline_section.dart — Seção de OS embutida na criação de Cliente ("Gerar OS").
 ///
-/// Espelha a Nova OS ([OSForm]): serviço (prefila nome+valor), profissional
-/// (define atribuída/agendada no save), data livre, **hora livre HH:MM** (D10 —
-/// sem dropdown de slots de disponibilidade), **duração** prefilada com a do
-/// profissional (D9) e valor/observações. NÃO tem seletor de cliente — a OS é
-/// gerada para o cliente recém-criado.
+/// Espelha a Nova OS ([OSForm]): serviço (prefila nome+valor), forma solo/dupla,
+/// profissional(is) (define atribuída/agendada no save), data livre, **hora livre
+/// HH:MM** (D10 — sem dropdown de slots de disponibilidade), **duração** prefilada
+/// com a do profissional (D9) e valor/observações. NÃO tem seletor de cliente —
+/// a OS é gerada para o cliente recém-criado.
 ///
 /// Agenda estilo Google: sobrepor é permitido. Aviso amarelo de colisão não
 /// bloqueia o salvar (mesma `sobreposicoes` da grade). O estado dos campos vive
@@ -51,6 +51,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
 
   String _servicoId = '';
   String _profissionalId = '';
+  String _profissional2Id = '';
+  ExecucaoModo _execucaoModo = ExecucaoModo.solo;
   String _dataDate = ''; // yyyy-MM-dd (BRT)
 
   /// Local do serviço: `cliente` (padrão) ou `ponto_fisico`.
@@ -99,6 +101,8 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
 
   String get valorServico => _valor.text.trim();
   String get profissionalId => _profissionalId;
+  String get profissional2Id => _profissional2Id;
+  ExecucaoModo get execucaoModo => _execucaoModo;
   String get observacoes => _observacoes.text.trim();
 
   /// `cliente` | `ponto_fisico`
@@ -146,6 +150,17 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
     }
     final valor = double.tryParse(_valor.text.trim().replaceAll(',', '.'));
     if (valor == null || valor <= 0) errs['valor'] = 'Informe o valor';
+    if (_execucaoModo == ExecucaoModo.dupla) {
+      if (_profissionalId.isEmpty) {
+        errs['profissional'] = 'Dupla exige o profissional principal';
+      }
+      if (_profissional2Id.isEmpty) {
+        errs['profissional2'] = 'Escolha o 2º profissional da dupla';
+      } else if (_profissional2Id == _profissionalId) {
+        errs['profissional2'] =
+            'O 2º profissional precisa ser outra pessoa';
+      }
+    }
     setState(() {
       _errs
         ..clear()
@@ -255,9 +270,32 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
   }
 
   void _onProfissional(String v) {
-    setState(() => _profissionalId = v);
+    setState(() {
+      _profissionalId = v;
+      if (_profissional2Id.isNotEmpty && _profissional2Id == v) {
+        _profissional2Id = '';
+      }
+    });
     _fetchDisp();
     _fetchOcupados();
+  }
+
+  void _onExecucaoModo(ExecucaoModo m) {
+    setState(() {
+      _execucaoModo = m;
+      if (m == ExecucaoModo.solo) {
+        _profissional2Id = '';
+      }
+    });
+  }
+
+  void _onProfissional2(String v) {
+    setState(() {
+      _profissional2Id = v;
+      if (v.isNotEmpty && v == _profissionalId) {
+        _profissional2Id = '';
+      }
+    });
   }
 
   void _prefillDuracao() {
@@ -546,12 +584,48 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           controller: _tipoServico,
           hint: 'Ex: Sofá 3 lugares',
         ),
-        _label('Profissional'),
+        _label('Forma de prestação'),
+        DropdownButtonFormField<ExecucaoModo>(
+          key: const ValueKey('os-inline-execucao-modo'),
+          initialValue: _execucaoModo,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: [
+            for (final m in ExecucaoModo.all)
+              DropdownMenuItem(value: m, child: Text(m.label)),
+          ],
+          onChanged: !widget.enabled
+              ? null
+              : (v) {
+                  if (v != null) _onExecucaoModo(v);
+                },
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: ClxSpace.x1),
+          child: Text(
+            _execucaoModo == ExecucaoModo.dupla
+                ? 'Em dupla, a comissão de cada um é a metade '
+                    '(ex.: 30% → 15% para cada).'
+                : 'Um profissional executa sozinho e fica com a comissão integral.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: clx.ink3),
+          ),
+        ),
+        const SizedBox(height: ClxSpace.x4),
+        _label(
+          _execucaoModo == ExecucaoModo.dupla
+              ? 'Profissional principal'
+              : 'Profissional',
+        ),
         DropdownButtonFormField<String>(
           key: const ValueKey('os-inline-profissional'),
           initialValue: _profissionalId.isEmpty ? null : _profissionalId,
           isExpanded: true,
-          decoration: const InputDecoration(isDense: true),
+          decoration: InputDecoration(
+            isDense: true,
+            errorText: _errs['profissional'],
+          ),
           hint: const Text('— Não atribuído (Em agendamento) —'),
           items: [
             const DropdownMenuItem(
@@ -577,6 +651,38 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
             ).textTheme.bodySmall?.copyWith(color: clx.ink3),
           ),
         ),
+        if (_execucaoModo == ExecucaoModo.dupla) ...[
+          const SizedBox(height: ClxSpace.x4),
+          _label('2º profissional'),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('os-inline-profissional2'),
+            initialValue: _profissional2Id.isEmpty ? null : _profissional2Id,
+            isExpanded: true,
+            decoration: InputDecoration(
+              isDense: true,
+              errorText: _errs['profissional2'],
+            ),
+            hint: const Text('— Escolher parceiro —'),
+            items: [
+              const DropdownMenuItem(
+                value: '',
+                child: Text('— Escolher parceiro —'),
+              ),
+              for (final p in lk.profissionais)
+                if (p.id != _profissionalId)
+                  DropdownMenuItem(
+                    value: p.id,
+                    child: Text(
+                      p.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+            ],
+            onChanged: !widget.enabled
+                ? null
+                : (v) => _onProfissional2(v ?? ''),
+          ),
+        ],
         const SizedBox(height: ClxSpace.x4),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
