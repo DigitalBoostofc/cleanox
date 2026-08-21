@@ -267,6 +267,21 @@ void main() {
     });
   });
 
+  group('OSForm — nome do serviço', () {
+    testWidgets('não mostra o campo snapshot: o dropdown já é o nome', (
+      tester,
+    ) async {
+      await pumpPainel(
+        tester,
+        const OSForm(),
+        overrides: _overrides(disp: FakeDispFiltrada(const [])),
+      );
+      await _settle(tester);
+      expect(find.text('Serviço'), findsWidgets);
+      expect(find.text('Nome do serviço (snapshot)'), findsNothing);
+    });
+  });
+
   group('OSForm — Duração prefilada (D9)', () {
     testWidgets('escolher o profissional prefila a duração DELE, visível', (
       tester,
@@ -333,7 +348,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Carlos Silva').last);
       await tester.pumpAndSettle();
-      await tester.enterText(campos.at(3), '150'); // picker=0, tipo=1, hora=2
+      await tester.enterText(campos.at(2), '150'); // picker=0, hora=1
       await tester.pump();
       await _escolherHoje(tester);
 
