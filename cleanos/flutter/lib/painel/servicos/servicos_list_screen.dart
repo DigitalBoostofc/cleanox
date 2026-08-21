@@ -327,9 +327,19 @@ class _ToolbarState extends ConsumerState<_Toolbar> {
             for (final c in Categoria.values)
               (slug: c.wire, nome: categoriaLabel(c)),
           ];
+    // Grupos reais do catálogo (ativos) — fecha buraco quando a taxonomia
+    // ainda não tem um grupo que já existe nos serviços (ex.: promocao).
+    final extrasCatalogo = <String>{
+      for (final s
+          in ref.watch(servicosAtivosLeveProvider).asData?.value ??
+              const <ServicoPB>[])
+        if (state.categoria == null || s.categoria == state.categoria)
+          if (s.grupo.trim().isNotEmpty) s.grupo.trim(),
+    };
     final grupos = gruposDoFiltroServicos(
       categoriaSlug: state.categoria,
       arvore: arvore,
+      extrasCatalogo: extrasCatalogo,
     );
     final grupoSel = grupos.contains(state.grupo) ? state.grupo : null;
     return Container(

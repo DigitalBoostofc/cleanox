@@ -19,6 +19,13 @@ final taxonomiaArvoreProvider =
   return ref.watch(taxonomiaRepositoryProvider).load();
 });
 
+/// Catálogo ativo leve (só para montar o filtro de grupos da lista).
+/// Conjunto pequeno → `listAtivos` / getFullList OK.
+final servicosAtivosLeveProvider =
+    FutureProvider.autoDispose<List<ServicoPB>>((ref) async {
+  return ref.watch(servicosRepositoryProvider).listAtivos();
+});
+
 /// Serviços do grupo selecionado na engrenagem (filtro por slugs).
 final servicosDoGrupoProvider = FutureProvider.autoDispose
     .family<List<ServicoPB>, ({String categoria, String grupo})>((
