@@ -74,6 +74,11 @@ OrdemServico fakeOS() => OrdemServico(
 );
 
 void main() {
+  testWidgets('Gerar OS não mostra Nome do serviço (snapshot)', (tester) async {
+    await _pumpInline(tester);
+    expect(find.text('Nome do serviço (snapshot)'), findsNothing);
+  });
+
   testWidgets('Gerar OS: Dupla revela o 2º profissional', (tester) async {
     await _pumpInline(tester);
 

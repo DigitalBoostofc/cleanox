@@ -579,11 +579,6 @@ class OsInlineSectionState extends ConsumerState<OsInlineSection> {
           onChanged: !widget.enabled ? null : (v) => _onServico(v, servicos),
         ),
         const SizedBox(height: ClxSpace.x4),
-        _textField(
-          label: 'Nome do serviço (snapshot)',
-          controller: _tipoServico,
-          hint: 'Ex: Sofá 3 lugares',
-        ),
         _label('Forma de prestação'),
         DropdownButtonFormField<ExecucaoModo>(
           key: const ValueKey('os-inline-execucao-modo'),

@@ -1043,13 +1043,6 @@ class _OSFormState extends ConsumerState<OSForm> {
           ),
           const SizedBox(height: ClxSpace.x4),
 
-          // Nome do serviço (snapshot editável).
-          _textField(
-            label: 'Nome do serviço (snapshot)',
-            controller: _tipoServico,
-            hint: 'Ex: Sofá 3 lugares',
-          ),
-
           // Profissional.
           _label('Forma de prestação'),
           DropdownButtonFormField<ExecucaoModo>(

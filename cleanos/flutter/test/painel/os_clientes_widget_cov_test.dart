@@ -730,7 +730,7 @@ void main() {
   });
 }
 
-/// Índice dos `TextField` do [OSForm] (0 = busca de cliente, 1 = snapshot,
+/// Índice dos `TextField` do [OSForm] (0 = busca de cliente, 1 = hora,
 /// 2 = valor, 3 = observações).
 Finder _osFieldAt(WidgetTester tester, int i) => find
     .descendant(of: find.byType(OSForm), matching: find.byType(TextField))
