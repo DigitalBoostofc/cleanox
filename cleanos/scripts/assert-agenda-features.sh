@@ -50,6 +50,10 @@ check "painel/agenda/agenda_screen.dart" \
   "showOSDetail" \
   "toque no evento abre showOSDetail (não o dialog pobre)"
 
+check "painel/agenda/agenda_screen.dart" \
+  "agenda-nova-os" \
+  "toolbar com botão + Nova OS à esquerda"
+
 check "painel/ordens/os_detail.dart" \
   "_editavel" \
   "Editar OS também em concluída (_editavel)"
